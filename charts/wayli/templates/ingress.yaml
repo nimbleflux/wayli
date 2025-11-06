@@ -25,22 +25,11 @@ spec:
   {{- end }}
   {{- if or .Values.ingress.tls .Values.ingress.extraTls }}
   tls:
-    {{- if .Values.ingress.tls }}
-    - hosts:
-        - {{ .Values.ingress.hostname | quote }}
-        {{- range .Values.ingress.extraHosts }}
-        - {{ .name | quote }}
-        {{- end }}
-      {{- if .Values.ingress.selfSigned }}
-      secretName: {{ printf "%s-tls" .Values.ingress.hostname }}
-      {{- else if .Values.ingress.secrets }}
-      secretName: {{ (index .Values.ingress.secrets 0).name }}
-      {{- else }}
-      secretName: {{ printf "%s-tls" .Values.ingress.hostname }}
-      {{- end }}
+    {{- with .Values.ingress.tls }}
+    {{- toYaml . | nindent 4 }}
     {{- end }}
-    {{- if .Values.ingress.extraTls }}
-    {{- toYaml .Values.ingress.extraTls | nindent 4 }}
+    {{- with .Values.ingress.extraTls }}
+    {{- toYaml . | nindent 4 }}
     {{- end }}
   {{- end }}
   rules:
@@ -68,5 +57,8 @@ spec:
                 name: {{ include "wayli.fullname" $ }}-web
                 port:
                   number: {{ $.Values.web.service.port }}
+    {{- end }}
+    {{- with .Values.ingress.extraRules }}
+    {{- toYaml . | nindent 4 }}
     {{- end }}
 {{- end }}

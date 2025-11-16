@@ -118,7 +118,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		const { data, error } = await locals.supabase.from('table').select('*');
+		const { data, error } = await locals.fluxbase.from('table').select('*');
 
 		if (error) {
 			return json({ error: error.message }, { status: 500 });
@@ -136,9 +136,9 @@ export const GET: RequestHandler = async ({ locals }) => {
 ```typescript
 export const GET: RequestHandler = createGetHandler(
 	async (context) => {
-		const { user, supabase } = context;
+		const { user, fluxbase } = context;
 
-		const { data, error } = await supabase.from('table').select('*').eq('user_id', user!.id);
+		const { data, error } = await fluxbase.from('table').select('*').eq('user_id', user!.id);
 
 		if (error) throw error;
 

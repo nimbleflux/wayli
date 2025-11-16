@@ -1,9 +1,10 @@
 // web/src/lib/services/session/session-manager.service.ts
 // Global session management service with automatic token refresh and auth state sync
 
-import { supabase } from '$lib/supabase';
+import { fluxbase } from '$lib/fluxbase';
 import { userStore, sessionStore } from '$lib/stores/auth';
 import { goto } from '$app/navigation';
+import { startJobRealtime, stopJobRealtime } from '$lib/stores/job-store';
 
 export class SessionManagerService {
 	private static instance: SessionManagerService;
@@ -41,7 +42,7 @@ export class SessionManagerService {
 
 		// Set up auth state change listener (only once)
 		if (!this.authListenerSet) {
-			supabase.auth.onAuthStateChange((event: string, session: any) => {
+			fluxbase.auth.onAuthStateChange((event: string, session: any) => {
 				console.log(
 					`🔐 [SessionManager] Auth state changed: ${event}`,
 					session ? 'session present' : 'no session'
@@ -76,18 +77,12 @@ export class SessionManagerService {
 
 		// Initialize with current session - let auth state change events handle session management
 		try {
-			const {
-				data: { session },
-				error
-			} = await supabase.auth.getSession();
-			if (error) {
-				console.error('❌ [SessionManager] Error getting initial session:', error);
-				// Don't clear stores on error - let auth state change events handle it
-			} else if (session) {
+			const { data } = await fluxbase.auth.getSession();
+			if (data && data.session) {
 				console.log('✅ [SessionManager] Initial session found during setup');
 				// Don't manually start session management - auth state change events will handle it
 				// But do update the stores with the found session
-				this.updateAuthStores(session);
+				this.updateAuthStores(data.session);
 			} else {
 				console.log(
 					'ℹ️ [SessionManager] No initial session found - waiting for auth state changes'
@@ -153,6 +148,9 @@ export class SessionManagerService {
 		this.refreshInterval = setInterval(async () => {
 			await this.checkAndRefreshSession();
 		}, this.REFRESH_INTERVAL_MS);
+
+		// Start realtime job monitoring
+		startJobRealtime();
 	}
 
 	/**
@@ -165,6 +163,9 @@ export class SessionManagerService {
 			clearInterval(this.refreshInterval);
 			this.refreshInterval = null;
 		}
+
+		// Stop realtime job monitoring
+		stopJobRealtime();
 	}
 
 	/**
@@ -181,21 +182,15 @@ export class SessionManagerService {
 			}
 
 			// Get current session
-			const {
-				data: { session },
-				error
-			} = await supabase.auth.getSession();
+			const { data } = await fluxbase.auth.getSession();
 
-			if (error) {
-				console.error('❌ [SessionManager] Error checking session:', error);
-				return;
-			}
-
-			if (!session) {
+			if (!data || !data.session) {
 				console.log('🚪 [SessionManager] No session found, user may have been logged out');
 				await this.handleSessionExpiry();
 				return;
 			}
+
+			const session = data.session;
 
 			// Check if token is close to expiry (refresh 10 minutes before expiry)
 			const expiresAt = session.expires_at;
@@ -206,14 +201,18 @@ export class SessionManagerService {
 				// 10 minutes
 				console.log('🔄 [SessionManager] Token expires soon, refreshing...');
 
-				const { data, error: refreshError } = await supabase.auth.refreshSession();
-
-				if (refreshError) {
+				try {
+					const { data, error } = await fluxbase.auth.refreshSession();
+					if (error) {
+						console.error('❌ [SessionManager] Failed to refresh token:', error);
+						await this.handleSessionExpiry();
+					} else if (data?.session) {
+						console.log('✅ [SessionManager] Token refreshed successfully');
+						this.updateAuthStores(data.session);
+					}
+				} catch (refreshError) {
 					console.error('❌ [SessionManager] Failed to refresh token:', refreshError);
 					await this.handleSessionExpiry();
-				} else if (data.session) {
-					console.log('✅ [SessionManager] Token refreshed successfully');
-					this.updateAuthStores(data.session);
 				}
 			}
 		} catch (error) {
@@ -229,7 +228,7 @@ export class SessionManagerService {
 
 		try {
 			// Clear client-side session
-			await supabase.auth.signOut();
+			await fluxbase.auth.signOut();
 		} catch (error) {
 			console.warn('⚠️ [SessionManager] Error during signout:', error);
 		}
@@ -284,15 +283,15 @@ export class SessionManagerService {
 		try {
 			console.log('🔄 [SessionManager] Force refreshing session...');
 
-			const { data, error } = await supabase.auth.refreshSession();
+			const { data, error } = await fluxbase.auth.refreshSession();
 
 			if (error) {
-				console.error('❌ [SessionManager] Force refresh failed:', error);
+				console.error('❌ [SessionManager] Force refresh error:', error);
 				await this.handleSessionExpiry();
 				return false;
 			}
 
-			if (data.session) {
+			if (data?.session) {
 				console.log('✅ [SessionManager] Force refresh successful');
 				this.updateAuthStores(data.session);
 				this.updateLastActivity();
@@ -302,6 +301,7 @@ export class SessionManagerService {
 			return false;
 		} catch (error) {
 			console.error('❌ [SessionManager] Force refresh error:', error);
+			await this.handleSessionExpiry();
 			return false;
 		}
 	}
@@ -318,20 +318,13 @@ export class SessionManagerService {
 	 */
 	async isAuthenticated(): Promise<boolean> {
 		try {
-			// Check Supabase session directly
-			const {
-				data: { session },
-				error
-			} = await supabase.auth.getSession();
-			if (error) {
-				console.error('❌ [SessionManager] Error checking Supabase session:', error);
-				return false;
-			}
+			// Check Fluxbase session directly
+			const { data } = await fluxbase.auth.getSession();
 
-			if (session && session.user) {
-				console.log('🔐 [SessionManager] Authentication confirmed via Supabase');
+			if (data && data.session && data.session.user) {
+				console.log('🔐 [SessionManager] Authentication confirmed via Fluxbase');
 				// Update stores with the found session if they're empty
-				this.updateAuthStores(session);
+				this.updateAuthStores(data.session);
 				return true;
 			}
 
@@ -348,11 +341,7 @@ export class SessionManagerService {
 	 */
 	async getCurrentSession() {
 		try {
-			const {
-				data: { session },
-				error
-			} = await supabase.auth.getSession();
-			return error ? null : session;
+			return fluxbase.auth.getSession();
 		} catch {
 			return null;
 		}

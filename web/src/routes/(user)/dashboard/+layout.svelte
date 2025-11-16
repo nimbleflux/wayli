@@ -8,7 +8,7 @@
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
 	import { sessionManager } from '$lib/services/session';
 	import { userStore, sessionStore } from '$lib/stores/auth';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
 
@@ -28,7 +28,7 @@
 	async function handleSignout() {
 		try {
 			// Clear client session first to avoid stale UI
-			await supabase.auth.signOut();
+			await fluxbase.auth.signOut();
 			userStore.set(null);
 			sessionStore.set(null);
 			// Redirect via full reload to ensure all components re-mount without auth state
@@ -50,7 +50,7 @@
 				return;
 			}
 
-			const { data: userProfile, error } = await supabase
+			const { data: userProfile, error } = await fluxbase
 				.from('user_profiles')
 				.select('role')
 				.eq('id', $userStore.id)
@@ -74,7 +74,7 @@
 	// Load user preferences and apply language
 	async function loadUserPreferences() {
 		try {
-			const session = await supabase.auth.getSession();
+			const session = await fluxbase.auth.getSession();
 			if (!session.data.session) return;
 
 			const serviceAdapter = new ServiceAdapter({ session: session.data.session });

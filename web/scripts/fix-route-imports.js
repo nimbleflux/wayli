@@ -20,8 +20,8 @@ const IMPORT_MAPPINGS = [
 	// i18n - routes are client-side, so import from client
 	{ from: '$lib/i18n', to: '$lib/client/i18n' },
 
-	// Core supabase - routes are client-side, so import from shared
-	{ from: '$lib/core/supabase/client', to: '$lib/shared/supabase/client' },
+	// Core fluxbase - routes are client-side, so import from shared
+	{ from: '$lib/core/fluxbase/client', to: '$lib/shared/fluxbase/client' },
 
 	// Services - routes are client-side, so import from client
 	{ from: '$lib/services', to: '$lib/client/services' },

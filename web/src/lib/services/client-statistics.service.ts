@@ -1,7 +1,7 @@
 // src/lib/services/client-statistics.service.ts
 // Client-side statistics calculation service for processing tracker data incrementally
 
-import { supabase } from '$lib/supabase';
+import { fluxbase } from '$lib/fluxbase';
 import {
 	detectEnhancedMode,
 	createEnhancedModeContext,
@@ -17,7 +17,7 @@ import {
 import type { GeocodeGeoJSONFeature } from '$lib/utils/geojson-converter';
 import { TransportDetectionReason } from '$lib/types/transport-mode.types';
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { FluxbaseClient } from '@fluxbase/sdk';
 
 // Type for visit data tracking
 export interface VisitData {
@@ -109,7 +109,7 @@ export type ProgressCallback = (progress: {
 export type ErrorCallback = (error: Error, canRetry: boolean) => void;
 
 export class ClientStatisticsService {
-	private supabase: SupabaseClient;
+	private fluxbase: FluxbaseClient;
 	private statistics: ClientStatistics;
 	private transportContext: EnhancedModeContext;
 	private isProcessing: boolean = false;
@@ -121,8 +121,8 @@ export class ClientStatisticsService {
 	private rawDataPoints: TrackerDataPoint[] = [];
 	private isUsingSampledData: boolean = false;
 
-	constructor(supabaseClient?: SupabaseClient) {
-		this.supabase = supabaseClient || supabase;
+	constructor(fluxbaseClient?: FluxbaseClient) {
+		this.fluxbase = fluxbaseClient || fluxbase;
 		this.statistics = this.initializeStatistics();
 		this.transportContext = this.initializeTransportContext();
 	}
@@ -190,7 +190,7 @@ export class ClientStatisticsService {
 	async getTotalCount(userId: string, startDate?: string, endDate?: string): Promise<number> {
 		console.log('📊 Getting total count for user:', userId);
 
-		let query = this.supabase
+		let query = this.fluxbase
 			.from('tracker_data')
 			.select('*', { count: 'exact', head: true })
 			.eq('user_id', userId)
@@ -451,7 +451,7 @@ export class ClientStatisticsService {
 		startDate?: string,
 		endDate?: string
 	): Promise<TrackerDataPoint[]> {
-		let query = this.supabase
+		let query = this.fluxbase
 			.from('tracker_data')
 			.select(
 				`
@@ -515,7 +515,7 @@ export class ClientStatisticsService {
 			const {
 				data: { session },
 				error: sessionError
-			} = await this.supabase.auth.getSession();
+			} = await this.fluxbase.auth.getSession();
 			if (sessionError || !session) {
 				throw new Error('User not authenticated');
 			}
@@ -588,8 +588,8 @@ export class ClientStatisticsService {
 	 */
 	private getFunctionsUrl(): string {
 		// Use environment variable or default to local development
-		const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:54321';
-		return `${supabaseUrl}/functions/v1`;
+		const fluxbaseUrl = import.meta.env.PUBLIC_FLUXBASE_BASE_URL || 'http://localhost:8080';
+		return `${fluxbaseUrl}/functions/v1`;
 	}
 
 	/**
@@ -933,8 +933,8 @@ export class ClientStatisticsService {
 		this.statistics.geocodingStats.successRate =
 			this.statistics.geocodingStats.total > 0
 				? Math.round(
-						(this.statistics.geocodingStats.geocoded / this.statistics.geocodingStats.total) * 100
-					)
+					(this.statistics.geocodingStats.geocoded / this.statistics.geocodingStats.total) * 100
+				)
 				: 0;
 
 		// Filter out places and countries with short visits

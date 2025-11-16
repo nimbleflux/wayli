@@ -168,7 +168,7 @@ We recognize security researchers who help improve Wayli's security:
 
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
 - [SvelteKit Security](https://kit.svelte.dev/docs/security)
-- [Supabase Security](https://supabase.com/docs/guides/security)
+- [Fluxbase Security](https://fluxbase.eu/docs/guides/security)
 - [TypeScript Security](https://www.typescriptlang.org/docs/handbook/security.html)
 
 ### For Users

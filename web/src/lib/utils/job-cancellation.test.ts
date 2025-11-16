@@ -6,8 +6,8 @@ import { checkJobCancellation } from './job-cancellation';
 // Mutable stub to control worker return value without importing env/config
 const workerStub = { status: 'running' } as { status: 'running' | 'cancelled' };
 
-vi.mock('../../worker/supabase', () => ({
-	supabase: {
+vi.mock('../../worker/fluxbase', () => ({
+	fluxbase: {
 		from: () => ({
 			select: () => ({
 				eq: () => ({

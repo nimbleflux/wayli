@@ -5,7 +5,7 @@
 
 	import { translate } from '$lib/i18n';
 	import { userStore } from '$lib/stores/auth';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase, config } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -42,33 +42,33 @@
 	async function checkServerSettings() {
 		isLoadingSettings = true;
 		try {
-			// Use Supabase client to invoke edge function with anon key
-			const { data, error } = await supabase.functions.invoke('server-settings', {
-				method: 'GET'
+			// Read public Wayli settings from app.settings (RLS allows anonymous read)
+			const publicSettings = await fluxbase.settings.getMany([
+				'wayli.is_setup_complete',
+				'wayli.server_name'
+			]);
+
+			// The value is wrapped in an object: {"value": false}
+			const is_setup_complete = publicSettings['wayli.is_setup_complete']?.value === true
+				|| publicSettings['wayli.is_setup_complete']?.value === 'true';
+
+			console.log('🔧 [SIGNUP] Settings extracted:', {
+				is_setup_complete,
+				publicSettings
 			});
 
-			console.log('🔧 [SIGNUP] Raw response:', { data, error });
+			// First user can always sign up
+			isFirstUser = !is_setup_complete;
 
-			if (!error && data) {
-				// Handle the response - data might already be unwrapped or might be wrapped in { data: ... }
-				const settings = data.data || data;
-				console.log('🔧 [SIGNUP] Settings extracted:', settings);
+			// Don't check signup_enabled from admin settings - that requires authentication
+			// If signup is disabled via app settings, the backend will reject the attempt
+			registrationDisabled = false;
 
-				// Registration enabled/disabled is now handled by Supabase Auth config
-				// We only need to check setup status for first user flow
-				registrationDisabled = false;
-				isFirstUser = !settings.is_setup_complete;
-				console.log('🔧 [SIGNUP] Server settings applied:', {
-					is_setup_complete: settings.is_setup_complete,
-					registrationDisabled,
-					isFirstUser
-				});
-			} else {
-				console.error('Failed to fetch server settings:', error);
-				// Default to allowing registration if we can't fetch settings
-				registrationDisabled = false;
-				isFirstUser = false;
-			}
+			console.log('🔧 [SIGNUP] Server settings applied:', {
+				is_setup_complete,
+				registrationDisabled,
+				isFirstUser
+			});
 		} catch (error) {
 			console.error('Error checking server settings:', error);
 			// Default to allowing registration if we can't fetch settings
@@ -89,7 +89,7 @@
 		(async () => {
 			const {
 				data: { user }
-			} = await supabase.auth.getUser();
+			} = await fluxbase.auth.getUser();
 			console.log('🔐 [SIGNUP] User check:', user ? `Found - ${user.email}` : 'None');
 
 			if (user) {
@@ -110,7 +110,7 @@
 				hasRedirected = true;
 
 				// Check if this is a new user who needs onboarding
-				const { data: profile } = await supabase
+				const { data: profile } = await fluxbase
 					.from('user_profiles')
 					.select('onboarding_completed, first_login_at')
 					.eq('id', user.id)
@@ -119,7 +119,7 @@
 				// If first-time user, redirect to onboarding
 				if (!profile?.onboarding_completed) {
 					if (!profile?.first_login_at) {
-						await supabase
+						await fluxbase
 							.from('user_profiles')
 							.update({ first_login_at: new Date().toISOString() })
 							.eq('id', user.id);
@@ -171,7 +171,7 @@
 		loading = true;
 
 		try {
-			const { data, error } = await supabase.auth.signUp({
+			const { data, error } = await fluxbase.auth.signUp({
 				email,
 				password,
 				options: {
@@ -186,7 +186,7 @@
 
 			if (error) throw error;
 
-			// Check if email verification is required based on Supabase Auth's response
+			// Check if email verification is required based on Fluxbase Auth's response
 			// If there's no session, email verification is required
 			// If there's a session, the user is auto-confirmed and logged in
 			if (!data.session && data.user && !data.user.email_confirmed_at) {

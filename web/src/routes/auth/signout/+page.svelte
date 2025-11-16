@@ -4,7 +4,7 @@
 	import { goto } from '$app/navigation';
 
 	import { userStore, sessionStore } from '$lib/stores/auth';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 
 	onMount(async () => {
 		console.log('[Signout] Client-side signout page mounted - clearing stores');
@@ -16,13 +16,13 @@
 
 			console.log('[Signout] Client stores cleared');
 
-			// Call the Edge Function to complete server-side signout
-			const { error } = await supabase.functions.invoke('auth-signout');
+			// Sign out using Fluxbase SDK directly
+			const { error } = await fluxbase.auth.signOut();
 
 			if (error) {
-				console.error('[Signout] Edge Function error:', error);
+				console.error('[Signout] SDK signOut error:', error);
 			} else {
-				console.log('[Signout] Edge Function signout successful');
+				console.log('[Signout] SDK signOut successful');
 			}
 		} catch (error) {
 			console.error('[Signout] Error during signout:', error);

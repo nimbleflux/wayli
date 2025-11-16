@@ -32,11 +32,11 @@ export interface ExportJob {
 }
 
 export class ExportService {
-	private static supabase = createWorkerClient();
+	private static fluxbase = createWorkerClient();
 
 	static async createExportJob(userId: string, options: ExportOptions): Promise<ExportJob> {
 		// Check for existing queued or running export job
-		const { data: existingJobs, error: existingError } = await this.supabase
+		const { data: existingJobs, error: existingError } = await this.fluxbase
 			.from('jobs')
 			.select('id, status')
 			.eq('created_by', userId)
@@ -86,7 +86,7 @@ export class ExportService {
 	}
 
 	static async getExportJob(jobId: string, userId: string): Promise<ExportJob | null> {
-		const { data: job, error } = await this.supabase
+		const { data: job, error } = await this.fluxbase
 			.from('jobs')
 			.select('*')
 			.eq('id', jobId)
@@ -136,7 +136,7 @@ export class ExportService {
 	}
 
 	static async getUserExportJobs(userId: string): Promise<ExportJob[]> {
-		const { data: jobs, error } = await this.supabase
+		const { data: jobs, error } = await this.fluxbase
 			.from('jobs')
 			.select('*')
 			.eq('created_by', userId)
@@ -232,7 +232,7 @@ export class ExportService {
 			return null;
 		}
 
-		const { data } = await this.supabase.storage
+		const { data } = await this.fluxbase.storage
 			.from('exports')
 			.createSignedUrl(filePath, 3600, { download: true }); // 1 hour expiry
 
@@ -242,10 +242,10 @@ export class ExportService {
 
 		// Replace internal hostname/port with public URL
 		const signedUrl = data.signedUrl;
-		const publicUrl = process.env.PUBLIC_SUPABASE_URL;
+		const publicUrl = process.env.PUBLIC_FLUXBASE_BASE_URL;
 
 		if (!publicUrl) {
-			console.warn('⚠️  PUBLIC_SUPABASE_URL not set, returning signed URL as-is');
+			console.warn('⚠️  PUBLIC_FLUXBASE_BASE_URL not set, returning signed URL as-is');
 			return signedUrl;
 		}
 
@@ -268,7 +268,7 @@ export class ExportService {
 	}
 
 	static async cleanupExpiredExports(): Promise<number> {
-		const { data, error } = await this.supabase.rpc('cleanup_expired_exports');
+		const { data, error } = await this.fluxbase.rpc('cleanup_expired_exports');
 
 		if (error) throw error;
 		return data || 0;

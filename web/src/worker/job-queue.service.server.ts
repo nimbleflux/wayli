@@ -1,11 +1,11 @@
 import { getWorkerConfig } from '../shared/config/node-environment';
-import { supabase } from './supabase';
+import { fluxbase } from './fluxbase';
 
 import type { Job, JobType, JobStatus, JobPriority, JobConfig } from '../lib/types/job-queue.types';
 
 export class JobQueueService {
 	private static config: JobConfig = getWorkerConfig();
-	private static supabase = supabase;
+	private static fluxbase = fluxbase;
 
 	static setConfig(newConfig: Partial<JobConfig>): void {
 		this.config = { ...this.config, ...newConfig };
@@ -21,7 +21,7 @@ export class JobQueueService {
 		priority: JobPriority = 'normal',
 		userId: string
 	): Promise<Job> {
-		const { data: job, error } = await this.supabase
+		const { data: job, error } = await this.fluxbase
 			.from('jobs')
 			.insert({
 				type,
@@ -42,7 +42,7 @@ export class JobQueueService {
 
 	static async getNextJob(workerId: string): Promise<Job | null> {
 		// Use a transaction-like approach to ensure atomic job claiming
-		const { data: job, error } = await this.supabase
+		const { data: job, error } = await this.fluxbase
 			.from('jobs')
 			.select('*')
 			.in('status', ['queued'])
@@ -57,7 +57,7 @@ export class JobQueueService {
 			data: updatedJob,
 			error: updateError,
 			count
-		} = await this.supabase
+		} = await this.fluxbase
 			.from('jobs')
 			.update({
 				status: 'running',
@@ -103,13 +103,13 @@ export class JobQueueService {
 		};
 		if (result) update.result = result;
 
-		const { error } = await this.supabase.from('jobs').update(update).eq('id', jobId);
+		const { error } = await this.fluxbase.from('jobs').eq('id', jobId).update(update);
 
 		if (error) throw error;
 	}
 
 	static async completeJob(jobId: string, result?: Record<string, unknown>): Promise<void> {
-		const { error } = await this.supabase
+		const { error } = await this.fluxbase
 			.from('jobs')
 			.update({
 				status: 'completed',
@@ -125,7 +125,7 @@ export class JobQueueService {
 
 	static async failJob(jobId: string, error: string): Promise<void> {
 		// Mark job as failed immediately without retrying
-		const { error: updateError } = await this.supabase
+		const { error: updateError } = await this.fluxbase
 			.from('jobs')
 			.update({
 				status: 'failed',
@@ -138,7 +138,7 @@ export class JobQueueService {
 	}
 
 	static async cancelJob(jobId: string): Promise<void> {
-		const { error } = await this.supabase
+		const { error } = await this.fluxbase
 			.from('jobs')
 			.update({
 				status: 'cancelled',
@@ -150,7 +150,7 @@ export class JobQueueService {
 	}
 
 	static async getJobStatus(jobId: string): Promise<string | null> {
-		const { data: job, error } = await this.supabase
+		const { data: job, error } = await this.fluxbase
 			.from('jobs')
 			.select('status')
 			.eq('id', jobId)
@@ -170,7 +170,7 @@ export class JobQueueService {
 		page: number = 1,
 		limit: number = 20
 	): Promise<{ jobs: Job[]; total: number }> {
-		let query = this.supabase.from('jobs').select('*', { count: 'exact' });
+		let query = this.fluxbase.from('jobs').select('*', { count: 'exact' });
 
 		if (status) query = query.eq('status', status);
 		if (userId) query = query.eq('created_by', userId);
@@ -196,7 +196,7 @@ export class JobQueueService {
 		failed: number;
 		cancelled: number;
 	}> {
-		const { data, error } = await this.supabase.from('jobs').select('status');
+		const { data, error } = await this.fluxbase.from('jobs').select('status');
 
 		if (error) throw error;
 
@@ -236,7 +236,7 @@ export class JobQueueService {
 	static async cleanupStaleJobs(): Promise<void> {
 		const timeoutThreshold = new Date(Date.now() - this.config.jobTimeout);
 		// Find all running jobs that have not been updated for longer than jobTimeout
-		const { data: staleJobs, error: fetchError } = await this.supabase
+		const { data: staleJobs, error: fetchError } = await this.fluxbase
 			.from('jobs')
 			.select('*')
 			.eq('status', 'running')
@@ -249,7 +249,7 @@ export class JobQueueService {
 			const maxRetries = this.config.jobTimeout;
 			if (currentRetries < maxRetries) {
 				// Re-queue the job
-				const { error: retryError } = await this.supabase
+				const { error: retryError } = await this.fluxbase
 					.from('jobs')
 					.update({
 						status: 'queued',
@@ -264,7 +264,7 @@ export class JobQueueService {
 				if (retryError) throw retryError;
 			} else {
 				// Mark as failed
-				const { error: failError } = await this.supabase
+				const { error: failError } = await this.fluxbase
 					.from('jobs')
 					.update({
 						status: 'failed',

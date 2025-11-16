@@ -55,47 +55,6 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
         {{- include "wayli.initContainers.waitForInfrastructure" . | nindent 8 }}
-        {{- if .Values.web.initContainers.migrations.enabled }}
-        - name: prepare-init-db
-          image: {{ include "wayli.image" . }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command:
-            - /bin/sh
-            - -c
-          args:
-            - |
-              for file in supabase/migrations/*; do
-                filename=$(basename "$file")
-                cp -v "$file" "/sql/V${filename}"
-              done
-          volumeMounts:
-            - name: ephemeral
-              mountPath: /sql
-        - name: prepare-migrate-db
-          image: {{ include "wayli.initContainer.flyway.image" . }}
-          imagePullPolicy: {{ .Values.web.initContainers.migrations.flywayImage.pullPolicy }}
-          env:
-            - name: FLYWAY_USER
-              value: {{ include "wayli.supabase.dbUser" . | quote }}
-            - name: FLYWAY_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "wayli.supabaseSecretName" . }}
-                  key: {{ .Values.supabase.db.postgres.secretKeys.userPasswordKey }}
-            - name: DB_HOST
-              value: "{{ include "wayli.supabase.dbHost" . }}.{{ .Release.Namespace }}.svc.cluster.local"
-            - name: FLYWAY_URL
-              value: jdbc:postgresql://$(DB_HOST):{{ include "wayli.supabase.dbPort" . }}/{{ include "wayli.supabase.dbName" . }}
-          args:
-            - migrate
-            - -locations=filesystem:/flyway/sql
-            - -schemas=public
-            - -baselineOnMigrate=false
-            - -validateOnMigrate=false
-          volumeMounts:
-            - name: ephemeral
-              mountPath: /flyway/sql
-        {{- end }}
       containers:
         - name: wayli-web
           image: {{ include "wayli.image" . }}
@@ -126,23 +85,23 @@ spec:
               value: {{ .Values.web.env.host | quote }}
             - name: PORT
               value: {{ .Values.web.env.port | quote }}
-            - name: SUPABASE_URL
-              value: {{ include "wayli.supabase.url" . | quote }}
-            - name: SUPABASE_ANON_KEY
+            - name: FLUXBASE_BASE_URL
+              value: {{ include "wayli.fluxbase.url" . | quote }}
+            - name: FLUXBASE_ANON_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "wayli.supabaseSecretName" . }}
-                  key: {{ .Values.supabase.global.supabase.secretKeys.anonKey }}
-            - name: SUPABASE_SERVICE_ROLE_KEY
+                  name: {{ include "wayli.fluxbaseSecretName" . }}
+                  key: {{ .Values.fluxbase.global.fluxbase.secretKeys.anonKey }}
+            - name: FLUXBASE_SERVICE_ROLE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "wayli.supabaseSecretName" . }}
-                  key: {{ .Values.supabase.global.supabase.secretKeys.serviceRoleKey }}
+                  name: {{ include "wayli.fluxbaseSecretName" . }}
+                  key: {{ .Values.fluxbase.global.fluxbase.secretKeys.serviceRoleKey }}
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "wayli.supabaseSecretName" . }}
-                  key: {{ .Values.supabase.global.supabase.secretKeys.jwtSecret }}
+                  name: {{ include "wayli.fluxbaseSecretName" . }}
+                  key: {{ .Values.fluxbase.global.fluxbase.secretKeys.jwtSecret }}
             {{- if .Values.web.extraEnvVars }}
             {{- toYaml .Values.web.extraEnvVars | nindent 12 }}
             {{- end }}

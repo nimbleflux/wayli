@@ -1,6 +1,6 @@
 # Docker Compose Deployment for Wayli
 
-This directory contains Docker Compose configuration files for deploying Wayli along with Supabase as the backend.
+This directory contains Docker Compose configuration files for deploying Wayli along with Fluxbase as the backend.
 
 ## Prerequisites
 
@@ -11,32 +11,11 @@ This directory contains Docker Compose configuration files for deploying Wayli a
 
 ## Quick Start
 
-> **Note:** Deployment manifests for Wayli and Supabase will be added in the next phase. This README will be updated with complete deployment instructions once the configuration files are in place.
+> **Note:** Deployment manifests for Wayli and Fluxbase will be added in the next phase. This README will be updated with complete deployment instructions once the configuration files are in place.
 
 ### 1. Configuration
 
-#### Option A: Interactive Setup (Recommended)
-
-Use the provided script to interactively configure your deployment:
-
-```bash
-cd deploy/docker-compose
-./generate-env.sh
-```
-
-**Prerequisites**: `openssl` and `docker` must be installed.
-
-This interactive script will:
-- Prompt for all configuration values (domains, ports, etc.)
-- Use existing values from `.env` as defaults (just press Enter to keep)
-- Generate secure random values for all passwords and secrets
-- Automatically generate JWT tokens (ANON_KEY and SERVICE_ROLE_KEY) using Docker
-- Optionally configure SMTP credentials
-- Create a timestamped backup if `.env` already exists
-
-The script makes setup easy - just answer the prompts or press Enter for sensible defaults!
-
-#### Option B: Manual Configuration
+#### Manual Configuration
 
 Copy the example environment file and configure it manually:
 
@@ -69,8 +48,8 @@ JWT_SECRET=$(openssl rand -base64 48)
 ```
 
 For `ANON_KEY` and `SERVICE_ROLE_KEY`:
-- **Option 1**: Use the generate-env.sh script (handles this automatically)
-- **Option 2**: Generate manually at https://supabase.com/docs/guides/self-hosting/docker#generate-api-keys
+- Generate using the Fluxbase token generator at https://fluxbase.eu/docs/guides/self-hosting/docker#generate-api-keys
+- Or use a JWT library to generate tokens with the JWT_SECRET
 
 ### 2. Deploy
 
@@ -96,7 +75,7 @@ docker-compose logs -f wayli
 
 Once deployed, access Wayli at:
 - **Application**: http://localhost:3000
-- **Supabase Studio**: http://localhost:8000
+- **Fluxbase Studio**: http://localhost:8000
 
 ## Configuration
 
@@ -118,15 +97,15 @@ NODE_ENV=production
 # Site URL - Used for SvelteKit CSRF protection and auth redirects
 SITE_URL=http://localhost:3000
 
-# Supabase Public URL - API endpoint for Supabase
-SUPABASE_PUBLIC_URL=http://localhost:8000
+# Fluxbase Public URL - API endpoint for Fluxbase
+FLUXBASE_PUBLIC_URL=http://localhost:8000
 
-# Supabase CORS - Automatically derived from SITE_URL by generate-env.sh
+# Fluxbase CORS - Automatically derived from SITE_URL by generate-env.sh
 # For Edge Functions - must NOT include protocol (http:// or https://)
-SUPABASE_CORS_ALLOW_ORIGIN=wayli.app,localhost:3000
+FLUXBASE_CORS_ALLOW_ORIGIN=wayli.app,localhost:3000
 ```
 
-### Supabase Secrets
+### Fluxbase Secrets
 
 ```env
 # Database password
@@ -155,7 +134,7 @@ The Docker Compose stack includes:
 
 - **Wayli Web**: Main application frontend
 - **Wayli Worker**: Background job processor
-- **Supabase**: Complete backend stack including:
+- **Fluxbase**: Complete backend stack including:
   - PostgreSQL database
   - Authentication service
   - Storage service
@@ -181,7 +160,7 @@ All data is persisted using Docker named volumes for better performance and port
 - `db-data`: PostgreSQL database data
 - `db-config`: PostgreSQL configuration including pgsodium encryption keys
 - `minio-data`: MinIO (S3-compatible) object storage data
-- `storage-data`: Supabase Storage service cache (optional, mainly uses MinIO)
+- `storage-data`: Fluxbase Storage service cache (optional, mainly uses MinIO)
 - `flyway-sql`: Temporary volume for migration files
 - Database initialization scripts use bind mounts to local directories
 

@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh run list --workflow=release.yml --limit 5)",
+      "Bash(docker compose logs wayli-worker --tail 100)",
+      "Bash(for:*)",
+      "Bash(do echo \"File: $file\")",
+      "Bash(done)",
+      "Bash(find:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,4 +1,4 @@
-import { supabase } from '../../worker/supabase';
+import { fluxbase } from '../../worker/fluxbase';
 
 import { JobQueueService } from '../../worker/job-queue.service.worker';
 
@@ -30,7 +30,7 @@ export interface ExportJob {
 }
 
 export class ExportService {
-	private static supabase = supabase;
+	private static fluxbase = fluxbase;
 
 	static async createExportJob(userId: string, options: ExportOptions): Promise<ExportJob> {
 		// Set TTL to 1 week from now
@@ -70,7 +70,7 @@ export class ExportService {
 	}
 
 	static async getExportJob(jobId: string, userId: string): Promise<ExportJob | null> {
-		const { data: job, error } = await this.supabase
+		const { data: job, error } = await this.fluxbase
 			.from('jobs')
 			.select('*')
 			.eq('id', jobId)
@@ -129,7 +129,7 @@ export class ExportService {
 	}
 
 	static async getUserExportJobs(userId: string): Promise<ExportJob[]> {
-		const { data: jobs, error } = await this.supabase
+		const { data: jobs, error } = await this.fluxbase
 			.from('jobs')
 			.select('*')
 			.eq('created_by', userId)
@@ -217,7 +217,7 @@ export class ExportService {
 	}
 
 	static async cleanupExpiredExports(): Promise<number> {
-		const { data, error } = await this.supabase.rpc('cleanup_expired_exports');
+		const { data, error } = await this.fluxbase.rpc('cleanup_expired_exports');
 
 		if (error) {
 			console.error('Error cleaning up expired exports:', error);

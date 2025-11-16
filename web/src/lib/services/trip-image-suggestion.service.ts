@@ -22,7 +22,7 @@ export interface TripImageSuggestion {
 }
 
 export class TripImageSuggestionService {
-	private supabase = createWorkerClient();
+	private fluxbase = createWorkerClient();
 
 	/**
 	 * Analyze tracker data for a specific date range to determine the most visited country and city
@@ -34,7 +34,7 @@ export class TripImageSuggestionService {
 	): Promise<TripLocationAnalysis> {
 		try {
 			// Fetch tracker data for the date range
-			const { data: trackerData, error } = await this.supabase
+			const { data: trackerData, error } = await this.fluxbase
 				.from('tracker_data')
 				.select('country_code, geocode, recorded_at')
 				.eq('user_id', userId)

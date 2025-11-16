@@ -67,9 +67,9 @@ process.on('uncaughtException', async (error) => {
 	if (error instanceof Error) {
 		if (
 			error.message.includes('Missing required environment variables') ||
-			error.message.includes('Worker cannot connect to Supabase') ||
-			error.message.includes('SUPABASE_URL') ||
-			error.message.includes('SUPABASE_SERVICE_ROLE_KEY')
+			error.message.includes('Worker cannot connect to Fluxbase') ||
+			error.message.includes('FLUXBASE_BASE_URL') ||
+			error.message.includes('FLUXBASE_SERVICE_ROLE_KEY')
 		) {
 			console.error('🚨 Critical connection error detected in uncaught exception');
 		}
@@ -86,9 +86,9 @@ process.on('unhandledRejection', async (reason, promise) => {
 	if (reason instanceof Error) {
 		if (
 			reason.message.includes('Missing required environment variables') ||
-			reason.message.includes('Worker cannot connect to Supabase') ||
-			reason.message.includes('SUPABASE_URL') ||
-			reason.message.includes('SUPABASE_SERVICE_ROLE_KEY')
+			reason.message.includes('Worker cannot connect to Fluxbase') ||
+			reason.message.includes('FLUXBASE_BASE_URL') ||
+			reason.message.includes('FLUXBASE_SERVICE_ROLE_KEY')
 		) {
 			console.error('🚨 Critical connection error detected in unhandled rejection');
 		}
@@ -113,9 +113,9 @@ async function startWorkerWithRetry(maxRetries = 3, retryDelay = 2000) {
 			if (error instanceof Error) {
 				if (
 					error.message.includes('Missing required environment variables') ||
-					error.message.includes('Worker cannot connect to Supabase') ||
-					error.message.includes('SUPABASE_URL') ||
-					error.message.includes('SUPABASE_SERVICE_ROLE_KEY')
+					error.message.includes('Worker cannot connect to Fluxbase') ||
+					error.message.includes('FLUXBASE_BASE_URL') ||
+					error.message.includes('FLUXBASE_SERVICE_ROLE_KEY')
 				) {
 					console.error('🚨 Critical connection error detected - exiting immediately');
 					await worker.stop();

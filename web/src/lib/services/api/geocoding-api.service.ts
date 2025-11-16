@@ -4,10 +4,10 @@
 import { errorHandler, ErrorCode } from '../error-handler.service';
 import { forwardGeocode } from '../external/nominatim.service';
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { FluxbaseClient } from '@fluxbase/sdk';
 
 export interface GeocodingApiServiceConfig {
-	supabase: SupabaseClient;
+	fluxbase: FluxbaseClient;
 }
 
 export interface GeocodeSearchRequest {
@@ -29,10 +29,10 @@ export interface GeocodeSearchResult {
 }
 
 export class GeocodingApiService {
-	private supabase: SupabaseClient;
+	private fluxbase: FluxbaseClient;
 
 	constructor(config: GeocodingApiServiceConfig) {
-		this.supabase = config.supabase;
+		this.fluxbase = config.fluxbase;
 	}
 
 	/**

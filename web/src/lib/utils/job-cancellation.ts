@@ -1,5 +1,5 @@
 // web/src/shared/utils/job-cancellation.ts
-import { supabase } from '../../worker/supabase';
+import { fluxbase } from '../../worker/fluxbase';
 
 /**
  * Check if a job has been cancelled
@@ -8,7 +8,7 @@ import { supabase } from '../../worker/supabase';
  */
 export async function checkJobCancellation(jobId?: string): Promise<void> {
 	if (!jobId) return;
-	const { data: job, error } = await supabase
+	const { data: job, error } = await fluxbase
 		.from('jobs')
 		.select('status')
 		.eq('id', jobId)

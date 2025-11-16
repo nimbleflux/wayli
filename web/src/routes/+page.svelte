@@ -19,8 +19,7 @@
 	import { translate, messages, currentLocale } from '$lib/i18n';
 	import { setTheme, initializeTheme } from '$lib/stores/app-state.svelte';
 	import { userStore, sessionStore } from '$lib/stores/auth';
-	import { supabase } from '$lib/supabase';
-	import { getEdgeFunctionUrl } from '$lib/utils/url-utils';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
@@ -45,7 +44,7 @@
 		console.log('🏠 [LANDING] Signout initiated');
 		try {
 			// Ensure client session/localStorage are cleared first
-			await supabase.auth.signOut();
+			await fluxbase.auth.signOut();
 		} catch (e) {
 			console.warn('🏠 [LANDING] Client signout warning:', e);
 		}
@@ -55,24 +54,17 @@
 
 	async function checkSetupStatus() {
 		try {
-			const { data, error } = await supabase.functions.invoke('server-settings', {
-				method: 'GET'
-			});
+			// Read setup status from app.settings (RLS allows anonymous read for public settings)
+			const isSetupComplete = await fluxbase.settings.get('wayli.is_setup_complete');
 
-			console.log('🏠 [LANDING] Raw response:', { data, error });
+			console.log('🏠 [LANDING] Setup status check:', { isSetupComplete });
 
-			if (!error && data) {
-				// Handle the response - data might already be unwrapped or might be wrapped in { data: ... }
-				const settings = data.data || data;
-				const isSetupComplete = settings.is_setup_complete ?? false;
-				console.log('🏠 [LANDING] Setup status check:', { isSetupComplete, settings });
-
-				// If setup is not complete, redirect to signup for initial setup
-				if (!isSetupComplete) {
-					console.log('🏠 [LANDING] Setup not complete, redirecting to initial setup');
-					goto('/auth/signup');
-					return;
-				}
+			// If setup is not complete, redirect to signup for initial setup
+			// The value is wrapped in an object: { value: true/false }
+			if (!isSetupComplete?.value) {
+				console.log('🏠 [LANDING] Setup not complete, redirecting to initial setup');
+				goto('/auth/signup');
+				return;
 			}
 		} catch (error) {
 			console.error('🏠 [LANDING] Error checking setup status:', error);

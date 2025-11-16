@@ -1,6 +1,6 @@
 // web/src/lib/services/queue/processors/import/gpx-importer.ts
 
-import { supabase } from '../../supabase';
+import { fluxbase } from '../../fluxbase';
 import {
 	getCountryForPoint as getCountryForPointExternal,
 	normalizeCountryCode as normalizeCountryCodeExternal,
@@ -96,7 +96,7 @@ export async function importGPXWithProgress(
 				}
 			};
 
-			const { error } = await supabase.from('tracker_data').upsert(
+			const { error } = await fluxbase.from('tracker_data').upsert(
 				{
 					user_id: userId,
 					tracker_type: 'import',
@@ -195,7 +195,7 @@ export async function importGPXWithProgress(
 					}
 				};
 
-				const { error } = await supabase.from('tracker_data').upsert(
+				const { error } = await fluxbase.from('tracker_data').upsert(
 					{
 						user_id: userId,
 						tracker_type: 'import',

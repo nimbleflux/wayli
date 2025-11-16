@@ -1,9 +1,9 @@
 import { writable } from 'svelte/store';
 
-import { supabase } from '$lib/supabase';
+import { fluxbase } from '$lib/fluxbase';
 
 import type { UserProfile } from '$lib/types/user.types';
-import type { Session, User } from '@supabase/supabase-js';
+import type { AuthSession, User } from '@fluxbase/sdk';
 
 type AuthStore = User & Partial<Pick<UserProfile, 'full_name' | 'avatar_url' | 'role'>>;
 

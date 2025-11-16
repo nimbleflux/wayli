@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { errorHandler, ErrorCode } from '../error-handler.service';
 import { getTripsService } from '../service-layer-adapter';
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { FluxbaseClient } from '@fluxbase/sdk';
 
 // Validation schemas
 const createTripSchema = z.object({
@@ -44,7 +44,7 @@ const tripQuerySchema = z.object({
 });
 
 export interface TripsApiServiceConfig {
-	supabase: SupabaseClient;
+	fluxbase: FluxbaseClient;
 }
 
 export interface CreateTripRequest {
@@ -115,10 +115,10 @@ export interface UpdateTripResult {
 }
 
 export class TripsApiService {
-	private supabase: SupabaseClient;
+	private fluxbase: FluxbaseClient;
 
 	constructor(config: TripsApiServiceConfig) {
-		this.supabase = config.supabase;
+		this.fluxbase = config.fluxbase;
 	}
 
 	/**
@@ -130,7 +130,7 @@ export class TripsApiService {
 		const { page = 1, limit = 10, search, status, start_date, end_date } = validatedQuery;
 
 		// Build query
-		let dbQuery = this.supabase
+		let dbQuery = this.fluxbase
 			.from('trips')
 			.select('*', { count: 'exact' })
 			.eq('user_id', userId)
@@ -195,7 +195,7 @@ export class TripsApiService {
 			});
 		}
 
-		const { data: trip, error } = await this.supabase
+		const { data: trip, error } = await this.fluxbase
 			.from('trips')
 			.select('*')
 			.eq('id', tripId)
@@ -296,7 +296,7 @@ export class TripsApiService {
 		await this.getTripById(tripId, userId);
 
 		// Delete trip
-		const { error } = await this.supabase
+		const { error } = await this.fluxbase
 			.from('trips')
 			.delete()
 			.eq('id', tripId)
@@ -328,7 +328,7 @@ export class TripsApiService {
 			);
 		}
 
-		const { data: trips, error } = await this.supabase
+		const { data: trips, error } = await this.fluxbase
 			.from('trips')
 			.select('*')
 			.eq('user_id', userId)

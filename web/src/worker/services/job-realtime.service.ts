@@ -1,8 +1,8 @@
 // Worker-specific Realtime service for job notifications
 // This service listens for new jobs and notifies workers when work becomes available
 
-import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
-import { supabase } from '../supabase';
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@fluxbase/sdk';
+import { fluxbase } from '../fluxbase';
 
 export interface JobNotification {
 	id: string;
@@ -50,8 +50,6 @@ export class WorkerRealtimeService {
 			}
 
 			// Log connection details for debugging
-			const realtimeUrl = (supabase.realtime as any).endPoint || 'unknown';
-			console.log(`🔗 Worker ${this.options.workerId}: Realtime endpoint:`, realtimeUrl);
 			console.log(`🔗 Worker ${this.options.workerId}: Connecting to jobs channel`);
 
 			// Create channel name for job notifications
@@ -60,7 +58,7 @@ export class WorkerRealtimeService {
 
 			// Subscribe to INSERT events for queued jobs
 			// This notifies workers when new work becomes available
-			this.channel = supabase
+			this.channel = fluxbase
 				.channel(channelName)
 				.on(
 					'postgres_changes',
@@ -227,6 +225,7 @@ export class WorkerRealtimeService {
 		}
 
 		if (this.channel) {
+			// Now that Fluxbase rc.33 supports unsubscribe, use it for proper cleanup
 			await this.channel.unsubscribe();
 			this.channel = null;
 		}

@@ -1,6 +1,6 @@
 // web/src/lib/services/job-realtime.service.ts
-import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
-import { supabase } from '$lib/supabase';
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@fluxbase/sdk';
+import { fluxbase } from '$lib/fluxbase';
 
 export interface JobUpdate {
 	id: string;
@@ -22,9 +22,16 @@ export interface JobRealtimeOptions {
 	onConnectionStatusChange?: (status: 'connecting' | 'connected' | 'disconnected' | 'error') => void;
 }
 
+interface Subscriber {
+	id: string;
+	callbacks: JobRealtimeOptions;
+}
+
 export class JobRealtimeService {
+	private static instance: JobRealtimeService | null = null;
+
 	private channel: RealtimeChannel | null = null;
-	private options: JobRealtimeOptions;
+	private subscribers = new Map<string, Subscriber>();
 	private userId: string | null = null;
 	private reconnectAttempts = 0;
 	private maxReconnectAttempts = 10; // Increased from 5 for better resilience
@@ -32,18 +39,122 @@ export class JobRealtimeService {
 	private isConnecting = false;
 	private authUnsubscribe: (() => void) | null = null;
 	private connectionStartTime: number | null = null;
+	private connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'error' = 'disconnected';
 
-	constructor(options: JobRealtimeOptions) {
-		this.options = options;
-
+	private constructor() {
 		// Listen for auth changes to update Realtime token
 		// This ensures the WebSocket stays authenticated when tokens refresh
-		this.authUnsubscribe = supabase.auth.onAuthStateChange((_event, session) => {
+		this.authUnsubscribe = fluxbase.auth.onAuthStateChange((_event, session) => {
 			if (session?.access_token) {
 				console.log('🔐 JobRealtime: Auth state changed, refreshing Realtime token');
-				supabase.realtime.setAuth(session.access_token);
+				fluxbase.realtime.setAuth(session.access_token);
 			}
 		}).data.subscription.unsubscribe;
+	}
+
+	/**
+	 * Get singleton instance
+	 */
+	static getInstance(): JobRealtimeService {
+		if (!JobRealtimeService.instance) {
+			JobRealtimeService.instance = new JobRealtimeService();
+		}
+		return JobRealtimeService.instance;
+	}
+
+	/**
+	 * Subscribe to job updates with callbacks
+	 * Returns an unsubscribe function
+	 */
+	subscribe(callbacks: JobRealtimeOptions): () => void {
+		const id = Math.random().toString(36).substring(7);
+
+		this.subscribers.set(id, { id, callbacks });
+		console.log(`📝 JobRealtime: Subscriber ${id} added (${this.subscribers.size} total)`);
+
+		// Auto-connect if not already connected or connecting
+		if (!this.isConnected() && !this.isConnecting) {
+			this.connect();
+		}
+
+		// Notify subscriber of current connection status
+		if (callbacks.onConnectionStatusChange) {
+			callbacks.onConnectionStatusChange(this.connectionStatus);
+		}
+
+		// Return unsubscribe function
+		return () => {
+			this.subscribers.delete(id);
+			console.log(`📝 JobRealtime: Subscriber ${id} removed (${this.subscribers.size} remaining)`);
+
+			// Disconnect if no more subscribers
+			if (this.subscribers.size === 0) {
+				console.log('📝 JobRealtime: No more subscribers, will remain connected for session');
+				// Don't auto-disconnect - keep connection alive for session
+			}
+		};
+	}
+
+	/**
+	 * Get current connection status
+	 */
+	getConnectionStatus(): 'connecting' | 'connected' | 'disconnected' | 'error' {
+		return this.connectionStatus;
+	}
+
+	/**
+	 * Set connection status and notify all subscribers
+	 */
+	private setConnectionStatus(status: 'connecting' | 'connected' | 'disconnected' | 'error'): void {
+		this.connectionStatus = status;
+		this.subscribers.forEach(({ callbacks }) => {
+			callbacks.onConnectionStatusChange?.(status);
+		});
+	}
+
+	/**
+	 * Notify all subscribers of a connection event
+	 */
+	private notifyConnected(): void {
+		this.subscribers.forEach(({ callbacks }) => {
+			callbacks.onConnected?.();
+		});
+	}
+
+	/**
+	 * Notify all subscribers of a disconnection event
+	 */
+	private notifyDisconnected(): void {
+		this.subscribers.forEach(({ callbacks }) => {
+			callbacks.onDisconnected?.();
+		});
+	}
+
+	/**
+	 * Notify all subscribers of an error
+	 */
+	private notifyError(error: string): void {
+		this.subscribers.forEach(({ callbacks }) => {
+			callbacks.onError?.(error);
+		});
+	}
+
+	/**
+	 * Notify all subscribers of a job update
+	 */
+	private notifyJobUpdate(job: JobUpdate): void {
+		this.subscribers.forEach(({ callbacks }) => {
+			callbacks.onJobUpdate?.(job);
+		});
+	}
+
+	/**
+	 * Notify all subscribers of a job completion
+	 */
+	private notifyJobCompleted(job: JobUpdate): void {
+		this.subscribers.forEach(({ callbacks }) => {
+			callbacks.onJobCompleted?.(job);
+		});
 	}
 
 	async connect(): Promise<void> {
@@ -54,18 +165,18 @@ export class JobRealtimeService {
 
 		this.isConnecting = true;
 		this.connectionStartTime = Date.now();
-		this.options.onConnectionStatusChange?.('connecting');
+		this.setConnectionStatus('connecting');
 
 		try {
 			// Get current user
 			const {
 				data: { session }
-			} = await supabase.auth.getSession();
+			} = await fluxbase.auth.getSession();
 
 			if (!session?.user) {
 				console.error('🔗 JobRealtime: No authenticated user');
 				this.isConnecting = false;
-				this.options.onConnectionStatusChange?.('error');
+				this.setConnectionStatus('error');
 				return;
 			}
 
@@ -75,7 +186,7 @@ export class JobRealtimeService {
 			// This is CRITICAL for RLS policies to work with postgres_changes
 			// Without this, Realtime only uses the anon key and can't see user-specific events
 			console.log('🔐 JobRealtime: Setting auth token for Realtime connection');
-			supabase.realtime.setAuth(session.access_token);
+			fluxbase.realtime.setAuth(session.access_token);
 
 			// Disconnect existing channel if any
 			if (this.channel) {
@@ -83,8 +194,6 @@ export class JobRealtimeService {
 			}
 
 			// Log WebSocket URL for debugging (helpful for self-hosted instances)
-			const realtimeUrl = (supabase.realtime as any).endPoint || 'unknown';
-			console.log('🔗 JobRealtime: Realtime endpoint:', realtimeUrl);
 			console.log('🔗 JobRealtime: Connecting to jobs channel for user:', this.userId);
 
 			// Create channel name for this user's jobs
@@ -93,7 +202,7 @@ export class JobRealtimeService {
 			console.log('🔗 JobRealtime: Subscribing with filter: created_by=eq.' + this.userId);
 
 			// Subscribe to jobs table changes for this user
-			this.channel = supabase
+			this.channel = fluxbase
 				.channel(channelName)
 				.on(
 					'postgres_changes',
@@ -119,21 +228,21 @@ export class JobRealtimeService {
 						this.reconnectAttempts = 0; // Reset on successful connection
 						this.isConnecting = false;
 						this.connectionStartTime = null;
-						this.options.onConnectionStatusChange?.('connected');
-						this.options.onConnected?.();
+						this.setConnectionStatus('connected');
+						this.notifyConnected();
 					} else if (status === 'CHANNEL_ERROR') {
 						console.error('❌ JobRealtime: Channel error:', err);
 						console.error(`   Connection attempt failed after ${connectionTime}ms`);
 						this.isConnecting = false;
 						this.connectionStartTime = null;
-						this.options.onConnectionStatusChange?.('error');
+						this.setConnectionStatus('error');
 
 						// Check if it's a quota-related error
 						const errorMsg = err?.message || String(err);
 						if (errorMsg.includes('too_many')) {
-							this.handleError(`Quota exceeded: ${errorMsg}`);
+							this.notifyError(`Quota exceeded: ${errorMsg}`);
 						} else {
-							this.handleError('Channel subscription error');
+							this.notifyError('Channel subscription error');
 						}
 					} else if (status === 'TIMED_OUT') {
 						console.error('❌ JobRealtime: Connection timed out');
@@ -143,22 +252,23 @@ export class JobRealtimeService {
 						);
 						this.isConnecting = false;
 						this.connectionStartTime = null;
-						this.options.onConnectionStatusChange?.('error');
-						this.handleError('Connection timed out');
+						this.setConnectionStatus('error');
+						this.notifyError('Connection timed out');
 						this.attemptReconnect();
 					} else if (status === 'CLOSED') {
 						console.log(`🔌 JobRealtime: Channel closed (was open for ${connectionTime}ms)`);
 						this.isConnecting = false;
 						this.connectionStartTime = null;
-						this.options.onConnectionStatusChange?.('disconnected');
-						this.options.onDisconnected?.();
+						this.setConnectionStatus('disconnected');
+						this.notifyDisconnected();
 					}
 				});
 		} catch (error) {
 			console.error('❌ JobRealtime: Error connecting:', error);
 			this.isConnecting = false;
-			this.options.onConnectionStatusChange?.('error');
-			this.handleError(error instanceof Error ? error.message : 'Unknown error');
+			this.setConnectionStatus('error');
+			const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+			this.notifyError(errorMsg);
 			this.attemptReconnect();
 		}
 	}
@@ -180,7 +290,7 @@ export class JobRealtimeService {
 			const job = newRecord as JobUpdate;
 
 			// Notify about the update
-			this.options.onJobUpdate?.(job);
+			this.notifyJobUpdate(job);
 
 			// Check if job completed
 			if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
@@ -190,7 +300,7 @@ export class JobRealtimeService {
 					oldJobRecord && (oldJobRecord.status === 'queued' || oldJobRecord.status === 'running');
 
 				if (wasActive || eventType === 'INSERT') {
-					this.options.onJobCompleted?.(job);
+					this.notifyJobCompleted(job);
 				}
 			}
 		} else if (eventType === 'DELETE' && oldRecord) {
@@ -200,17 +310,12 @@ export class JobRealtimeService {
 		}
 	}
 
-	private handleError(error: string): void {
-		console.error('❌ JobRealtime: Error:', error);
-		this.options.onError?.(error);
-	}
-
 	private attemptReconnect(): void {
 		if (this.reconnectAttempts >= this.maxReconnectAttempts) {
 			console.error(
 				`❌ JobRealtime: Max reconnection attempts (${this.maxReconnectAttempts}) reached`
 			);
-			this.handleError('Max reconnection attempts reached. Please refresh the page.');
+			this.notifyError('Max reconnection attempts reached. Please refresh the page.');
 			return;
 		}
 
@@ -237,6 +342,7 @@ export class JobRealtimeService {
 		}
 
 		if (this.channel) {
+			// Now that Fluxbase rc.33 supports unsubscribe, use it for proper cleanup
 			await this.channel.unsubscribe();
 			this.channel = null;
 		}
@@ -249,6 +355,7 @@ export class JobRealtimeService {
 
 		this.isConnecting = false;
 		this.reconnectAttempts = 0;
+		this.setConnectionStatus('disconnected');
 	}
 
 	isConnected(): boolean {

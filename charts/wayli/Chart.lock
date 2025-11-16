@@ -1,6 +1,6 @@
 dependencies:
-- name: supabase
-  repository: https://wayli-app.github.io/supabase-helm
-  version: 0.0.22
-digest: sha256:3d62c6be7bb69dbcee064ad0c501d210cd5fe40e61f135c1326551d774753dd7
-generated: "2025-11-06T19:46:04.304477+01:00"
+- name: fluxbase
+  repository: oci://ghcr.io/wayli-app/charts
+  version: 0.0.1-rc.14
+digest: sha256:bf2b8a4a3eb42801f819de99b8083f49e36153b960aa6dcd641036a5638bea30
+generated: "2025-11-15T08:49:34.613026+01:00"

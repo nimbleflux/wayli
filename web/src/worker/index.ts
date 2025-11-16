@@ -5,8 +5,8 @@
 // Environment
 export { WORKER_ENVIRONMENT, logWorker } from './environment';
 
-// Supabase client (worker-specific)
-export { supabase } from './supabase';
+// Fluxbase client (worker-specific)
+export { fluxbase } from './fluxbase';
 
 // Services (safe for worker)
 export * from './services';

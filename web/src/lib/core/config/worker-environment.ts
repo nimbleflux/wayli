@@ -4,14 +4,14 @@
 // Never import this in client-side or SvelteKit server code.
 
 export interface WorkerEnvironmentConfig {
-	supabase: {
+	fluxbase: {
 		url: string;
 		serviceRoleKey: string;
 	};
 }
 
 // Default fallback values for development
-const DEFAULT_SUPABASE_URL = 'http://127.0.0.1:54321';
+const DEFAULT_FLUXBASE_BASE_URL = 'http://127.0.0.1:8080';
 const DEFAULT_SERVICE_ROLE_KEY =
 	'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
 
@@ -27,28 +27,28 @@ export function validateWorkerEnvironmentConfig(strict: boolean = false): Worker
 		console.log('[WorkerEnvironment] Validating configuration...', {
 			strict,
 			isServer: typeof window === 'undefined',
-			hasPublicUrl: !!process.env.PUBLIC_SUPABASE_URL,
-			hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY
+			hasPublicUrl: !!process.env.PUBLIC_FLUXBASE_BASE_URL,
+			hasServiceKey: !!process.env.FLUXBASE_SERVICE_ROLE_KEY
 		});
 	}
 
 	const errors: string[] = [];
 
 	// Read from process.env for worker environment
-	const supabaseUrl = process.env.PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL;
-	const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || DEFAULT_SERVICE_ROLE_KEY;
+	const fluxbaseUrl = process.env.PUBLIC_FLUXBASE_BASE_URL || DEFAULT_FLUXBASE_BASE_URL;
+	const serviceRoleKey = process.env.FLUXBASE_SERVICE_ROLE_KEY || DEFAULT_SERVICE_ROLE_KEY;
 
 	// Validate environment variables
-	if (!supabaseUrl) {
-		errors.push('PUBLIC_SUPABASE_URL is not defined');
-	} else if (!supabaseUrl.startsWith('http')) {
-		errors.push('PUBLIC_SUPABASE_URL must be a valid URL starting with http:// or https://');
+	if (!fluxbaseUrl) {
+		errors.push('PUBLIC_FLUXBASE_BASE_URL is not defined');
+	} else if (!fluxbaseUrl.startsWith('http')) {
+		errors.push('PUBLIC_FLUXBASE_BASE_URL must be a valid URL starting with http:// or https://');
 	}
 
 	if (!serviceRoleKey) {
-		errors.push('SUPABASE_SERVICE_ROLE_KEY is not defined');
+		errors.push('FLUXBASE_SERVICE_ROLE_KEY is not defined');
 	} else if (serviceRoleKey.length < 20 && strict) {
-		errors.push('SUPABASE_SERVICE_ROLE_KEY appears to be invalid (too short)');
+		errors.push('FLUXBASE_SERVICE_ROLE_KEY appears to be invalid (too short)');
 	}
 
 	// Report all errors
@@ -66,16 +66,16 @@ export function validateWorkerEnvironmentConfig(strict: boolean = false): Worker
 	}
 
 	const config = {
-		supabase: {
-			url: supabaseUrl,
+		fluxbase: {
+			url: fluxbaseUrl,
 			serviceRoleKey: serviceRoleKey
 		}
 	};
 
 	if (process.env.NODE_ENV === 'development') {
 		console.log('[WorkerEnvironment] Configuration validated successfully:', {
-			url: config.supabase.url,
-			serviceKeyLength: config.supabase.serviceRoleKey.length
+			url: config.fluxbase.url,
+			serviceKeyLength: config.fluxbase.serviceRoleKey.length
 		});
 	}
 
@@ -86,11 +86,11 @@ export function validateWorkerEnvironmentConfig(strict: boolean = false): Worker
 export const workerEnv = validateWorkerEnvironmentConfig(false);
 
 // Helper function
-export function getWorkerSupabaseConfig() {
-	return workerEnv.supabase;
+export function getWorkerFluxbaseConfig() {
+	return workerEnv.fluxbase;
 }
 
 // Helper function for strict validation when needed
-export function getWorkerSupabaseConfigStrict() {
-	return validateWorkerEnvironmentConfig(true).supabase;
+export function getWorkerFluxbaseConfigStrict() {
+	return validateWorkerEnvironmentConfig(true).fluxbase;
 }

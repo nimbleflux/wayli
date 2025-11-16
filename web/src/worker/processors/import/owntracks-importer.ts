@@ -1,6 +1,6 @@
 // web/src/lib/services/queue/processors/import/owntracks-importer.ts
 
-import { supabase } from '../../supabase';
+import { fluxbase } from '../../fluxbase';
 import {
 	normalizeCountryCode as normalizeCountryCodeExternal,
 	getCountryForPoint as getCountryForPointExternal,
@@ -112,7 +112,7 @@ export async function importOwnTracksWithProgress(
 					}
 				};
 
-				const { error } = await supabase.from('tracker_data').upsert(
+				const { error } = await fluxbase.from('tracker_data').upsert(
 					{
 						user_id: userId,
 						tracker_type: 'import',

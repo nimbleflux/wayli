@@ -1,8 +1,8 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-	readonly PUBLIC_SUPABASE_ANON_KEY: string;
-	readonly SUPABASE_SERVICE_ROLE_KEY: string;
+	readonly PUBLIC_FLUXBASE_ANON_KEY: string;
+	readonly FLUXBASE_SERVICE_ROLE_KEY: string;
 }
 
 interface ImportMeta {

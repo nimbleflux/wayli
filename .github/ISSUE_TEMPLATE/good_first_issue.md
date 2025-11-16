@@ -101,7 +101,7 @@ npm run lint
 4. **Set up environment**
    ```bash
    cp .env.example .env
-   # Edit .env with your Supabase credentials
+   # Edit .env with your Fluxbase credentials
    ```
 5. **Start development server**
    ```bash

@@ -1,11 +1,14 @@
 // web/src/lib/stores/job-store.ts
-import type { JobUpdate } from '$lib/services/job-realtime.service';
+import { JobRealtimeService, type JobUpdate } from '$lib/services/job-realtime.service';
 
 // Simple variable for active jobs
 let _activeJobs = new Map<string, JobUpdate>();
 
 // Callback system to notify subscribers of changes
 let _subscribers: Array<() => void> = [];
+
+// Realtime service singleton
+let _realtimeUnsubscribe: (() => void) | null = null;
 
 function notifySubscribers() {
 	_subscribers.forEach((callback) => callback());
@@ -87,17 +90,17 @@ export function clearCompletedJobs() {
 // Fetch and populate jobs from the server
 export async function fetchAndPopulateJobs() {
 	try {
-		const { supabase } = await import('$lib/supabase');
+		const { fluxbase } = await import('$lib/fluxbase');
 		const {
 			data: { session }
-		} = await supabase.auth.getSession();
+		} = await fluxbase.auth.getSession();
 
 		if (!session) {
 			return;
 		}
 
 		// Get all active jobs (queued and running)
-		const { data: activeJobs, error: activeError } = await supabase
+		const { data: activeJobs, error: activeError } = await fluxbase
 			.from('jobs')
 			.select('*')
 			.eq('created_by', session.user.id)
@@ -111,7 +114,7 @@ export async function fetchAndPopulateJobs() {
 
 		// Get recently completed jobs (within last 5 minutes)
 		const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-		const { data: recentCompletedJobs, error: completedError } = await supabase
+		const { data: recentCompletedJobs, error: completedError } = await fluxbase
 			.from('jobs')
 			.select('*')
 			.eq('created_by', session.user.id)
@@ -149,4 +152,68 @@ export async function fetchAndPopulateJobs() {
 	} catch (error) {
 		console.error('❌ Store: Error in fetchAndPopulateJobs:', error);
 	}
+}
+
+/**
+ * Start realtime job monitoring (singleton connection)
+ * This should be called once when the user logs in
+ */
+export async function startJobRealtime() {
+	if (_realtimeUnsubscribe) {
+		console.log('🔗 Store: Realtime already started');
+		return;
+	}
+
+	console.log('🔗 Store: Starting realtime job monitoring');
+
+	// Fetch initial state before subscribing to realtime
+	await fetchAndPopulateJobs();
+
+	// Subscribe to realtime updates
+	const service = JobRealtimeService.getInstance();
+	_realtimeUnsubscribe = service.subscribe({
+		onConnected: () => {
+			console.log('✅ Store: Realtime connected');
+		},
+		onDisconnected: () => {
+			console.log('🔌 Store: Realtime disconnected');
+		},
+		onError: (error) => {
+			console.error('❌ Store: Realtime error:', error);
+		},
+		onJobUpdate: (job) => {
+			// Automatically update store with all job updates
+			updateJobInStore(job);
+		},
+		onJobCompleted: (job) => {
+			// Update store with completed job
+			updateJobInStore(job);
+
+			// Auto-remove completed jobs after 30 seconds
+			setTimeout(() => {
+				if (_activeJobs.get(job.id)?.status === job.status) {
+					removeJobFromStore(job.id);
+				}
+			}, 30000);
+		}
+	});
+}
+
+/**
+ * Stop realtime job monitoring
+ * This should be called when the user logs out
+ */
+export function stopJobRealtime() {
+	if (_realtimeUnsubscribe) {
+		console.log('🔌 Store: Stopping realtime job monitoring');
+		_realtimeUnsubscribe();
+		_realtimeUnsubscribe = null;
+	}
+}
+
+/**
+ * Get realtime connection status
+ */
+export function getRealtimeStatus(): 'connecting' | 'connected' | 'disconnected' | 'error' {
+	return JobRealtimeService.getInstance().getConnectionStatus();
 }

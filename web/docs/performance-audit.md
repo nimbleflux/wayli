@@ -89,7 +89,7 @@ export default defineConfig({
 		rollupOptions: {
 			output: {
 				manualChunks: {
-					vendor: ['@supabase/supabase-js'],
+					vendor: ['@fluxbase/sdk'],
 					ui: ['@melt-ui/svelte'],
 					utils: ['lodash-es', 'date-fns']
 				}
@@ -137,7 +137,7 @@ ON locations USING GIST(geom);
 class LocationService {
 	// ✅ Efficient: Use pagination and limits
 	async getLocations(userId: string, limit = 100, offset = 0) {
-		const { data, error } = await this.supabase
+		const { data, error } = await this.fluxbase
 			.from('locations')
 			.select('*')
 			.eq('user_id', userId)
@@ -149,7 +149,7 @@ class LocationService {
 
 	// ✅ Efficient: Use specific columns
 	async getLocationStats(userId: string, dateRange: DateRange) {
-		const { data, error } = await this.supabase
+		const { data, error } = await this.fluxbase
 			.from('locations')
 			.select('timestamp, latitude, longitude, accuracy')
 			.eq('user_id', userId)

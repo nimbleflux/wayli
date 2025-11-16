@@ -1,6 +1,6 @@
 // web/src/lib/services/queue/processors/reverse-geocoding-processor.service.ts
 
-import { supabase } from '../supabase';
+import { fluxbase } from '../fluxbase';
 import { reverseGeocode } from '../../lib/services/external/nominatim.service';
 import { JobQueueService } from '../job-queue.service.worker';
 import {
@@ -56,7 +56,7 @@ export async function processReverseGeocodingMissing(job: Job): Promise<void> {
 
 		// First, count total points that need geocoding (where country is null and geocode_error is null)
 		console.log(`🔍 Checking for points that need geocoding...`);
-		const { count: totalPointsNeedingGeocoding, error: countError } = await supabase
+		const { count: totalPointsNeedingGeocoding, error: countError } = await fluxbase
 			.from('tracker_data')
 			.select('*', { count: 'exact', head: true })
 			.eq('user_id', userId)
@@ -124,7 +124,7 @@ export async function processReverseGeocodingMissing(job: Job): Promise<void> {
 		const pageSize = 1000;
 
 		while (true) {
-			const { data: batch, error: fetchError } = await supabase
+			const { data: batch, error: fetchError } = await fluxbase
 				.from('tracker_data')
 				.select('user_id, location, geocode, recorded_at, tracker_type')
 				.eq('user_id', userId)
@@ -480,7 +480,7 @@ async function processSinglePoint(point: {
 				extractedCountryCode;
 		}
 
-		const { error: updateError } = await (supabase as any)
+		const { error: updateError } = await (fluxbase as any)
 			.from('tracker_data')
 			.update({
 				geocode: mergedGeocodeGeoJSON as unknown as Record<string, unknown>,
@@ -557,7 +557,7 @@ async function updateGeocodeWithError(
 			(errorGeoJSON.properties as Record<string, unknown>).permanent = true;
 		}
 
-		const { error: updateError } = await (supabase as any)
+		const { error: updateError } = await (fluxbase as any)
 			.from('tracker_data')
 			.update({
 				geocode: errorGeoJSON as unknown as Record<string, unknown>,

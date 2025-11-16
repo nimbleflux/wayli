@@ -1,0 +1,91 @@
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ..:/workspace:cached
+    command: sleep infinity
+    depends_on:
+      - postgres
+      - fluxbase
+    environment:
+      - DATABASE_URL=postgresql://fluxbase:postgres@postgres:5432/fluxbase
+      - FLUXBASE_BASE_URL=http://localhost:8080
+      - JWT_SECRET=dev-secure-jwt-secret-for-local-development-only-change-in-production-2024
+    ports:
+      - "5173:5173"
+
+  postgres:
+    image: postgis/postgis:18-3.6
+    restart: unless-stopped
+    platform: linux/amd64
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    environment:
+      POSTGRES_USER: fluxbase
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: fluxbase
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fluxbase"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    ports:
+      - "5432:5432"
+
+  storage-init:
+    image: alpine:latest
+    volumes:
+      - storage-data:/storage
+    command: sh -c "chmod -R 755 /storage && chown -R 1000:1000 /storage"
+
+  fluxbase:
+    image: ghcr.io/wayli-app/fluxbase:0.0.1-rc.33
+    depends_on:
+      postgres:
+        condition: service_healthy
+      storage-init:
+        condition: service_completed_successfully
+    volumes:
+      - storage-data:/storage
+      - ../web/fluxbase/functions:/functions
+      - ../web/fluxbase/migrations:/migrations/user
+    environment:
+      # Database
+      FLUXBASE_DATABASE_HOST: postgres
+      FLUXBASE_DATABASE_PORT: 5432
+      FLUXBASE_DATABASE_USER: fluxbase
+      FLUXBASE_DATABASE_PASSWORD: postgres
+      FLUXBASE_DATABASE_DATABASE: fluxbase
+      FLUXBASE_DATABASE_SSL_MODE: disable
+      FLUXBASE_DATABASE_USER_MIGRATIONS_PATH: /migrations/user
+      # Auth
+      FLUXBASE_AUTH_JWT_SECRET: dev-secure-jwt-secret-for-local-development-only-change-in-production-2024
+      FLUXBASE_AUTH_ENABLE_SIGNUP: true
+      FLUXBASE_AUTH_ENABLE_RLS: true
+      # Storage
+      FLUXBASE_STORAGE_PROVIDER: local
+      FLUXBASE_STORAGE_LOCAL_PATH: /storage
+      # Edge Functions
+      FLUXBASE_FUNCTIONS_ENABLED: true
+      FLUXBASE_FUNCTIONS_FUNCTIONS_DIR: /functions
+      # Edge Functions need these API keys to be available
+      FLUXBASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE
+      FLUXBASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJzZXJ2aWNlX3JvbGUiLAogICAgImlzcyI6ICJzdXBhYmFzZS1kZW1vIiwKICAgICJpYXQiOiAxNjQxNzY5MjAwLAogICAgImV4cCI6IDE3OTk1MzU2MDAKfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q
+      # Server
+      FLUXBASE_BASE_URL: http://localhost:8080
+      FLUXBASE_DEBUG: true
+      FLUXBASE_SECURITY_SETUP_TOKEN: test
+      # CORS Configuration
+      FLUXBASE_CORS_ALLOW_ORIGIN: "*"
+      FLUXBASE_CORS_ALLOW_HEADERS: "authorization, x-client-info, apikey, content-type, x-requested-with, accept"
+      FLUXBASE_CORS_ALLOW_METHODS: "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+      FLUXBASE_CORS_MAX_AGE: "86400"
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres-data:
+  storage-data:

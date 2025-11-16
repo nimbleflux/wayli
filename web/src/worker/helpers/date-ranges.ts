@@ -1,23 +1,23 @@
 // web/src/lib/services/queue/helpers/date-ranges.ts
 
-import { supabase as workerSupabase } from '../supabase';
+import { fluxbase as workerFluxbase } from '../fluxbase';
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { FluxbaseClient } from '@fluxbase/sdk';
 
 export async function findAvailableDateRanges(
 	userId: string,
 	userStartDate?: string,
 	userEndDate?: string,
-	client?: SupabaseClient
+	client?: FluxbaseClient
 ): Promise<Array<{ startDate: string; endDate: string }>> {
-	const supabase = client ?? workerSupabase;
+	const fluxbase = client ?? workerFluxbase;
 	try {
 		console.log('🔍 Finding available date ranges for trip generation...');
 		console.log(`👤 User ID: ${userId}`);
 		if (userStartDate) console.log(`📅 User specified start date: ${userStartDate}`);
 		if (userEndDate) console.log(`📅 User specified end date: ${userEndDate}`);
 
-		const { data: earliestData, error: earliestError } = await supabase
+		const { data: earliestData, error: earliestError } = await fluxbase
 			.from('tracker_data')
 			.select('recorded_at')
 			.eq('user_id', userId)
@@ -25,7 +25,7 @@ export async function findAvailableDateRanges(
 			.order('recorded_at', { ascending: true })
 			.limit(1);
 
-		const { data: latestData, error: latestError } = await supabase
+		const { data: latestData, error: latestError } = await fluxbase
 			.from('tracker_data')
 			.select('recorded_at')
 			.eq('user_id', userId)
@@ -82,7 +82,7 @@ export async function findAvailableDateRanges(
 		);
 
 		// Match TripDetectionService semantics: exclude all existing trips and only "pending" suggested trips
-		const { data: existingTrips, error: tripsError } = await supabase
+		const { data: existingTrips, error: tripsError } = await fluxbase
 			.from('trips')
 			.select('start_date, end_date')
 			.eq('user_id', userId);
@@ -93,7 +93,7 @@ export async function findAvailableDateRanges(
 		}
 
 		// Fetch suggested trips (pending) to exclude as well
-		const { data: existingSuggestedTrips, error: suggestedError } = await supabase
+		const { data: existingSuggestedTrips, error: suggestedError } = await fluxbase
 			.from('trips')
 			.select('start_date, end_date')
 			.eq('user_id', userId)

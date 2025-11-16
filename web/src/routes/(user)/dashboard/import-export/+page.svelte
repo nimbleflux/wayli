@@ -198,14 +198,14 @@
 				(job: any) => job.type === 'data_export'
 			);
 
-			// ExportJobs component automatically handles updates via Supabase Realtime
+			// ExportJobs component automatically handles updates via Fluxbase Realtime
 			if (exportJobs.length > 0) {
 				console.log('📊 Export job update detected');
 			}
 		});
 	}
 
-	// ExportJobs component handles its own updates via Supabase Realtime - no manual reload needed
+	// ExportJobs component handles its own updates via Fluxbase Realtime - no manual reload needed
 
 	// Export functions
 	async function handleExport() {

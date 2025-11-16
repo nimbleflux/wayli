@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { fluxbase } from './fluxbase';
 
 import { checkJobCancellation } from '../lib/utils/job-cancellation';
 import { ExportProcessorService } from '../lib/services/export-processor.service';
@@ -285,7 +285,7 @@ export class JobProcessorService {
 			UserProfileService.useNodeEnvironmentConfig();
 
 			// Get user's trip exclusions from user preferences
-			const { error: userPreferencesError } = await supabase
+			const { error: userPreferencesError } = await fluxbase
 				.from('user_preferences')
 				.select('trip_exclusions')
 				.eq('id', userId)
@@ -298,8 +298,8 @@ export class JobProcessorService {
 
 			// Use trip detection service
 			const tripDetectionService = new TripDetectionService(
-				process.env.SUPABASE_URL!,
-				process.env.SUPABASE_SERVICE_ROLE_KEY!
+				process.env.FLUXBASE_BASE_URL!,
+				process.env.FLUXBASE_SERVICE_ROLE_KEY!
 			);
 
 			// Set up progress tracking for trip detection with ETA calculation
@@ -323,7 +323,7 @@ export class JobProcessorService {
 			if (detectedTrips.length > 0) {
 				console.log(`💾 Saving ${detectedTrips.length} detected trips to database...`);
 
-				const { data: savedTrips, error: saveError } = await supabase
+				const { data: savedTrips, error: saveError } = await fluxbase
 					.from('trips')
 					.insert(detectedTrips)
 					.select();
@@ -375,10 +375,10 @@ export class JobProcessorService {
 				throw new Error('Missing storage path or format in job data');
 			}
 
-			// Download file content from Supabase Storage
+			// Download file content from Fluxbase Storage
 			console.log('📥 Downloading file from storage:', storagePath);
 
-			const { data: fileData, error: downloadError } = await supabase.storage
+			const { data: fileData, error: downloadError } = await fluxbase.storage
 				.from('temp-files')
 				.download(storagePath);
 
@@ -463,7 +463,7 @@ export class JobProcessorService {
 			});
 
 			try {
-				const { data: jobResult, error: backgroundJobError } = await supabase.rpc(
+				const { data: jobResult, error: backgroundJobError } = await fluxbase.rpc(
 					'create_distance_calculation_job',
 					{
 						target_user_id: userId,
@@ -510,7 +510,7 @@ export class JobProcessorService {
 			});
 
 			// Clean up temporary file from storage after successful processing
-			await supabase.storage.from('temp-files').remove([storagePath]);
+			await fluxbase.storage.from('temp-files').remove([storagePath]);
 
 			console.log(
 				`✅ Data import completed: ${importedCount} items imported in ${elapsedSeconds.toFixed(1)}s`
@@ -519,7 +519,7 @@ export class JobProcessorService {
 			// Create auto-reverse geocoding job for newly imported data
 			try {
 				console.log('🔄 Creating auto-reverse geocoding job for imported data...');
-				const { error: reverseGeocodingError } = await supabase.from('jobs').insert({
+				const { error: reverseGeocodingError } = await fluxbase.from('jobs').insert({
 					created_by: userId,
 					type: 'reverse_geocoding_missing',
 					status: 'queued',
@@ -546,7 +546,7 @@ export class JobProcessorService {
 				try {
 					const { storagePath } = job.data as { storagePath: string };
 					if (storagePath) {
-						await supabase.storage.from('temp-files').remove([storagePath]);
+						await fluxbase.storage.from('temp-files').remove([storagePath]);
 					}
 				} catch (cleanupError) {
 					console.error('Failed to cleanup temporary file on cancellation:', cleanupError);
@@ -558,7 +558,7 @@ export class JobProcessorService {
 			try {
 				const { storagePath } = job.data as { storagePath: string };
 				if (storagePath) {
-					await supabase.storage.from('temp-files').remove([storagePath]);
+					await fluxbase.storage.from('temp-files').remove([storagePath]);
 				}
 			} catch (cleanupError) {
 				console.error('Failed to cleanup temporary file:', cleanupError);
@@ -617,8 +617,8 @@ export class JobProcessorService {
 
 			// Use trip detection service
 			const tripDetectionService = new TripDetectionService(
-				process.env.SUPABASE_URL!,
-				process.env.SUPABASE_SERVICE_ROLE_KEY!
+				process.env.FLUXBASE_BASE_URL!,
+				process.env.FLUXBASE_SERVICE_ROLE_KEY!
 			);
 
 			// Set up progress tracking
@@ -639,7 +639,7 @@ export class JobProcessorService {
 			if (detectedTrips.length > 0) {
 				console.log(`💾 Saving ${detectedTrips.length} detected trips to database...`);
 
-				const { data: savedTrips, error: saveError } = await supabase
+				const { data: savedTrips, error: saveError } = await fluxbase
 					.from('trips')
 					.insert(detectedTrips)
 					.select();
@@ -691,7 +691,7 @@ export class JobProcessorService {
 			// We count ALL records with location (not just those needing distance)
 			// because we process everything in chronological order
 			console.log(`🔍 Counting total records for user ${targetUserId}...`);
-			const { count, error: countError } = await supabase
+			const { count, error: countError } = await fluxbase
 				.from('tracker_data')
 				.select('*', { count: 'exact', head: true })
 				.eq('user_id', targetUserId)
@@ -730,7 +730,7 @@ export class JobProcessorService {
 				console.log(`🧮 Processing batch at offset ${offset}/${totalRecords}...`);
 
 				// Call new V2 function which uses chronological offset-based processing
-				const { data: updatedCount, error } = await supabase.rpc('calculate_distances_batch_v2', {
+				const { data: updatedCount, error } = await fluxbase.rpc('calculate_distances_batch_v2', {
 					p_user_id: targetUserId,
 					p_offset: offset,
 					p_limit: BATCH_SIZE

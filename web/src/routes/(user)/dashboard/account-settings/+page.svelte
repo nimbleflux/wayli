@@ -15,13 +15,13 @@
 	import { toast } from 'svelte-sonner';
 
 	import OnboardingWelcome from '$lib/components/OnboardingWelcome.svelte';
-	import TwoFactorDisable from '$lib/components/TwoFactorDisable.svelte';
 	import TwoFactorSetup from '$lib/components/TwoFactorSetup.svelte';
+	import TwoFactorDisable from '$lib/components/TwoFactorDisable.svelte';
 	import LanguageSelector from '$lib/components/ui/language-selector/index.svelte';
 	import { translate, changeLocale, currentLocale, type SupportedLocale } from '$lib/i18n';
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
 	import { sessionStore } from '$lib/stores/auth';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -34,12 +34,9 @@
 	let currentPassword = $state('');
 	let newPassword = $state('');
 	let confirmPassword = $state('');
-	let twoFactorEnabled = $state(false);
 	let isUpdatingPassword = $state(false);
 	let isUpdatingProfile = $state(false);
 	let isUpdatingPreferences = $state(false);
-	let showTwoFactorSetup = $state(false);
-	let showTwoFactorDisable = $state(false);
 	let profile = $state<UserProfile | null>(null);
 	let preferences = $state<UserPreferences | null>(null);
 	let firstNameInput = $state('');
@@ -61,6 +58,12 @@
 	// Onboarding state
 	let showOnboardingModal = $state(false);
 	let isOnboarding = $derived($page.url.searchParams.get('onboarding') === 'true');
+
+	// Two-Factor Authentication state
+	let twoFactorEnabled = $state(false);
+	let showTwoFactorSetup = $state(false);
+	let showTwoFactorDisable = $state(false);
+	let isCheckingTwoFactor = $state(false);
 
 	// Trip exclusions state
 	let tripExclusions: any[] = $state([]);
@@ -130,18 +133,17 @@
 
 	async function loadUserData() {
 		try {
-			const session = await supabase.auth.getSession();
+			const session = await fluxbase.auth.getSession();
 			if (!session.data.session) {
 				throw new Error('No session found');
 			}
 
 			const serviceAdapter = new ServiceAdapter({ session: session.data.session });
 
-			// Load profile, preferences, and server settings separately
-			const [profileResult, preferencesResult, serverSettingsResponse] = await Promise.all([
+			// Load profile and preferences (server settings loaded via admin endpoint if needed)
+			const [profileResult, preferencesResult] = await Promise.all([
 				serviceAdapter.getProfile(),
-				serviceAdapter.getPreferences(),
-				supabase.functions.invoke('server-settings', { method: 'GET' })
+				serviceAdapter.getPreferences()
 			]);
 
 			// Handle profile data - Edge Functions return { success: true, data: ... }
@@ -177,33 +179,11 @@
 				pexelsApiKeyInput = preferences.pexels_api_key || '';
 			}
 
-			// Handle server settings data
-			if (serverSettingsResponse && !serverSettingsResponse.error) {
-				const serverSettingsData = serverSettingsResponse.data?.data || serverSettingsResponse.data;
-				if (serverSettingsData?.server_pexels_api_key_available) {
-					serverPexelsApiKeyAvailable = true;
-				}
-			}
+			// Check if server Pexels API key is available
+			// This is only relevant for admins, regular users don't need this info
+			// For now, we'll assume it's not available unless explicitly configured
+			serverPexelsApiKeyAvailable = false;
 
-			// Check 2FA status using the auth-check-2fa endpoint
-			try {
-				console.log('🔍 [AccountSettings] Checking 2FA status...');
-				const twoFactorResult = (await serviceAdapter.check2FA()) as any;
-				console.log('📡 [AccountSettings] 2FA check result:', twoFactorResult);
-
-				if (twoFactorResult && typeof twoFactorResult === 'object') {
-					const twoFactorData = twoFactorResult.data || twoFactorResult;
-					console.log('📊 [AccountSettings] 2FA data:', twoFactorData);
-					twoFactorEnabled = twoFactorData.enabled || false;
-					console.log('✅ [AccountSettings] 2FA enabled:', twoFactorEnabled);
-				} else {
-					console.log('⚠️ [AccountSettings] Invalid 2FA result format:', twoFactorResult);
-					twoFactorEnabled = false;
-				}
-			} catch (error) {
-				console.error('❌ [AccountSettings] Error checking 2FA status:', error);
-				twoFactorEnabled = false;
-			}
 		} catch (error) {
 			console.error('❌ [AccountSettings] Error loading user data:', error);
 		}
@@ -212,12 +192,41 @@
 	onMount(async () => {
 		await loadUserData();
 		await loadTripExclusions();
+		await check2FAStatus();
 
 		// Show onboarding modal if this is first login
 		if (isOnboarding) {
 			showOnboardingModal = true;
 		}
 	});
+
+	async function check2FAStatus() {
+		isCheckingTwoFactor = true;
+		try {
+			const session = $sessionStore;
+			if (!session) return;
+
+			const serviceAdapter = new ServiceAdapter({ session });
+			const status = await serviceAdapter.get2FAStatus();
+			twoFactorEnabled = status.totp_enabled || false;
+		} catch (error) {
+			console.error('❌ [AccountSettings] Error checking 2FA status:', error);
+		} finally {
+			isCheckingTwoFactor = false;
+		}
+	}
+
+	function handle2FASetupSuccess() {
+		showTwoFactorSetup = false;
+		twoFactorEnabled = true;
+		toast.success('Two-factor authentication enabled successfully!');
+	}
+
+	function handle2FADisableSuccess() {
+		showTwoFactorDisable = false;
+		twoFactorEnabled = false;
+		toast.success('Two-factor authentication disabled successfully!');
+	}
 
 	async function loadTripExclusions() {
 		try {
@@ -295,7 +304,7 @@
 				selectedHomeAddress = homeAddress;
 				homeAddressInput = homeAddress.display_name || '';
 
-				const session = await supabase.auth.getSession();
+				const session = await fluxbase.auth.getSession();
 				const serviceAdapter = new ServiceAdapter({ session: session.data.session! });
 
 				await serviceAdapter.updateProfile({
@@ -308,10 +317,15 @@
 
 			// Mark onboarding as completed
 			if (profile) {
-				await supabase
+				const { error } = await fluxbase
 					.from('user_profiles')
-					.update({ onboarding_completed: true })
-					.eq('id', profile.id);
+					.eq('id', profile.id)
+					.update({ onboarding_completed: true });
+
+				if (error) {
+					console.error('Error marking onboarding as completed:', error);
+					throw new Error(error.message || 'Failed to update onboarding status');
+				}
 			}
 
 			toast.success('Welcome! Your profile is all set.');
@@ -327,13 +341,18 @@
 		try {
 			// Mark onboarding as completed and home address as skipped
 			if (profile) {
-				await supabase
+				const { error } = await fluxbase
 					.from('user_profiles')
+					.eq('id', profile.id)
 					.update({
 						onboarding_completed: true,
 						home_address_skipped: true
-					})
-					.eq('id', profile.id);
+					});
+
+				if (error) {
+					console.error('Error marking onboarding as skipped:', error);
+					throw new Error(error.message || 'Failed to update onboarding status');
+				}
 			}
 
 			toast.info('You can add your home address anytime from Account Settings');
@@ -341,16 +360,22 @@
 			goto('/dashboard/account-settings', { replaceState: true });
 		} catch (error) {
 			console.error('Error skipping onboarding:', error);
+			toast.error('Failed to skip onboarding');
 		}
 	}
 
 	async function handleSkipHomeAddressField() {
 		try {
 			if (profile) {
-				await supabase
+				const { error } = await fluxbase
 					.from('user_profiles')
-					.update({ home_address_skipped: true })
-					.eq('id', profile.id);
+					.eq('id', profile.id)
+					.update({ home_address_skipped: true });
+
+				if (error) {
+					console.error('Error skipping home address:', error);
+					throw new Error(error.message || 'Failed to update home address skip status');
+				}
 
 				toast.info('You can add your home address later if you change your mind');
 
@@ -359,6 +384,7 @@
 			}
 		} catch (error) {
 			console.error('Error skipping home address:', error);
+			toast.error('Failed to skip home address field');
 		}
 	}
 
@@ -369,7 +395,7 @@
 		error = null;
 
 		try {
-			const session = await supabase.auth.getSession();
+			const session = await fluxbase.auth.getSession();
 			if (!session.data.session) {
 				throw new Error('No session found');
 			}
@@ -405,7 +431,7 @@
 		error = null;
 
 		try {
-			const session = await supabase.auth.getSession();
+			const session = await fluxbase.auth.getSession();
 			if (!session.data.session) {
 				throw new Error('No session found');
 			}
@@ -459,7 +485,7 @@
 		try {
 			const {
 				data: { session }
-			} = await supabase.auth.getSession();
+			} = await fluxbase.auth.getSession();
 			if (!session) throw new Error('No session found');
 			const serviceAdapter = new ServiceAdapter({ session });
 			await serviceAdapter.updatePassword(newPassword);
@@ -474,25 +500,6 @@
 		}
 	}
 
-	function handleTwoFactorEnabled() {
-		showTwoFactorSetup = true;
-	}
-
-	function handleTwoFactorSetupClose() {
-		showTwoFactorSetup = false;
-		// Reload user data to check if 2FA was enabled
-		loadUserData();
-	}
-
-	function handleTwoFactorDisable() {
-		showTwoFactorDisable = true;
-	}
-
-	function handleTwoFactorDisableClose() {
-		showTwoFactorDisable = false;
-		// Reload user data to check if 2FA was disabled
-		loadUserData();
-	}
 
 	function handleHomeAddressInput(event: Event) {
 		const target = event.target as HTMLInputElement;
@@ -1126,52 +1133,92 @@
 						? t('accountSettings.updatingPassword')
 						: t('accountSettings.updatePassword')}
 				</button>
+			</div>
+		</div>
 
-				<!-- Two-Factor Authentication Section -->
-				<div class="mt-6 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-					<div class="flex items-center justify-between">
+		<!-- Two-Factor Authentication -->
+		<div
+			class="mb-8 rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]"
+		>
+			<div class="mb-6">
+				<div class="flex items-center gap-2">
+					<Shield class="h-5 w-5 text-gray-400" />
+					<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
+						Two-Factor Authentication
+					</h2>
+				</div>
+				<p class="mt-1 text-sm text-gray-600 dark:text-gray-100">
+					Add an extra layer of security to your account with TOTP authentication
+				</p>
+			</div>
+
+			{#if isCheckingTwoFactor}
+				<div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+					<div
+						class="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"
+					></div>
+					<span>Checking 2FA status...</span>
+				</div>
+			{:else}
+				<div class="space-y-4">
+					<!-- Current Status -->
+					<div
+						class="flex items-center justify-between rounded-lg border p-4 {twoFactorEnabled
+							? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20'
+							: 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800'}"
+					>
 						<div class="flex items-center gap-3">
-							<Shield class="h-5 w-5 text-gray-400" />
+							<div
+								class="flex h-10 w-10 items-center justify-center rounded-full {twoFactorEnabled
+									? 'bg-green-100 dark:bg-green-900/30'
+									: 'bg-gray-200 dark:bg-gray-700'}"
+							>
+								<Shield
+									class="h-5 w-5 {twoFactorEnabled
+										? 'text-green-600 dark:text-green-400'
+										: 'text-gray-400'}"
+								/>
+							</div>
 							<div>
-								<h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">
-									{t('accountSettings.twoFactorAuth')}
-								</h3>
+								<p class="font-medium text-gray-900 dark:text-gray-100">
+									{twoFactorEnabled ? 'Enabled' : 'Disabled'}
+								</p>
 								<p class="text-sm text-gray-600 dark:text-gray-400">
-									{#if twoFactorEnabled}
-										{t('accountSettings.twoFactorEnabled')}
-									{:else}
-										{t('accountSettings.twoFactorDisabled')}
-									{/if}
+									{twoFactorEnabled
+										? 'Your account is protected with 2FA'
+										: 'Enable 2FA for better security'}
 								</p>
 							</div>
 						</div>
-
 						{#if twoFactorEnabled}
-							<div class="flex items-center gap-2">
-								<span
-									class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/20 dark:text-green-400"
-								>
-									{t('accountSettings.enabled')}
-								</span>
-								<button
-									class="cursor-pointer text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-									onclick={handleTwoFactorDisable}
-								>
-									{t('accountSettings.disable')}
-								</button>
-							</div>
+							<button
+								onclick={() => (showTwoFactorDisable = true)}
+								class="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-red-800 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-900/20"
+							>
+								Disable
+							</button>
 						{:else}
 							<button
-								class="inline-flex cursor-pointer items-center gap-2 rounded-md bg-[rgb(37,140,244)]/10 px-3 py-1.5 text-sm font-medium text-[rgb(37,140,244)] hover:bg-[rgb(37,140,244)]/20"
-								onclick={handleTwoFactorEnabled}
+								onclick={() => (showTwoFactorSetup = true)}
+								class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
 							>
-								<Shield class="h-4 w-4" />
-								{t('accountSettings.setup2FA')}
+								Enable 2FA
 							</button>
 						{/if}
 					</div>
+
+					<!-- Info Message -->
+					<div
+						class="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20"
+					>
+						<Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
+						<p class="text-xs text-blue-700 dark:text-blue-300">
+							Two-factor authentication adds an extra layer of security by requiring a code from
+							your authenticator app when signing in.
+						</p>
+					</div>
 				</div>
-			</div>
+			{/if}
 		</div>
 
 		<!-- Preferences -->
@@ -1397,20 +1444,6 @@
 		</div>
 	{/if}
 </div>
-
-<!-- Two-Factor Authentication Setup Modal -->
-<TwoFactorSetup
-	open={showTwoFactorSetup}
-	onClose={handleTwoFactorSetupClose}
-	onEnabled={handleTwoFactorSetupClose}
-/>
-
-<!-- Two-Factor Authentication Disable Modal -->
-<TwoFactorDisable
-	open={showTwoFactorDisable}
-	onClose={handleTwoFactorDisableClose}
-	onDisabled={handleTwoFactorDisableClose}
-/>
 
 <!-- Add Trip Exclusion Modal -->
 {#if showAddExclusionModal}
@@ -1703,4 +1736,13 @@
 		onComplete={handleOnboardingComplete}
 		onSkip={handleOnboardingSkip}
 	/>
+{/if}
+
+<!-- Two-Factor Authentication Modals -->
+{#if showTwoFactorSetup}
+	<TwoFactorSetup bind:open={showTwoFactorSetup} on:success={handle2FASetupSuccess} />
+{/if}
+
+{#if showTwoFactorDisable}
+	<TwoFactorDisable bind:open={showTwoFactorDisable} on:success={handle2FADisableSuccess} />
 {/if}

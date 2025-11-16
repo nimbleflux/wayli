@@ -5,12 +5,12 @@ import { importGPXWithProgress } from '../../../../src/worker/processors/import/
 
 const hoisted = vi.hoisted(() => {
 	const mockFrom = vi.fn();
-	const mockSupabase = { from: mockFrom };
+	const mockFluxbase = { from: mockFrom };
 	const mockApplyTimezoneCorrectionToTimestamp = vi.fn();
-	return { mockFrom, mockSupabase, mockApplyTimezoneCorrectionToTimestamp };
+	return { mockFrom, mockFluxbase, mockApplyTimezoneCorrectionToTimestamp };
 });
 
-vi.mock('../../../../src/worker/supabase', () => ({ supabase: hoisted.mockSupabase }));
+vi.mock('../../../../src/worker/fluxbase', () => ({ fluxbase: hoisted.mockFluxbase }));
 vi.mock('../../../../src/worker/job-queue.service.worker', () => ({
 	JobQueueService: { updateJobProgress: vi.fn() }
 }));

@@ -3,13 +3,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { findAvailableDateRanges } from './date-ranges';
 
-import type { SupabaseClient } from '@supabase/supabase-js';
-// Minimal env to satisfy config imported by supabase worker client
+import type { FluxbaseClient } from '@fluxbase/sdk';
+// Minimal env to satisfy config imported by fluxbase worker client
 process.env.NODE_ENV = process.env.NODE_ENV || 'development';
 process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'dev-session-secret';
 process.env.COOKIE_SECRET = process.env.COOKIE_SECRET || 'dev-cookie-secret';
 // Prevent importing the real worker client/config
-vi.mock('$lib/shared/worker-supabase-client', () => ({ supabase: {} as unknown }));
+vi.mock('$lib/shared/worker-fluxbase-client', () => ({ fluxbase: {} as unknown }));
 
 type DateRangesMockOptions = {
 	earliest?: string | null;
@@ -20,7 +20,7 @@ type DateRangesMockOptions = {
 	throwOnFrom?: boolean;
 };
 
-function createMockSupabase(options: DateRangesMockOptions = {}): SupabaseClient {
+function createMockFluxbase(options: DateRangesMockOptions = {}): FluxbaseClient {
 	return {
 		from: vi.fn().mockImplementation((table: string) => {
 			if (options.throwOnFrom) throw new Error('boom');
@@ -75,24 +75,24 @@ function createMockSupabase(options: DateRangesMockOptions = {}): SupabaseClient
 			}
 			return {} as unknown;
 		})
-	} as unknown as SupabaseClient;
+	} as unknown as FluxbaseClient;
 }
 
 describe('findAvailableDateRanges', () => {
-	let mockClient: SupabaseClient;
+	let mockClient: FluxbaseClient;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
 
 	it('returns empty array when earliest or latest data is missing', async () => {
-		mockClient = createMockSupabase({ earliest: null, latest: null, trips: [] });
+		mockClient = createMockFluxbase({ earliest: null, latest: null, trips: [] });
 		const result = await findAvailableDateRanges('user1', undefined, undefined, mockClient);
 		expect(result).toEqual([]);
 	});
 
 	it('applies user date constraints correctly', async () => {
-		mockClient = createMockSupabase({ earliest: '2025-01-01', latest: '2025-01-31', trips: [] });
+		mockClient = createMockFluxbase({ earliest: '2025-01-01', latest: '2025-01-31', trips: [] });
 
 		const result = await findAvailableDateRanges('user1', '2025-01-10', '2025-01-20', mockClient);
 
@@ -101,7 +101,7 @@ describe('findAvailableDateRanges', () => {
 	});
 
 	it('excludes trip dates from available ranges', async () => {
-		mockClient = createMockSupabase({
+		mockClient = createMockFluxbase({
 			earliest: '2025-01-01',
 			latest: '2025-01-10',
 			trips: [
@@ -121,7 +121,7 @@ describe('findAvailableDateRanges', () => {
 	});
 
 	it('filters out ranges shorter than 2 days', async () => {
-		mockClient = createMockSupabase({
+		mockClient = createMockFluxbase({
 			earliest: '2025-01-01',
 			latest: '2025-01-03',
 			trips: [{ start_date: '2025-01-02', end_date: '2025-01-02' }]
@@ -135,14 +135,14 @@ describe('findAvailableDateRanges', () => {
 		]);
 	});
 
-	it('returns empty array if Supabase errors', async () => {
-		mockClient = createMockSupabase({ errorOnEarliest: true });
+	it('returns empty array if Fluxbase errors', async () => {
+		mockClient = createMockFluxbase({ errorOnEarliest: true });
 		const result = await findAvailableDateRanges('user1', undefined, undefined, mockClient);
 		expect(result).toEqual([]);
 	});
 
 	it('handles unexpected thrown errors gracefully', async () => {
-		mockClient = createMockSupabase({ throwOnFrom: true });
+		mockClient = createMockFluxbase({ throwOnFrom: true });
 		const result = await findAvailableDateRanges('user1', undefined, undefined, mockClient);
 		expect(result).toEqual([]);
 	});

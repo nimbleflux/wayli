@@ -59,19 +59,16 @@ vi.mock('$lib/stores/auth', () => ({
 	}
 }));
 
-// Mock supabase
-vi.mock('$lib/supabase', () => ({
-	supabase: {
+// Mock fluxbase
+vi.mock('$lib/fluxbase', () => ({
+	fluxbase: {
 		auth: {
 			signOut: vi.fn()
 		}
 	}
 }));
 
-// Mock URL utils
-vi.mock('$lib/utils/url-utils', () => ({
-	getEdgeFunctionUrl: vi.fn(() => 'http://localhost/functions/server-settings')
-}));
+// url-utils is no longer used - removed mock
 
 // Mock fetch to return setup complete
 global.fetch = vi.fn(() =>

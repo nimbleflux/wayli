@@ -1,4 +1,4 @@
-import { supabase } from '../../supabase';
+import { fluxbase } from '../../fluxbase';
 import {
 	getCountryForPoint as getCountryForPointExternal,
 	normalizeCountryCode as normalizeCountryCodeExternal,
@@ -428,7 +428,7 @@ async function processFeatureChunk(
 				skipped += duplicatesInBatch;
 			}
 
-			const { error } = await supabase.from('tracker_data').upsert(deduplicatedData, {
+			const { error } = await fluxbase.from('tracker_data').upsert(deduplicatedData, {
 				onConflict: 'user_id,recorded_at',
 				ignoreDuplicates: false
 			});
@@ -487,7 +487,7 @@ export async function removeDuplicateTrackingPoints(userId: string): Promise<{ r
 	try {
 		console.log(`🧹 Removing duplicate tracking points for user ${userId}...`);
 
-		const { data, error } = await supabase.rpc('remove_duplicate_tracking_points', {
+		const { data, error } = await fluxbase.rpc('remove_duplicate_tracking_points', {
 			target_user_id: userId
 		});
 

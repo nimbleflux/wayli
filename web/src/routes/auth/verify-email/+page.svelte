@@ -4,7 +4,7 @@
 	import { toast } from 'svelte-sonner';
 
 	import { translate } from '$lib/i18n';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
 
@@ -17,13 +17,13 @@
 	let cooldownInterval: ReturnType<typeof setInterval> | null = null;
 
 	onMount(() => {
-		// Get email from sessionStorage or Supabase session
+		// Get email from sessionStorage or Fluxbase session
 		const pendingEmail = sessionStorage.getItem('pending_verification_email');
 
 		(async () => {
 			const {
 				data: { user }
-			} = await supabase.auth.getUser();
+			} = await fluxbase.auth.getUser();
 
 			if (user && user.email_confirmed_at) {
 				// User is already verified, redirect to dashboard
@@ -60,7 +60,7 @@
 		resendLoading = true;
 
 		try {
-			const { error } = await supabase.auth.resend({
+			const { error } = await fluxbase.auth.resend({
 				type: 'signup',
 				email: email,
 				options: {

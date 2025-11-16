@@ -1,6 +1,6 @@
 import { createWorkerClient } from '../../worker/client';
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { FluxbaseClient } from '@fluxbase/sdk';
 
 export enum AuditEventType {
 	// Authentication events
@@ -9,9 +9,6 @@ export enum AuditEventType {
 	USER_REGISTRATION = 'user_registration',
 	PASSWORD_CHANGE = 'password_change',
 	PASSWORD_RESET = 'password_reset',
-	TWO_FACTOR_ENABLED = 'two_factor_enabled',
-	TWO_FACTOR_DISABLED = 'two_factor_disabled',
-	TWO_FACTOR_VERIFICATION = 'two_factor_verification',
 
 	// Data access events
 	DATA_VIEW = 'data_view',
@@ -73,11 +70,11 @@ export interface AuditLogFilter {
 }
 
 export class AuditLoggerService {
-	private supabase: SupabaseClient;
+	private fluxbase: FluxbaseClient;
 	private isDevelopment: boolean;
 
 	constructor() {
-		this.supabase = createWorkerClient();
+		this.fluxbase = createWorkerClient();
 		this.isDevelopment = process.env.NODE_ENV === 'development';
 	}
 
@@ -119,7 +116,7 @@ export class AuditLoggerService {
 
 			// Database logging for production
 			if (!this.isDevelopment) {
-				await this.supabase.from('audit_logs').insert({
+				await this.fluxbase.from('audit_logs').insert({
 					user_id: entry.user_id,
 					event_type: entry.event_type,
 					severity: entry.severity,
@@ -341,7 +338,7 @@ export class AuditLoggerService {
 	 */
 	async getAuditLogs(filter: AuditLogFilter = {}): Promise<AuditLogEntry[]> {
 		try {
-			let query = this.supabase
+			let query = this.fluxbase
 				.from('audit_logs')
 				.select('*')
 				.order('timestamp', { ascending: false });
@@ -401,7 +398,7 @@ export class AuditLoggerService {
 		eventsByUser: Record<string, number>;
 	}> {
 		try {
-			let query = this.supabase.from('audit_logs').select('*');
+			let query = this.fluxbase.from('audit_logs').select('*');
 
 			if (startDate) {
 				query = query.gte('timestamp', startDate);
@@ -464,7 +461,7 @@ export class AuditLoggerService {
 			const cutoffDate = new Date();
 			cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
-			const { error } = await this.supabase
+			const { error } = await this.fluxbase
 				.from('audit_logs')
 				.delete()
 				.lt('timestamp', cutoffDate.toISOString());

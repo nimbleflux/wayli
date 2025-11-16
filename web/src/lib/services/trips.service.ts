@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { FluxbaseClient } from '@fluxbase/sdk';
 
 interface Trip {
 	id: string;
@@ -25,16 +25,16 @@ interface UpdateTripData extends Partial<CreateTripData> {
 }
 
 export class TripsService {
-	private supabase: SupabaseClient;
+	private fluxbase: FluxbaseClient;
 
-	constructor(client: SupabaseClient) {
-		this.supabase = client;
+	constructor(client: FluxbaseClient) {
+		this.fluxbase = client;
 	}
 
 	private async getCurrentUserId(): Promise<string> {
 		const {
 			data: { session }
-		} = await this.supabase.auth.getSession();
+		} = await this.fluxbase.auth.getSession();
 		if (!session?.user?.id) {
 			throw new Error('User not authenticated');
 		}
@@ -63,14 +63,14 @@ export class TripsService {
 				const {
 					data: { user },
 					error: userError
-				} = await this.supabase.auth.getUser();
+				} = await this.fluxbase.auth.getUser();
 				if (userError || !user) {
 					throw new Error('User not authenticated');
 				}
 				currentUserId = user.id;
 			}
 
-			const query = this.supabase
+			const query = this.fluxbase
 				.from('trips')
 				.select('*')
 				.eq('user_id', currentUserId)
@@ -90,7 +90,7 @@ export class TripsService {
 
 	async getTrip(id: string): Promise<Trip | null> {
 		try {
-			const { data: trip, error } = await this.supabase
+			const { data: trip, error } = await this.fluxbase
 				.from('trips')
 				.select('*')
 				.eq('id', id)
@@ -112,7 +112,7 @@ export class TripsService {
 				user_id: await this.getCurrentUserId()
 			};
 
-			const { data: trip, error } = await this.supabase
+			const { data: trip, error } = await this.fluxbase
 				.from('trips')
 				.insert(insertData)
 				.select()
@@ -137,7 +137,7 @@ export class TripsService {
 				...updateData,
 				metadata: updateData.metadata ?? {}
 			};
-			const { data: trip, error } = await this.supabase
+			const { data: trip, error } = await this.fluxbase
 				.from('trips')
 				.update(updatePayload)
 				.eq('id', id)
@@ -160,7 +160,7 @@ export class TripsService {
 
 	async deleteTrip(id: string): Promise<void> {
 		try {
-			const { error } = await this.supabase.from('trips').delete().eq('id', id);
+			const { error } = await this.fluxbase.from('trips').delete().eq('id', id);
 
 			if (error) throw error;
 		} catch (error) {
@@ -171,7 +171,7 @@ export class TripsService {
 
 	async searchTrips(query: string): Promise<Trip[]> {
 		try {
-			const { data: trips, error } = await this.supabase
+			const { data: trips, error } = await this.fluxbase
 				.from('trips')
 				.select('*')
 				.or(`title.ilike.%${query}%,description.ilike.%${query}%,labels.cs.{${query}}`)
@@ -190,7 +190,7 @@ export class TripsService {
 	async updateTripMetadata(tripId: string): Promise<void> {
 		try {
 			// Fetch the trip to get user_id and date range
-			const { data: trip, error: tripError } = await this.supabase
+			const { data: trip, error: tripError } = await this.fluxbase
 				.from('trips')
 				.select('user_id, start_date, end_date, metadata')
 				.eq('id', tripId)
@@ -200,7 +200,7 @@ export class TripsService {
 			// Calculate distanceTraveled using a direct SUM query
 			let distanceTraveled = 0;
 			if (trip.start_date && trip.end_date) {
-				const { data, error } = await this.supabase
+				const { data, error } = await this.fluxbase
 					.from('tracker_data')
 					.select('distance')
 					.eq('user_id', trip.user_id)
@@ -216,7 +216,7 @@ export class TripsService {
 				}
 			}
 			// Update the trip's metadata.distanceTraveled
-			await this.supabase
+			await this.fluxbase
 				.from('trips')
 				.update({ metadata: { ...trip.metadata, distanceTraveled } })
 				.eq('id', tripId);

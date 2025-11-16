@@ -28,7 +28,7 @@
 	import { setDateRange } from '$lib/stores/app-state.svelte';
 	import { sessionStore, sessionStoreReady } from '$lib/stores/auth';
 	import { getActiveJobsMap, subscribe } from '$lib/stores/job-store';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
@@ -318,7 +318,7 @@
 		}
 
 		try {
-			const session = await supabase.auth.getSession();
+			const session = await fluxbase.auth.getSession();
 			if (!session.data.session) {
 				throw new Error('No session found');
 			}
@@ -417,7 +417,7 @@
 
 	async function loadUserPreferences() {
 		try {
-			const session = await supabase.auth.getSession();
+			const session = await fluxbase.auth.getSession();
 			if (!session.data.session) {
 				throw new Error('No session found');
 			}

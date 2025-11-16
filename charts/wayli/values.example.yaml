@@ -1,6 +1,6 @@
 global:
-  ## Shared secret name anchor for Supabase
-  supabaseSecretName: &supabaseSecret supabase-secret
+  ## Shared secret name anchor for Fluxbase
+  fluxbaseSecretName: &fluxbaseSecret fluxbase-secret
 
 ## Web deployment
 web:
@@ -21,13 +21,13 @@ worker:
 ingress:
   enabled: true
   ingressClassName: nginx
-  hostname: wayli.your-domain.com # Use the same domain as in .supabase.global.supabase.siteUrl
+  hostname: wayli.your-domain.com # Use the same domain as in .fluxbase.global.fluxbase.siteUrl
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/ssl-redirect: 'true'
 
-## Supabase dependency configuration
-supabase:
+## Fluxbase dependency configuration
+fluxbase:
   enabled: true
 
   global:
@@ -35,41 +35,106 @@ supabase:
     defaultStorageClass: 'local-path'
     # Global storage class
     storageClass: 'local-path'
-    # Supabase global configuration
-    supabase:
-      # Organization name displayed in Studio
-      organizationName: Wayli
-      # Project name displayed in Studio
-      projectName: Wayli
-      # Public URL of the Studio instance (you MUST set this)
-      publicUrl: 'http://supabase.your-domain.com'
-      # Site URL of Wayli (you MUST set this)
-      siteUrl: 'http://wayli.your-domain.com'
-      # Existing secret containing Supabase keys
-      existingSecret: *supabaseSecret
-      # Uncomment if you want to provide a secret containing SMTP credentials yourself.
-      # Use the keys 'username' and 'password' (you can also configure these keys with 'secretKeys').
-      # auth:
-      #   smtp:
-      #     existingSecret: smtp-secret
+    # Fluxbase global configuration
+    fluxbase:
+      # Public URL of the Fluxbase instance (API endpoint) (you MUST set this)
+      publicUrl: 'https://flux.your-domain.com'
+      # Site URL for auth redirects (you MUST set this)
+      siteUrl: 'https://wayli.your-domain.com'
+      # JWT token expiry (e.g., 15m, 1h, 24h)
+      jwtExpiry: '1h'
+      # Auth configuration
+      auth:
+        # Disable new user signups (set to true after first admin user is created)
+        disableSignup: false
+        # Enable email signup
+        enableEmailSignup: true
+        # Enable email autoconfirm (set to true if SMTP is not configured)
+        enableEmailAutoconfirm: false
+        # SMTP configuration
+        smtp:
+          # SMTP admin email (receives system notifications)
+          adminEmail: 'admin@your-domain.com'
+          # SMTP host
+          host: 'smtp.your-domain.com'
+          # SMTP port
+          port: 587
+          # SMTP sender name
+          senderName: 'Wayli'
+          # Existing secret containing SMTP credentials (keys: username, password)
+          existingSecret: 'smtp-secret'
+          # Secret keys configuration for existing secret
+          secretKeys:
+            userKey: username
+            passwordKey: password
+      # Existing secret for Fluxbase credentials (you MUST create this secret)
+      existingSecret: *fluxbaseSecret
+      secretKeys:
+        # JWT secret key in the secret
+        jwtSecret: jwt-secret
+        # Anonymous key in the secret
+        anonKey: anon-key
+        # Service role key in the secret
+        serviceRoleKey: service-role-key
+        # Secret key base in the secret
+        secretKeyBase: secret-key-base
+        # Vault encryption key in the secret
+        vaultEncKey: vault-enc-key
+        # Database encryption key in the secret
+        dbEncKey: db-enc-key
 
+  # Database configuration (PostgreSQL)
   db:
     postgres:
-      existingSecret: *supabaseSecret
+      enabled: true
+      existingSecret: *fluxbaseSecret
+      secretKeys:
+        userPasswordKey: db-password
+      resources:
+        requests:
+          memory: 512Mi
+          cpu: '250m'
+        limits:
+          memory: 2Gi
+          cpu: '2'
+      persistence:
+        size: 20Gi
+        storageClass: 'local-path'
 
-  studio:
+  # Storage configuration (MinIO/S3)
+  storage:
+    enabled: true
     config:
-      auth:
-        existingSecret: *supabaseSecret
+      fileSizeLimit: 1073741824 # 1GB
+      storageBucket: trip-images
+      region: local
+    persistence:
+      size: 50Gi
+      storageClass: 'local-path'
 
-  vector:
-    enabled: false
-
-  kong:
+  # Fluxbase server configuration
+  server:
+    enabled: true
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: '100m'
+      limits:
+        memory: 512Mi
+        cpu: '500m'
+    # Realtime configuration
+    realtime:
+      enabled: true
+    # Functions/Edge Functions configuration
+    functions:
+      enabled: true
+      # Path to edge functions directory
+      functionsPath: /app/functions
+    # Ingress configuration for Fluxbase API
     ingress:
       enabled: true
       ingressClassName: nginx
-      hostname: 'supabase.your-domain.com' # Use the same domain as in .supabase.global.supabase.publicUrl
+      hostname: 'flux.your-domain.com' # Use the same domain as in .fluxbase.global.fluxbase.publicUrl
       annotations:
         nginx.ingress.kubernetes.io/ssl-redirect: 'true'
         nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'

@@ -1,1 +1,0 @@
-export { DatabaseMigrationService } from './migration.service';

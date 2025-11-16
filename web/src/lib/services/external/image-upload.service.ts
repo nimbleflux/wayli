@@ -1,7 +1,7 @@
-import { supabase } from '$lib/supabase';
+import { fluxbase } from '$lib/fluxbase';
 
 /**
- * Upload an image file to Supabase Storage
+ * Upload an image file to Fluxbase Storage
  */
 export async function uploadTripImage(file: File, fileName?: string): Promise<string | null> {
 	try {
@@ -16,8 +16,8 @@ export async function uploadTripImage(file: File, fileName?: string): Promise<st
 		const {
 			data: { user },
 			error: userError
-		} = await supabase.auth.getUser();
-		console.log('👤 [UPLOAD] supabase.auth.getUser() result:', { user, userError });
+		} = await fluxbase.auth.getUser();
+		console.log('👤 [UPLOAD] fluxbase.auth.getUser() result:', { user, userError });
 		if (userError || !user) {
 			console.error('❌ [UPLOAD] Failed to get user:', userError);
 			return null;
@@ -34,7 +34,7 @@ export async function uploadTripImage(file: File, fileName?: string): Promise<st
 		console.log('🔍 [UPLOAD] Skipping bucket existence check for testing...');
 		console.log('⚠️ [UPLOAD] Assuming trip-images bucket exists...');
 
-		// Upload directly to Supabase Storage
+		// Upload directly to Fluxbase Storage
 		console.log('📤 [UPLOAD] Starting file upload to storage...', {
 			bucket: 'trip-images',
 			filePath: filePath,
@@ -45,16 +45,16 @@ export async function uploadTripImage(file: File, fileName?: string): Promise<st
 
 		const uploadStartTime = Date.now();
 
-		console.log('🔍 [UPLOAD] Calling supabase.storage.from("trip-images").upload()...');
+		console.log('🔍 [UPLOAD] Calling fluxbase.storage.from("trip-images").upload()...');
 		let uploadData, error;
 		try {
-			({ data: uploadData, error } = await supabase.storage
+			({ data: uploadData, error } = await fluxbase.storage
 				.from('trip-images')
 				.upload(filePath, file, {
 					contentType: file.type,
 					upsert: true
 				}));
-			console.log('📤 [UPLOAD] supabase.storage upload call returned:', { uploadData, error });
+			console.log('📤 [UPLOAD] fluxbase.storage upload call returned:', { uploadData, error });
 		} catch (uploadErr) {
 			console.error('💥 [UPLOAD] Exception thrown during upload:', uploadErr);
 			throw uploadErr;
@@ -70,7 +70,7 @@ export async function uploadTripImage(file: File, fileName?: string): Promise<st
 		});
 
 		if (error) {
-			console.error('❌ [UPLOAD] Failed to upload image to Supabase Storage:', error);
+			console.error('❌ [UPLOAD] Failed to upload image to Fluxbase Storage:', error);
 			return null;
 		}
 
@@ -78,7 +78,7 @@ export async function uploadTripImage(file: File, fileName?: string): Promise<st
 
 		// Get the public URL
 		console.log('🔗 [UPLOAD] Generating public URL...');
-		const { data: urlData } = supabase.storage.from('trip-images').getPublicUrl(filePath);
+		const { data: urlData } = fluxbase.storage.from('trip-images').getPublicUrl(filePath);
 
 		console.log('✅ [UPLOAD] Public URL generated:', urlData.publicUrl);
 		console.log('🎉 [UPLOAD] Image upload completed successfully!');
@@ -96,7 +96,7 @@ export async function uploadTripImage(file: File, fileName?: string): Promise<st
 }
 
 /**
- * Delete an image from Supabase Storage
+ * Delete an image from Fluxbase Storage
  */
 export async function deleteTripImage(imageUrl: string): Promise<boolean> {
 	try {
@@ -104,7 +104,7 @@ export async function deleteTripImage(imageUrl: string): Promise<boolean> {
 		const {
 			data: { user },
 			error: userError
-		} = await supabase.auth.getUser();
+		} = await fluxbase.auth.getUser();
 		if (userError || !user) {
 			console.error('Failed to get user:', userError);
 			return false;
@@ -115,11 +115,11 @@ export async function deleteTripImage(imageUrl: string): Promise<boolean> {
 		const fileName = urlParts[urlParts.length - 1];
 		const filePath = `${user.id}/${fileName}`;
 
-		// Delete from Supabase Storage
-		const { error } = await supabase.storage.from('trip-images').remove([filePath]);
+		// Delete from Fluxbase Storage
+		const { error } = await fluxbase.storage.from('trip-images').remove([filePath]);
 
 		if (error) {
-			console.error('Failed to delete image from Supabase Storage:', error);
+			console.error('Failed to delete image from Fluxbase Storage:', error);
 			return false;
 		}
 

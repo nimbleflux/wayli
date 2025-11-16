@@ -17,8 +17,8 @@ vi.mock('$lib/i18n', async () => {
 	} as any;
 });
 
-vi.mock('$lib/supabase', () => ({
-	supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: {} } }) } }
+vi.mock('$lib/fluxbase', () => ({
+	fluxbase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: {} } }) } }
 }));
 
 vi.mock('$lib/services/api/service-adapter', () => ({

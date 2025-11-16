@@ -1,1 +1,1 @@
-export { supabase } from './worker-supabase-client';
+export { fluxbase } from './worker-fluxbase-client';

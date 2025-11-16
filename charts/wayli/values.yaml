@@ -6,8 +6,8 @@ global:
   annotations: {}
 
 ## Secrets configuration
-## Note: Secret names are configured in supabase.global.supabase.existingSecret
-## and supabase.global.supabase.auth.smtp.existingSecret
+## Note: Secret names are configured in fluxbase.global.fluxbase.existingSecret
+## and fluxbase.global.fluxbase.auth.smtp.existingSecret
 secrets:
   ## SMTP secret keys (for creating secrets from values.yaml in non-production)
   smtp:
@@ -57,7 +57,7 @@ web:
         repository: flyway/flyway
         tag: "11-alpine"
         pullPolicy: IfNotPresent
-    waitForSupabase:
+    waitForFluxbase:
       enabled: true
       image:
         repository: busybox
@@ -331,21 +331,18 @@ ingress:
   # Additional TLS configurations
   extraTls: []
 
-## External Supabase configuration
-## Only set these if using an external/managed Supabase instance (not the subchart)
-externalSupabase:
-  ## Set to true to use external Supabase instead of the subchart
+## External Fluxbase configuration
+## Only set these if using an external/managed Fluxbase instance (not the subchart)
+externalFluxbase:
+  ## Set to true to use external Fluxbase instead of the subchart
   enabled: false
-  ## Public Supabase URL (API endpoint)
+  ## Public Fluxbase URL (API endpoint)
   url: ""
   ## Database connection details (for migrations and workers)
   dbHost: ""
   dbPort: 5432
   dbName: "postgres"
-  dbUser: "supabase_admin"
-  ## Kong API gateway details
-  kongHost: ""
-  kongPort: 8000
+  dbUser: "postgres"
 
 ## Pod Security Context (enabled by default for non-root)
 podSecurityContext:
@@ -374,8 +371,8 @@ serviceAccount:
   ## Auto-mount service account token
   automountServiceAccountToken: true
 
-## Supabase dependency configuration
-supabase:
+## Fluxbase dependency configuration
+fluxbase:
   enabled: true
 
   global:
@@ -383,18 +380,14 @@ supabase:
     defaultStorageClass: "standard"
     # Global storage class
     storageClass: "standard"
-    # Supabase global configuration
-    supabase:
-      # Organization name displayed in Studio
-      organizationName: Wayli
-      # Project name displayed in Studio
-      projectName: Wayli
-      # Public URL of the Supabase instance (API endpoint)
-      publicUrl: "https://supa.wayli.app"
-      # Site URL of the Supabase instance (for auth redirects)
+    # Fluxbase global configuration
+    fluxbase:
+      # Public URL of the Fluxbase instance (API endpoint)
+      publicUrl: "https://flux.wayli.app"
+      # Site URL for auth redirects
       siteUrl: "https://wayli.app"
-      # JWT token expiry in seconds
-      jwtExpiry: 3600
+      # JWT token expiry (e.g., 15m, 1h, 24h)
+      jwtExpiry: "1h"
       # Auth configuration
       auth:
         # Authentication settings
@@ -446,6 +439,8 @@ supabase:
         secretKeyBase: ""
         username: ""
         password: ""
+
+  # Database configuration (PostgreSQL)
   db:
     postgres:
       enabled: true
@@ -461,65 +456,37 @@ supabase:
           cpu: "2"
       persistence:
         size: 20Gi
-    pgbouncer:
-      enabled: true
-      service:
-        port: 6432
 
-  realtime:
-    enabled: true
-
-  vector:
-    enabled: false
-
+  # Storage configuration (MinIO/S3)
   storage:
     enabled: true
     config:
       fileSizeLimit: 1073741824
-      storageBackend: file
-      tenantId: wayli-tenant
+      storageBucket: trip-images
       region: local
     persistence:
       size: 50Gi
       storageClass: ~
 
-  functions:
+  # Fluxbase server configuration
+  server:
     enabled: true
-    config:
-      mainService: /home/supabase/functions/main
-    extraEnvVars:
-      - name: VERIFY_JWT
-        value: "true"
-    initContainers:
-      - name: init-functions
-        # NOTE: This is automatically updated by CI/CD to match appVersion
-        image: zehbart/wayli:v1.0.10
-        imagePullPolicy: Always
-        command:
-          - /bin/sh
-          - -c
-          - cp -Rv /app/supabase/functions/* /functions
-        volumeMounts:
-          - name: functions-main
-            mountPath: /functions
-
-  auth:
-    extraEnvVars: []
-    db:
-      host: ""  # Defaults to supabase-pgbouncer or supabase-db based on pgbouncer.enabled
-      port: ""  # Defaults to 6432 (pgbouncer) or 5432 (postgres)
-
-  rest:
-    enabled: true
-    db:
-      host: ""  # Defaults to supabase-pgbouncer or supabase-db based on pgbouncer.enabled
-      port: ""  # Defaults to 6432 (pgbouncer) or 5432 (postgres)
-
-  studio:
-    enabled: true
-
-  kong:
-    enabled: true
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: "100m"
+      limits:
+        memory: 512Mi
+        cpu: "500m"
+    # Realtime configuration
+    realtime:
+      enabled: true
+    # Functions/Edge Functions configuration
+    functions:
+      enabled: true
+      # Path to edge functions directory
+      functionsPath: /app/functions
+    # Ingress configuration for Fluxbase API
     ingress:
       enabled: false
       ingressClassName: nginx
@@ -529,12 +496,4 @@ supabase:
         nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
         nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
         nginx.ingress.kubernetes.io/proxy-body-size: "1g"
-        nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600"
-        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-        nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
       tls: []
-
-  analytics:
-    enabled: false
-    persistence:
-      size: 10Gi

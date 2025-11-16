@@ -1,5 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@fluxbase/sdk';
+import type { FluxbaseClient } from '@fluxbase/sdk';
 import { translateServer, getCountryNameServer } from '../utils/server-translations';
 import { getCountryForPoint } from '../services/external/country-reverse-geocoding.service';
 
@@ -108,15 +108,15 @@ export interface TripDetectionProgress {
 }
 
 export class TripDetectionService {
-	private supabase: SupabaseClient;
+	private fluxbase: FluxbaseClient;
 	private userState: UserLocationState | null = null;
 	private userId: string | null = null;
 	private homeLocationsCache: Map<string, { locations: Location[]; language: string }> = new Map();
 	private jobId: string | null = null;
 	private progressCallback?: (progress: TripDetectionProgress) => void;
 
-	constructor(supabaseUrl: string, supabaseKey: string) {
-		this.supabase = createClient(supabaseUrl, supabaseKey);
+	constructor(fluxbaseUrl: string, fluxbaseKey: string) {
+		this.fluxbase = createClient(fluxbaseUrl, fluxbaseKey);
 	}
 
 	/**
@@ -144,7 +144,7 @@ export class TripDetectionService {
 	 */
 	async getExcludedDateRanges(userId: string): Promise<ExcludedDateRange[]> {
 		try {
-			const { data: trips, error } = await this.supabase
+			const { data: trips, error } = await this.fluxbase
 				.from('trips')
 				.select('start_date, end_date, status')
 				.eq('user_id', userId)
@@ -182,7 +182,7 @@ export class TripDetectionService {
 			const homeLocations: Location[] = [];
 
 			// Fetch home address from user_profiles
-			const { data: profile, error: profileError } = await this.supabase
+			const { data: profile, error: profileError } = await this.fluxbase
 				.from('user_profiles')
 				.select('home_address')
 				.eq('id', userId)
@@ -197,7 +197,7 @@ export class TripDetectionService {
 			}
 
 			// Fetch trip exclusions and language from user_preferences
-			const { data: preferences, error: preferencesError } = await this.supabase
+			const { data: preferences, error: preferencesError } = await this.fluxbase
 				.from('user_preferences')
 				.select('trip_exclusions, language')
 				.eq('id', userId)
@@ -438,7 +438,7 @@ export class TripDetectionService {
 		};
 
 		// First, count total data points for accurate progress tracking
-		const { count: totalDataPoints, error: countError } = await this.supabase
+		const { count: totalDataPoints, error: countError } = await this.fluxbase
 			.from('tracker_data')
 			.select('*', { count: 'exact', head: true })
 			.eq('user_id', userId)
@@ -452,7 +452,7 @@ export class TripDetectionService {
 		const totalPoints = totalDataPoints || 0;
 		console.log(`📊 Total data points to process: ${totalPoints}`);
 
-		// Process data in batches of 1000 (Supabase limit)
+		// Process data in batches of 1000 (Fluxbase limit)
 		const batchSize = 1000;
 		let offset = 0;
 		let hasMoreData = true;
@@ -474,7 +474,7 @@ export class TripDetectionService {
 		while (hasMoreData) {
 			try {
 				// Query tracking data for this date range with pagination
-				const { data: batch, error } = await this.supabase
+				const { data: batch, error } = await this.fluxbase
 					.from('tracker_data')
 					.select('recorded_at, geocode')
 					.eq('user_id', userId)
@@ -614,7 +614,7 @@ export class TripDetectionService {
 	 */
 	private async getUserFirstDataPoint(userId: string): Promise<string> {
 		try {
-			const { data, error } = await this.supabase
+			const { data, error } = await this.fluxbase
 				.from('tracker_data')
 				.select('recorded_at, geocode')
 				.eq('user_id', userId)

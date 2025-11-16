@@ -5,7 +5,7 @@ import { getTripBannerImage } from '../lib/services/external/pexels.service';
 import type { ImageGenerationJob } from '../lib/types/trip-generation.types';
 
 export class ImageGenerationProcessorService {
-	private supabase = createWorkerClient();
+	private fluxbase = createWorkerClient();
 	private static readonly RATE_LIMIT_DELAY = 1000; // 1 second between requests
 
 	/**
@@ -14,7 +14,7 @@ export class ImageGenerationProcessorService {
 	async processPendingJobs(): Promise<void> {
 		try {
 			// Get pending jobs ordered by priority and creation time
-			const { data: pendingJobs, error } = await this.supabase
+			const { data: pendingJobs, error } = await this.fluxbase
 				.from('image_generation_jobs')
 				.select('*')
 				.eq('status', 'queued')
@@ -103,7 +103,7 @@ export class ImageGenerationProcessorService {
 	private async getUserPexelsApiKey(userId: string): Promise<string | undefined> {
 		try {
 			// First check if user has a personal API key
-			const { data: preferences, error } = await this.supabase
+			const { data: preferences, error } = await this.fluxbase
 				.from('user_preferences')
 				.select('pexels_api_key')
 				.eq('id', userId)
@@ -116,7 +116,7 @@ export class ImageGenerationProcessorService {
 			}
 
 			// Fall back to server-level API key from database
-			const { data: serverSettings, error: settingsError } = await this.supabase
+			const { data: serverSettings, error: settingsError } = await this.fluxbase
 				.from('server_settings')
 				.select('server_pexels_api_key')
 				.single();
@@ -160,7 +160,7 @@ export class ImageGenerationProcessorService {
 			updateData.attempts = attempts;
 		}
 
-		const { error: updateError } = await this.supabase
+		const { error: updateError } = await this.fluxbase
 			.from('image_generation_jobs')
 			.update(updateData)
 			.eq('id', jobId);
@@ -174,7 +174,7 @@ export class ImageGenerationProcessorService {
 	 * Update suggested trip with generated image URL
 	 */
 	private async updateSuggestedTripImage(suggestedTripId: string, imageUrl: string): Promise<void> {
-		const { error } = await this.supabase
+		const { error } = await this.fluxbase
 			.from('trips')
 			.update({ image_url: imageUrl })
 			.eq('id', suggestedTripId)
@@ -193,7 +193,7 @@ export class ImageGenerationProcessorService {
 			const thirtyDaysAgo = new Date();
 			thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-			const { error } = await this.supabase
+			const { error } = await this.fluxbase
 				.from('image_generation_jobs')
 				.delete()
 				.in('status', ['completed', 'failed'])
@@ -219,7 +219,7 @@ export class ImageGenerationProcessorService {
 		failed: number;
 	}> {
 		try {
-			const { data: stats, error } = await this.supabase
+			const { data: stats, error } = await this.fluxbase
 				.from('image_generation_jobs')
 				.select('status');
 

@@ -4,12 +4,7 @@
 	import { toast } from 'svelte-sonner';
 
 	import { JobRealtimeService, type JobUpdate } from '$lib/services/job-realtime.service';
-	import {
-		updateJobInStore,
-		removeJobFromStore,
-		getActiveJobsMap,
-		fetchAndPopulateJobs
-	} from '$lib/stores/job-store';
+	import { getActiveJobsMap, getRealtimeStatus } from '$lib/stores/job-store';
 
 	// Helper function to get job type info for notifications
 	function getJobTypeInfo(type: string) {
@@ -35,7 +30,7 @@
 		onJobCompleted = null as ((jobs: JobUpdate[]) => void) | null
 	} = $props();
 
-	let realtimeService = $state<JobRealtimeService | null>(null);
+	let unsubscribe: (() => void) | null = null;
 	let completedJobIds = $state(new Set<string>()); // Track completed jobs to prevent duplicate toasts
 	let connectionStatus = $state<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected');
 
@@ -43,35 +38,45 @@
 	export async function startMonitoring() {
 		console.log('🔗 JobTracker: Starting monitoring...');
 
-		// Disconnect any existing service
-		if (realtimeService) {
-			await realtimeService.disconnect();
-			realtimeService = null;
+		// Unsubscribe from any existing subscription
+		if (unsubscribe) {
+			unsubscribe();
+			unsubscribe = null;
 		}
 
-		// Step 1: Immediately fetch current active jobs
-		console.log('📥 JobTracker: Fetching initial jobs...');
-		try {
-			await fetchAndPopulateJobs();
-			const jobCount = getActiveJobsMap().size;
-			console.log(`✅ JobTracker: Initial jobs loaded (${jobCount} jobs)`);
-		} catch (error) {
-			console.error('❌ JobTracker: Error fetching initial jobs:', error);
-		}
+		// Subscribe to singleton realtime service
+		// The global store already handles connection and updates
+		// We just need to add our component-specific callbacks
+		const service = JobRealtimeService.getInstance();
+		unsubscribe = service.subscribe({
+			onConnectionStatusChange: (status) => {
+				connectionStatus = status;
+				console.log('🔗 JobTracker: Connection status changed to:', status);
+			},
+			onJobUpdate: (job: JobUpdate) => {
+				// Filter by job type if specified
+				if (jobType && job.type !== jobType) {
+					return;
+				}
+				handleJobUpdate(job);
+			},
+			onJobCompleted: (job: JobUpdate) => {
+				// Filter by job type if specified
+				if (jobType && job.type !== jobType) {
+					return;
+				}
+				handleJobCompleted(job);
+			}
+		});
 
-		// Step 2: Connect to realtime
-		console.log('🔗 JobTracker: Connecting to Realtime...');
-		try {
-			await startRealtimeMonitoring();
-		} catch (error) {
-			console.error('❌ JobTracker: Realtime connection failed:', error);
-		}
+		// Update initial connection status
+		connectionStatus = getRealtimeStatus();
 	}
 
 	// Helper functions for handling job updates
 	function handleJobUpdate(job: JobUpdate) {
-		// Update the global store
-		updateJobInStore(job);
+		// Note: Global store subscription already updates the store
+		// We only handle component-specific logic here
 
 		// Show toast notifications for status changes
 		const previousJob = getActiveJobsMap().get(job.id);
@@ -96,79 +101,22 @@
 				console.error('❌ JobTracker: Error calling onJobUpdate callback:', error);
 			}
 		}
-
-		// Clean up old completed jobs (older than 30 seconds)
-		cleanupOldJobs();
 	}
 
 	function handleJobCompleted(job: JobUpdate) {
 		// Mark as completed in our tracking
 		completedJobIds.add(job.id);
 
-		// Immediately update the job status in the store
-		updateJobInStore(job);
-
-		// Remove from active jobs after a delay
-		setTimeout(() => {
-			removeJobFromStore(job.id);
-		}, 5000); // 5 second delay
+		// Note: Global store subscription already handles updates and removal
 
 		// Notify parent component
 		onJobCompleted?.([job]);
 	}
 
-	function cleanupOldJobs() {
-		const now = Date.now();
-		const currentJobs = getActiveJobsMap();
-		for (const [jobId, job] of currentJobs.entries()) {
-			if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
-				const jobTime = new Date(job.updated_at).getTime();
-				if (now - jobTime > 30000) {
-					// 30 seconds
-					removeJobFromStore(jobId);
-				}
-			}
-		}
-	}
-
-	async function startRealtimeMonitoring() {
-		realtimeService = new JobRealtimeService({
-			onConnected: () => {
-				console.log('✅ JobTracker: Realtime connected');
-			},
-			onDisconnected: () => {
-				console.log('🔌 JobTracker: Realtime disconnected');
-			},
-			onError: (error: string) => {
-				console.error('❌ JobTracker: Realtime error:', error);
-			},
-			onConnectionStatusChange: (status) => {
-				connectionStatus = status;
-				console.log('🔗 JobTracker: Connection status changed to:', status);
-			},
-			onJobUpdate: (job: JobUpdate) => {
-				// Filter by job type if specified
-				if (jobType && job.type !== jobType) {
-					return;
-				}
-				handleJobUpdate(job);
-			},
-			onJobCompleted: (job: JobUpdate) => {
-				// Filter by job type if specified
-				if (jobType && job.type !== jobType) {
-					return;
-				}
-				handleJobCompleted(job);
-			}
-		});
-
-		await realtimeService.connect();
-	}
-
 	export async function stopMonitoring() {
-		if (realtimeService) {
-			await realtimeService.disconnect();
-			realtimeService = null;
+		if (unsubscribe) {
+			unsubscribe();
+			unsubscribe = null;
 		}
 	}
 
@@ -189,10 +137,11 @@
 	}
 
 	export function addJob(job: JobUpdate): void {
+		// Note: Global store subscription automatically handles all job updates
+		// This function is kept for API compatibility but doesn't need to do anything
 		if (jobType && job.type !== jobType) {
 			return; // Skip if we're filtering by job type
 		}
-		updateJobInStore(job);
 	}
 
 	export function updateParentState(jobs: JobUpdate[]): void {

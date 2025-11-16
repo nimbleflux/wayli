@@ -5,10 +5,10 @@ import { errorHandler, ErrorCode } from '../error-handler.service';
 import { UserProfileService } from '../user-profile.service';
 
 import type { UserProfile, UserPreferences } from '$lib/types/user.types';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { FluxbaseClient } from '@fluxbase/sdk';
 
 export interface AuthApiServiceConfig {
-	supabase: SupabaseClient;
+	fluxbase: FluxbaseClient;
 }
 
 export interface GetUserProfileResult {
@@ -38,10 +38,10 @@ export interface UpdateProfileResult {
 }
 
 export class AuthApiService {
-	private supabase: SupabaseClient;
+	private fluxbase: FluxbaseClient;
 
 	constructor(config: AuthApiServiceConfig) {
-		this.supabase = config.supabase;
+		this.fluxbase = config.fluxbase;
 	}
 
 	/**
@@ -61,7 +61,7 @@ export class AuthApiService {
 			const isAdmin = await UserProfileService.isUserAdmin(userId);
 
 			// Get user preferences from user_preferences table
-			const { data: preferences, error: prefError } = await this.supabase
+			const { data: preferences, error: prefError } = await this.fluxbase
 				.from('user_preferences')
 				.select('*')
 				.eq('id', userId)
@@ -80,7 +80,7 @@ export class AuthApiService {
 			const {
 				data: { user },
 				error: userError
-			} = await this.supabase.auth.admin.getUserById(userId);
+			} = await this.fluxbase.auth.admin.getUserById(userId);
 			if (userError) {
 				throw errorHandler.createError(
 					ErrorCode.DATABASE_ERROR,

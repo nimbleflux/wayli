@@ -6,10 +6,10 @@ import { JobQueueService } from '../../../worker/job-queue.service.server';
 
 import type { Job, JobType } from '$lib/types/job-queue.types';
 import type { CreateJobRequest, JobQuery } from '$lib/utils/api/schemas';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { FluxbaseClient } from '@fluxbase/sdk';
 
 export interface JobsApiServiceConfig {
-	supabase: SupabaseClient;
+	fluxbase: FluxbaseClient;
 }
 
 export interface GetJobsResult {
@@ -31,10 +31,10 @@ export interface CreateJobResult {
 }
 
 export class JobsApiService {
-	private supabase: SupabaseClient;
+	private fluxbase: FluxbaseClient;
 
 	constructor(config: JobsApiServiceConfig) {
-		this.supabase = config.supabase;
+		this.fluxbase = config.fluxbase;
 	}
 
 	/**
@@ -169,7 +169,7 @@ export class JobsApiService {
 	 */
 	async getJobById(jobId: string, userId: string, isAdmin: boolean = false): Promise<Job> {
 		try {
-			const { data: job, error } = await this.supabase
+			const { data: job, error } = await this.fluxbase
 				.from('jobs')
 				.select('*')
 				.eq('id', jobId)
@@ -224,7 +224,7 @@ export class JobsApiService {
 			}
 
 			// Cancel the job via Edge Function
-			const { error } = await this.supabase.functions.invoke(`jobs/${jobId}`, {
+			const { error } = await this.fluxbase.functions.invoke(`jobs/${jobId}`, {
 				method: 'DELETE'
 			});
 
@@ -233,7 +233,7 @@ export class JobsApiService {
 			}
 
 			// Also update locally for immediate UI feedback
-			const { error: updateError } = await this.supabase
+			const { error: updateError } = await this.fluxbase
 				.from('jobs')
 				.update({
 					status: 'cancelled',
@@ -299,7 +299,7 @@ export class JobsApiService {
 	 */
 	private async checkForActiveJob(userId: string, type: JobType): Promise<Job | null> {
 		try {
-			const { data: jobs, error } = await this.supabase
+			const { data: jobs, error } = await this.fluxbase
 				.from('jobs')
 				.select('*')
 				.eq('type', type)
@@ -383,5 +383,5 @@ export class JobsApiService {
 
 // Export singleton instance
 export const jobsApiService = new JobsApiService({
-	supabase: {} as SupabaseClient // Will be injected by API handlers
+	fluxbase: {} as FluxbaseClient // Will be injected by API handlers
 });

@@ -24,7 +24,7 @@
 	import DateRangePicker from '$lib/components/ui/date-range-picker.svelte';
 	import { getCountryNameReactive, translate } from '$lib/i18n';
 	import { state as appState } from '$lib/stores/app-state.svelte';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 	import { ClientStatisticsService } from '$lib/services/client-statistics.service';
 	import {
 		getTransportDetectionReasonLabel,
@@ -183,7 +183,7 @@
 			const {
 				data: { session },
 				error: sessionError
-			} = await supabase.auth.getSession();
+			} = await fluxbase.auth.getSession();
 			if (sessionError || !session) {
 				throw new Error('User not authenticated');
 			}
@@ -237,7 +237,7 @@
 			const {
 				data: { session },
 				error: sessionError
-			} = await supabase.auth.getSession();
+			} = await fluxbase.auth.getSession();
 			if (sessionError || !session) {
 				throw new Error('User not authenticated');
 			}

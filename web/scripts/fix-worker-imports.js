@@ -23,10 +23,10 @@ const IMPORT_MAPPINGS = [
 	{ from: '$lib/core/config/worker-environment', to: '../shared/config/worker-environment' },
 	{ from: '$lib/core/config/node-environment', to: '../shared/config/node-environment' },
 
-	// Supabase clients
-	{ from: '$lib/core/supabase/worker', to: '../shared/supabase/worker' },
-	{ from: '$lib/core/supabase/server', to: '../shared/supabase/server' },
-	{ from: '$lib/core/supabase/worker-client', to: '../shared/supabase/worker-client' },
+	// Fluxbase clients
+	{ from: '$lib/core/fluxbase/worker', to: '../shared/fluxbase/worker' },
+	{ from: '$lib/core/fluxbase/server', to: '../shared/fluxbase/server' },
+	{ from: '$lib/core/fluxbase/worker-client', to: '../shared/fluxbase/worker-client' },
 
 	// Types
 	{ from: '$lib/types/job-queue.types', to: '../shared/types/job-queue.types' },

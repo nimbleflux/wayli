@@ -43,7 +43,7 @@
 	let exportJobs = $state<ExportJob[]>([]);
 	let filteredExportJobs = $state<ExportJob[]>([]);
 	let loading = $state(true);
-	let realtimeService = $state<JobRealtimeService | null>(null);
+	let unsubscribe: (() => void) | null = null;
 
 	// Track jobs by ID to ensure uniqueness
 	let jobsById = $state<Map<string, ExportJob>>(new Map());
@@ -60,8 +60,9 @@
 	// Component automatically refreshes via Realtime updates - no reload flag needed
 
 	onDestroy(() => {
-		if (realtimeService) {
-			realtimeService.disconnect();
+		if (unsubscribe) {
+			unsubscribe();
+			unsubscribe = null;
 		}
 	});
 
@@ -151,14 +152,10 @@
 	}
 
 	function startRealtimeMonitoring() {
-		// Create Realtime service for export job monitoring
-		realtimeService = new JobRealtimeService({
-			onConnected: () => {
-				console.log('🔗 Realtime connected for export jobs');
-			},
-			onDisconnected: () => {
-				console.log('🔌 Realtime disconnected for export jobs');
-			},
+		// Subscribe to singleton realtime service
+		// The global store already handles connection, we just add export-specific logic
+		const service = JobRealtimeService.getInstance();
+		unsubscribe = service.subscribe({
 			onError: (error: string) => {
 				console.error('❌ Export jobs Realtime error:', error);
 				toast.error(`Export monitoring error: ${error}`);
@@ -180,8 +177,6 @@
 				}
 			}
 		});
-
-		realtimeService.connect();
 	}
 
 	async function loadExportJobs() {

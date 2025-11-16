@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 
-import { supabase } from '../../worker/supabase';
+import { fluxbase } from '../../worker/fluxbase';
 import { checkJobCancellation } from '../utils/job-cancellation';
 import {
 	isGeoJSONGeocode,
@@ -28,7 +28,7 @@ interface TrackerLocation {
 }
 
 export class ExportProcessorService {
-	private static supabase = supabase;
+	private static fluxbase = fluxbase;
 
 	static async processExport(job: Job): Promise<void> {
 		console.log(`[ExportWorker] Starting export job ${job.id}`);
@@ -193,11 +193,11 @@ export class ExportProcessorService {
 					.filter((p): p is string => typeof p === 'string');
 				if (oldPaths.length > 0) {
 					console.log(`[ExportWorker] Deleting old export files:`, oldPaths);
-					await this.supabase.storage.from('exports').remove(oldPaths);
+					await this.fluxbase.storage.from('exports').remove(oldPaths);
 				}
 			}
 
-			const { error: uploadError } = await this.supabase.storage
+			const { error: uploadError } = await this.fluxbase.storage
 				.from('exports')
 				.upload(filePath, zipBuffer, {
 					contentType: 'application/zip',
@@ -252,7 +252,7 @@ export class ExportProcessorService {
 		let geojson = '{"type":"FeatureCollection","features":[';
 
 		while (true) {
-			let query = this.supabase.from('tracker_data').select('*').eq('user_id', userId);
+			let query = this.fluxbase.from('tracker_data').select('*').eq('user_id', userId);
 			if (startDate) query = query.gte('recorded_at', startDate);
 			if (endDate) query = query.lte('recorded_at', endDate);
 			query = query.order('recorded_at', { ascending: true }).range(offset, offset + batchSize - 1);
@@ -323,7 +323,7 @@ export class ExportProcessorService {
 		endDate?: string | null
 	): Promise<string | null> {
 		console.log('[ExportWorker] exportWantToVisit starting', { userId, startDate, endDate });
-		let query = this.supabase.from('want_to_visit_places').select('*').eq('user_id', userId);
+		let query = this.fluxbase.from('want_to_visit_places').select('*').eq('user_id', userId);
 		if (startDate) query = query.gte('created_at', startDate);
 		if (endDate) query = query.lte('created_at', endDate);
 		query = query.order('created_at', { ascending: true });
@@ -349,7 +349,7 @@ export class ExportProcessorService {
 		endDate?: string | null
 	): Promise<string | null> {
 		console.log('[ExportWorker] exportTrips starting', { userId, startDate, endDate });
-		let query = this.supabase.from('trips').select('*').eq('user_id', userId);
+		let query = this.fluxbase.from('trips').select('*').eq('user_id', userId);
 		if (startDate) query = query.gte('start_date', startDate);
 		if (endDate) query = query.lte('end_date', endDate);
 		query = query.order('start_date', { ascending: true });

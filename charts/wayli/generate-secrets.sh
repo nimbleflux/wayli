@@ -134,7 +134,7 @@ generate_jwt_tokens() {
 
             const payload = {
                 role: role,
-                iss: 'supabase',
+                iss: 'fluxbase',
                 iat: now,
                 exp: exp
             };
@@ -170,16 +170,14 @@ generate_jwt_tokens() {
             print_warning "Could not generate JWT tokens automatically"
             echo "Docker output: $jwt_output"
             echo ""
-            echo "Please generate JWT tokens manually at:"
-            echo "  https://supabase.com/docs/guides/self-hosting/docker#generate-api-keys"
+            echo "Please generate JWT tokens manually using your JWT secret"
             echo ""
             return 1
         fi
     else
         print_warning "Could not generate JWT tokens automatically (Docker not available?)"
         echo ""
-        echo "Please generate JWT tokens manually at:"
-        echo "  https://supabase.com/docs/guides/self-hosting/docker#generate-api-keys"
+        echo "Please generate JWT tokens manually using your JWT secret"
         echo ""
         return 1
     fi
@@ -203,7 +201,7 @@ main() {
     NAMESPACE=$(prompt_with_default "Kubernetes namespace" "default")
 
     # Ask for secret name
-    SECRET_NAME=$(prompt_with_default "Supabase secret name" "supabase-secret")
+    SECRET_NAME=$(prompt_with_default "Fluxbase secret name" "fluxbase-secret")
 
     # Ask for deployment method
     echo ""
@@ -261,8 +259,8 @@ main() {
     # Create secrets
     print_header "Creating Secrets"
 
-    # Create Supabase secret YAML
-    SUPABASE_SECRET_YAML="apiVersion: v1
+    # Create Fluxbase secret YAML
+    FLUXBASE_SECRET_YAML="apiVersion: v1
 kind: Secret
 metadata:
   name: ${SECRET_NAME}
@@ -300,8 +298,8 @@ data:
             print_info "Saving to files instead..."
             deploy_option=2
         else
-            echo "$SUPABASE_SECRET_YAML" | kubectl apply -f -
-            print_success "Supabase secret created in cluster: ${NAMESPACE}/${SECRET_NAME}"
+            echo "$FLUXBASE_SECRET_YAML" | kubectl apply -f -
+            print_success "Fluxbase secret created in cluster: ${NAMESPACE}/${SECRET_NAME}"
 
             if [ "$CREATE_SMTP_SECRET" = true ]; then
                 echo "$SMTP_SECRET_YAML" | kubectl apply -f -
@@ -312,8 +310,8 @@ data:
 
     if [ "$deploy_option" = "2" ]; then
         # Save to files
-        echo "$SUPABASE_SECRET_YAML" > "${SECRET_NAME}.yaml"
-        print_success "Supabase secret saved to: ${SECRET_NAME}.yaml"
+        echo "$FLUXBASE_SECRET_YAML" > "${SECRET_NAME}.yaml"
+        print_success "Fluxbase secret saved to: ${SECRET_NAME}.yaml"
 
         if [ "$CREATE_SMTP_SECRET" = true ]; then
             echo "$SMTP_SECRET_YAML" > "${SMTP_SECRET_NAME}.yaml"
@@ -334,7 +332,7 @@ data:
     echo "Secrets generated for namespace: ${NAMESPACE}"
     echo ""
     echo "Summary:"
-    echo "  • Supabase secret name: ${SECRET_NAME}"
+    echo "  • Fluxbase secret name: ${SECRET_NAME}"
     if [ "$CREATE_SMTP_SECRET" = true ]; then
         echo "  • SMTP secret name: ${SMTP_SECRET_NAME}"
     fi
@@ -342,8 +340,7 @@ data:
 
     if [ "$JWT_TOKENS_GENERATED" = false ]; then
         print_warning "JWT tokens were not generated automatically"
-        echo "  You will need to generate and update them manually"
-        echo "  Visit: https://supabase.com/docs/guides/self-hosting/docker#generate-api-keys"
+        echo "  You will need to generate and update them manually using your JWT secret"
         echo ""
     else
         print_success "JWT tokens were successfully generated"
@@ -352,9 +349,9 @@ data:
 
     echo "Next steps:"
     echo "  1. Update your values.yaml to reference these secrets:"
-    echo "     supabase.global.supabase.existingSecret: ${SECRET_NAME}"
+    echo "     fluxbase.global.fluxbase.existingSecret: ${SECRET_NAME}"
     if [ "$CREATE_SMTP_SECRET" = true ]; then
-        echo "     supabase.global.supabase.auth.smtp.existingSecret: ${SMTP_SECRET_NAME}"
+        echo "     fluxbase.global.fluxbase.auth.smtp.existingSecret: ${SMTP_SECRET_NAME}"
     fi
     echo "  2. Deploy Wayli using: helm install wayli ./wayli -n ${NAMESPACE}"
     echo ""

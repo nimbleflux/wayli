@@ -10,21 +10,21 @@ mkdir -p /tmp/nginx/html \
          /tmp/nginx/uwsgi \
          /tmp/nginx/scgi
 
-# Extract domain from SUPABASE_URL for CSP header
-# Example: https://xyz.supabase.co -> https://*.supabase.co
-if [ -n "$SUPABASE_URL" ]; then
+# Extract domain from FLUXBASE_BASE_URL for CSP header
+# Example: https://xyz.fluxbase.eu -> https://*.fluxbase.eu
+if [ -n "$FLUXBASE_BASE_URL" ]; then
   # Extract the protocol and domain pattern
-  SUPABASE_DOMAIN=$(echo "$SUPABASE_URL" | sed -E 's|(https?://)[^.]+\.(.+)|\1*.\2|')
-  echo "📍 Supabase domain: $SUPABASE_DOMAIN"
+  FLUXBASE_DOMAIN=$(echo "$FLUXBASE_BASE_URL" | sed -E 's|(https?://)[^.]+\.(.+)|\1*.\2|')
+  echo "📍 Fluxbase domain: $FLUXBASE_DOMAIN"
 else
-  echo "⚠️  Warning: SUPABASE_URL not set, using default CSP"
-  SUPABASE_DOMAIN="https://*.supabase.co"
+  echo "⚠️  Warning: FLUXBASE_BASE_URL not set, using default CSP"
+  FLUXBASE_DOMAIN="https://*.fluxbase.eu"
 fi
 
 # Copy nginx config to writable location and inject CSP
 echo "🔐 Configuring Content Security Policy..."
 cp /etc/nginx/nginx.conf /tmp/nginx/nginx.conf
-sed -i "s|{{SUPABASE_DOMAIN}}|$SUPABASE_DOMAIN|g" /tmp/nginx/nginx.conf
+sed -i "s|{{FLUXBASE_DOMAIN}}|$FLUXBASE_DOMAIN|g" /tmp/nginx/nginx.conf
 
 # Copy HTML files to writable location for env var injection
 echo "📋 Copying static files..."
@@ -38,9 +38,9 @@ echo "📝 Injecting environment variables into HTML..."
 for file in *.html; do
   if [ -f "$file" ]; then
     echo "   Processing $file..."
-    sed -i "s|{{SUPABASE_URL}}|$SUPABASE_URL|g" "$file"
-    sed -i "s|{{SUPABASE_ANON_KEY}}|$SUPABASE_ANON_KEY|g" "$file"
-    sed -i "s|{{SUPABASE_SERVICE_ROLE_KEY}}|$SUPABASE_SERVICE_ROLE_KEY|g" "$file"
+    sed -i "s|{{FLUXBASE_BASE_URL}}|$FLUXBASE_BASE_URL|g" "$file"
+    sed -i "s|{{FLUXBASE_ANON_KEY}}|$FLUXBASE_ANON_KEY|g" "$file"
+    sed -i "s|{{FLUXBASE_SERVICE_ROLE_KEY}}|$FLUXBASE_SERVICE_ROLE_KEY|g" "$file"
   fi
 done
 

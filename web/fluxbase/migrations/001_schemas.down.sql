@@ -1,0 +1,8 @@
+--
+-- Migration: 001_schemas.down.sql
+-- Description: Rollback schema initialization
+-- Author: Wayli Migration System
+-- Created: 2025-01-15
+--
+-- Note: Extensions are typically not dropped as they may be used by other databases
+-- Note: Schema comments cannot be removed, only changed

@@ -1,4 +1,4 @@
-// Database types for Supabase
+// Database types for Fluxbase
 // This is a basic type definition - in production, this should be generated from your database schema
 
 export interface Database {
@@ -207,9 +207,10 @@ export interface Database {
 					role: string;
 					avatar_url: string | null;
 					home_address: Record<string, unknown> | null;
-					two_factor_enabled: boolean;
-					two_factor_secret: string | null;
-					two_factor_recovery_codes: string[] | null;
+					onboarding_completed: boolean;
+					onboarding_dismissed: boolean;
+					home_address_skipped: boolean;
+					first_login_at: string | null;
 					created_at: string;
 					updated_at: string;
 				};
@@ -221,9 +222,10 @@ export interface Database {
 					role?: string;
 					avatar_url?: string | null;
 					home_address?: Record<string, unknown> | null;
-					two_factor_enabled?: boolean;
-					two_factor_secret?: string | null;
-					two_factor_recovery_codes?: string[] | null;
+					onboarding_completed?: boolean;
+					onboarding_dismissed?: boolean;
+					home_address_skipped?: boolean;
+					first_login_at?: string | null;
 					created_at?: string;
 					updated_at?: string;
 				};
@@ -235,9 +237,10 @@ export interface Database {
 					role?: string;
 					avatar_url?: string | null;
 					home_address?: Record<string, unknown> | null;
-					two_factor_enabled?: boolean;
-					two_factor_secret?: string | null;
-					two_factor_recovery_codes?: string[] | null;
+					onboarding_completed?: boolean;
+					onboarding_dismissed?: boolean;
+					home_address_skipped?: boolean;
+					first_login_at?: string | null;
 					created_at?: string;
 					updated_at?: string;
 				};
@@ -250,7 +253,9 @@ export interface Database {
 					notifications_enabled: boolean;
 					timezone: string;
 					pexels_api_key: string | null;
+					owntracks_api_key: string | null;
 					trip_exclusions: Record<string, unknown>[];
+					preferences: Record<string, unknown>;
 					created_at: string;
 					updated_at: string;
 				};
@@ -261,7 +266,9 @@ export interface Database {
 					notifications_enabled?: boolean;
 					timezone?: string;
 					pexels_api_key?: string | null;
+					owntracks_api_key?: string | null;
 					trip_exclusions?: Record<string, unknown>[];
+					preferences?: Record<string, unknown>;
 					created_at?: string;
 					updated_at?: string;
 				};
@@ -272,7 +279,9 @@ export interface Database {
 					notifications_enabled?: boolean;
 					timezone?: string;
 					pexels_api_key?: string | null;
+					owntracks_api_key?: string | null;
 					trip_exclusions?: Record<string, unknown>[];
+					preferences?: Record<string, unknown>;
 					created_at?: string;
 					updated_at?: string;
 				};
@@ -280,29 +289,32 @@ export interface Database {
 			workers: {
 				Row: {
 					id: string;
-					user_id: string;
+					user_id: string | null;
 					status: string;
 					current_job: string | null;
 					last_heartbeat: string;
-					started_at: string;
+					metadata: Record<string, unknown>;
+					created_at: string;
 					updated_at: string;
 				};
 				Insert: {
 					id?: string;
-					user_id: string;
+					user_id?: string | null;
 					status?: string;
 					current_job?: string | null;
 					last_heartbeat?: string;
-					started_at?: string;
+					metadata?: Record<string, unknown>;
+					created_at?: string;
 					updated_at?: string;
 				};
 				Update: {
 					id?: string;
-					user_id?: string;
+					user_id?: string | null;
 					status?: string;
 					current_job?: string | null;
 					last_heartbeat?: string;
-					started_at?: string;
+					metadata?: Record<string, unknown>;
+					created_at?: string;
 					updated_at?: string;
 				};
 			};
@@ -344,122 +356,55 @@ export interface Database {
 					updated_at?: string;
 				};
 			};
-			audit_logs: {
-				Row: {
-					id: string;
-					user_id: string | null;
-					event_type: string;
-					severity: string;
-					description: string;
-					ip_address: string | null;
-					user_agent: string | null;
-					request_id: string | null;
-					metadata: Record<string, unknown>;
-					timestamp: string;
-					updated_at: string;
-					created_at: string;
-				};
-				Insert: {
-					id?: string;
-					user_id?: string | null;
-					event_type: string;
-					severity: string;
-					description: string;
-					ip_address?: string | null;
-					user_agent?: string | null;
-					request_id?: string | null;
-					metadata?: Record<string, unknown>;
-					timestamp?: string;
-					updated_at?: string;
-					created_at?: string;
-				};
-				Update: {
-					id?: string;
-					user_id?: string | null;
-					event_type?: string;
-					severity?: string;
-					description?: string;
-					ip_address?: string | null;
-					user_agent?: string | null;
-					request_id?: string | null;
-					metadata?: Record<string, unknown>;
-					timestamp?: string;
-					updated_at?: string;
-					created_at?: string;
-				};
-			};
-			server_settings: {
-				Row: {
-					id: string;
-					server_name: string;
-					is_setup_complete: boolean;
-					server_pexels_api_key: string | null;
-					created_at: string;
-					updated_at: string;
-				};
-				Insert: {
-					id?: string;
-					server_name?: string;
-					is_setup_complete?: boolean;
-					server_pexels_api_key?: string | null;
-					created_at?: string;
-					updated_at?: string;
-				};
-				Update: {
-					id?: string;
-					server_name?: string;
-					is_setup_complete?: boolean;
-					server_pexels_api_key?: string | null;
-					created_at?: string;
-					updated_at?: string;
-				};
-			};
 			want_to_visit_places: {
 				Row: {
 					id: string;
 					user_id: string;
+					place_id: string | null;
 					title: string;
+					country_code: string | null;
 					type: string;
-					coordinates: string;
+					favorite: boolean;
 					description: string | null;
+					location: unknown; // PostGIS geometry
 					address: string | null;
-					location: string | null;
 					marker_type: string;
 					marker_color: string;
 					labels: string[];
-					favorite: boolean;
 					created_at: string;
 					updated_at: string;
 				};
 				Insert: {
 					id?: string;
 					user_id: string;
+					place_id?: string | null;
 					title: string;
-					type: string;
-					coordinates: string;
+					country_code?: string | null;
+					type?: string;
+					favorite?: boolean;
 					description?: string | null;
+					location: unknown; // PostGIS geometry
 					address?: string | null;
-					location?: string | null;
 					marker_type?: string;
 					marker_color?: string;
 					labels?: string[];
-					favorite?: boolean;
 					created_at?: string;
 					updated_at?: string;
 				};
 				Update: {
 					id?: string;
 					user_id?: string;
+					place_id?: string | null;
 					title?: string;
+					country_code?: string | null;
 					type?: string;
-					coordinates?: string;
+					favorite?: boolean;
 					description?: string | null;
+					location?: unknown; // PostGIS geometry
 					address?: string | null;
-					location?: string | null;
 					marker_type?: string;
 					marker_color?: string;
 					labels?: string[];
-					favorite?: boolean;
 					created_at?: string;
 					updated_at?: string;
 				};

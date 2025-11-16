@@ -9,7 +9,7 @@
  * @version 1.0.0
  */
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { FluxbaseClient } from '@fluxbase/sdk';
 
 /**
  * Application error codes for consistent error handling
@@ -79,11 +79,11 @@ export interface ErrorLogEntry {
 }
 
 class ErrorHandlerService {
-	private supabase: SupabaseClient | null = null;
+	private fluxbase: FluxbaseClient | null = null;
 	private isDevelopment = process.env.NODE_ENV === 'development';
 
-	setSupabaseClient(client: SupabaseClient) {
-		this.supabase = client;
+	setFluxbaseClient(client: FluxbaseClient) {
+		this.fluxbase = client;
 	}
 
 	/**
@@ -176,9 +176,9 @@ class ErrorHandlerService {
 		}
 
 		// Database logging for production
-		if (this.supabase && !this.isDevelopment) {
+		if (this.fluxbase && !this.isDevelopment) {
 			try {
-				await this.supabase.from('error_logs').insert({
+				await this.fluxbase.from('error_logs').insert({
 					timestamp: logEntry.timestamp,
 					level: logEntry.level,
 					code: logEntry.code,
@@ -233,7 +233,7 @@ class ErrorHandlerService {
 	}
 
 	handleDatabaseError(error: unknown, context?: Record<string, unknown>): AppError {
-		// Handle Supabase/PostgreSQL specific errors
+		// Handle Fluxbase/PostgreSQL specific errors
 		const dbError = error as { code?: string };
 
 		if (dbError.code === '23505') {

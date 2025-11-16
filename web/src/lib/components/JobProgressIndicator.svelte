@@ -3,9 +3,9 @@
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 	import { translate } from '$lib/i18n';
-	import { getActiveJobsMap, subscribe, fetchAndPopulateJobs } from '$lib/stores/job-store';
+	import { getActiveJobsMap, subscribe } from '$lib/stores/job-store';
 
 	import type { JobUpdate } from '$lib/services/job-realtime.service';
 
@@ -28,17 +28,7 @@
 		activeJobs = new Map(getActiveJobsMap());
 		console.log('📊 JobProgressIndicator: Initial jobs loaded:', activeJobs.size);
 
-		// Fetch and populate jobs on page load
-		fetchAndPopulateJobs()
-			.then(() => {
-				// Update local state after fetch completes
-				activeJobs = new Map(getActiveJobsMap());
-				console.log('📊 JobProgressIndicator: Jobs fetched and loaded:', activeJobs.size);
-			})
-			.catch((error) => {
-				console.error('❌ JobProgressIndicator: Error fetching jobs on mount:', error);
-			});
-
+		// No need to fetch jobs - rely on realtime updates from JobTracker
 		const unsubscribeJobs = subscribe(() => {
 			const newJobs = getActiveJobsMap();
 			console.log('📊 JobProgressIndicator: Store updated, jobs count:', newJobs.size);
@@ -173,14 +163,14 @@
 		try {
 			const {
 				data: { session }
-			} = await supabase.auth.getSession();
+			} = await fluxbase.auth.getSession();
 			if (!session) {
 				toast.error(t('jobProgress.notAuthenticated'));
 				return;
 			}
 
 			// Call the cancel job Edge Function
-			const { error } = await supabase.functions.invoke(`jobs/${jobToCancel.id}`, {
+			const { error } = await fluxbase.functions.invoke(`jobs/${jobToCancel.id}`, {
 				method: 'DELETE'
 			});
 
@@ -209,14 +199,14 @@
 		try {
 			const {
 				data: { session }
-			} = await supabase.auth.getSession();
+			} = await fluxbase.auth.getSession();
 			if (!session) {
 				toast.error(t('jobProgress.notAuthenticated'));
 				return;
 			}
 
 			// Get download URL from Edge Function
-			const { data, error } = await supabase.functions.invoke(`export-download/${job.id}`);
+			const { data, error } = await fluxbase.functions.invoke(`export-download/${job.id}`);
 
 			if (error) {
 				throw new Error(error.message || 'Failed to get download URL');

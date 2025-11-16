@@ -1,10 +1,10 @@
 // /Users/bart/Dev/wayli/web/tests/unit/services/client-statistics-smart-sampling.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ClientStatisticsService } from '../../../src/lib/services/client-statistics.service';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { FluxbaseClient } from '@fluxbase/sdk';
 
-// Mock Supabase client
-const mockSupabase = {
+// Mock Fluxbase client
+const mockFluxbase = {
 	auth: {
 		getSession: vi.fn()
 	},
@@ -23,7 +23,7 @@ const mockSupabase = {
 			}))
 		}))
 	}))
-} as unknown as SupabaseClient;
+} as unknown as FluxbaseClient;
 
 // Mock fetch for Edge Function calls
 global.fetch = vi.fn();
@@ -33,12 +33,12 @@ describe('ClientStatisticsService - Smart Sampling', () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		service = new ClientStatisticsService(mockSupabase);
+		service = new ClientStatisticsService(mockFluxbase);
 	});
 
 	it('should use smart sampling for large datasets (>1000 points)', async () => {
 		// Mock session
-		mockSupabase.auth.getSession.mockResolvedValue({
+		mockFluxbase.auth.getSession.mockResolvedValue({
 			data: { session: { access_token: 'test-token' } },
 			error: null
 		});
@@ -114,7 +114,7 @@ describe('ClientStatisticsService - Smart Sampling', () => {
 
 	it('should fallback to regular loading if smart sampling fails', async () => {
 		// Mock session
-		mockSupabase.auth.getSession.mockResolvedValue({
+		mockFluxbase.auth.getSession.mockResolvedValue({
 			data: { session: { access_token: 'test-token' } },
 			error: null
 		});

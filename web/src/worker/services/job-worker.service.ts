@@ -1,13 +1,13 @@
 // This file is for server-side worker logic only. Do not import SvelteKit or Vite modules here.
-// The Supabase client is provided by JobQueueService, which uses the worker-only client.
+// The Fluxbase client is provided by JobQueueService, which uses the worker-only client.
 //
-// Workers use Supabase Realtime to receive instant notifications when new jobs are queued.
+// Workers use Fluxbase Realtime to receive instant notifications when new jobs are queued.
 // This eliminates the need for polling and provides sub-second job pickup latency.
 // Race conditions are prevented by atomic job claiming via database UPDATE...WHERE operations.
 
 import { randomUUID } from 'crypto';
 
-import { getWorkerSupabaseConfig } from '../../shared/config/worker-environment';
+import { getWorkerFluxbaseConfig } from '../../shared/config/worker-environment';
 
 import { JobProcessorService } from '../job-processor.service';
 import { JobQueueService } from '../job-queue.service.worker';
@@ -96,13 +96,13 @@ export class JobWorker {
 		console.log('🔍 Checking worker environment variables...');
 
 		try {
-			const config = getWorkerSupabaseConfig();
+			const config = getWorkerFluxbaseConfig();
 
 			// Enhanced debugging for Kubernetes troubleshooting
 			console.log('🔧 Worker environment check:');
-			console.log('  - SUPABASE_URL:', config.url ? 'SET' : 'NOT SET');
-			console.log('  - SUPABASE_SERVICE_ROLE_KEY:', config.serviceRoleKey ? 'SET' : 'NOT SET');
-			console.log('  - SUPABASE_ANON_KEY:', (config as any).anonKey ? 'SET' : 'NOT SET');
+			console.log('  - FLUXBASE_BASE_URL:', config.url ? 'SET' : 'NOT SET');
+			console.log('  - FLUXBASE_SERVICE_ROLE_KEY:', config.serviceRoleKey ? 'SET' : 'NOT SET');
+			console.log('  - FLUXBASE_ANON_KEY:', (config as any).anonKey ? 'SET' : 'NOT SET');
 
 			// Check if we're in a container environment
 			console.log(
@@ -113,11 +113,11 @@ export class JobWorker {
 			console.log('  - Working directory:', process.cwd());
 
 			if (!config.url) {
-				console.error('❌ SUPABASE_URL is not set! Worker cannot connect to Supabase.');
+				console.error('❌ FLUXBASE_BASE_URL is not set! Worker cannot connect to Fluxbase.');
 			}
 
 			if (!config.serviceRoleKey) {
-				console.error('❌ SUPABASE_SERVICE_ROLE_KEY is not set! Worker cannot access jobs table.');
+				console.error('❌ FLUXBASE_SERVICE_ROLE_KEY is not set! Worker cannot access jobs table.');
 			}
 
 			if (!config.url || !config.serviceRoleKey) {
@@ -125,7 +125,7 @@ export class JobWorker {
 					'🚨 Worker will not be able to retrieve jobs due to missing environment variables!'
 				);
 				console.error(
-					'   Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY before running workers.'
+					'   Please set FLUXBASE_BASE_URL and FLUXBASE_SERVICE_ROLE_KEY before running workers.'
 				);
 				console.error('🚨 Missing required environment variables - exiting with code 1');
 				console.error(
@@ -133,27 +133,27 @@ export class JobWorker {
 				);
 				console.error('   Please check your environment variable configuration.');
 				throw new Error(
-					'Missing required environment variables: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY'
+					'Missing required environment variables: FLUXBASE_BASE_URL and/or FLUXBASE_SERVICE_ROLE_KEY'
 				);
 			}
 
 			// Test the connection by trying to get job stats with timeout
 			try {
-				console.log('🔍 Testing Supabase connection...');
-				// Get the actual URL from the Supabase client being used
-				const actualUrl = JobQueueService.getSupabaseUrl();
+				console.log('🔍 Testing Fluxbase connection...');
+				// Get the actual URL from the Fluxbase client being used
+				const actualUrl = JobQueueService.getFluxbaseUrl();
 				console.log('  - Target URL:', actualUrl);
 				console.log('  - Service role key length:', config.serviceRoleKey.length);
 
 				const stats = await Promise.race([
 					JobQueueService.getJobStats(),
 					new Promise((_, reject) =>
-						setTimeout(() => reject(new Error('Supabase connection timeout')), 10000)
+						setTimeout(() => reject(new Error('Fluxbase connection timeout')), 10000)
 					)
 				]);
-				console.log('✅ Supabase connection successful! Job stats:', stats);
+				console.log('✅ Fluxbase connection successful! Job stats:', stats);
 			} catch (error) {
-				console.error('❌ Failed to connect to Supabase:', error);
+				console.error('❌ Failed to connect to Fluxbase:', error);
 
 				// Enhanced error analysis
 				if (error instanceof Error) {
@@ -166,7 +166,7 @@ export class JobWorker {
 							'❌ Network error detected - check pod network policies and firewall rules'
 						);
 					} else if (error.message.includes('timeout')) {
-						console.error('❌ Connection timeout - check if Supabase is reachable from the pod');
+						console.error('❌ Connection timeout - check if Fluxbase is reachable from the pod');
 					} else if (error.message.includes('unauthorized')) {
 						console.error('❌ Authentication error - check service role key permissions');
 					}
@@ -174,12 +174,12 @@ export class JobWorker {
 
 				// Throw error to cause worker to exit with code 1
 				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-				console.error('🚨 Worker cannot connect to Supabase - exiting with code 1');
+				console.error('🚨 Worker cannot connect to Fluxbase - exiting with code 1');
 				console.error(
 					'   This indicates a critical connection failure that prevents the worker from functioning.'
 				);
-				console.error('   Please check your Supabase configuration and network connectivity.');
-				throw new Error(`Worker cannot connect to Supabase: ${errorMessage}`);
+				console.error('   Please check your Fluxbase configuration and network connectivity.');
+				throw new Error(`Worker cannot connect to Fluxbase: ${errorMessage}`);
 			}
 		} catch (error) {
 			console.error('❌ Failed to load worker environment configuration:', error);
@@ -454,7 +454,7 @@ export class JobWorker {
 	}
 
 	/**
-	 * Check worker health and Supabase connectivity
+	 * Check worker health and Fluxbase connectivity
 	 */
 	async checkHealth(): Promise<{ healthy: boolean; details: Record<string, any> }> {
 		const health = {
@@ -462,7 +462,7 @@ export class JobWorker {
 			timestamp: new Date().toISOString(),
 			healthy: true,
 			details: {
-				supabase: { connected: false, error: null as string | null },
+				fluxbase: { connected: false, error: null as string | null },
 				jobQueue: { connected: false, error: null as string | null },
 				lastHeartbeat: this.lastHeartbeat,
 				activeJobs: this.activeJobs.size,
@@ -471,11 +471,11 @@ export class JobWorker {
 		};
 
 		try {
-			// Test Supabase connection through JobQueueService
+			// Test Fluxbase connection through JobQueueService
 			await JobQueueService.getJobStats();
-			health.details.supabase.connected = true;
+			health.details.fluxbase.connected = true;
 		} catch (error) {
-			health.details.supabase.error = error instanceof Error ? error.message : 'Unknown error';
+			health.details.fluxbase.error = error instanceof Error ? error.message : 'Unknown error';
 			health.healthy = false;
 		}
 

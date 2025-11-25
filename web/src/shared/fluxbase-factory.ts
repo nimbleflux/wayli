@@ -1,7 +1,5 @@
 import { createClient, type FluxbaseClient } from '@fluxbase/sdk';
 
-import type { Database } from './types';
-
 export function createFluxbaseClient(
 	url: string,
 	key: string,

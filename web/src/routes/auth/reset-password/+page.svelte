@@ -20,11 +20,9 @@
 
 	onMount(async () => {
 		// Check if we have a valid session with password reset token
-		const {
-			data: { session }
-		} = await fluxbase.auth.getSession();
+		const { data } = await fluxbase.auth.getSession();
 
-		if (!session) {
+		if (!data?.session) {
 			toast.error('Invalid or expired password reset link');
 			goto('/auth/signin');
 		}

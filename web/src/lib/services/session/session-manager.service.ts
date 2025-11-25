@@ -4,7 +4,7 @@
 import { fluxbase } from '$lib/fluxbase';
 import { userStore, sessionStore } from '$lib/stores/auth';
 import { goto } from '$app/navigation';
-import { startJobRealtime, stopJobRealtime } from '$lib/stores/job-store';
+import { cleanup as cleanupJobStore } from '$lib/stores/job-store';
 
 export class SessionManagerService {
 	private static instance: SessionManagerService;
@@ -160,8 +160,7 @@ export class SessionManagerService {
 			await this.checkAndRefreshSession();
 		}, this.REFRESH_INTERVAL_MS);
 
-		// Start realtime job monitoring
-		startJobRealtime();
+		// Note: Job realtime monitoring starts automatically when components subscribe to job-store
 	}
 
 	/**
@@ -173,8 +172,8 @@ export class SessionManagerService {
 			this.refreshInterval = null;
 		}
 
-		// Stop realtime job monitoring
-		stopJobRealtime();
+		// Cleanup realtime job monitoring
+		cleanupJobStore();
 	}
 
 	/**

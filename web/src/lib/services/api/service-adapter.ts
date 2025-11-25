@@ -1050,151 +1050,138 @@ export class ServiceAdapter {
 	async getJobs(options?: { limit?: number; offset?: number; type?: string }) {
 		const { fluxbase } = await import('$lib/fluxbase');
 
-		// Get user ID
-		const { data: userData } = await fluxbase.auth.getUser();
-		if (!userData.user) {
-			throw new Error('User not authenticated');
+		try {
+			// Use Fluxbase Jobs API to list jobs
+			const { data: jobs, error } = await fluxbase.jobs.list({
+				namespace: 'wayli',
+				limit: options?.limit || 50,
+				offset: options?.offset || 0
+			});
+
+			if (error) {
+				console.error('[ServiceAdapter] getJobs failed:', error);
+				throw new Error(error.message || 'Failed to fetch jobs');
+			}
+
+			// Filter by type if provided (client-side filtering)
+			let filteredJobs = jobs || [];
+			if (options?.type) {
+				filteredJobs = filteredJobs.filter((job) => job.job_name === options.type);
+			}
+
+			return filteredJobs;
+		} catch (error) {
+			console.error('[ServiceAdapter] getJobs error:', error);
+			throw error;
 		}
-
-		const limit = options?.limit || 50;
-		const offset = options?.offset || 0;
-
-		let query = fluxbase
-			.from('jobs')
-			.select('*')
-			.eq('created_by', userData.user.id)
-			.order('created_at', { ascending: false });
-
-		// Filter by type if provided
-		if (options?.type) {
-			query = query.eq('type', options.type);
-		}
-
-		// Add pagination
-		query = query.range(offset, offset + limit - 1);
-
-		const { data: jobs, error } = await query;
-
-		if (error) {
-			throw new Error(error.message || 'Failed to fetch jobs');
-		}
-
-		return jobs || [];
 	}
 
 	async createJob(job: Record<string, unknown>) {
 		const { fluxbase } = await import('$lib/fluxbase');
 
-		// Get user ID
-		const { data: userData } = await fluxbase.auth.getUser();
-		if (!userData.user) {
-			throw new Error('User not authenticated');
+		try {
+			// Validate required fields
+			if (!job.type) {
+				throw new Error('Job type is required');
+			}
+
+			// Use Fluxbase Jobs API to submit job
+			const { data: newJob, error } = await fluxbase.jobs.submit(
+				job.type as string,
+				job.data || {},
+				{
+					namespace: 'wayli',
+					priority: (job.priority as number) || 5
+				}
+			);
+
+			if (error) {
+				console.error('[ServiceAdapter] createJob failed:', error);
+				throw new Error(error.message || 'Failed to create job');
+			}
+
+			return newJob;
+		} catch (error) {
+			console.error('[ServiceAdapter] createJob error:', error);
+			throw error;
 		}
-
-		// Validate required fields
-		if (!job.type) {
-			throw new Error('Job type is required');
-		}
-
-		// Create job
-		const { data: newJob, error } = await fluxbase
-			.from('jobs')
-			.insert({
-				created_by: userData.user.id,
-				type: job.type,
-				status: job.status || 'pending',
-				data: job.data || {},
-				metadata: job.metadata || {},
-				created_at: new Date().toISOString()
-			})
-			.select()
-			.single();
-
-		if (error) {
-			throw new Error(error.message || 'Failed to create job');
-		}
-
-		return newJob;
 	}
 
 	async getJobProgress(jobId: string) {
 		const { fluxbase } = await import('$lib/fluxbase');
 
-		// Get user ID
-		const { data: userData } = await fluxbase.auth.getUser();
-		if (!userData.user) {
-			throw new Error('User not authenticated');
+		try {
+			// Use Fluxbase Jobs API to get job status
+			const { data: job, error } = await fluxbase.jobs.get(jobId);
+
+			if (error) {
+				console.error('[ServiceAdapter] getJobProgress failed:', error);
+				throw new Error('Job not found');
+			}
+
+			if (!job) {
+				throw new Error('Job not found');
+			}
+
+			// Return job with progress information
+			return {
+				id: job.id,
+				status: job.status,
+				progress: job.progress_percent || 0,
+				progress_message: job.progress_message,
+				result: job.result,
+				error: job.error,
+				created_at: job.created_at,
+				updated_at: job.updated_at,
+				completed_at: job.completed_at
+			};
+		} catch (error) {
+			console.error('[ServiceAdapter] getJobProgress error:', error);
+			throw error;
 		}
-
-		// Fetch the job
-		const { data: job, error } = await fluxbase
-			.from('jobs')
-			.select('*')
-			.eq('id', jobId)
-			.eq('created_by', userData.user.id)
-			.single();
-
-		if (error || !job) {
-			throw new Error('Job not found');
-		}
-
-		return job;
 	}
 
 	async cancelJob(jobId: string) {
 		const { fluxbase } = await import('$lib/fluxbase');
 
-		// Get user ID
-		const { data: userData } = await fluxbase.auth.getUser();
-		if (!userData.user) {
-			throw new Error('User not authenticated');
-		}
+		try {
+			// First, get the job to check its type for business logic
+			const { data: job, error: fetchError } = await fluxbase.jobs.get(jobId);
 
-		// Fetch the job to check if it exists and get its type
-		const { data: job, error: fetchError } = await fluxbase
-			.from('jobs')
-			.select('*')
-			.eq('id', jobId)
-			.eq('created_by', userData.user.id)
-			.single();
-
-		if (fetchError || !job) {
-			throw new Error('Job not found');
-		}
-
-		// Update job status to 'cancelled'
-		const { error: updateError } = await fluxbase
-			.from('jobs')
-			.update({
-				status: 'cancelled',
-				updated_at: new Date().toISOString()
-			})
-			.eq('id', jobId)
-			.eq('created_by', userData.user.id);
-
-		if (updateError) {
-			throw new Error(updateError.message || 'Failed to cancel job');
-		}
-
-		// Business logic: If this was an import job, auto-create reverse geocoding job
-		if (job.type === 'data_import') {
-			try {
-				await this.createJob({
-					type: 'reverse_geocoding',
-					status: 'pending',
-					data: {
-						auto_created: true,
-						triggered_by: 'import_cancellation',
-						original_job_id: jobId
-					}
-				});
-			} catch (error) {
-				console.warn('Failed to auto-create reverse geocoding job:', error);
-				// Don't fail the cancellation if reverse geocoding job creation fails
+			if (fetchError || !job) {
+				throw new Error('Job not found');
 			}
-		}
 
-		return { message: 'Job cancelled successfully', jobId };
+			// Use Fluxbase Jobs API to cancel the job
+			const { error: cancelError } = await fluxbase.jobs.cancel(jobId);
+
+			if (cancelError) {
+				console.error('[ServiceAdapter] cancelJob failed:', cancelError);
+				throw new Error(cancelError.message || 'Failed to cancel job');
+			}
+
+			// Business logic: If this was an import job, auto-create reverse geocoding job
+			if (job.job_name === 'data_import') {
+				try {
+					await this.createJob({
+						type: 'reverse_geocoding',
+						data: {
+							auto_created: true,
+							triggered_by: 'import_cancellation',
+							original_job_id: jobId
+						}
+					});
+				} catch (error) {
+					console.warn('[ServiceAdapter] Failed to auto-create reverse geocoding job:', error);
+					// Don't fail the cancellation if reverse geocoding job creation fails
+				}
+			}
+
+			return { message: 'Job cancelled successfully', jobId };
+		} catch (error) {
+			console.error('[ServiceAdapter] cancelJob error:', error);
+			throw error;
+		}
 	}
 
 	async getJobStream() {

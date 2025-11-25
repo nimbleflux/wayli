@@ -32,13 +32,11 @@ export class TripsService {
 	}
 
 	private async getCurrentUserId(): Promise<string> {
-		const {
-			data: { session }
-		} = await this.fluxbase.auth.getSession();
-		if (!session?.user?.id) {
+		const { data } = await this.fluxbase.auth.getSession();
+		if (!data?.session?.user?.id) {
 			throw new Error('User not authenticated');
 		}
-		return session.user.id;
+		return data.session.user.id;
 	}
 
 	private calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {

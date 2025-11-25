@@ -1,268 +1,220 @@
-// web/src/lib/stores/job-store.ts
-import { JobRealtimeService, type JobUpdate } from '$lib/services/job-realtime.service';
-import { toast } from 'svelte-sonner';
+/**
+ * Job Store
+ *
+ * Provides real-time job monitoring using Fluxbase Realtime subscriptions
+ */
 
-// Helper function to get job type info for notifications
-function getJobTypeInfo(type: string) {
-	switch (type) {
-		case 'data_import':
-			return { title: 'Data Import' };
-		case 'data_export':
-			return { title: 'Data Export' };
-		case 'reverse_geocoding_missing':
-			return { title: 'Reverse Geocoding' };
-		case 'trip_generation':
-			return { title: 'Trip Generation' };
-		default:
-			return { title: 'Background Job' };
-	}
+import { writable, get } from 'svelte/store';
+import { fluxbase } from '$lib/fluxbase';
+import type { RealtimeChannel } from '@fluxbase/sdk';
+
+export type JobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+export interface JobStoreJob {
+	id: string;
+	job_name: string; // Changed from 'type' to match SDK
+	namespace?: string;
+	status: JobStatus;
+	progress_percent?: number; // Changed from 'progress' to match SDK
+	progress_message?: string;
+	payload?: unknown;
+	result?: unknown;
+	error?: string;
+	created_at: string;
+	updated_at?: string;
+	started_at?: string;
+	completed_at?: string;
+	created_by: string;
 }
 
-// Simple variable for active jobs
-let _activeJobs = new Map<string, JobUpdate>();
+// Store for active jobs
+const jobsStore = writable<Map<string, JobStoreJob>>(new Map());
+let realtimeChannel: RealtimeChannel | null = null;
+let currentUserId: string | null = null;
 
-// Callback system to notify subscribers of changes
-let _subscribers: Array<() => void> = [];
-
-// Connection status subscribers
-type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
-let _connectionStatusSubscribers: Array<(status: ConnectionStatus) => void> = [];
-let _currentConnectionStatus: ConnectionStatus = 'disconnected';
-
-// Realtime service singleton
-let _realtimeUnsubscribe: (() => void) | null = null;
-
-function notifySubscribers() {
-	_subscribers.forEach((callback) => callback());
+/**
+ * Handle new job creation
+ */
+function handleJobInsert(job: JobStoreJob, currentJobs: Map<string, JobStoreJob>): Map<string, JobStoreJob> {
+	console.log('[JobStore] New job created:', job.id, job.job_name);
+	const newJobs = new Map(currentJobs);
+	newJobs.set(job.id, job);
+	return newJobs;
 }
 
-export function subscribe(callback: () => void) {
-	_subscribers.push(callback);
-	return () => {
-		_subscribers = _subscribers.filter((cb) => cb !== callback);
-	};
-}
+/**
+ * Handle job updates (progress, status changes)
+ */
+function handleJobUpdate(job: JobStoreJob, currentJobs: Map<string, JobStoreJob>): Map<string, JobStoreJob> {
+	console.log('[JobStore] Job updated:', job.id, `${job.progress_percent || 0}%`, job.status);
 
-// Getter function to access the current state
-export function getActiveJobsMap(): Map<string, JobUpdate> {
-	return _activeJobs;
-}
+	const newJobs = new Map(currentJobs);
+	const existing = currentJobs.get(job.id);
 
-// Helper functions to manage the store
-export function addJobToStore(job: JobUpdate) {
-	try {
-		const newJobs = new Map(_activeJobs);
+	if (existing) {
+		// Merge updates while preserving data
+		newJobs.set(job.id, {
+			...existing,
+			...job,
+			// Preserve fields that shouldn't be overwritten if new value is undefined
+			payload: job.payload ?? existing.payload,
+			result: job.result ?? existing.result
+		});
+	} else {
+		// Job not in store yet, add it
 		newJobs.set(job.id, job);
-		_activeJobs = newJobs;
-		notifySubscribers();
-	} catch (error) {
-		console.error('❌ Store: Error in addJobToStore:', error);
 	}
+
+	return newJobs;
 }
 
-export function updateJobInStore(job: JobUpdate) {
-	try {
-		const newJobs = new Map(_activeJobs);
-		newJobs.set(job.id, job);
-		_activeJobs = newJobs;
-		notifySubscribers();
-	} catch (error) {
-		console.error('❌ Store: Error in updateJobInStore:', error);
-	}
+/**
+ * Handle job deletion/cleanup
+ */
+function handleJobDelete(jobId: string, currentJobs: Map<string, JobStoreJob>): Map<string, JobStoreJob> {
+	console.log('[JobStore] Job removed:', jobId);
+	const newJobs = new Map(currentJobs);
+	newJobs.delete(jobId);
+	return newJobs;
 }
 
-export function removeJobFromStore(jobId: string) {
-	try {
-		const newJobs = new Map(_activeJobs);
-		newJobs.delete(jobId);
-		_activeJobs = newJobs;
-		notifySubscribers();
-	} catch (error) {
-		console.error('❌ Store: Error in removeJobFromStore:', error);
-	}
-}
-
-export function getJobFromStore(jobId: string): JobUpdate | undefined {
-	return _activeJobs.get(jobId);
-}
-
-export function clearCompletedJobs() {
-	try {
-		const newJobs = new Map();
-		const now = Date.now();
-
-		for (const [jobId, job] of _activeJobs.entries()) {
-			// Keep jobs that are still active or recently completed (within 30 seconds)
-			if (
-				job.status === 'queued' ||
-				job.status === 'running' ||
-				now - new Date(job.updated_at).getTime() < 30000
-			) {
-				newJobs.set(jobId, job);
-			}
-		}
-
-		_activeJobs = newJobs;
-		notifySubscribers();
-	} catch (error) {
-		console.error('❌ Store: Error in clearCompletedJobs:', error);
-	}
-}
-
-// Fetch and populate jobs from the server
-export async function fetchAndPopulateJobs() {
-	try {
-		const { fluxbase } = await import('$lib/fluxbase');
-		const {
-			data: { session }
-		} = await fluxbase.auth.getSession();
-
-		if (!session) {
-			return;
-		}
-
-		// Get all active jobs (queued and running)
-		const { data: activeJobs, error: activeError } = await fluxbase
-			.from('jobs')
-			.select('*')
-			.eq('created_by', session.user.id)
-			.in('status', ['queued', 'running'])
-			.order('created_at', { ascending: false });
-
-		if (activeError) {
-			console.error('❌ Store: Error fetching active jobs:', activeError);
-			return;
-		}
-
-		// Get recently completed jobs (within last 5 minutes)
-		const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-		const { data: recentCompletedJobs, error: completedError } = await fluxbase
-			.from('jobs')
-			.select('*')
-			.eq('created_by', session.user.id)
-			.in('status', ['completed', 'failed', 'cancelled'])
-			.gte('updated_at', fiveMinutesAgo)
-			.order('created_at', { ascending: false });
-
-		if (completedError) {
-			console.error('❌ Store: Error fetching completed jobs:', completedError);
-			return;
-		}
-
-		// Combine all jobs
-		const allJobs = [...(activeJobs || []), ...(recentCompletedJobs || [])];
-
-		// Clear current store and populate with fetched jobs
-		const newJobs = new Map();
-		for (const job of allJobs) {
-			// Convert to JobUpdate format
-			const jobUpdate: JobUpdate = {
-				id: job.id,
-				type: job.type,
-				status: job.status,
-				progress: job.progress || 0,
-				created_at: job.created_at,
-				updated_at: job.updated_at,
-				result: job.result,
-				error: job.error
-			};
-			newJobs.set(job.id, jobUpdate);
-		}
-
-		_activeJobs = newJobs;
-		notifySubscribers();
-	} catch (error) {
-		console.error('❌ Store: Error in fetchAndPopulateJobs:', error);
+/**
+ * Schedule automatic cleanup of completed/failed jobs after delay
+ */
+function scheduleJobCleanup(jobId: string, status: string, delay = 5000) {
+	if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+		setTimeout(() => {
+			jobsStore.update((currentJobs) => {
+				const newJobs = new Map(currentJobs);
+				newJobs.delete(jobId);
+				return newJobs;
+			});
+		}, delay);
 	}
 }
 
 /**
- * Start realtime job monitoring (singleton connection)
- * This should be called once when the user logs in
+ * Initialize Realtime subscription for job updates
  */
-export async function startJobRealtime() {
-	if (_realtimeUnsubscribe) {
-		console.log('🔗 Store: Realtime already started');
-		return;
+async function initializeRealtimeSubscription(userId: string) {
+	// Clean up existing channel if any
+	if (realtimeChannel) {
+		await fluxbase.removeChannel(realtimeChannel);
+		realtimeChannel = null;
 	}
 
-	console.log('🔗 Store: Starting realtime job monitoring');
+	currentUserId = userId;
 
-	// Fetch initial state before subscribing to realtime
-	await fetchAndPopulateJobs();
+	// Subscribe to Fluxbase's jobs table via realtime
+	realtimeChannel = fluxbase
+		.channel(`jobs-user-${userId}`)
+		.on('postgres_changes', {
+			event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+			schema: 'fluxbase', // Fluxbase's internal jobs table
+			table: 'jobs',
+			filter: `created_by=eq.${userId}` // Only get jobs created by this user
+		}, (payload: any) => {
+			const eventType = payload.eventType;
 
-	// Subscribe to realtime updates
-	const service = JobRealtimeService.getInstance();
-	_realtimeUnsubscribe = service.subscribe({
-		onConnected: () => {
-			console.log('✅ Store: Realtime connected');
-		},
-		onDisconnected: () => {
-			console.log('🔌 Store: Realtime disconnected');
-		},
-		onError: (error) => {
-			console.error('❌ Store: Realtime error:', error);
-		},
-		onConnectionStatusChange: (status) => {
-			_currentConnectionStatus = status;
-			_connectionStatusSubscribers.forEach((cb) => cb(status));
-		},
-		onJobUpdate: (job) => {
-			// Automatically update store with all job updates
-			updateJobInStore(job);
-		},
-		onJobCompleted: (job) => {
-			// Update store with completed job
-			updateJobInStore(job);
-
-			// Show toast notification for completed jobs
-			const jobTypeInfo = getJobTypeInfo(job.type);
-			if (job.status === 'completed') {
-				toast.success(`${jobTypeInfo.title} completed successfully!`);
-			} else if (job.status === 'failed') {
-				toast.error(`${jobTypeInfo.title} failed`);
-			} else if (job.status === 'cancelled') {
-				toast.info(`${jobTypeInfo.title} was cancelled`);
-			}
-
-			// Auto-remove completed jobs after 30 seconds
-			setTimeout(() => {
-				if (_activeJobs.get(job.id)?.status === job.status) {
-					removeJobFromStore(job.id);
+			switch (eventType) {
+				case 'INSERT': {
+					const newJob = payload.new as JobStoreJob;
+					jobsStore.update(current => handleJobInsert(newJob, current));
+					break;
 				}
-			}, 30000);
-		}
+
+				case 'UPDATE': {
+					const updatedJob = payload.new as JobStoreJob;
+					jobsStore.update(current => handleJobUpdate(updatedJob, current));
+
+					// Auto-cleanup completed/failed/cancelled jobs after 5 seconds
+					scheduleJobCleanup(updatedJob.id, updatedJob.status);
+					break;
+				}
+
+				case 'DELETE': {
+					const deletedJob = payload.old as JobStoreJob;
+					jobsStore.update(current => handleJobDelete(deletedJob.id, current));
+					break;
+				}
+
+				default:
+					console.warn('[JobStore] Unknown event type:', eventType);
+			}
+		})
+		.subscribe((status) => {
+			if (status === 'SUBSCRIBED') {
+				console.log('[JobStore] Realtime subscription active for user:', userId);
+			} else if (status === 'CHANNEL_ERROR') {
+				console.error('[JobStore] Realtime subscription error');
+			} else if (status === 'TIMED_OUT') {
+				console.error('[JobStore] Realtime subscription timed out');
+			}
+		});
+}
+
+/**
+ * Subscribe to job updates
+ *
+ * @param callback - Function called when jobs change
+ * @returns Unsubscribe function
+ */
+export function subscribe(callback: (jobs: Map<string, JobStoreJob>) => void) {
+	// Get current user to initialize subscription
+	const user = fluxbase.auth.getUser();
+
+	if (user?.id && user.id !== currentUserId) {
+		// User changed or first subscription, initialize realtime
+		initializeRealtimeSubscription(user.id);
+	}
+
+	return jobsStore.subscribe(callback);
+}
+
+/**
+ * Get active jobs map
+ */
+export function getActiveJobsMap(): Map<string, JobStoreJob> {
+	return get(jobsStore);
+}
+
+/**
+ * Add job to store manually (for optimistic updates)
+ */
+export function addJobToStore(job: JobStoreJob) {
+	jobsStore.update((jobs) => {
+		const newJobs = new Map(jobs);
+		newJobs.set(job.id, job);
+		return newJobs;
 	});
 }
 
 /**
- * Stop realtime job monitoring
- * This should be called when the user logs out
+ * Subscribe to Fluxbase Realtime connection status
  */
-export function stopJobRealtime() {
-	if (_realtimeUnsubscribe) {
-		console.log('🔌 Store: Stopping realtime job monitoring');
-		_realtimeUnsubscribe();
-		_realtimeUnsubscribe = null;
-	}
-}
+export function subscribeToConnectionStatus(
+	callback: (status: 'connecting' | 'connected' | 'disconnected' | 'error') => void
+) {
+	// Subscribe to Fluxbase Realtime connection status
+	const subscription = fluxbase.realtime.onConnectionStateChange((state) => {
+		callback(state as any);
+	});
 
-/**
- * Get realtime connection status
- */
-export function getRealtimeStatus(): ConnectionStatus {
-	return _currentConnectionStatus;
-}
-
-/**
- * Subscribe to connection status changes
- * Returns an unsubscribe function
- */
-export function subscribeToConnectionStatus(callback: (status: ConnectionStatus) => void): () => void {
-	_connectionStatusSubscribers.push(callback);
-	// Immediately notify with current status
-	callback(_currentConnectionStatus);
+	// Return unsubscribe function
 	return () => {
-		_connectionStatusSubscribers = _connectionStatusSubscribers.filter((cb) => cb !== callback);
+		if (subscription) {
+			subscription.unsubscribe();
+		}
 	};
+}
+
+/**
+ * Cleanup function to unsubscribe from Realtime
+ */
+export async function cleanup() {
+	if (realtimeChannel) {
+		await fluxbase.removeChannel(realtimeChannel);
+		realtimeChannel = null;
+		currentUserId = null;
+	}
 }

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { gunzipSync } from 'zlib';
 
 import { point, booleanPointInPolygon } from '@turf/turf';
 
@@ -14,9 +15,23 @@ const __dirname = path.dirname(__filename);
 let countriesGeoJSON: FeatureCollection<Polygon | MultiPolygon> | null = null;
 function loadCountriesGeoJSON(): FeatureCollection<Polygon | MultiPolygon> {
 	if (!countriesGeoJSON) {
-		const filePath = path.resolve(__dirname, '../../data/countries.geojson');
-		const data = fs.readFileSync(filePath, 'utf-8');
-		const rawGeoJSON = JSON.parse(data) as FeatureCollection<Polygon | MultiPolygon>;
+		let rawGeoJSON: FeatureCollection<Polygon | MultiPolygon>;
+
+		// Try to load embedded compressed data first (for bundled mode)
+		try {
+			// @ts-ignore - This constant will be injected during bundling via esbuild define
+			const compressedData = EMBEDDED_COUNTRIES_GEOJSON;
+			const buffer = Buffer.from(compressedData, 'base64');
+			const decompressed = gunzipSync(buffer).toString('utf-8');
+			rawGeoJSON = JSON.parse(decompressed) as FeatureCollection<Polygon | MultiPolygon>;
+			console.log('✅ Loaded countries.geojson from embedded compressed data');
+		} catch {
+			// Fallback to filesystem (for development mode)
+			const filePath = path.resolve(__dirname, '../../data/countries.geojson');
+			const data = fs.readFileSync(filePath, 'utf-8');
+			rawGeoJSON = JSON.parse(data) as FeatureCollection<Polygon | MultiPolygon>;
+		}
+
 		// Normalize properties
 		for (const feature of rawGeoJSON.features) {
 			const props = feature.properties || {};
@@ -35,35 +50,46 @@ function loadCountriesGeoJSON(): FeatureCollection<Polygon | MultiPolygon> {
 let timezonesGeoJSON: FeatureCollection<Polygon | MultiPolygon> | null = null;
 function loadTimezonesGeoJSON(): FeatureCollection<Polygon | MultiPolygon> {
 	if (!timezonesGeoJSON) {
-		// Try multiple possible paths for different environments
-		const possiblePaths = [
-			path.resolve(__dirname, '../../data/timezones.geojson'),
-			path.resolve(process.cwd(), 'src/lib/data/timezones.geojson'),
-			path.resolve(process.cwd(), 'web/src/lib/data/timezones.geojson'),
-			'./src/lib/data/timezones.geojson',
-			'./web/src/lib/data/timezones.geojson'
-		];
+		// Try to load embedded compressed data first (for bundled mode)
+		try {
+			// @ts-ignore - This constant will be injected during bundling via esbuild define
+			const compressedData = EMBEDDED_TIMEZONES_GEOJSON;
+			const buffer = Buffer.from(compressedData, 'base64');
+			const decompressed = gunzipSync(buffer).toString('utf-8');
+			timezonesGeoJSON = JSON.parse(decompressed) as FeatureCollection<Polygon | MultiPolygon>;
+			console.log('✅ Loaded timezones.geojson from embedded compressed data');
+		} catch {
+			// Fallback to filesystem (for development mode)
+			const possiblePaths = [
+				path.resolve(__dirname, '../../data/timezones.geojson'),
+				path.resolve(process.cwd(), 'src/lib/data/timezones.geojson'),
+				path.resolve(process.cwd(), 'web/src/lib/data/timezones.geojson'),
+				'./src/lib/data/timezones.geojson',
+				'./web/src/lib/data/timezones.geojson'
+			];
 
-		let loaded = false;
-		for (const filePath of possiblePaths) {
-			try {
-				const data = fs.readFileSync(filePath, 'utf-8');
-				const parsed = JSON.parse(data) as FeatureCollection<Polygon | MultiPolygon>;
-				timezonesGeoJSON = parsed;
-				loaded = true;
-				break;
-			} catch {
-				// Continue trying other paths
+			let loaded = false;
+			for (const filePath of possiblePaths) {
+				try {
+					const data = fs.readFileSync(filePath, 'utf-8');
+					const parsed = JSON.parse(data) as FeatureCollection<Polygon | MultiPolygon>;
+					timezonesGeoJSON = parsed;
+					loaded = true;
+					break;
+				} catch {
+					// Continue trying other paths
+				}
 			}
-		}
 
-		if (!loaded) {
-			console.error(`❌ [TIMEZONE] Failed to load timezones.geojson from any path`);
-			// Return empty feature collection to prevent crashes
-			const emptyCollection = { type: 'FeatureCollection', features: [] } as FeatureCollection<
-				Polygon | MultiPolygon
-			>;
-			timezonesGeoJSON = emptyCollection;
+			if (!loaded) {
+				console.error(`❌ [TIMEZONE] Failed to load timezones.geojson from any path`);
+				// Return empty feature collection to prevent crashes
+				const emptyCollection = {
+					type: 'FeatureCollection',
+					features: []
+				} as FeatureCollection<Polygon | MultiPolygon>;
+				timezonesGeoJSON = emptyCollection;
+			}
 		}
 	}
 	return timezonesGeoJSON!;

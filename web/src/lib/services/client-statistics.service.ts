@@ -512,13 +512,11 @@ export class ClientStatisticsService {
 	): Promise<{ data: TrackerDataPoint[]; samplingApplied: boolean }> {
 		try {
 			// Get session for authentication
-			const {
-				data: { session },
-				error: sessionError
-			} = await this.fluxbase.auth.getSession();
-			if (sessionError || !session) {
+			const { data, error: sessionError } = await this.fluxbase.auth.getSession();
+			if (sessionError || !data?.session) {
 				throw new Error('User not authenticated');
 			}
+			const session = data.session;
 
 			// Call the smart sampling Edge Function
 			const response = await fetch(`${this.getFunctionsUrl()}/tracker-data-smart`, {

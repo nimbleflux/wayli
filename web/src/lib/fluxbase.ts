@@ -1,31 +1,23 @@
-// src/lib/fluxbase.ts
-// Client-side Fluxbase client. Uses runtime configuration from WAYLI_CONFIG.
-// Never import secrets or private env vars here.
-// This is the SINGLE source of truth for the Fluxbase client in the browser.
-
-import { createClient } from '@fluxbase/sdk';
-import { browser } from '$app/environment';
-import { config } from './config';
-import type { Database } from './types';
-
 /**
- * The client-side Fluxbase instance for browser use.
- * Configured with local storage persistence for JWT tokens.
- * The URL and API key are determined at runtime from WAYLI_CONFIG.
- *
- * IMPORTANT: This is the ONLY Fluxbase client instance that should be used
- * in client-side code to avoid multiple auth client instances.
+ * Client-side Fluxbase client
+ * Safe for use in browser environment
  */
-export const fluxbase = createClient(
-	config.fluxbaseUrl,
-	config.fluxbaseAnonKey,
-	{
-		auth: {
-			autoRefresh: browser,
-			persist: browser
-		}
-	}
-);
 
-// Export the config for components that need it
-export { config };
+import { createFluxbaseClient } from '../shared/fluxbase-factory';
+import { config } from './config';
+
+// Get environment variables from config (supports both dev and production)
+const FLUXBASE_BASE_URL = config.fluxbaseUrl;
+const FLUXBASE_ANON_KEY = config.fluxbaseAnonKey;
+
+if (!FLUXBASE_ANON_KEY) {
+	console.warn(
+		'⚠️ PUBLIC_FLUXBASE_ANON_KEY is not set. Please add it to your .env file.'
+	);
+}
+
+// Create client-side Fluxbase client with browser-safe settings
+export const fluxbase = createFluxbaseClient(FLUXBASE_BASE_URL, FLUXBASE_ANON_KEY, {
+	persist: true, // Enable session persistence in browser
+	autoRefresh: true // Auto-refresh tokens in browser
+});

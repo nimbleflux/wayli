@@ -1,4 +1,4 @@
-import { createWorkerClient } from '../../worker/client';
+import { fluxbase } from '$lib/fluxbase';
 import type { GeocodeGeoJSONFeature } from '../utils/geojson-converter';
 
 export interface TripLocation {
@@ -60,11 +60,11 @@ export interface GeocodeData {
 }
 
 export class TripLocationsService {
-	private fluxbase: ReturnType<typeof createWorkerClient>;
+	private fluxbase: typeof fluxbase;
 
 	constructor() {
 		// Use the worker client
-		this.fluxbase = createWorkerClient();
+		this.fluxbase = fluxbase;
 	}
 
 	// Note: Static client override functionality to be implemented in future version
@@ -75,7 +75,7 @@ export class TripLocationsService {
 
 	// Instance method to switch to worker client
 	useWorkerClient() {
-		this.fluxbase = createWorkerClient();
+		this.fluxbase = fluxbase;
 		console.log('🔧 [TripLocationsService] Switched to worker Fluxbase client');
 	}
 

@@ -514,11 +514,9 @@
 		}
 		isUpdatingPassword = true;
 		try {
-			const {
-				data: { session }
-			} = await fluxbase.auth.getSession();
-			if (!session) throw new Error('No session found');
-			const serviceAdapter = new ServiceAdapter({ session });
+			const { data } = await fluxbase.auth.getSession();
+			if (!data?.session) throw new Error('No session found');
+			const serviceAdapter = new ServiceAdapter({ session: data.session });
 			await serviceAdapter.updatePassword(newPassword);
 			toast.success('Password updated successfully!');
 			currentPassword = '';

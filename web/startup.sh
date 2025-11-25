@@ -1,23 +1,16 @@
 #!/bin/bash
 
-# Startup script for Wayli - handles web, worker, and combined modes
+# Startup script for Wayli - handles web mode
 # APP_MODE is set by docker-entrypoint.sh
 
 set -e
 
 # Track child PIDs for cleanup
 NGINX_PID=""
-WORKER_PID=""
 
 # Cleanup function for graceful shutdown
 cleanup() {
     echo "Shutting down..."
-
-    if [ -n "$WORKER_PID" ] && kill -0 "$WORKER_PID" 2>/dev/null; then
-        echo "Stopping worker (PID: $WORKER_PID)..."
-        kill -TERM "$WORKER_PID" 2>/dev/null || true
-        wait "$WORKER_PID" 2>/dev/null || true
-    fi
 
     if [ -n "$NGINX_PID" ] && kill -0 "$NGINX_PID" 2>/dev/null; then
         echo "Stopping nginx (PID: $NGINX_PID)..."
@@ -137,6 +130,37 @@ sync_functions() {
     fi
 }
 
+# Sync Fluxbase job handlers
+# NOTE: Commented out until Fluxbase Jobs platform is available
+# Job handlers are validated but not synced to platform yet
+sync_jobs() {
+    echo "Syncing Fluxbase job handlers..."
+
+    # Check if sync should be skipped (useful for testing/dev)
+    if [ "$SKIP_JOB_SYNC" = "true" ]; then
+        echo "⚠️  SKIP_JOB_SYNC is set, skipping job sync"
+        return 0
+    fi
+
+    # Verify environment variables are set
+    if [ -z "$FLUXBASE_BASE_URL" ] || [ -z "$FLUXBASE_SERVICE_ROLE_KEY" ]; then
+        echo "⚠️  Warning: FLUXBASE_BASE_URL or FLUXBASE_SERVICE_ROLE_KEY not set"
+        echo "⚠️  Skipping job sync - jobs will need to be deployed manually"
+        return 0
+    fi
+
+    cd /app
+
+    # Run job sync script (currently just validates handlers)
+    if npm run sync-jobs; then
+        echo "✅ Job validation completed successfully"
+    else
+        echo "⚠️  Warning: Job validation failed (exit code: $?)"
+        echo "⚠️  Continuing startup - jobs will still run via worker"
+        # Don't exit - allow the app to start even if job validation fails
+    fi
+}
+
 # Start nginx in foreground (web-only mode)
 start_nginx_foreground() {
     echo "Starting nginx..."
@@ -151,42 +175,14 @@ start_nginx_background() {
     echo "Nginx started (PID: $NGINX_PID)"
 }
 
-# Start worker in background (combined mode)
-start_worker_background() {
-    echo "Starting worker in background..."
-    cd /app
-    npm run worker &
-    WORKER_PID=$!
-    echo "Worker started (PID: $WORKER_PID)"
-}
-
 # Main execution based on APP_MODE
 case "${APP_MODE:-web}" in
-    "web")
+    "web"|"combined")
         configure_nginx
         sync_migrations
         sync_functions
+        sync_jobs
         start_nginx_foreground
-        ;;
-    "combined")
-        # Set up signal handlers for graceful shutdown
-        trap cleanup SIGTERM SIGINT SIGQUIT
-
-        configure_nginx
-        sync_migrations
-        sync_functions
-        start_nginx_background
-        start_worker_background
-
-        echo "Combined mode running - nginx (PID: $NGINX_PID) + worker (PID: $WORKER_PID)"
-        echo "Press Ctrl+C to stop both services"
-
-        # Wait for any child to exit, then cleanup
-        wait -n 2>/dev/null || true
-
-        # If we get here, one process died - cleanup the other
-        echo "A process exited, shutting down..."
-        cleanup
         ;;
     *)
         echo "Unknown APP_MODE: ${APP_MODE}"

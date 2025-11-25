@@ -160,36 +160,16 @@ services:
     networks:
       - wayli-network
 
-  # Wayli background worker
-  wayli-worker:
-    container_name: wayli-worker
-    image: zehbart/wayli:${WAYLI_VERSION:-latest}
-    restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      APP_MODE: worker
-
-      # Fluxbase connection (updated from Supabase)
-      FLUXBASE_BASE_URL: http://fluxbase-dev:8080
-      FLUXBASE_ANON_KEY: ${ANON_KEY}
-      FLUXBASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
-      JWT_SECRET: ${JWT_SECRET}
-
-      # Worker-specific
-      NOMINATIM_ENDPOINT: ${NOMINATIM_ENDPOINT:-https://nominatim.openstreetmap.org}
-
-    depends_on:
-      fluxbase:
-        condition: service_healthy
-      wayli-web:
-        condition: service_healthy
-    networks:
-      - wayli-network
+  #############################################
+  # NOTE: Worker service is no longer needed!
+  # Fluxbase now handles all job processing via Fluxbase Jobs.
+  # The wayli-worker service has been removed.
+  #############################################
 
   #############################################
-  # ALTERNATIVE: Combined mode (web + worker in single container)
-  # Uncomment this service and comment out wayli-web and wayli-worker above
-  # to run both in a single container for simpler deployments.
+  # ALTERNATIVE: Combined mode (deprecated - no longer needed)
+  # The combined mode is no longer necessary since Fluxbase handles job processing.
+  # Use only the wayli-web service above.
   #############################################
   # wayli:
   #   container_name: wayli
@@ -218,6 +198,8 @@ services:
   #
   #     # Worker-specific
   #     NOMINATIM_ENDPOINT: ${NOMINATIM_ENDPOINT:-https://nominatim.openstreetmap.org}
+  #     MAX_CONCURRENT_JOBS: ${MAX_CONCURRENT_JOBS:-3}
+  #     MAX_JOB_RETRIES: ${MAX_JOB_RETRIES:-3}
   #
   #   depends_on:
   #     fluxbase:

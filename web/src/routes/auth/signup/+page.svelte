@@ -5,7 +5,7 @@
 
 	import { translate } from '$lib/i18n';
 	import { userStore } from '$lib/stores/auth';
-	import { fluxbase, config } from '$lib/fluxbase';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -222,8 +222,39 @@
 				goto('/auth/verify-email');
 			} else if (data.session) {
 				// User is auto-confirmed and logged in
-				// Redirect will happen via userStore.subscribe
 				toast.success(t('auth.signUpSuccess'));
+
+				// Explicitly check profile and redirect (don't rely only on store subscription)
+				try {
+					const { data: profile } = await fluxbase
+						.from('user_profiles')
+						.select('onboarding_completed, first_login_at')
+						.eq('id', data.user.id)
+						.single();
+
+					// Update first_login_at if needed
+					if (!profile?.first_login_at) {
+						await fluxbase
+							.from('user_profiles')
+							.update({ first_login_at: new Date().toISOString() })
+							.eq('id', data.user.id);
+					}
+
+					// Redirect based on onboarding status
+					if (!profile?.onboarding_completed) {
+						console.log('🔄 [SIGNUP] First-time user, redirecting to onboarding');
+						goto('/dashboard/account-settings?onboarding=true');
+					} else {
+						const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/statistics';
+						console.log('🔄 [SIGNUP] User authenticated, redirecting to', redirectTo);
+						goto(redirectTo);
+					}
+				} catch (profileError) {
+					console.error('Error fetching profile after signup:', profileError);
+					// Fallback to default redirect
+					const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/statistics';
+					goto(redirectTo);
+				}
 			}
 		} catch (error: any) {
 			toast.error(error.message || t('auth.signUpFailed'));

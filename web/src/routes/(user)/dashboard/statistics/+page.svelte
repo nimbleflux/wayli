@@ -228,15 +228,12 @@
 			const startDate = formatLocalDate(appState.filtersStartDate);
 			const endDate = formatLocalDate(appState.filtersEndDate);
 
-			const {
-				data: { session },
-				error: sessionError
-			} = await fluxbase.auth.getSession();
-			if (sessionError || !session) {
+			const { data, error: sessionError } = await fluxbase.auth.getSession();
+			if (sessionError || !data?.session) {
 				throw new Error('User not authenticated');
 			}
 
-			totalPointsCount = await statisticsService.getTotalCount(session.user.id, startDate, endDate);
+			totalPointsCount = await statisticsService.getTotalCount(data.session.user.id, startDate, endDate);
 
 			if (totalPointsCount > 100000) {
 				showLargeDatasetWarning = true;
@@ -282,11 +279,8 @@
 				return;
 			}
 
-			const {
-				data: { session },
-				error: sessionError
-			} = await fluxbase.auth.getSession();
-			if (sessionError || !session) {
+			const { data, error: sessionError } = await fluxbase.auth.getSession();
+			if (sessionError || !data?.session) {
 				throw new Error('User not authenticated');
 			}
 
@@ -294,7 +288,7 @@
 
 			// Load and process data with progress tracking
 			const statistics = await statisticsService!.loadAndProcessData(
-				session.user.id,
+				data.session.user.id,
 				startDate,
 				endDate,
 				// Progress callback

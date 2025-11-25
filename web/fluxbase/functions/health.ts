@@ -1,15 +1,12 @@
-import { corsHeaders } from '../_shared/cors.ts';
-import { createClient } from 'https://esm.sh/@fluxbase/sdk@0.0.1-rc.11';
+/**
+ * Health Check Edge Function
+ * Returns system health status
+ * @fluxbase:allow-unauthenticated
+ * @fluxbase:allow-net
+ * @fluxbase:allow-env
+ */
 
 async function handler(req) {
-	// Handle CORS preflight requests
-	if (req.method === 'OPTIONS') {
-		return {
-			status: 200,
-			headers: corsHeaders,
-			body: 'ok'
-		};
-	}
 
 	const checks: Record<string, { status: string; message?: string; duration?: number }> = {};
 	let overallStatus = 'healthy';
@@ -24,17 +21,19 @@ async function handler(req) {
 			throw new Error('Missing Fluxbase credentials');
 		}
 
-		const fluxbase = createClient({ url: fluxbaseUrl, apiKey: fluxbaseKey });
-
-		// Simple query to check database connectivity
-		const { error } = await fluxbase
-			.from('user_profiles')
-			.select('count', { count: 'exact', head: true });
+		// Simple query to check database connectivity using REST API
+		const response = await fetch(`${fluxbaseUrl}/rest/v1/user_profiles?select=count`, {
+			method: 'HEAD',
+			headers: {
+				'apikey': fluxbaseKey,
+				'Authorization': `Bearer ${fluxbaseKey}`
+			}
+		});
 
 		const duration = performance.now() - start;
 
-		if (error) {
-			checks.database = { status: 'unhealthy', message: error.message, duration };
+		if (!response.ok) {
+			checks.database = { status: 'unhealthy', message: `HTTP ${response.status}`, duration };
 			overallStatus = 'unhealthy';
 		} else {
 			checks.database = { status: 'healthy', duration };
@@ -62,22 +61,29 @@ async function handler(req) {
 	try {
 		const fluxbaseUrl = Deno.env.get('FLUXBASE_BASE_URL') ?? '';
 		const fluxbaseKey = Deno.env.get('FLUXBASE_SERVICE_ROLE_KEY') ?? '';
-		const fluxbase = createClient({ url: fluxbaseUrl, apiKey: fluxbaseKey });
 
 		const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-		const { data, error } = await fluxbase
-			.from('workers')
-			.select('last_heartbeat')
-			.gte('last_heartbeat', fiveMinutesAgo)
-			.limit(1);
 
-		if (error) {
+		const response = await fetch(
+			`${fluxbaseUrl}/rest/v1/workers?select=last_heartbeat&last_heartbeat=gte.${fiveMinutesAgo}&limit=1`,
+			{
+				headers: {
+					'apikey': fluxbaseKey,
+					'Authorization': `Bearer ${fluxbaseKey}`
+				}
+			}
+		);
+
+		if (!response.ok) {
 			checks.workers = { status: 'degraded', message: 'Unable to check worker status' };
-		} else if (!data || data.length === 0) {
-			checks.workers = { status: 'degraded', message: 'No active workers detected' };
-			overallStatus = overallStatus === 'unhealthy' ? 'unhealthy' : 'degraded';
 		} else {
-			checks.workers = { status: 'healthy' };
+			const data = await response.json();
+			if (!data || data.length === 0) {
+				checks.workers = { status: 'degraded', message: 'No active workers detected' };
+				overallStatus = overallStatus === 'unhealthy' ? 'unhealthy' : 'degraded';
+			} else {
+				checks.workers = { status: 'healthy' };
+			}
 		}
 	} catch (error) {
 		checks.workers = { status: 'degraded', message: error.message };
@@ -92,11 +98,10 @@ async function handler(req) {
 
 	const statusCode = overallStatus === 'unhealthy' ? 503 : 200;
 
-	return {
+	return new Response(JSON.stringify(response, null, 2), {
 		status: statusCode,
-		headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-		body: JSON.stringify(response, null, 2)
-	};
+		headers: { 'Content-Type': 'application/json' }
+	});
 }
 
 export default handler;

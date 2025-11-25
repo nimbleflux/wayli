@@ -705,11 +705,12 @@ END;
 $$;
 CREATE OR REPLACE FUNCTION "public"."handle_new_user"() RETURNS "trigger" LANGUAGE "plpgsql" SECURITY DEFINER
 SET "search_path" TO '' AS $$
-DECLARE user_role TEXT;
+DECLARE
+user_role TEXT;
 first_name TEXT;
 last_name TEXT;
 full_name TEXT;
-BEGIN -- Extract name information from user metadata
+BEGIN -- Extract name information from user metadata (set during signup)
 first_name := COALESCE(NEW.user_metadata->>'first_name', '');
 last_name := COALESCE(NEW.user_metadata->>'last_name', '');
 full_name := COALESCE(NEW.user_metadata->>'full_name', '');
@@ -726,6 +727,15 @@ END IF;
 first_name := TRIM(first_name);
 last_name := TRIM(last_name);
 full_name := TRIM(full_name);
+-- Determine user role: First user becomes admin, prevents race condition
+SELECT CASE
+    WHEN NOT EXISTS (
+        SELECT 1
+        FROM public.user_profiles
+        LIMIT 1 FOR UPDATE
+    ) THEN 'admin'
+    ELSE 'user'
+END INTO user_role;
 INSERT INTO public.user_profiles (
         id,
         first_name,
@@ -740,19 +750,17 @@ VALUES (
         first_name,
         last_name,
         full_name,
-        -- Atomic check: First user becomes admin, prevents race condition
-        CASE
-            WHEN NOT EXISTS (
-                SELECT 1
-                FROM public.user_profiles
-                LIMIT 1 FOR
-                UPDATE
-            ) THEN 'admin'
-            ELSE 'user'
-        END,
+        user_role,
         NOW(),
         NOW()
     );
+-- Sync the role to auth.users for JWT claims (admin or authenticated)
+UPDATE "auth"."users"
+SET "role" = CASE
+    WHEN user_role = 'admin' THEN 'admin'
+    ELSE 'authenticated'
+END
+WHERE "id" = NEW.id;
 INSERT INTO public.user_preferences (
         id,
         created_at,
@@ -777,6 +785,29 @@ $$;
 COMMENT ON FUNCTION "public"."handle_new_user"() IS 'Trigger function to create user_profiles and user_preferences entries for new users.
     First user is automatically assigned admin role using atomic row-level locking to prevent race conditions.
     Uses empty search_path for security (SECURITY DEFINER function).';
+CREATE OR REPLACE FUNCTION "public"."sync_user_role_to_auth"()
+RETURNS TRIGGER
+SECURITY DEFINER
+SET "search_path" TO 'public', 'auth'
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Update the role in auth.users to match user_profiles
+    -- admin → admin (PostgreSQL role that inherits from authenticated)
+    -- user → authenticated (standard PostgreSQL role)
+    UPDATE "auth"."users"
+    SET "role" = CASE
+        WHEN NEW."role" = 'admin' THEN 'admin'
+        ELSE 'authenticated'
+    END
+    WHERE "id" = NEW."id";
+
+    RAISE NOTICE 'Synced role % to auth.users for user %', NEW."role", NEW."id";
+
+    RETURN NEW;
+END;
+$$;
+COMMENT ON FUNCTION "public"."sync_user_role_to_auth"() IS 'Trigger function to sync user role from user_profiles to auth.users so JWT claims include the correct role. Maps application roles (admin, user) to PostgreSQL roles (admin, authenticated).';
 CREATE OR REPLACE FUNCTION "public"."is_user_admin"("user_uuid" "uuid") RETURNS boolean LANGUAGE "plpgsql" SECURITY DEFINER
 SET "search_path" TO '' AS $$
 DECLARE user_role TEXT;

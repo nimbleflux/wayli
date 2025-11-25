@@ -467,9 +467,12 @@
 			!hasAttemptedImageSuggestion
 		) {
 			// Add a small delay to avoid too many requests
-			setTimeout(() => {
+			const timeoutId = setTimeout(() => {
 				suggestTripImage();
 			}, 1000);
+
+			// Cleanup timeout if effect re-runs or component unmounts
+			return () => clearTimeout(timeoutId);
 		}
 	});
 
@@ -960,9 +963,17 @@
 			} else {
 				imageError = t('trips.noImageSuggestionAvailable');
 			}
-		} catch {
-			// Error suggesting trip image
-			imageError = t('trips.failedToSuggestImage');
+		} catch (error) {
+			// Check if this is the "No travel data" error
+			const errorMessage = error instanceof Error ? error.message : String(error);
+
+			if (errorMessage.includes('No travel data found')) {
+				// Specific error for no travel data - user-friendly message
+				imageError = t('trips.noTravelDataForDateRange');
+			} else {
+				// Generic error
+				imageError = t('trips.failedToSuggestImage');
+			}
 		} finally {
 			isSuggestingImage = false;
 			hasAttemptedImageSuggestion = true; // Mark that we've attempted for this date range
@@ -1126,20 +1137,31 @@
 							approvalProgress.message = `Generated image for "${singleImageResult.results[0].trip_title}" (${successfulImageCount}/${selectedSuggestedTrips.length} trips)`;
 						}
 					} else {
+						// Check if the result contains a specific error message
+						const resultError = singleImageResult?.results?.[0]?.error || 'Failed to generate image';
+						const isNoTravelDataError = resultError.includes('No travel data found');
+
 						imageResults.push(
 							singleImageResult?.results?.[0] || {
 								suggested_trip_id: tripId,
 								success: false,
-								error: 'Failed to generate image'
+								error: isNoTravelDataError ? 'No travel data found for this date range' : resultError
 							}
 						);
 					}
 				} catch (error) {
 					console.error(`❌ Error generating image for trip ${tripId}:`, error);
+
+					// Check if this is the "No travel data" error
+					const errorMessage = error instanceof Error ? error.message : String(error);
+					const specificError = errorMessage.includes('No travel data found')
+						? 'No travel data found for this date range'
+						: 'Failed to generate image';
+
 					imageResults.push({
 						suggested_trip_id: tripId,
 						success: false,
-						error: 'Failed to generate image'
+						error: specificError
 					});
 				}
 			}

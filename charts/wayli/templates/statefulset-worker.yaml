@@ -1,4 +1,4 @@
-{{- if .Values.worker.enabled }}
+{{- if and .Values.worker.enabled (eq .Values.deploymentMode "split") }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -105,6 +105,10 @@ spec:
               value: {{ include "wayli.fluxbase.url" . | quote }}
             - name: NOMINATIM_ENDPOINT
               value: {{ .Values.worker.env.nominatim.endpoint | quote }}
+            - name: MAX_CONCURRENT_JOBS
+              value: {{ .Values.worker.env.maxConcurrentJobs | default 3 | quote }}
+            - name: MAX_JOB_RETRIES
+              value: {{ .Values.worker.env.maxJobRetries | default 3 | quote }}
             {{- if .Values.worker.extraEnvVars }}
             {{- toYaml .Values.worker.extraEnvVars | nindent 12 }}
             {{- end }}

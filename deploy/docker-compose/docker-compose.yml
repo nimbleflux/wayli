@@ -3,6 +3,11 @@
 #   Start:    docker compose -f docker-compose.fluxbase.yml up
 #   Stop:     docker compose -f docker-compose.fluxbase.yml down
 #   Destroy:  docker compose -f docker-compose.fluxbase.yml down -v --remove-orphans
+#
+# Deployment Modes:
+#   This setup runs web and worker as separate containers for production scalability.
+#   For simpler deployments, you can use combined mode (APP_MODE=combined) to run
+#   both web and worker in a single container. See wayli-combined service below.
 
 name: wayli-fluxbase
 
@@ -124,7 +129,7 @@ services:
     image: zehbart/wayli:${WAYLI_VERSION:-latest}
     restart: unless-stopped
     ports:
-      - "${WAYLI_WEB_PORT:-3000}:80"
+      - "${WAYLI_WEB_PORT:-4000}:80"
     environment:
       NODE_ENV: production
       APP_MODE: web
@@ -133,8 +138,8 @@ services:
       PUBLIC_TRUSTED_ORIGINS: ${SITE_URL}
 
       # Fluxbase connection
-      PUBLIC_FLUXBASE_BASE_URL: ${PUBLIC_FLUXBASE_BASE_URL:-http://fluxbase:8080}
-      FLUXBASE_BASE_URL: http://fluxbase:8080
+      PUBLIC_FLUXBASE_BASE_URL: ${PUBLIC_FLUXBASE_BASE_URL:-http://fluxbase-dev:8080}
+      FLUXBASE_BASE_URL: http://fluxbase-dev:8080
       FLUXBASE_ANON_KEY: ${ANON_KEY}
       FLUXBASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
       JWT_SECRET: ${JWT_SECRET}
@@ -165,7 +170,7 @@ services:
       APP_MODE: worker
 
       # Fluxbase connection (updated from Supabase)
-      FLUXBASE_BASE_URL: http://fluxbase:8080
+      FLUXBASE_BASE_URL: http://fluxbase-dev:8080
       FLUXBASE_ANON_KEY: ${ANON_KEY}
       FLUXBASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
       JWT_SECRET: ${JWT_SECRET}
@@ -180,6 +185,50 @@ services:
         condition: service_healthy
     networks:
       - wayli-network
+
+  #############################################
+  # ALTERNATIVE: Combined mode (web + worker in single container)
+  # Uncomment this service and comment out wayli-web and wayli-worker above
+  # to run both in a single container for simpler deployments.
+  #############################################
+  # wayli:
+  #   container_name: wayli
+  #   image: zehbart/wayli:${WAYLI_VERSION:-latest}
+  #   restart: unless-stopped
+  #   ports:
+  #     - "${WAYLI_WEB_PORT:-4000}:80"
+  #   environment:
+  #     NODE_ENV: production
+  #     APP_MODE: combined
+  #     HOST: "0.0.0.0"
+  #     PORT: "80"
+  #     PUBLIC_TRUSTED_ORIGINS: ${SITE_URL}
+  #
+  #     # Fluxbase connection
+  #     PUBLIC_FLUXBASE_BASE_URL: ${PUBLIC_FLUXBASE_BASE_URL:-http://fluxbase-dev:8080}
+  #     FLUXBASE_BASE_URL: http://fluxbase-dev:8080
+  #     FLUXBASE_ANON_KEY: ${ANON_KEY}
+  #     FLUXBASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+  #     JWT_SECRET: ${JWT_SECRET}
+  #
+  #     # Database (direct access if needed)
+  #     DB_USERNAME: ${POSTGRES_USER:-postgres}
+  #     DB_PASSWORD: ${POSTGRES_PASSWORD}
+  #     DB_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-wayli}
+  #
+  #     # Worker-specific
+  #     NOMINATIM_ENDPOINT: ${NOMINATIM_ENDPOINT:-https://nominatim.openstreetmap.org}
+  #
+  #   depends_on:
+  #     fluxbase:
+  #       condition: service_healthy
+  #   healthcheck:
+  #     test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/health"]
+  #     timeout: 5s
+  #     interval: 10s
+  #     retries: 3
+  #   networks:
+  #     - wayli-network
 
 volumes:
   postgres-data:

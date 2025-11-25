@@ -74,7 +74,7 @@ docker-compose logs -f wayli
 ### 3. Access
 
 Once deployed, access Wayli at:
-- **Application**: http://localhost:3000
+- **Application**: http://localhost:4000
 - **Fluxbase Studio**: http://localhost:8000
 
 ## Configuration
@@ -95,14 +95,14 @@ NODE_ENV=production
 
 ```env
 # Site URL - Used for SvelteKit CSRF protection and auth redirects
-SITE_URL=http://localhost:3000
+SITE_URL=http://localhost:4000
 
 # Fluxbase Public URL - API endpoint for Fluxbase
 FLUXBASE_PUBLIC_URL=http://localhost:8000
 
 # Fluxbase CORS - Automatically derived from SITE_URL by generate-env.sh
 # For Edge Functions - must NOT include protocol (http:// or https://)
-FLUXBASE_CORS_ALLOW_ORIGIN=wayli.app,localhost:3000
+FLUXBASE_CORS_ALLOW_ORIGIN=wayli.app,localhost:4000
 ```
 
 ### Fluxbase Secrets
@@ -255,7 +255,7 @@ docker-compose logs
 
 ### Port conflicts
 
-If ports 3000 or 8000 are already in use, edit `docker-compose.yml` to change the port mappings.
+If ports 4000 or 8000 are already in use, edit `docker-compose.yml` to change the port mappings.
 
 ### Database connection issues
 

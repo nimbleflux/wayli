@@ -26,12 +26,10 @@
 	onMount(() => {
 		// Initial load from store
 		activeJobs = new Map(getActiveJobsMap());
-		console.log('📊 JobProgressIndicator: Initial jobs loaded:', activeJobs.size);
 
 		// No need to fetch jobs - rely on realtime updates from JobTracker
 		const unsubscribeJobs = subscribe(() => {
 			const newJobs = getActiveJobsMap();
-			console.log('📊 JobProgressIndicator: Store updated, jobs count:', newJobs.size);
 			// Create a new Map to trigger reactivity
 			activeJobs = new Map(newJobs);
 		});

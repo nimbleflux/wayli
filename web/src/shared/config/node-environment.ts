@@ -7,10 +7,18 @@ import dotenv from 'dotenv';
 
 // Load environment variables from .env file (optional)
 // Look for .env file in the project root (web/ directory)
+// Then load .env.local as override (for local development)
 let result: dotenv.DotenvConfigOutput = { parsed: {} };
 try {
 	const envPath = new URL('../../../.env', import.meta.url).pathname;
 	result = dotenv.config({ path: envPath });
+
+	// Load .env.local as override (local dev can override Docker URLs with localhost)
+	const envLocalPath = new URL('../../../.env.local', import.meta.url).pathname;
+	const localResult = dotenv.config({ path: envLocalPath, override: true });
+	if (localResult.parsed) {
+		result.parsed = { ...result.parsed, ...localResult.parsed };
+	}
 } catch (error) {
 	// .env file is optional - environment variables can be set via Kubernetes, Docker, etc.
 	console.log('ℹ️ No .env file found - using environment variables from system');

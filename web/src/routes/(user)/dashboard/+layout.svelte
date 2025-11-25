@@ -1,13 +1,13 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import type { Snippet } from 'svelte';
 
 	import AppNav from '$lib/components/AppNav.svelte';
-	import JobTracker from '$lib/components/JobTracker.svelte';
 	import { changeLocale, type SupportedLocale } from '$lib/i18n';
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
 	import { sessionManager } from '$lib/services/session';
 	import { userStore, sessionStore } from '$lib/stores/auth';
+	import { subscribeToConnectionStatus } from '$lib/stores/job-store';
 	import { fluxbase } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
@@ -21,9 +21,11 @@
 	let isAdmin = $state(false);
 	let isCheckingAdmin = $state(true);
 
-	let globalJobTracker: JobTracker;
 	let isInitializing = true;
-	let realtimeConnectionStatus = $state<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected');
+	let realtimeConnectionStatus = $state<'connecting' | 'connected' | 'disconnected' | 'error'>(
+		'disconnected'
+	);
+	let unsubscribeConnectionStatus: (() => void) | null = null;
 
 	async function handleSignout() {
 		try {
@@ -42,9 +44,7 @@
 	// Check if the current user is an admin
 	async function checkAdminRole() {
 		try {
-			console.log('🔐 [Dashboard] Starting admin role check, userStore:', !!$userStore);
 			if (!$userStore) {
-				console.log('🔐 [Dashboard] No userStore, skipping admin check');
 				isAdmin = false;
 				isCheckingAdmin = false;
 				return;
@@ -61,7 +61,6 @@
 				isAdmin = false;
 			} else {
 				isAdmin = userProfile?.role === 'admin';
-				console.log('🔐 [Dashboard] Admin role check:', { role: userProfile?.role, isAdmin });
 			}
 		} catch (error) {
 			console.error('❌ [Dashboard] Error checking admin role:', error);
@@ -75,7 +74,7 @@
 	async function loadUserPreferences() {
 		try {
 			const session = await fluxbase.auth.getSession();
-			if (!session.data.session) return;
+			if (!session.data?.session) return;
 
 			const serviceAdapter = new ServiceAdapter({ session: session.data.session });
 			const preferencesResult = await serviceAdapter.getPreferences();
@@ -86,7 +85,6 @@
 
 				if (userLanguage && ['en', 'nl', 'es'].includes(userLanguage)) {
 					await changeLocale(userLanguage as SupportedLocale);
-					console.log('🌍 [Dashboard] Applied user language preference:', userLanguage);
 				}
 			}
 		} catch (error) {
@@ -96,7 +94,10 @@
 
 	onMount(async () => {
 		try {
-			console.log('🚀 [Dashboard] Initializing dashboard...');
+			// Subscribe to connection status changes from job store
+			unsubscribeConnectionStatus = subscribeToConnectionStatus((status) => {
+				realtimeConnectionStatus = status;
+			});
 
 			// Session manager is already initialized in root layout
 			// Wait a bit for any pending auth state changes to settle
@@ -104,10 +105,8 @@
 
 			// Check if user is authenticated using session manager
 			const isAuthenticated = await sessionManager.isAuthenticated();
-			console.log('🔐 [Dashboard] Authentication check result:', isAuthenticated);
 
 			if (!isAuthenticated) {
-				console.log('🚪 [Dashboard] User not authenticated, redirecting to signin');
 				goto('/auth/signin');
 				return;
 			}
@@ -130,7 +129,6 @@
 
 			// Mark initialization as complete
 			isInitializing = false;
-			console.log('✅ [Dashboard] Dashboard initialization complete');
 		} catch (error) {
 			console.error('❌ [Dashboard] Error initializing dashboard:', error);
 			goto('/auth/signin');
@@ -143,7 +141,6 @@
 
 		// Check authentication status and redirect if needed
 		if (!$userStore && !$sessionStore) {
-			console.log('🚪 [Dashboard] No user or session found, redirecting to signin');
 			goto('/auth/signin');
 		}
 	});
@@ -155,15 +152,10 @@
 		}
 	});
 
-	// Update connection status from JobTracker periodically
-	$effect(() => {
-		const interval = setInterval(() => {
-			if (globalJobTracker) {
-				realtimeConnectionStatus = globalJobTracker.getConnectionStatus() as 'connecting' | 'connected' | 'disconnected' | 'error';
-			}
-		}, 500); // Check every 500ms
-
-		return () => clearInterval(interval);
+	onDestroy(() => {
+		if (unsubscribeConnectionStatus) {
+			unsubscribeConnectionStatus();
+		}
 	});
 </script>
 
@@ -183,13 +175,3 @@
 		{/if}
 	</div>
 </AppNav>
-
-<!-- Global JobTracker for all dashboard pages -->
-<JobTracker
-	bind:this={globalJobTracker}
-	jobType={null}
-	autoStart={true}
-	showToasts={true}
-	onJobUpdate={() => {}}
-	onJobCompleted={() => {}}
-/>

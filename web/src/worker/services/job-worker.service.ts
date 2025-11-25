@@ -7,10 +7,11 @@
 
 import { randomUUID } from 'crypto';
 
-import { getWorkerFluxbaseConfig } from '../../shared/config/worker-environment';
+import { getWorkerFluxbaseConfig } from '../../shared/config/node-environment';
 
 import { JobProcessorService } from '../job-processor.service';
 import { JobQueueService } from '../job-queue.service.worker';
+import { fluxbase } from '../fluxbase';
 import { WorkerRealtimeService } from './job-realtime.service';
 
 import type { Job } from '../../lib/types/job-queue.types';
@@ -25,6 +26,8 @@ export class JobWorker {
 	private currentJob: Job | null = null;
 	private cancellationCheckInterval?: NodeJS.Timeout;
 	private cancellationCheckIntervalMs: number = 10000; // 10 seconds default
+	private heartbeatInterval?: NodeJS.Timeout;
+	private heartbeatIntervalMs: number = 30000; // 30 seconds default
 	private jobCancelled: boolean = false;
 	private lastHeartbeat: string = new Date().toISOString();
 	private totalJobsProcessed: number = 0;
@@ -50,8 +53,8 @@ export class JobWorker {
 				)
 			]);
 
-			this.isRunning = true;
 			await this.registerWorker();
+			this.isRunning = true;
 
 			console.log(`✅ Worker ${this.workerId} started successfully`);
 
@@ -82,6 +85,13 @@ export class JobWorker {
 					await this.checkJobCancellation();
 				}
 			}, this.cancellationCheckIntervalMs);
+
+			// Start heartbeat updates to database
+			this.heartbeatInterval = setInterval(async () => {
+				if (this.isRunning) {
+					await this.updateHeartbeat();
+				}
+			}, this.heartbeatIntervalMs);
 
 			// Do an initial check for any existing queued jobs
 			// This handles jobs that were queued before the worker started
@@ -210,6 +220,12 @@ export class JobWorker {
 			this.cancellationCheckInterval = undefined;
 		}
 
+		// Stop heartbeat updates
+		if (this.heartbeatInterval) {
+			clearInterval(this.heartbeatInterval);
+			this.heartbeatInterval = undefined;
+		}
+
 		// Handle current job based on shutdown mode
 		if (this.currentJob) {
 			if (graceful) {
@@ -300,9 +316,29 @@ export class JobWorker {
 	}
 
 	private async registerWorker(): Promise<void> {
-		// Register worker in the database (if you have a workers table)
-		// This could be used for monitoring and management
-		console.log(`📝 Worker ${this.workerId} registered`);
+		try {
+			const { error } = await fluxbase
+				.from('workers')
+				.insert({
+					id: this.workerId,
+					status: 'idle',
+					last_heartbeat: new Date().toISOString(),
+					metadata: {
+						totalJobsProcessed: 0,
+						startedAt: new Date().toISOString()
+					}
+				});
+
+			if (error) {
+				console.error(`❌ Worker ${this.workerId} failed to register:`, error);
+				throw error;
+			}
+
+			console.log(`📝 Worker ${this.workerId} registered`);
+		} catch (error) {
+			console.error(`❌ Worker ${this.workerId} error during registration:`, error);
+			throw error;
+		}
 	}
 
 	/**
@@ -448,9 +484,49 @@ export class JobWorker {
 	}
 
 	private async unregisterWorker(): Promise<void> {
-		// Unregister worker in the database (if you have a workers table)
-		// This could be used for monitoring and management
-		console.log(`🗑️ Worker ${this.workerId} unregistered`);
+		try {
+			const { error } = await fluxbase
+				.from('workers')
+				.delete()
+				.eq('id', this.workerId);
+
+			if (error) {
+				console.error(`❌ Worker ${this.workerId} failed to unregister:`, error);
+			} else {
+				console.log(`🗑️ Worker ${this.workerId} unregistered`);
+			}
+		} catch (error) {
+			console.error(`❌ Worker ${this.workerId} error during unregistration:`, error);
+		}
+	}
+
+	private async updateHeartbeat(): Promise<void> {
+		try {
+			this.lastHeartbeat = new Date().toISOString();
+
+			const { error } = await fluxbase
+				.from('workers')
+				.update({
+					last_heartbeat: this.lastHeartbeat,
+					status: this.currentJob ? 'working' : 'idle',
+					current_job: this.currentJob?.id || null,
+					metadata: {
+						totalJobsProcessed: this.totalJobsProcessed,
+						currentJob: this.currentJob ? {
+							id: this.currentJob.id,
+							type: this.currentJob.type,
+							progress: this.currentJob.progress
+						} : null
+					}
+				})
+				.eq('id', this.workerId);
+
+			if (error) {
+				console.error(`❌ Worker ${this.workerId} failed to update heartbeat:`, error);
+			}
+		} catch (error) {
+			console.error(`❌ Worker ${this.workerId} error updating heartbeat:`, error);
+		}
 	}
 
 	/**

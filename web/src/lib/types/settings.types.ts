@@ -14,6 +14,15 @@ export interface PublicServerSettings {
 	signup_enabled: boolean;
 	email_verification_required: boolean;
 	email_enabled: boolean;
+
+	// Password requirements (for signup page)
+	password_min_length: number;
+	password_requirements: {
+		require_uppercase: boolean;
+		require_lowercase: boolean;
+		require_number: boolean;
+		require_special: boolean;
+	};
 }
 
 /**

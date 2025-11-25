@@ -40,16 +40,35 @@ export class JobRealtimeService {
 	private authUnsubscribe: (() => void) | null = null;
 	private connectionStartTime: number | null = null;
 	private connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'error' = 'disconnected';
+	private isPageVisible = true;
+	private visibilityHandler: (() => void) | null = null;
 
 	private constructor() {
 		// Listen for auth changes to update Realtime token
 		// This ensures the WebSocket stays authenticated when tokens refresh
 		this.authUnsubscribe = fluxbase.auth.onAuthStateChange((_event, session) => {
 			if (session?.access_token) {
-				console.log('🔐 JobRealtime: Auth state changed, refreshing Realtime token');
 				fluxbase.realtime.setAuth(session.access_token);
 			}
 		}).data.subscription.unsubscribe;
+
+		// Set up Page Visibility API to reduce activity when tab is hidden
+		if (typeof document !== 'undefined') {
+			this.isPageVisible = !document.hidden;
+
+			this.visibilityHandler = () => {
+				this.isPageVisible = !document.hidden;
+
+				if (this.isPageVisible) {
+					// If disconnected while hidden, try to reconnect now
+					if (this.connectionStatus === 'disconnected' && this.subscribers.size > 0) {
+						this.connect();
+					}
+				}
+			};
+
+			document.addEventListener('visibilitychange', this.visibilityHandler);
+		}
 	}
 
 	/**
@@ -70,7 +89,6 @@ export class JobRealtimeService {
 		const id = Math.random().toString(36).substring(7);
 
 		this.subscribers.set(id, { id, callbacks });
-		console.log(`📝 JobRealtime: Subscriber ${id} added (${this.subscribers.size} total)`);
 
 		// Auto-connect if not already connected or connecting
 		if (!this.isConnected() && !this.isConnecting) {
@@ -85,11 +103,9 @@ export class JobRealtimeService {
 		// Return unsubscribe function
 		return () => {
 			this.subscribers.delete(id);
-			console.log(`📝 JobRealtime: Subscriber ${id} removed (${this.subscribers.size} remaining)`);
 
 			// Disconnect if no more subscribers
 			if (this.subscribers.size === 0) {
-				console.log('📝 JobRealtime: No more subscribers, will remain connected for session');
 				// Don't auto-disconnect - keep connection alive for session
 			}
 		};
@@ -159,7 +175,6 @@ export class JobRealtimeService {
 
 	async connect(): Promise<void> {
 		if (this.isConnecting) {
-			console.log('🔗 JobRealtime: Already connecting, skipping...');
 			return;
 		}
 
@@ -185,7 +200,6 @@ export class JobRealtimeService {
 			// Set auth token for Realtime WebSocket connection
 			// This is CRITICAL for RLS policies to work with postgres_changes
 			// Without this, Realtime only uses the anon key and can't see user-specific events
-			console.log('🔐 JobRealtime: Setting auth token for Realtime connection');
 			fluxbase.realtime.setAuth(session.access_token);
 
 			// Disconnect existing channel if any
@@ -193,13 +207,8 @@ export class JobRealtimeService {
 				await this.disconnect();
 			}
 
-			// Log WebSocket URL for debugging (helpful for self-hosted instances)
-			console.log('🔗 JobRealtime: Connecting to jobs channel for user:', this.userId);
-
 			// Create channel name for this user's jobs
 			const channelName = `jobs:${this.userId}`;
-			console.log('🔗 JobRealtime: Channel name:', channelName);
-			console.log('🔗 JobRealtime: Subscribing with filter: created_by=eq.' + this.userId);
 
 			// Subscribe to jobs table changes for this user
 			this.channel = fluxbase
@@ -222,9 +231,6 @@ export class JobRealtimeService {
 						: 0;
 
 					if (status === 'SUBSCRIBED') {
-						console.log(
-							`✅ JobRealtime: Successfully subscribed to jobs channel (${connectionTime}ms)`
-						);
 						this.reconnectAttempts = 0; // Reset on successful connection
 						this.isConnecting = false;
 						this.connectionStartTime = null;
@@ -256,7 +262,6 @@ export class JobRealtimeService {
 						this.notifyError('Connection timed out');
 						this.attemptReconnect();
 					} else if (status === 'CLOSED') {
-						console.log(`🔌 JobRealtime: Channel closed (was open for ${connectionTime}ms)`);
 						this.isConnecting = false;
 						this.connectionStartTime = null;
 						this.setConnectionStatus('disconnected');
@@ -322,11 +327,9 @@ export class JobRealtimeService {
 		this.reconnectAttempts++;
 		// Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (capped)
 		// This is more network-friendly than linear backoff
-		const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000);
-
-		console.log(
-			`🔄 JobRealtime: Attempting reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`
-		);
+		// When page is hidden, use longer delays to reduce background activity
+		const baseDelay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000);
+		const delay = this.isPageVisible ? baseDelay : Math.min(baseDelay * 3, 60000);
 
 		this.reconnectTimeout = setTimeout(() => {
 			this.connect();
@@ -334,15 +337,13 @@ export class JobRealtimeService {
 	}
 
 	async disconnect(): Promise<void> {
-		console.log('🔌 JobRealtime: Disconnecting...');
-
 		if (this.reconnectTimeout) {
 			clearTimeout(this.reconnectTimeout);
 			this.reconnectTimeout = null;
 		}
 
 		if (this.channel) {
-			// Now that Fluxbase rc.33 supports unsubscribe, use it for proper cleanup
+			// Now that Fluxbase rc.41 supports unsubscribe, use it for proper cleanup
 			await this.channel.unsubscribe();
 			this.channel = null;
 		}
@@ -351,6 +352,12 @@ export class JobRealtimeService {
 		if (this.authUnsubscribe) {
 			this.authUnsubscribe();
 			this.authUnsubscribe = null;
+		}
+
+		// Cleanup visibility change listener
+		if (this.visibilityHandler && typeof document !== 'undefined') {
+			document.removeEventListener('visibilitychange', this.visibilityHandler);
+			this.visibilityHandler = null;
 		}
 
 		this.isConnecting = false;

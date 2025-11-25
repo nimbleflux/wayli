@@ -176,7 +176,7 @@ Access app at: http://localhost:5173
 docker compose -f docker-compose.fluxbase.yml up wayli-web
 ```
 
-Access app at: http://localhost:3000
+Access app at: http://localhost:4000
 
 ### Running the Worker
 

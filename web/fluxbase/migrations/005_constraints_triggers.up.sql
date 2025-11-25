@@ -31,6 +31,14 @@ CREATE OR REPLACE TRIGGER "update_user_profiles_updated_at" BEFORE
 UPDATE ON "public"."user_profiles" FOR EACH ROW EXECUTE FUNCTION "public"."update_user_profiles_updated_at"();
 CREATE OR REPLACE TRIGGER "update_workers_updated_at" BEFORE
 UPDATE ON "public"."workers" FOR EACH ROW EXECUTE FUNCTION "public"."update_workers_updated_at"();
+CREATE OR REPLACE TRIGGER "trigger_sync_user_role" AFTER
+INSERT OR UPDATE OF "role" ON "public"."user_profiles" FOR EACH ROW EXECUTE FUNCTION "public"."sync_user_role_to_auth"();
+COMMENT ON TRIGGER "trigger_sync_user_role" ON "public"."user_profiles" IS 'Syncs user role from user_profiles.role to auth.users.role for JWT claims';
+
+-- ============================================================================
+-- FOREIGN KEY CONSTRAINTS
+-- ============================================================================
+
 ALTER TABLE ONLY "public"."jobs"
 ADD CONSTRAINT "jobs_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
 ALTER TABLE ONLY "public"."tracker_data"
@@ -46,8 +54,7 @@ ADD CONSTRAINT "want_to_visit_places_user_id_fkey" FOREIGN KEY ("user_id") REFER
 ALTER TABLE ONLY "public"."workers"
 ADD CONSTRAINT "workers_current_job_fkey" FOREIGN KEY ("current_job") REFERENCES "public"."jobs"("id") ON DELETE
 SET NULL;
-ALTER TABLE ONLY "public"."workers"
-ADD CONSTRAINT "workers_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+-- Note: workers_user_id_fkey removed - workers table no longer has user_id column (system-level processes)
 
 -- ============================================================================
 -- ADDITIONAL CHECK CONSTRAINTS

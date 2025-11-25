@@ -22,12 +22,12 @@ export default defineConfig({
 		// It should only be used server-side (in +server.ts files, hooks.server.ts, or workers)
 		'process.env': {
 			// Server-side URL: Use Docker service name when in container, localhost otherwise
-			FLUXBASE_BASE_URL: process.env.FLUXBASE_BASE_URL || 'http://fluxbase:8080',
+			FLUXBASE_BASE_URL: process.env.FLUXBASE_BASE_URL || 'http://fluxbase-dev:8080',
 			// Client-side URL: Always use localhost for browser access
 			PUBLIC_FLUXBASE_BASE_URL: process.env.PUBLIC_FLUXBASE_BASE_URL || 'http://localhost:8080',
 			PUBLIC_FLUXBASE_ANON_KEY:
 				process.env.PUBLIC_FLUXBASE_ANON_KEY ||
-				'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE',
+				'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6ImZsdXhiYXNlIiwiaWF0IjoxNjQxNzY5MjAwLCJleHAiOjE3OTk1MzU2MDB9.iPr9o47ALu9iDLqL9rqq7rlvka9Q8ps2XV049R4l67E',
 			// REMOVED: FLUXBASE_SERVICE_ROLE_KEY - should never be exposed to client
 			NODE_ENV: process.env.NODE_ENV || 'development'
 		}
@@ -84,7 +84,7 @@ export default defineConfig({
 	server: {
 		// Bind to 0.0.0.0 to allow access from outside the container
 		host: true,
-		port: 5173,
+		port: 4000,
 		// Enable HMR with optimized settings
 		hmr: {
 			overlay: false

@@ -5,6 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
+		"dev:all": "npm run sync:all && concurrently -k -n web,worker -c blue,green \"vite dev\" \"npm run worker:dev\"",
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
@@ -22,9 +23,15 @@
 		"worker": "cd src && tsx worker/entry.ts",
 		"worker:start": "cd src && tsx worker/entry.ts",
 		"worker:dev": "cd src && tsx --watch worker/entry.ts",
+		"sync-functions": "tsx src/scripts/sync-functions.ts",
+		"sync-functions:dev": "tsx src/scripts/sync-functions.ts",
+		"sync-migrations": "tsx src/scripts/sync-migrations.ts",
+		"sync-migrations:dev": "tsx src/scripts/sync-migrations.ts",
+		"sync:all": "npm run sync-migrations && npm run sync-functions",
 		"check:separation": "node scripts/check-environment-separation.js"
 	},
 	"devDependencies": {
+		"concurrently": "^9.1.2",
 		"@eslint/compat": "^1.2.5",
 		"@eslint/js": "^9.18.0",
 		"@semantic-release/changelog": "^6.0.3",
@@ -65,7 +72,7 @@
 		"vitest": "^3.2.4"
 	},
 	"dependencies": {
-		"@fluxbase/sdk": "^0.0.1-rc.33",
+		"@fluxbase/sdk": "^0.0.1-rc.41",
 		"@melt-ui/svelte": "^0.86.6",
 		"@svelte-plugins/datepicker": "^1.0.11",
 		"@sveltejs/adapter-auto": "^6.1.0",

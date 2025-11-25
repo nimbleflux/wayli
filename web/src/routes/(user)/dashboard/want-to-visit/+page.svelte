@@ -332,15 +332,15 @@
 				(selectedTypes.length === 1 && selectedTypes[0] === 'All') ||
 				selectedTypes.some((selectedType) => place.markerType && place.markerType === selectedType);
 
-			// Search filter - search in title, description, labels, and location
+			// Search filter - search in title, description, labels, and address
 			const searchLower = searchQuery.toLowerCase();
 			const searchMatch =
 				!searchQuery ||
 				place.title.toLowerCase().includes(searchLower) ||
 				(place.description && place.description.toLowerCase().includes(searchLower)) ||
 				(place.labels && place.labels.some((label) => label.toLowerCase().includes(searchLower))) ||
-				(place.location && place.location.toLowerCase().includes(searchLower)) ||
-				(place.address && place.address.toLowerCase().includes(searchLower));
+				(place.address && place.address.toLowerCase().includes(searchLower)) ||
+				(place.coordinates && place.coordinates.toLowerCase().includes(searchLower));
 
 			// Favourited filter - show only favourited places when enabled
 			const favouritedMatch = !showFavouritedOnly || place.favorite;
@@ -1664,7 +1664,7 @@
 						</div>
 						<div class="mb-2 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
 							<MapPin class="h-4 w-4" />
-							{place.location || place.address}
+							{place.address || place.coordinates}
 						</div>
 						<span
 							class="inline-block rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"

@@ -88,13 +88,6 @@ UPDATE USING (
         )
     );
 COMMENT ON POLICY "Jobs can be updated" ON "public"."jobs" IS 'Allows job updates by: job creator, service role, or worker assigned to this specific job';
-CREATE POLICY "Service role can manage migrations" ON "public"."database_migrations" USING (
-    (
-        (
-            SELECT "auth"."role"() AS "role"
-        ) = 'service_role'::"text"
-    )
-);
 CREATE POLICY "User preferences can be deleted" ON "public"."user_preferences" FOR DELETE USING (
     (
         (
@@ -330,73 +323,16 @@ SELECT USING (
             ) = "user_id"
         )
     );
-CREATE POLICY "Workers can be deleted" ON "public"."workers" FOR DELETE USING (
-    (
-        (
-            (
-                SELECT "auth"."uid"() AS "uid"
-            ) = "user_id"
-        )
-        OR (
-            (
-                SELECT "auth"."role"() AS "role"
-            ) = 'service_role'::"text"
-        )
-    )
-);
-CREATE POLICY "Workers can be inserted" ON "public"."workers" FOR
-INSERT WITH CHECK (
-        (
-            (
-                (
-                    SELECT "auth"."uid"() AS "uid"
-                ) = "user_id"
-            )
-            OR (
-                (
-                    SELECT "auth"."role"() AS "role"
-                ) = 'service_role'::"text"
-            )
-        )
-    );
-CREATE POLICY "Workers can be updated" ON "public"."workers" FOR
-UPDATE USING (
-        (
-            (
-                (
-                    SELECT "auth"."uid"() AS "uid"
-                ) = "user_id"
-            )
-            OR (
-                (
-                    SELECT "auth"."role"() AS "role"
-                ) = 'service_role'::"text"
-            )
-        )
-    );
-CREATE POLICY "Workers can be viewed" ON "public"."workers" FOR
-SELECT USING (
-        (
-            (
-                (
-                    SELECT "auth"."uid"() AS "uid"
-                ) = "user_id"
-            )
-            OR (
-                (
-                    SELECT "auth"."role"() AS "role"
-                ) = 'service_role'::"text"
-            )
-        )
-    );
-ALTER TABLE "public"."database_migrations" ENABLE ROW LEVEL SECURITY;
+-- Workers table does NOT have RLS enabled
+-- It's a system-only table that should only be accessed by service_role
+-- No RLS policies needed - access is controlled by grants only
+-- Note: database_migrations table removed - Fluxbase tracks migrations
 ALTER TABLE "public"."jobs" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."tracker_data" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."trips" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."user_preferences" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."user_profiles" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."want_to_visit_places" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "public"."workers" ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- STORAGE POLICIES
@@ -511,3 +447,59 @@ INSERT WITH CHECK (
             )
         )
     );
+
+-- ============================================================================
+-- APP.SETTINGS ADMIN RLS POLICIES
+-- ============================================================================
+-- Description: Allow admin users to manage all app.settings
+-- Dependencies: is_user_admin function, auth.uid function
+-- Created: 2025-11-18
+--
+
+-- Drop existing admin policies if they exist to ensure idempotency
+DROP POLICY IF EXISTS "Admins can read all settings" ON "app"."settings";
+DROP POLICY IF EXISTS "Admins can update settings" ON "app"."settings";
+DROP POLICY IF EXISTS "Admins can insert settings" ON "app"."settings";
+DROP POLICY IF EXISTS "Admins can delete settings" ON "app"."settings";
+
+-- Allow admin users to read ALL settings (public and private)
+CREATE POLICY "Admins can read all settings"
+ON "app"."settings"
+FOR SELECT
+TO "authenticated"
+USING (
+    "public"."is_user_admin"("auth"."uid"())
+);
+
+-- Allow admin users to update settings
+CREATE POLICY "Admins can update settings"
+ON "app"."settings"
+FOR UPDATE
+TO "authenticated"
+USING (
+    "public"."is_user_admin"("auth"."uid"())
+)
+WITH CHECK (
+    "public"."is_user_admin"("auth"."uid"())
+);
+
+-- Allow admin users to insert new settings
+CREATE POLICY "Admins can insert settings"
+ON "app"."settings"
+FOR INSERT
+TO "authenticated"
+WITH CHECK (
+    "public"."is_user_admin"("auth"."uid"())
+);
+
+-- Allow admin users to delete settings (for cleanup/maintenance)
+CREATE POLICY "Admins can delete settings"
+ON "app"."settings"
+FOR DELETE
+TO "authenticated"
+USING (
+    "public"."is_user_admin"("auth"."uid"())
+);
+
+-- Grant necessary permissions to authenticated role
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "app"."settings" TO "authenticated";

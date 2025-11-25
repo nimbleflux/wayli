@@ -1,0 +1,8 @@
+{
+	"name": "Wayli Development (Minimal)",
+	"build": {
+		"dockerfile": "Dockerfile.minimal"
+	},
+	"workspaceFolder": "/workspace",
+	"remoteUser": "node"
+}

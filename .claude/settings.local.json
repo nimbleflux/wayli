@@ -6,7 +6,9 @@
       "Bash(for:*)",
       "Bash(do echo \"File: $file\")",
       "Bash(done)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npx tsc:*)",
+      "Bash(psql:*)"
     ],
     "deny": [],
     "ask": []

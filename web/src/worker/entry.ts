@@ -34,69 +34,75 @@ console.log(`📁 Working directory: ${process.cwd()}`);
 // Create and start the worker
 const worker = new JobWorker(workerId);
 
-// Handle graceful shutdown
-process.on('SIGINT', async () => {
-	console.log('\n🛑 Received SIGINT, shutting down worker gracefully...');
-	try {
-		await worker.stop(true); // Graceful shutdown
-		console.log('✅ Worker shutdown completed successfully');
-		process.exit(0);
-	} catch (error) {
-		console.error('❌ Error during worker shutdown:', error);
-		process.exit(1);
-	}
-});
+// Ensure signal handlers are only registered once (prevents duplicates with tsx --watch)
+const HANDLER_SYMBOL = Symbol.for('wayli.worker.handlers.registered');
+if (!(global as any)[HANDLER_SYMBOL]) {
+	(global as any)[HANDLER_SYMBOL] = true;
 
-process.on('SIGTERM', async () => {
-	console.log('\n🛑 Received SIGTERM (Kubernetes preStop), shutting down worker gracefully...');
-	try {
-		await worker.stop(true); // Graceful shutdown with 30s grace period
-		console.log('✅ Worker shutdown completed successfully');
-		process.exit(0);
-	} catch (error) {
-		console.error('❌ Error during worker shutdown:', error);
-		process.exit(1);
-	}
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', async (error) => {
-	console.error('❌ Uncaught exception:', error);
-
-	// Check if this is a connection-related error
-	if (error instanceof Error) {
-		if (
-			error.message.includes('Missing required environment variables') ||
-			error.message.includes('Worker cannot connect to Fluxbase') ||
-			error.message.includes('FLUXBASE_BASE_URL') ||
-			error.message.includes('FLUXBASE_SERVICE_ROLE_KEY')
-		) {
-			console.error('🚨 Critical connection error detected in uncaught exception');
+	// Handle graceful shutdown
+	process.on('SIGINT', async () => {
+		console.log('\n🛑 Received SIGINT, shutting down worker gracefully...');
+		try {
+			await worker.stop(true); // Graceful shutdown
+			console.log('✅ Worker shutdown completed successfully');
+			process.exit(0);
+		} catch (error) {
+			console.error('❌ Error during worker shutdown:', error);
+			process.exit(1);
 		}
-	}
+	});
 
-	await worker.stop();
-	process.exit(1);
-});
-
-process.on('unhandledRejection', async (reason, promise) => {
-	console.error('❌ Unhandled rejection at:', promise, 'reason:', reason);
-
-	// Check if this is a connection-related error
-	if (reason instanceof Error) {
-		if (
-			reason.message.includes('Missing required environment variables') ||
-			reason.message.includes('Worker cannot connect to Fluxbase') ||
-			reason.message.includes('FLUXBASE_BASE_URL') ||
-			reason.message.includes('FLUXBASE_SERVICE_ROLE_KEY')
-		) {
-			console.error('🚨 Critical connection error detected in unhandled rejection');
+	process.on('SIGTERM', async () => {
+		console.log('\n🛑 Received SIGTERM (Kubernetes preStop), shutting down worker gracefully...');
+		try {
+			await worker.stop(true); // Graceful shutdown with 30s grace period
+			console.log('✅ Worker shutdown completed successfully');
+			process.exit(0);
+		} catch (error) {
+			console.error('❌ Error during worker shutdown:', error);
+			process.exit(1);
 		}
-	}
+	});
 
-	await worker.stop();
-	process.exit(1);
-});
+	// Handle uncaught exceptions
+	process.on('uncaughtException', async (error) => {
+		console.error('❌ Uncaught exception:', error);
+
+		// Check if this is a connection-related error
+		if (error instanceof Error) {
+			if (
+				error.message.includes('Missing required environment variables') ||
+				error.message.includes('Worker cannot connect to Fluxbase') ||
+				error.message.includes('FLUXBASE_BASE_URL') ||
+				error.message.includes('FLUXBASE_SERVICE_ROLE_KEY')
+			) {
+				console.error('🚨 Critical connection error detected in uncaught exception');
+			}
+		}
+
+		await worker.stop();
+		process.exit(1);
+	});
+
+	process.on('unhandledRejection', async (reason, promise) => {
+		console.error('❌ Unhandled rejection at:', promise, 'reason:', reason);
+
+		// Check if this is a connection-related error
+		if (reason instanceof Error) {
+			if (
+				reason.message.includes('Missing required environment variables') ||
+				reason.message.includes('Worker cannot connect to Fluxbase') ||
+				reason.message.includes('FLUXBASE_BASE_URL') ||
+				reason.message.includes('FLUXBASE_SERVICE_ROLE_KEY')
+			) {
+				console.error('🚨 Critical connection error detected in unhandled rejection');
+			}
+		}
+
+		await worker.stop();
+		process.exit(1);
+	});
+}
 
 // Start the worker with retry mechanism
 async function startWorkerWithRetry(maxRetries = 3, retryDelay = 2000) {

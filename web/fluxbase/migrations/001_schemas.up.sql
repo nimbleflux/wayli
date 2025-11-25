@@ -23,7 +23,11 @@ SET default_table_access_method = "heap";
 -- Comment on public schema
 COMMENT ON SCHEMA "public" IS 'Wayli public schema';
 
+-- Create topology schema for PostGIS topology extension
+CREATE SCHEMA IF NOT EXISTS "topology";
+
 -- Enable required extensions
--- Note: PostGIS should already be enabled in Fluxbase/Supabase
--- CREATE EXTENSION IF NOT EXISTS "postgis" WITH SCHEMA "public";
--- CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA "public";
+CREATE EXTENSION IF NOT EXISTS "postgis" WITH SCHEMA "public";
+CREATE EXTENSION IF NOT EXISTS "postgis_topology" WITH SCHEMA "topology";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA "public";
+CREATE EXTENSION IF NOT EXISTS "pg_trgm" WITH SCHEMA "public";

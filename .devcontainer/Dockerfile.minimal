@@ -1,0 +1,10 @@
+FROM node:25-bookworm
+
+# Minimal setup - just ensure we have a non-root user
+USER node
+
+WORKDIR /workspace
+
+# Clear entrypoint and use bash
+ENTRYPOINT []
+CMD ["/bin/bash", "-c", "while sleep 1000; do :; done"]

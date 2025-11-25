@@ -17,6 +17,7 @@
 	import { toast } from 'svelte-sonner';
 
 	import RoleSelector from '$lib/components/RoleSelector.svelte';
+	import Switch from '$lib/components/ui/Switch.svelte';
 	import UserAvatar from '$lib/components/ui/UserAvatar.svelte';
 	import UserEditModal from '$lib/components/UserEditModal.svelte';
 	import { translate } from '$lib/i18n';
@@ -119,9 +120,6 @@
 
 	// Fetch initial data on mount
 	onMount(async () => {
-		// Set admin flag since this is an admin-only page
-		isAdmin = true;
-
 		// Debug: Show current user info
 		const session = $sessionStore;
 		if (session?.user) {
@@ -176,8 +174,7 @@
 				hasPrev: false
 			};
 
-			// Check if current user is admin (assuming admin users can access this page)
-			isAdmin = true;
+			// Admin check handled by layout - isAdmin initialized to true
 		} catch (error: any) {
 			console.error('Error fetching filtered users:', error);
 			const errorMessage = error?.message || error?.error || 'Failed to fetch users';
@@ -503,8 +500,8 @@
 	let newUserConfirmPassword = $state('');
 	let newUserRole = $state<'admin' | 'user'>('user');
 
-	// Admin state
-	let isAdmin = $state(false);
+	// Admin state - initialized to true since layout already protects this route
+	let isAdmin = $state(true);
 
 	function handleCloseAddUserModal() {
 		showAddUserModal = false;
@@ -1136,27 +1133,19 @@
 					</div>
 
 					<div class="space-y-4">
-						<label class="flex items-center gap-2">
-							<input
-								type="checkbox"
-								bind:checked={enableSignup}
-								class="rounded border-gray-300 text-[rgb(37,140,244)] focus:ring-[rgb(37,140,244)]"
-							/>
+						<div class="flex items-center justify-between">
 							<span class="text-sm text-gray-700 dark:text-gray-300">
 								{t('serverAdmin.enableSignup')}
 							</span>
-						</label>
+							<Switch bind:checked={enableSignup} label={t('serverAdmin.enableSignup')} />
+						</div>
 
-						<label class="flex items-center gap-2">
-							<input
-								type="checkbox"
-								bind:checked={requireEmailVerification}
-								class="rounded border-gray-300 text-[rgb(37,140,244)] focus:ring-[rgb(37,140,244)]"
-							/>
+						<div class="flex items-center justify-between">
 							<span class="text-sm text-gray-700 dark:text-gray-300">
 								{t('serverAdmin.requireEmailVerification')}
 							</span>
-						</label>
+							<Switch bind:checked={requireEmailVerification} label={t('serverAdmin.requireEmailVerification')} />
+						</div>
 
 						<div>
 							<label for="passwordMinLength" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1195,16 +1184,12 @@
 					</div>
 
 					<div class="space-y-4">
-						<label class="flex items-center gap-2">
-							<input
-								type="checkbox"
-								bind:checked={emailEnabled}
-								class="rounded border-gray-300 text-[rgb(37,140,244)] focus:ring-[rgb(37,140,244)]"
-							/>
+						<div class="flex items-center justify-between">
 							<span class="text-sm text-gray-700 dark:text-gray-300">
 								{t('serverAdmin.emailEnabled')}
 							</span>
-						</label>
+							<Switch bind:checked={emailEnabled} label={t('serverAdmin.emailEnabled')} />
+						</div>
 
 						{#if emailEnabled}
 							<div>
@@ -1231,85 +1216,87 @@
 
 									<div class="grid grid-cols-2 gap-4">
 										<div>
-											<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+											<label for="smtpHost" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
 												{t('serverAdmin.smtpHost')}
 											</label>
 											<input
+												id="smtpHost"
 												type="text"
 												bind:value={smtpHost}
-												class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
+												class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
 												placeholder={t('serverAdmin.smtpHostPlaceholder')}
 											/>
 										</div>
 
 										<div>
-											<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+											<label for="smtpPort" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
 												{t('serverAdmin.smtpPort')}
 											</label>
 											<input
+												id="smtpPort"
 												type="number"
 												bind:value={smtpPort}
-												class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
+												class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
 												placeholder={t('serverAdmin.smtpPortPlaceholder')}
 											/>
 										</div>
 									</div>
 
 									<div>
-										<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										<label for="smtpUsername" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
 											{t('serverAdmin.smtpUsername')}
 										</label>
 										<input
+											id="smtpUsername"
 											type="text"
 											bind:value={smtpUsername}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
 											placeholder={t('serverAdmin.smtpUsernamePlaceholder')}
 										/>
 									</div>
 
 									<div>
-										<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										<label for="smtpPassword" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
 											{t('serverAdmin.smtpPassword')}
 										</label>
 										<input
+											id="smtpPassword"
 											type="password"
 											bind:value={smtpPassword}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
 											placeholder={t('serverAdmin.smtpPasswordPlaceholder')}
 										/>
 									</div>
 
-									<label class="flex items-center gap-2">
-										<input
-											type="checkbox"
-											bind:checked={smtpUseTls}
-											class="rounded border-gray-300 text-[rgb(37,140,244)]"
-										/>
+									<div class="flex items-center justify-between">
 										<span class="text-sm text-gray-700 dark:text-gray-300">
 											{t('serverAdmin.smtpUseTls')}
 										</span>
-									</label>
+										<Switch bind:checked={smtpUseTls} label={t('serverAdmin.smtpUseTls')} />
+									</div>
 
 									<div>
-										<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										<label for="smtpFromAddress" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
 											{t('serverAdmin.smtpFromAddress')}
 										</label>
 										<input
+											id="smtpFromAddress"
 											type="email"
 											bind:value={smtpFromAddress}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
 											placeholder={t('serverAdmin.smtpFromAddressPlaceholder')}
 										/>
 									</div>
 
 									<div>
-										<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										<label for="smtpFromName" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
 											{t('serverAdmin.smtpFromName')}
 										</label>
 										<input
+											id="smtpFromName"
 											type="text"
 											bind:value={smtpFromName}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
 											placeholder={t('serverAdmin.smtpFromNamePlaceholder')}
 										/>
 									</div>

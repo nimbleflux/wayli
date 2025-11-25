@@ -4,5 +4,12 @@
 -- Author: Wayli Migration System
 -- Created: 2025-01-15
 --
--- Note: Extensions are typically not dropped as they may be used by other databases
--- Note: Schema comments cannot be removed, only changed
+
+-- Drop extensions (in reverse order)
+DROP EXTENSION IF EXISTS "pg_trgm" CASCADE;
+DROP EXTENSION IF EXISTS "uuid-ossp" CASCADE;
+DROP EXTENSION IF EXISTS "postgis_topology" CASCADE;
+DROP EXTENSION IF EXISTS "postgis" CASCADE;
+
+-- Drop topology schema
+DROP SCHEMA IF EXISTS "topology" CASCADE;

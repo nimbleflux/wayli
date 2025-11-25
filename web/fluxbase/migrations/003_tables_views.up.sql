@@ -20,16 +20,8 @@ SET row_security = off;
 SET default_tablespace = '';
 SET default_table_access_method = "heap";
 
-SET default_tablespace = '';
-SET default_table_access_method = "heap";
-CREATE TABLE IF NOT EXISTS "public"."database_migrations" (
-    "version" character varying(20) NOT NULL PRIMARY KEY,
-    "name" character varying(255) NOT NULL,
-    "checksum" character varying(32) NOT NULL,
-    "applied_at" timestamp with time zone DEFAULT "now"(),
-    "execution_time_ms" integer,
-    "error_message" "text"
-);
+-- Note: database_migrations table removed - Fluxbase tracks migrations
+
 CREATE TABLE IF NOT EXISTS "public"."jobs" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL PRIMARY KEY,
     "type" "text" NOT NULL,
@@ -185,7 +177,6 @@ COMMENT ON COLUMN "public"."want_to_visit_places"."marker_color" IS 'Hex color c
 COMMENT ON COLUMN "public"."want_to_visit_places"."labels" IS 'Custom labels/tags for the place';
 CREATE TABLE IF NOT EXISTS "public"."workers" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL PRIMARY KEY,
-    "user_id" "uuid",
     "status" "text" DEFAULT 'idle'::"text",
     "current_job" "uuid",
     "last_heartbeat" timestamp with time zone DEFAULT "now"(),
@@ -200,5 +191,6 @@ CREATE TABLE IF NOT EXISTS "public"."workers" (
         )
     )
 );
+-- Note: user_id removed - workers are system-level processes, not user-owned
 -- Note: server_settings table removed - use Fluxbase AppSettingsManager instead
 -- Note: audit_logs table removed - use Fluxbase audit logging instead

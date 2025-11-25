@@ -10,10 +10,12 @@ export class SessionManagerService {
 	private static instance: SessionManagerService;
 	private refreshInterval: ReturnType<typeof setInterval> | null = null;
 	private lastActivityTime: number = Date.now();
-	private readonly REFRESH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+	private readonly REFRESH_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes - check frequently to catch expiring tokens
 	private readonly ACTIVITY_TIMEOUT_MS = 3.5 * 60 * 60 * 1000; // 3.5 hours (less than server timeout)
 	private isInitialized = false;
 	private authListenerSet = false;
+	private activityHandler: (() => void) | null = null;
+	private activityTrackingSet = false;
 
 	private constructor() {
 		// Private constructor for singleton
@@ -31,47 +33,30 @@ export class SessionManagerService {
 	 */
 	async initialize(): Promise<void> {
 		if (this.isInitialized) {
-			console.log('🔄 [SessionManager] Already initialized, skipping...');
 			return;
 		}
-
-		console.log('🔐 [SessionManager] Initializing session management...');
 
 		// Set the initialized flag early to prevent concurrent initialization
 		this.isInitialized = true;
 
 		// Set up auth state change listener (only once)
 		if (!this.authListenerSet) {
-			fluxbase.auth.onAuthStateChange((event: string, session: any) => {
-				console.log(
-					`🔐 [SessionManager] Auth state changed: ${event}`,
-					session ? 'session present' : 'no session'
-				);
-
-				// Always update stores first
-				this.updateAuthStores(session);
+			fluxbase.auth.onAuthStateChange(async (event: string, session: any) => {
+				// Always update stores first (await to ensure admin token is set)
+				await this.updateAuthStores(session);
 
 				if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
-					if (event === 'INITIAL_SESSION') {
-						console.log('🔄 [SessionManager] Initial session restored from storage');
-					}
 					this.startSessionManagement();
 				} else if (event === 'SIGNED_OUT' || !session) {
-					console.log(
-						'🚪 [SessionManager] User signed out or no session, clearing stores and stopping management'
-					);
 					// Ensure stores are cleared
-					this.updateAuthStores(null);
+					await this.updateAuthStores(null);
 					this.stopSessionManagement();
 				} else if (event === 'TOKEN_REFRESHED' && session) {
-					console.log('✅ [SessionManager] Token refreshed successfully');
 					this.updateLastActivity();
 				}
 			});
 			this.authListenerSet = true;
-			console.log('🔐 [SessionManager] Auth state change listener set up');
 		} else {
-			console.log('🔄 [SessionManager] Auth listener already set up, skipping...');
 			return;
 		}
 
@@ -79,15 +64,9 @@ export class SessionManagerService {
 		try {
 			const { data } = await fluxbase.auth.getSession();
 			if (data && data.session) {
-				console.log('✅ [SessionManager] Initial session found during setup');
 				// Don't manually start session management - auth state change events will handle it
 				// But do update the stores with the found session
-				this.updateAuthStores(data.session);
-			} else {
-				console.log(
-					'ℹ️ [SessionManager] No initial session found - waiting for auth state changes'
-				);
-				// Don't clear stores if no session exists - let auth state change events handle it
+				await this.updateAuthStores(data.session);
 			}
 		} catch (error) {
 			console.error('❌ [SessionManager] Error during session initialization:', error);
@@ -96,27 +75,57 @@ export class SessionManagerService {
 
 		// Set up activity tracking
 		this.setupActivityTracking();
-
-		console.log('✅ [SessionManager] Session management initialized');
 	}
 
 	/**
 	 * Update auth stores with current session
 	 */
-	private updateAuthStores(session: any): void {
-		console.log(
-			'🔄 [SessionManager] Updating auth stores:',
-			session ? 'with session' : 'clearing stores'
-		);
-
+	private async updateAuthStores(session: any): Promise<void> {
 		sessionStore.set(session);
 
 		if (session?.user) {
 			userStore.set(session.user);
-			console.log('✅ [SessionManager] User store updated with:', session.user.email);
+
+			// Set admin token if user has admin role
+			await this.setAdminTokenIfNeeded(session);
 		} else {
 			userStore.set(null);
-			console.log('🧹 [SessionManager] User store cleared');
+
+			// Clear admin token when session is cleared
+			try {
+				fluxbase.admin.clearToken();
+			} catch (error) {
+				// Ignore errors if clearToken doesn't exist
+			}
+		}
+	}
+
+	/**
+	 * Set admin token for admin users
+	 */
+	private async setAdminTokenIfNeeded(session: any): Promise<void> {
+		try {
+			// Check if setToken method exists
+			if (typeof fluxbase.admin?.setToken !== 'function') {
+				return;
+			}
+
+			// Check if user has admin role from user_profiles
+			const { data: profile, error } = await fluxbase
+				.from('user_profiles')
+				.select('role')
+				.eq('id', session.user.id)
+				.single();
+
+			if (error) {
+				return;
+			}
+
+			if (profile?.role === 'admin') {
+				fluxbase.admin.setToken(session.access_token);
+			}
+		} catch (error) {
+			console.error('❌ [SessionManager] Error setting admin token:', error);
 		}
 	}
 
@@ -124,9 +133,14 @@ export class SessionManagerService {
 	 * Force clear all auth stores (for emergency cleanup)
 	 */
 	public forceClearStores(): void {
-		console.log('🧹 [SessionManager] Force clearing all auth stores');
 		sessionStore.set(null);
 		userStore.set(null);
+		// Clear admin token if set
+		try {
+			fluxbase.admin.clearToken();
+		} catch (error) {
+			// Ignore errors if clearToken doesn't exist
+		}
 	}
 
 	/**
@@ -135,12 +149,9 @@ export class SessionManagerService {
 	private startSessionManagement(): void {
 		// Only start if not already running
 		if (this.refreshInterval) {
-			console.log('🔄 [SessionManager] Token refresh already running, skipping...');
 			this.updateLastActivity();
 			return;
 		}
-
-		console.log('🔄 [SessionManager] Starting automatic token refresh...');
 
 		this.updateLastActivity();
 
@@ -157,8 +168,6 @@ export class SessionManagerService {
 	 * Stop session management
 	 */
 	private stopSessionManagement(): void {
-		console.log('🛑 [SessionManager] Stopping session management...');
-
 		if (this.refreshInterval) {
 			clearInterval(this.refreshInterval);
 			this.refreshInterval = null;
@@ -176,7 +185,6 @@ export class SessionManagerService {
 			// Check for inactivity timeout
 			const timeSinceLastActivity = Date.now() - this.lastActivityTime;
 			if (timeSinceLastActivity > this.ACTIVITY_TIMEOUT_MS) {
-				console.log('⏰ [SessionManager] Session expired due to inactivity');
 				await this.handleSessionExpiry();
 				return;
 			}
@@ -185,30 +193,26 @@ export class SessionManagerService {
 			const { data } = await fluxbase.auth.getSession();
 
 			if (!data || !data.session) {
-				console.log('🚪 [SessionManager] No session found, user may have been logged out');
 				await this.handleSessionExpiry();
 				return;
 			}
 
 			const session = data.session;
 
-			// Check if token is close to expiry (refresh 10 minutes before expiry)
+			// Check if token is close to expiry (refresh 5 minutes before expiry)
 			const expiresAt = session.expires_at;
 			const now = Math.floor(Date.now() / 1000);
 			const timeUntilExpiry = expiresAt ? expiresAt - now : 0;
 
-			if (timeUntilExpiry < 600) {
-				// 10 minutes
-				console.log('🔄 [SessionManager] Token expires soon, refreshing...');
-
+			if (timeUntilExpiry < 300) {
+				// 5 minutes
 				try {
 					const { data, error } = await fluxbase.auth.refreshSession();
 					if (error) {
 						console.error('❌ [SessionManager] Failed to refresh token:', error);
 						await this.handleSessionExpiry();
 					} else if (data?.session) {
-						console.log('✅ [SessionManager] Token refreshed successfully');
-						this.updateAuthStores(data.session);
+						await this.updateAuthStores(data.session);
 					}
 				} catch (refreshError) {
 					console.error('❌ [SessionManager] Failed to refresh token:', refreshError);
@@ -224,8 +228,6 @@ export class SessionManagerService {
 	 * Handle session expiry
 	 */
 	private async handleSessionExpiry(): Promise<void> {
-		console.log('🚪 [SessionManager] Handling session expiry...');
-
 		try {
 			// Clear client-side session
 			await fluxbase.auth.signOut();
@@ -234,7 +236,7 @@ export class SessionManagerService {
 		}
 
 		// Update stores
-		this.updateAuthStores(null);
+		await this.updateAuthStores(null);
 
 		// Stop session management
 		this.stopSessionManagement();
@@ -243,7 +245,6 @@ export class SessionManagerService {
 		if (typeof window !== 'undefined') {
 			const currentPath = window.location.pathname;
 			if (!currentPath.startsWith('/auth') && currentPath !== '/') {
-				console.log('🔀 [SessionManager] Redirecting to signin...');
 				goto('/auth/signin');
 			}
 		}
@@ -254,19 +255,39 @@ export class SessionManagerService {
 	 */
 	private setupActivityTracking(): void {
 		if (typeof window === 'undefined') return;
+		if (this.activityTrackingSet) return; // Prevent duplicate listeners
 
-		const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
-
-		const updateActivity = () => {
+		this.activityHandler = () => {
 			this.updateLastActivity();
 		};
 
+		const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+
 		activityEvents.forEach((event) => {
-			document.addEventListener(event, updateActivity, { passive: true });
+			document.addEventListener(event, this.activityHandler!, { passive: true });
 		});
 
 		// Also track focus events
-		window.addEventListener('focus', updateActivity);
+		window.addEventListener('focus', this.activityHandler);
+		this.activityTrackingSet = true;
+	}
+
+	/**
+	 * Remove activity tracking listeners
+	 */
+	private removeActivityTracking(): void {
+		if (typeof window === 'undefined') return;
+		if (!this.activityHandler || !this.activityTrackingSet) return;
+
+		const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+
+		activityEvents.forEach((event) => {
+			document.removeEventListener(event, this.activityHandler!);
+		});
+
+		window.removeEventListener('focus', this.activityHandler);
+		this.activityHandler = null;
+		this.activityTrackingSet = false;
 	}
 
 	/**
@@ -281,8 +302,6 @@ export class SessionManagerService {
 	 */
 	async forceRefreshSession(): Promise<boolean> {
 		try {
-			console.log('🔄 [SessionManager] Force refreshing session...');
-
 			const { data, error } = await fluxbase.auth.refreshSession();
 
 			if (error) {
@@ -292,8 +311,7 @@ export class SessionManagerService {
 			}
 
 			if (data?.session) {
-				console.log('✅ [SessionManager] Force refresh successful');
-				this.updateAuthStores(data.session);
+				await this.updateAuthStores(data.session);
 				this.updateLastActivity();
 				return true;
 			}
@@ -322,13 +340,11 @@ export class SessionManagerService {
 			const { data } = await fluxbase.auth.getSession();
 
 			if (data && data.session && data.session.user) {
-				console.log('🔐 [SessionManager] Authentication confirmed via Fluxbase');
 				// Update stores with the found session if they're empty
-				this.updateAuthStores(data.session);
+				await this.updateAuthStores(data.session);
 				return true;
 			}
 
-			console.log('🚪 [SessionManager] No valid session found');
 			return false;
 		} catch (error) {
 			console.error('❌ [SessionManager] Error in isAuthenticated:', error);
@@ -352,6 +368,7 @@ export class SessionManagerService {
 	 */
 	destroy(): void {
 		this.stopSessionManagement();
+		this.removeActivityTracking();
 		this.isInitialized = false;
 	}
 }

@@ -1,11 +1,33 @@
 // web/src/lib/stores/job-store.ts
 import { JobRealtimeService, type JobUpdate } from '$lib/services/job-realtime.service';
+import { toast } from 'svelte-sonner';
+
+// Helper function to get job type info for notifications
+function getJobTypeInfo(type: string) {
+	switch (type) {
+		case 'data_import':
+			return { title: 'Data Import' };
+		case 'data_export':
+			return { title: 'Data Export' };
+		case 'reverse_geocoding_missing':
+			return { title: 'Reverse Geocoding' };
+		case 'trip_generation':
+			return { title: 'Trip Generation' };
+		default:
+			return { title: 'Background Job' };
+	}
+}
 
 // Simple variable for active jobs
 let _activeJobs = new Map<string, JobUpdate>();
 
 // Callback system to notify subscribers of changes
 let _subscribers: Array<() => void> = [];
+
+// Connection status subscribers
+type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
+let _connectionStatusSubscribers: Array<(status: ConnectionStatus) => void> = [];
+let _currentConnectionStatus: ConnectionStatus = 'disconnected';
 
 // Realtime service singleton
 let _realtimeUnsubscribe: (() => void) | null = null;
@@ -181,6 +203,10 @@ export async function startJobRealtime() {
 		onError: (error) => {
 			console.error('❌ Store: Realtime error:', error);
 		},
+		onConnectionStatusChange: (status) => {
+			_currentConnectionStatus = status;
+			_connectionStatusSubscribers.forEach((cb) => cb(status));
+		},
 		onJobUpdate: (job) => {
 			// Automatically update store with all job updates
 			updateJobInStore(job);
@@ -188,6 +214,16 @@ export async function startJobRealtime() {
 		onJobCompleted: (job) => {
 			// Update store with completed job
 			updateJobInStore(job);
+
+			// Show toast notification for completed jobs
+			const jobTypeInfo = getJobTypeInfo(job.type);
+			if (job.status === 'completed') {
+				toast.success(`${jobTypeInfo.title} completed successfully!`);
+			} else if (job.status === 'failed') {
+				toast.error(`${jobTypeInfo.title} failed`);
+			} else if (job.status === 'cancelled') {
+				toast.info(`${jobTypeInfo.title} was cancelled`);
+			}
 
 			// Auto-remove completed jobs after 30 seconds
 			setTimeout(() => {
@@ -214,6 +250,19 @@ export function stopJobRealtime() {
 /**
  * Get realtime connection status
  */
-export function getRealtimeStatus(): 'connecting' | 'connected' | 'disconnected' | 'error' {
-	return JobRealtimeService.getInstance().getConnectionStatus();
+export function getRealtimeStatus(): ConnectionStatus {
+	return _currentConnectionStatus;
+}
+
+/**
+ * Subscribe to connection status changes
+ * Returns an unsubscribe function
+ */
+export function subscribeToConnectionStatus(callback: (status: ConnectionStatus) => void): () => void {
+	_connectionStatusSubscribers.push(callback);
+	// Immediately notify with current status
+	callback(_currentConnectionStatus);
+	return () => {
+		_connectionStatusSubscribers = _connectionStatusSubscribers.filter((cb) => cb !== callback);
+	};
 }

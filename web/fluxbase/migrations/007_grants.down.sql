@@ -16,7 +16,7 @@ REVOKE EXECUTE ON FUNCTION "public"."validate_tracking_query_limits"("p_limit" i
 REVOKE EXECUTE ON FUNCTION "public"."is_user_admin"("user_uuid" "uuid") FROM "authenticated";
 
 -- Revoke table grants from authenticated
-REVOKE SELECT ON TABLE "public"."audit_logs" FROM "authenticated";
+-- Note: audit_logs table removed - no revoke needed
 REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."jobs" FROM "authenticated";
 REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."user_profiles" FROM "authenticated";
 REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."tracker_data" FROM "authenticated";
@@ -24,6 +24,13 @@ REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."trips" FROM "authentica
 REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."user_preferences" FROM "authenticated";
 REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."want_to_visit_places" FROM "authenticated";
 REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."workers" FROM "authenticated";
+
+-- Drop admin role (first set all admin users back to authenticated)
+UPDATE "auth"."users"
+SET "role" = 'authenticated'
+WHERE "role" = 'admin';
+
+DROP ROLE IF EXISTS admin;
 
 -- Revoke schema usage
 REVOKE USAGE ON SCHEMA "public" FROM "anon";

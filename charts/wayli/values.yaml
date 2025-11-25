@@ -31,6 +31,11 @@ image:
 nameOverride: ""
 fullnameOverride: ""
 
+## Deployment mode configuration
+## - combined: Run web and worker in the same pod (default, simpler for small deployments)
+## - split: Run web and worker as separate deployments (recommended for high-scale production)
+deploymentMode: combined
+
 ## Web deployment
 web:
   enabled: true
@@ -209,6 +214,13 @@ worker:
   env:
     nodeEnv: production
     appMode: worker
+    ## Worker concurrency configuration
+    ## Maximum number of concurrent jobs per worker pod (default: 3)
+    ## Adjust based on your resource limits and job characteristics
+    ## Recommended: 2-3 for CPU-intensive jobs, 3-5 for I/O-bound jobs
+    maxConcurrentJobs: 3
+    ## Maximum number of job retries before marking as failed (default: 3)
+    maxJobRetries: 3
     ## External service endpoints
     nominatim:
       endpoint: "http://nominatim.nominatim.svc.cluster.local:8088"

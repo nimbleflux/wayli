@@ -6,6 +6,7 @@
 	import { translate } from '$lib/i18n';
 	import { userStore } from '$lib/stores/auth';
 	import { fluxbase } from '$lib/fluxbase';
+	import TwoFactorVerify from '$lib/components/TwoFactorVerify.svelte';
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -18,6 +19,8 @@
 	let loading = $state(false);
 	let showPassword = $state(false);
 	let isMagicLinkSent = $state(false);
+	let show2FAModal = $state(false);
+	let twoFactorUserId = $state('');
 
 	onMount(() => {
 		// Subscribe to user store for authentication state changes
@@ -52,10 +55,10 @@
 			// Check if 2FA is required (Fluxbase returns this directly in the response)
 			if (data && 'requires_2fa' in data && data.requires_2fa) {
 				console.log('🔐 [SignIn] 2FA required for this user');
-				// User has 2FA enabled - redirect to verification page
-				const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/statistics';
-				const verificationUrl = `/auth/2fa-verify?email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}&redirectTo=${encodeURIComponent(redirectTo)}`;
-				goto(verificationUrl);
+				// User has 2FA enabled - show verification modal
+				twoFactorUserId = data.user_id || '';
+				show2FAModal = true;
+				loading = false;
 				return;
 			}
 
@@ -173,6 +176,24 @@
 
 	function togglePassword() {
 		showPassword = !showPassword;
+	}
+
+	async function handle2FASuccess(event: CustomEvent) {
+		console.log('✅ [SignIn] 2FA verification successful');
+		const authData = event.detail;
+
+		// Store session in fluxbase client
+		if (authData.access_token && authData.refresh_token) {
+			await fluxbase.auth.setSession({
+				access_token: authData.access_token,
+				refresh_token: authData.refresh_token
+			});
+		}
+
+		// Redirect to dashboard
+		const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/statistics';
+		toast.success(t('auth.signedInSuccessfully'));
+		goto(redirectTo, { replaceState: true });
 	}
 </script>
 
@@ -324,3 +345,6 @@
 		</div>
 	</div>
 </div>
+
+<!-- 2FA Verification Modal -->
+<TwoFactorVerify bind:open={show2FAModal} userId={twoFactorUserId} on:success={handle2FASuccess} />

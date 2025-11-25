@@ -2,6 +2,39 @@
 
 This directory contains database migrations for the Wayli application, split into logical sections for better maintainability.
 
+## Automatic Migration Sync
+
+Migrations are **automatically synced to Fluxbase** on application startup using the `sync-migrations.ts` script:
+
+- **Development**: Run `npm run dev:all` (syncs migrations + functions, then starts dev server)
+- **Production**: Migrations sync automatically during container startup via `startup.sh`
+- **Manual**: Run `npm run sync-migrations` to sync migrations only
+
+The sync process:
+1. Discovers all `.up.sql` and `.down.sql` files in this directory
+2. Registers each migration with Fluxbase via `client.admin.migrations.register()`
+3. Syncs migrations (applies new ones automatically if `FLUXBASE_MIGRATIONS_AUTO_APPLY=true`)
+4. Refreshes schema cache automatically
+
+**Key features:**
+- ✅ **Idempotent**: Safe to run multiple times
+- ✅ **Automatic**: Runs on every startup
+- ✅ **Ordered**: Applied by version number (001, 002, 003...)
+- ✅ **Bidirectional**: Supports both `.up.sql` and `.down.sql`
+
+### Environment Variables
+
+```bash
+# Required
+FLUXBASE_BASE_URL=https://xyz.fluxbase.eu
+FLUXBASE_SERVICE_ROLE_KEY=your_service_role_key
+
+# Optional
+FLUXBASE_MIGRATIONS_NAMESPACE=wayli              # Default: wayli
+FLUXBASE_MIGRATIONS_AUTO_APPLY=true              # Default: true
+SKIP_MIGRATION_SYNC=false                        # Skip on startup (testing only)
+```
+
 ## Migration Files
 
 The initial schema has been split into 7 migration files that must be executed in order, following the logical dependency chain:

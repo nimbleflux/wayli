@@ -7,10 +7,10 @@ export class WantToVisitService {
 	 * Get all want-to-visit places for the current user
 	 */
 	static async getPlaces(): Promise<Place[]> {
-		// Select all fields and extract coordinates from PostGIS location
+		// Select all fields (location is returned as GeoJSON automatically)
 		const { data, error } = await fluxbase
 			.from('want_to_visit_places')
-			.select('*, location')
+			.select('*')
 			.order('created_at', { ascending: false });
 
 		if (error) {
@@ -50,43 +50,50 @@ export class WantToVisitService {
 	 */
 	static async addPlace(place: CreatePlaceData): Promise<Place> {
 		// Get current user ID
-		const {
-			data: { user }
-		} = await fluxbase.auth.getUser();
-		if (!user) {
+		const { data: userData } = await fluxbase.auth.getUser();
+		if (!userData?.user) {
 			throw new Error('User not authenticated');
 		}
+		const user = userData.user;
 
 		// Parse coordinates from "lat, lng" text format
 		const [lat, lng] = place.coordinates.split(',').map((s) => parseFloat(s.trim()));
 
-		const { data, error } = await fluxbase
+		// Use GeoJSON object format for PostGIS geometry
+		const { data: placeData, error } = await fluxbase
 			.from('want_to_visit_places')
 			.insert({
 				user_id: user.id,
 				title: place.title,
-				type: place.type,
-				location: `POINT(${lng} ${lat})`, // PostGIS WKT format
-				description: place.description,
-				address: place.address,
-				marker_type: place.markerType,
-				marker_color: place.markerColor,
-				labels: place.labels,
-				favorite: place.favorite
+				location: {
+					type: 'Point',
+					coordinates: [lng, lat]
+				},
+				type: place.type || 'place',
+				description: place.description || null,
+				address: place.address || null,
+				marker_type: place.markerType || 'default',
+				marker_color: place.markerColor || '#3B82F6',
+				labels: place.labels || [],
+				favorite: place.favorite || false
 			})
 			.select()
 			.single();
 
 		if (error) {
 			console.error('Error adding want-to-visit place:', error);
-			throw new Error('Failed to add place');
+			throw new Error(`Failed to add place: ${error.message || 'Unknown error'}`);
+		}
+
+		if (!placeData) {
+			throw new Error('No data returned from insert');
 		}
 
 		// Extract coordinates from returned location
 		let coordinates = '';
-		if (data.location) {
+		if (placeData.location) {
 			try {
-				const geojson = typeof data.location === 'string' ? JSON.parse(data.location) : data.location;
+				const geojson = typeof placeData.location === 'string' ? JSON.parse(placeData.location) : placeData.location;
 				if (geojson?.coordinates) {
 					const [returnedLng, returnedLat] = geojson.coordinates;
 					coordinates = `${returnedLat}, ${returnedLng}`;
@@ -98,10 +105,10 @@ export class WantToVisitService {
 
 		// Map database column names to frontend property names
 		return {
-			...data,
+			...placeData,
 			coordinates,
-			markerType: data.marker_type,
-			markerColor: data.marker_color
+			markerType: placeData.marker_type,
+			markerColor: placeData.marker_color
 		};
 	}
 
@@ -121,10 +128,13 @@ export class WantToVisitService {
 			favorite: updates.favorite
 		};
 
-		// If coordinates are being updated, convert to WKT format
+		// If coordinates are being updated, use GeoJSON object format
 		if (updates.coordinates) {
 			const [lat, lng] = updates.coordinates.split(',').map((s) => parseFloat(s.trim()));
-			updateData.location = `POINT(${lng} ${lat})`; // PostGIS WKT format
+			updateData.location = {
+				type: 'Point',
+				coordinates: [lng, lat]
+			};
 		}
 
 		const { data, error } = await fluxbase

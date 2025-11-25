@@ -1,0 +1,9 @@
+{
+  "imports": {
+    "@fluxbase/sdk": "npm:@fluxbase/sdk@0.1.0"
+  },
+  "compilerOptions": {
+    "lib": ["deno.window", "deno.ns"],
+    "strict": true
+  }
+}

@@ -5,8 +5,9 @@
 
 	import { translate } from '$lib/i18n';
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
-	import { JobRealtimeService, type JobUpdate } from '$lib/services/job-realtime.service';
+	import type { JobUpdate } from '$lib/services/job-realtime.service';
 	import { sessionStore } from '$lib/stores/auth';
+	import { subscribe as subscribeToJobStore, getActiveJobsMap } from '$lib/stores/job-store';
 
 	// Use the reactive translation function
 	let t = $derived($translate);
@@ -152,29 +153,21 @@
 	}
 
 	function startRealtimeMonitoring() {
-		// Subscribe to singleton realtime service
-		// The global store already handles connection, we just add export-specific logic
-		const service = JobRealtimeService.getInstance();
-		unsubscribe = service.subscribe({
-			onError: (error: string) => {
-				console.error('❌ Export jobs Realtime error:', error);
-				toast.error(`Export monitoring error: ${error}`);
-			},
-			onJobUpdate: (job: JobUpdate) => {
-				// Filter to only include export jobs, not import jobs
+		// Subscribe to job store changes (not directly to the realtime service)
+		// The store already handles the realtime connection
+		unsubscribe = subscribeToJobStore(() => {
+			// Get all jobs from the store and filter for export jobs
+			const allJobs = getActiveJobsMap();
+			const exportJobUpdates: ExportJob[] = [];
+
+			allJobs.forEach((job) => {
 				if (job.type === 'data_export') {
-					console.log('📡 Export job update received:', job.id, job.status, job.progress);
-					const exportJob = convertJobUpdateToExportJob(job);
-					updateExportJobs([exportJob]);
+					exportJobUpdates.push(convertJobUpdateToExportJob(job));
 				}
-			},
-			onJobCompleted: (job: JobUpdate) => {
-				// Filter to only include export jobs, not import jobs
-				if (job.type === 'data_export') {
-					console.log('✅ Export job completed:', job.id);
-					const exportJob = convertJobUpdateToExportJob(job);
-					updateExportJobs([exportJob]);
-				}
+			});
+
+			if (exportJobUpdates.length > 0) {
+				updateExportJobs(exportJobUpdates);
 			}
 		});
 	}

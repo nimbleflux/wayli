@@ -25,6 +25,10 @@
 		if (user) {
 			// Create a local copy to avoid modifying the original user object directly
 			localUser = JSON.parse(JSON.stringify(user));
+			// Ensure role is always set to a valid value
+			if (!localUser.role || (localUser.role !== 'admin' && localUser.role !== 'user')) {
+				localUser.role = 'user';
+			}
 		}
 	});
 

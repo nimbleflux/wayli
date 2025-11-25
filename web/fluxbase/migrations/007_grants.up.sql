@@ -31,6 +31,31 @@ SET row_security = off;
 GRANT USAGE ON SCHEMA "public" TO "anon";
 GRANT USAGE ON SCHEMA "public" TO "authenticated";
 GRANT USAGE ON SCHEMA "public" TO "service_role";
+
+-- ============================================================================
+-- ADMIN ROLE: Application-level admin role that inherits from authenticated
+-- ============================================================================
+-- Create admin role that inherits from authenticated
+-- This allows admin users to have 'admin' in their JWT role claim
+-- while still having all the permissions of authenticated users
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'admin') THEN
+        CREATE ROLE admin NOLOGIN INHERIT;
+        -- Admin inherits from authenticated, so it gets all authenticated permissions
+        GRANT authenticated TO admin;
+        RAISE NOTICE 'Created admin role inheriting from authenticated';
+    ELSE
+        RAISE NOTICE 'Admin role already exists, skipping creation';
+    END IF;
+END $$;
+
+COMMENT ON ROLE admin IS 'Admin role for Wayli application - inherits all permissions from authenticated role';
+
+GRANT USAGE ON SCHEMA "public" TO "admin";
+GRANT USAGE ON SCHEMA "auth" TO "admin";
+GRANT USAGE ON SCHEMA "app" TO "admin";
+
 -- Function grants: Principle of Least Privilege
 -- Note: Trigger functions have no direct grants (internal use only)
 -- Note: Admin/maintenance functions only granted to service_role
@@ -93,12 +118,8 @@ GRANT EXECUTE ON FUNCTION "public"."enable_tracker_data_trigger"() TO "service_r
 -- Note: Grants only define column-level permissions
 -- Note: anon role has NO table access (must authenticate first)
 
--- audit_logs: Read-only for authenticated users (RLS enforces own logs + admin access)
-GRANT SELECT ON TABLE "public"."audit_logs" TO "authenticated";
-GRANT ALL ON TABLE "public"."audit_logs" TO "service_role";
-
--- database_migrations: Service role only (internal system table)
-GRANT ALL ON TABLE "public"."database_migrations" TO "service_role";
+-- Note: audit_logs table removed - use Fluxbase audit logging instead
+-- Note: database_migrations table removed - Fluxbase tracks migrations
 
 -- jobs: Full access for authenticated users (RLS enforces own jobs only)
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."jobs" TO "authenticated";
@@ -108,11 +129,8 @@ GRANT ALL ON TABLE "public"."jobs" TO "service_role";
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."user_profiles" TO "authenticated";
 GRANT ALL ON TABLE "public"."user_profiles" TO "service_role";
 
--- recent_security_events: Admin-only view (no public access)
--- Note: This view contains sensitive security information
-GRANT ALL ON TABLE "public"."recent_security_events" TO "service_role";
-
 -- Note: server_settings GRANT statements removed - use Fluxbase AppSettingsManager instead
+-- Note: recent_security_events view removed - use Fluxbase audit logging instead
 
 -- tracker_data: Full access for authenticated users (RLS enforces own data only)
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."tracker_data" TO "authenticated";

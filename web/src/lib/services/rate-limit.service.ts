@@ -160,20 +160,3 @@ export function createRateLimitedHandler(
 		return handler(request, context);
 	};
 }
-
-// Cleanup on process exit (only in Node.js environment)
-if (typeof process !== 'undefined' && process.on) {
-	process.on('exit', () => {
-		rateLimitService.destroy();
-	});
-
-	process.on('SIGINT', () => {
-		rateLimitService.destroy();
-		process.exit(0);
-	});
-
-	process.on('SIGTERM', () => {
-		rateLimitService.destroy();
-		process.exit(0);
-	});
-}

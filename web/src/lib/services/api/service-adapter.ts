@@ -194,50 +194,116 @@ export class ServiceAdapter {
 	 */
 	async setup2FA() {
 		const { fluxbase } = await import('$lib/fluxbase');
+		const QRCode = await import('qrcode');
 
-		const result = await fluxbase.auth.mfa.setup2FA();
+		const { data, error } = await fluxbase.auth.setup2FA();
 
-		if (!result.success) {
-			throw new Error(result.message || 'Failed to setup 2FA');
+		if (error) {
+			throw new Error(error.message || 'Failed to setup 2FA');
 		}
 
-		return result.data;
+		if (!data) {
+			throw new Error('No setup data returned');
+		}
+
+		// SDK returns: { id: string, type: 'totp', totp: { qr_code, secret, uri } }
+		// Components expect: { qr_code, secret, uri }
+
+		// Replace "Fluxbase" with "Wayli" in the TOTP URI
+		const originalUri = data.totp.uri;
+		const customUri = originalUri.replace(/Fluxbase/g, 'Wayli');
+
+		// Generate a new QR code with the custom issuer name
+		const customQrCode = await QRCode.default.toDataURL(customUri);
+
+		return {
+			qr_code: customQrCode,
+			secret: data.totp.secret,
+			uri: customUri
+		};
 	}
 
 	async enable2FA(code: string) {
 		const { fluxbase } = await import('$lib/fluxbase');
 
-		const result = await fluxbase.auth.mfa.enable2FA(code);
+		const { data, error } = await fluxbase.auth.enable2FA(code);
 
-		if (!result.success) {
-			throw new Error(result.message || 'Failed to enable 2FA');
+		if (error) {
+			throw new Error(error.message || 'Failed to enable 2FA');
 		}
 
-		return result.data;
+		if (!data) {
+			throw new Error('No response data returned');
+		}
+
+		// SDK returns: { success: boolean, backup_codes: string[], message: string }
+		// Components expect: { backup_codes: string[], message?: string }
+		if (!data.success) {
+			throw new Error(data.message || 'Failed to enable 2FA');
+		}
+
+		return {
+			backup_codes: data.backup_codes,
+			message: data.message
+		};
 	}
 
 	async disable2FA(password: string) {
 		const { fluxbase } = await import('$lib/fluxbase');
 
-		const result = await fluxbase.auth.mfa.disable2FA(password);
+		const { data, error } = await fluxbase.auth.disable2FA(password);
 
-		if (!result.success) {
-			throw new Error(result.message || 'Failed to disable 2FA');
+		if (error) {
+			throw new Error(error.message || 'Failed to disable 2FA');
 		}
 
-		return result.data;
+		if (!data) {
+			throw new Error('No response data returned');
+		}
+
+		// SDK returns: { id: string }
+		// Components expect: { success: boolean, message?: string }
+		return {
+			success: true,
+			message: 'Two-factor authentication disabled successfully'
+		};
 	}
 
 	async get2FAStatus() {
 		const { fluxbase } = await import('$lib/fluxbase');
 
-		const result = await fluxbase.auth.mfa.get2FAStatus();
+		const { data, error } = await fluxbase.auth.get2FAStatus();
 
-		if (!result.success) {
-			throw new Error(result.message || 'Failed to get 2FA status');
+		if (error) {
+			throw new Error(error.message || 'Failed to get 2FA status');
 		}
 
-		return result.data;
+		if (!data) {
+			throw new Error('No status data returned');
+		}
+
+		// SDK returns: { all: Factor[], totp: Factor[] }
+		// Components expect: { totp_enabled: boolean }
+		return {
+			totp_enabled: data.totp && data.totp.length > 0
+		};
+	}
+
+	async verify2FA(request: { user_id: string; code: string }) {
+		const { fluxbase } = await import('$lib/fluxbase');
+
+		const { data, error } = await fluxbase.auth.verify2FA(request);
+
+		if (error) {
+			throw new Error(error.message || 'Failed to verify 2FA code');
+		}
+
+		if (!data) {
+			throw new Error('No verification response returned');
+		}
+
+		// SDK returns: { access_token, refresh_token, user, ... }
+		return data;
 	}
 
 	/**
@@ -953,7 +1019,7 @@ export class ServiceAdapter {
 			.from('jobs')
 			.select('*')
 			.eq('id', jobId)
-			.eq('user_id', userData.user.id)
+			.eq('created_by', userData.user.id)
 			.eq('type', 'data_export')
 			.single();
 
@@ -996,7 +1062,7 @@ export class ServiceAdapter {
 		let query = fluxbase
 			.from('jobs')
 			.select('*')
-			.eq('user_id', userData.user.id)
+			.eq('created_by', userData.user.id)
 			.order('created_at', { ascending: false });
 
 		// Filter by type if provided
@@ -1034,7 +1100,7 @@ export class ServiceAdapter {
 		const { data: newJob, error } = await fluxbase
 			.from('jobs')
 			.insert({
-				user_id: userData.user.id,
+				created_by: userData.user.id,
 				type: job.type,
 				status: job.status || 'pending',
 				data: job.data || {},
@@ -1065,7 +1131,7 @@ export class ServiceAdapter {
 			.from('jobs')
 			.select('*')
 			.eq('id', jobId)
-			.eq('user_id', userData.user.id)
+			.eq('created_by', userData.user.id)
 			.single();
 
 		if (error || !job) {
@@ -1089,7 +1155,7 @@ export class ServiceAdapter {
 			.from('jobs')
 			.select('*')
 			.eq('id', jobId)
-			.eq('user_id', userData.user.id)
+			.eq('created_by', userData.user.id)
 			.single();
 
 		if (fetchError || !job) {
@@ -1104,7 +1170,7 @@ export class ServiceAdapter {
 				updated_at: new Date().toISOString()
 			})
 			.eq('id', jobId)
-			.eq('user_id', userData.user.id);
+			.eq('created_by', userData.user.id);
 
 		if (updateError) {
 			throw new Error(updateError.message || 'Failed to cancel job');

@@ -6,25 +6,46 @@ import type { UserProfile } from '$lib/types/user.types';
 // Supports both SvelteKit and Node/worker environments. By default, uses SvelteKit $env/static/*, but can be configured for Node/worker via setFluxbaseClient or setFluxbaseConfig.
 
 export class UserProfileService {
-	private static fluxbase = createClient(
-		getFluxbaseConfig().url,
-		getFluxbaseConfig().serviceRoleKey
-	);
+	private static _fluxbase: ReturnType<typeof createClient> | null = null;
+
+	// Lazy-load client to avoid localStorage errors in worker context
+	private static get fluxbase() {
+		if (!this._fluxbase) {
+			const config = getFluxbaseConfig();
+			this._fluxbase = createClient(config.url, config.serviceRoleKey, {
+				auth: {
+					autoRefresh: false,
+					persist: false
+				}
+			});
+		}
+		return this._fluxbase;
+	}
 
 	// Allow override for test/worker/Node.js
 	static setFluxbaseClient(client: ReturnType<typeof createClient>) {
-		this.fluxbase = client;
+		this._fluxbase = client;
 	}
 
 	// Allow override for Node/worker: call this at startup in worker context
 	static setFluxbaseConfig(url: string, serviceRoleKey: string) {
-		this.fluxbase = createClient(url, serviceRoleKey);
+		this._fluxbase = createClient(url, serviceRoleKey, {
+			auth: {
+				autoRefresh: false,
+				persist: false
+			}
+		});
 	}
 
 	// Helper for Node/worker: call this at startup
 	static useNodeEnvironmentConfig() {
 		const config = getFluxbaseConfig();
-		this.fluxbase = createClient(config.url, config.serviceRoleKey);
+		this._fluxbase = createClient(config.url, config.serviceRoleKey, {
+			auth: {
+				autoRefresh: false,
+				persist: false
+			}
+		});
 	}
 
 	/**

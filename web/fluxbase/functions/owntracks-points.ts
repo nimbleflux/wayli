@@ -1,17 +1,81 @@
-import {
-	setupRequest,
-	authenticateRequest,
-	authenticateRequestWithApiKey,
-	successResponse,
-	errorResponse,
-	parseJsonBody,
-	logError,
-	logInfo,
-	logSuccess,
-	type FluxbaseRequest,
-	type FluxbaseResponse
-} from '../_shared/utils.ts';
+/**
+ * OwnTracks Points Edge Function
+ * Receives and processes GPS tracking data from OwnTracks devices
+ * @fluxbase:allow-unauthenticated
+ * @fluxbase:allow-net
+ * @fluxbase:allow-env
+ */
 
+// ===== Type Definitions =====
+interface FluxbaseRequest {
+	method: string;
+	url: string;
+	headers: Record<string, string>;
+	body: string;
+	params: Record<string, string>;
+}
+
+interface FluxbaseResponse {
+	status: number;
+	headers?: Record<string, string>;
+	body?: string;
+}
+
+interface ApiResponse<T = unknown> {
+	success: boolean;
+	data?: T;
+	error?: string;
+	message?: string;
+}
+
+// ===== Utility Functions =====
+function successResponse<T>(data: T, status = 200): FluxbaseResponse {
+	const response: ApiResponse<T> = {
+		success: true,
+		data
+	};
+
+	return {
+		status,
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(response)
+	};
+}
+
+function errorResponse(message: string, status = 400): FluxbaseResponse {
+	const response: ApiResponse = {
+		success: false,
+		error: message
+	};
+
+	return {
+		status,
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(response)
+	};
+}
+
+async function parseJsonBody<T>(req: FluxbaseRequest): Promise<T> {
+	try {
+		return JSON.parse(req.body);
+	} catch {
+		throw new Error('Invalid JSON body');
+	}
+}
+
+function logError(error: unknown, context: string, data?: unknown): void {
+	console.error(`❌ [${context}] Error:`, error, data || '');
+}
+
+function logInfo(message: string, context: string, data?: unknown): void {
+	console.log(`ℹ️ [${context}] ${message}`, data || '');
+}
+
+function logSuccess(message: string, context: string, data?: unknown): void {
+	console.log(`✅ [${context}] ${message}`, data || '');
+}
+
+// ===== Configuration =====
 const NOMINATIM_ENDPOINT = Deno.env.get('NOMINATIM_ENDPOINT') || 'https://nominatim.openstreetmap.org';
 
 // Helper function to perform reverse geocoding
@@ -68,10 +132,6 @@ async function reverseGeocode(lat: number, lon: number): Promise<any | null> {
 }
 
 async function handler(req: FluxbaseRequest): Promise<FluxbaseResponse> {
-	// Handle CORS
-	const corsResponse = setupRequest(req);
-	if (corsResponse) return corsResponse;
-
 	try {
 		// This endpoint uses API key authentication instead of JWT
 		// We check for query parameters first to allow OwnTracks devices to connect
@@ -100,23 +160,30 @@ async function handler(req: FluxbaseRequest): Promise<FluxbaseResponse> {
 			return errorResponse('Server configuration error', 500);
 		}
 
-		const { createClient } = await import('https://esm.sh/@fluxbase/sdk@0.0.1-rc.11');
-		const fluxbase = createClient({
-			url: fluxbaseUrl,
-			apiKey: fluxbaseServiceKey,
-			auth: { autoRefreshToken: false, persistSession: false }
-		});
+		// Verify API key by checking user preferences
+		// The API key is stored in user_preferences.owntracks_api_key
+		const userResponse = await fetch(
+			`${fluxbaseUrl}/rest/v1/user_preferences?id=eq.${userId}&select=owntracks_api_key`,
+			{
+				headers: {
+					'apikey': fluxbaseServiceKey,
+					'Authorization': `Bearer ${fluxbaseServiceKey}`
+				}
+			}
+		);
 
-		// Verify API key by checking user metadata
-		// The API key is stored in user_metadata.owntracks_api_key
-		const { data: userData, error: userError } = await fluxbase.auth.admin.getUserById(userId);
+		if (!userResponse.ok) {
+			logError('Failed to fetch user', 'OWNTRACKS_POINTS', { userId });
+			return errorResponse('Invalid user ID', 401);
+		}
 
-		if (userError || !userData.user) {
+		const userData = await userResponse.json();
+		if (!userData || userData.length === 0) {
 			logError('User not found', 'OWNTRACKS_POINTS', { userId });
 			return errorResponse('Invalid user ID', 401);
 		}
 
-		const storedApiKey = userData.user.user_metadata?.owntracks_api_key;
+		const storedApiKey = userData[0]?.owntracks_api_key;
 		if (!storedApiKey || storedApiKey !== apiKey) {
 			logError('Invalid API key', 'OWNTRACKS_POINTS', { userId });
 			return errorResponse('Invalid or inactive API key', 401);
@@ -219,22 +286,29 @@ async function handler(req: FluxbaseRequest): Promise<FluxbaseResponse> {
 			})
 		);
 
-		// Insert points with complete geocode data
+		// Insert points with complete geocode data using REST API
 		// Use upsert with ignoreDuplicates to handle cases where OwnTracks retries the same point
-		// This prevents 500 errors when duplicate timestamps are received
-		const { data: insertedPoints, error: insertError } = await fluxbase
-			.from('tracker_data')
-			.upsert(processedPoints, { onConflict: 'user_id,recorded_at', ignoreDuplicates: true })
-			.select();
+		const insertResponse = await fetch(`${fluxbaseUrl}/rest/v1/tracker_data`, {
+			method: 'POST',
+			headers: {
+				'apikey': fluxbaseServiceKey,
+				'Authorization': `Bearer ${fluxbaseServiceKey}`,
+				'Content-Type': 'application/json',
+				'Prefer': 'resolution=ignore-duplicates,return=representation'
+			},
+			body: JSON.stringify(processedPoints)
+		});
 
-		if (insertError) {
+		if (!insertResponse.ok) {
+			const errorText = await insertResponse.text();
 			logError(
-				`Failed to insert ${processedPoints.length} points for user ${user.id}: [${insertError.code}] ${insertError.message} - ${insertError.details}`,
+				`Failed to insert ${processedPoints.length} points for user ${user.id}: ${errorText}`,
 				'OWNTRACKS_POINTS'
 			);
 			return errorResponse('Failed to insert points', 500);
 		}
 
+		const insertedPoints = await insertResponse.json();
 		const geocodedCount = processedPoints.filter((p) => p.geocode !== null).length;
 
 		logSuccess('Points inserted successfully', 'OWNTRACKS_POINTS', {

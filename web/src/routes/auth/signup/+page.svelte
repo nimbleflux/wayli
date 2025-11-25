@@ -27,13 +27,20 @@
 	let isFirstUser = $state(false);
 	let hasRedirected = false; // Guard to prevent multiple redirects
 
-	// Password validation
+	// Password requirements from server (defaults match current behavior)
+	let passwordMinLength = $state(8);
+	let requireUppercase = $state(true);
+	let requireLowercase = $state(true);
+	let requireNumber = $state(true);
+	let requireSpecial = $state(true);
+
+	// Password validation - dynamically checks based on server requirements
 	let passwordValidation = $derived({
-		minLength: password.length >= 8,
-		hasUppercase: /[A-Z]/.test(password),
-		hasLowercase: /[a-z]/.test(password),
-		hasNumber: /\d/.test(password),
-		hasSpecial: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+		minLength: password.length >= passwordMinLength,
+		hasUppercase: !requireUppercase || /[A-Z]/.test(password),
+		hasLowercase: !requireLowercase || /[a-z]/.test(password),
+		hasNumber: !requireNumber || /\d/.test(password),
+		hasSpecial: !requireSpecial || /[!@#$%^&*(),.?":{}|<>]/.test(password)
 	});
 
 	let isPasswordValid = $derived(Object.values(passwordValidation).every(Boolean));
@@ -52,13 +59,26 @@
 			const is_setup_complete = publicSettings['wayli.is_setup_complete']?.value === true
 				|| publicSettings['wayli.is_setup_complete']?.value === 'true';
 
-			console.log('🔧 [SIGNUP] Settings extracted:', {
-				is_setup_complete,
-				publicSettings
-			});
-
 			// First user can always sign up
 			isFirstUser = !is_setup_complete;
+
+			// Try to fetch password requirements from app settings
+			// Note: These should be publicly readable for the signup page
+			try {
+				const appSettings = await fluxbase.admin.settings.app.get();
+
+				// Update password requirements from server settings
+				if (appSettings?.authentication) {
+					passwordMinLength = appSettings.authentication.password_min_length || 8;
+					requireUppercase = appSettings.authentication.password_complexity?.require_uppercase ?? true;
+					requireLowercase = appSettings.authentication.password_complexity?.require_lowercase ?? true;
+					requireNumber = appSettings.authentication.password_complexity?.require_number ?? true;
+					requireSpecial = appSettings.authentication.password_complexity?.require_special ?? true;
+				}
+			} catch (error) {
+				// If we can't fetch app settings (e.g., not publicly readable), use defaults
+				console.log('Using default password requirements (app settings not publicly accessible)');
+			}
 
 			// Don't check signup_enabled from admin settings - that requires authentication
 			// If signup is disabled via app settings, the backend will reject the attempt
@@ -67,7 +87,14 @@
 			console.log('🔧 [SIGNUP] Server settings applied:', {
 				is_setup_complete,
 				registrationDisabled,
-				isFirstUser
+				isFirstUser,
+				passwordRequirements: {
+					minLength: passwordMinLength,
+					requireUppercase,
+					requireLowercase,
+					requireNumber,
+					requireSpecial
+				}
 			});
 		} catch (error) {
 			console.error('Error checking server settings:', error);
@@ -179,8 +206,7 @@
 						first_name: firstName.trim(),
 						last_name: lastName.trim(),
 						full_name: `${firstName.trim()} ${lastName.trim()}`.trim()
-					},
-					emailRedirectTo: `${window.location.origin}/auth/callback`
+					}
 				}
 			});
 
@@ -440,65 +466,73 @@
 												? 'text-green-600 dark:text-green-400'
 												: 'text-red-600 dark:text-red-400'}
 										>
-											{t('auth.atLeast8Characters')}
+											At least {passwordMinLength} characters
 										</span>
 									</div>
-									<div class="flex items-center text-xs">
-										{#if passwordValidation.hasUppercase}
-											<Check class="mr-2 h-3 w-3 text-green-500" />
-										{:else}
-											<X class="mr-2 h-3 w-3 text-red-500" />
-										{/if}
-										<span
-											class={passwordValidation.hasUppercase
-												? 'text-green-600 dark:text-green-400'
-												: 'text-red-600 dark:text-red-400'}
-										>
-											{t('auth.oneUppercaseLetter')}
-										</span>
-									</div>
-									<div class="flex items-center text-xs">
-										{#if passwordValidation.hasLowercase}
-											<Check class="mr-2 h-3 w-3 text-green-500" />
-										{:else}
-											<X class="mr-2 h-3 w-3 text-red-500" />
-										{/if}
-										<span
-											class={passwordValidation.hasLowercase
-												? 'text-green-600 dark:text-green-400'
-												: 'text-red-600 dark:text-red-400'}
-										>
-											{t('auth.oneLowercaseLetter')}
-										</span>
-									</div>
-									<div class="flex items-center text-xs">
-										{#if passwordValidation.hasNumber}
-											<Check class="mr-2 h-3 w-3 text-green-500" />
-										{:else}
-											<X class="mr-2 h-3 w-3 text-red-500" />
-										{/if}
-										<span
-											class={passwordValidation.hasNumber
-												? 'text-green-600 dark:text-green-400'
-												: 'text-red-600 dark:text-red-400'}
-										>
-											{t('auth.oneNumber')}
-										</span>
-									</div>
-									<div class="flex items-center text-xs">
-										{#if passwordValidation.hasSpecial}
-											<Check class="mr-2 h-3 w-3 text-green-500" />
-										{:else}
-											<X class="mr-2 h-3 w-3 text-red-500" />
-										{/if}
-										<span
-											class={passwordValidation.hasSpecial
-												? 'text-green-600 dark:text-green-400'
-												: 'text-red-600 dark:text-red-400'}
-										>
-											{t('auth.oneSpecialCharacter')}
-										</span>
-									</div>
+									{#if requireUppercase}
+										<div class="flex items-center text-xs">
+											{#if passwordValidation.hasUppercase}
+												<Check class="mr-2 h-3 w-3 text-green-500" />
+											{:else}
+												<X class="mr-2 h-3 w-3 text-red-500" />
+											{/if}
+											<span
+												class={passwordValidation.hasUppercase
+													? 'text-green-600 dark:text-green-400'
+													: 'text-red-600 dark:text-red-400'}
+											>
+												{t('auth.oneUppercaseLetter')}
+											</span>
+										</div>
+									{/if}
+									{#if requireLowercase}
+										<div class="flex items-center text-xs">
+											{#if passwordValidation.hasLowercase}
+												<Check class="mr-2 h-3 w-3 text-green-500" />
+											{:else}
+												<X class="mr-2 h-3 w-3 text-red-500" />
+											{/if}
+											<span
+												class={passwordValidation.hasLowercase
+													? 'text-green-600 dark:text-green-400'
+													: 'text-red-600 dark:text-red-400'}
+											>
+												{t('auth.oneLowercaseLetter')}
+											</span>
+										</div>
+									{/if}
+									{#if requireNumber}
+										<div class="flex items-center text-xs">
+											{#if passwordValidation.hasNumber}
+												<Check class="mr-2 h-3 w-3 text-green-500" />
+											{:else}
+												<X class="mr-2 h-3 w-3 text-red-500" />
+											{/if}
+											<span
+												class={passwordValidation.hasNumber
+													? 'text-green-600 dark:text-green-400'
+													: 'text-red-600 dark:text-red-400'}
+											>
+												{t('auth.oneNumber')}
+											</span>
+										</div>
+									{/if}
+									{#if requireSpecial}
+										<div class="flex items-center text-xs">
+											{#if passwordValidation.hasSpecial}
+												<Check class="mr-2 h-3 w-3 text-green-500" />
+											{:else}
+												<X class="mr-2 h-3 w-3 text-red-500" />
+											{/if}
+											<span
+												class={passwordValidation.hasSpecial
+													? 'text-green-600 dark:text-green-400'
+													: 'text-red-600 dark:text-red-400'}
+											>
+												{t('auth.oneSpecialCharacter')}
+											</span>
+										</div>
+									{/if}
 								</div>
 							</div>
 						{/if}

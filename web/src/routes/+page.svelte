@@ -59,15 +59,18 @@
 
 			console.log('🏠 [LANDING] Setup status check:', { isSetupComplete });
 
-			// If setup is not complete, redirect to signup for initial setup
-			// The value is wrapped in an object: { value: true/false }
-			if (!isSetupComplete?.value) {
-				console.log('🏠 [LANDING] Setup not complete, redirecting to initial setup');
+			// Only redirect if setup is explicitly marked as incomplete
+			// If the setting doesn't exist or is undefined, assume setup is complete
+			// (landing page should be accessible by default)
+			const setupValue = isSetupComplete?.value;
+			if (setupValue === false || setupValue === 'false') {
+				console.log('🏠 [LANDING] Setup explicitly incomplete, redirecting to initial setup');
 				goto('/auth/signup');
 				return;
 			}
 		} catch (error) {
 			console.error('🏠 [LANDING] Error checking setup status:', error);
+			// On error, don't redirect - let the user access the landing page
 		} finally {
 			checkingUserCount = false;
 		}
@@ -244,14 +247,14 @@
 				<div class="flex flex-col justify-center gap-4 sm:flex-row">
 					<a
 						href="/auth/signup"
-						class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[rgb(37,140,244)] px-8 py-4 font-semibold text-white shadow-lg transition-colors hover:bg-[rgb(37,140,244)]/90"
+						class="inline-flex cursor-pointer items-center gap-2 rounded-lg border-2 border-gray-300 px-8 py-4 font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
 					>
 						{t('landing.getStarted')}
 						<ArrowRight class="h-5 w-5" />
 					</a>
 					<a
 						href="/auth/signin"
-						class="inline-flex cursor-pointer items-center gap-2 rounded-lg border-2 border-gray-300 px-8 py-4 font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+						class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[rgb(37,140,244)] px-8 py-4 font-semibold text-white shadow-lg transition-colors hover:bg-[rgb(37,140,244)]/90"
 					>
 						{t('landing.signIn')}
 					</a>

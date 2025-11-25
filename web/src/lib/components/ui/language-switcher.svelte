@@ -1,5 +1,6 @@
 <!-- src/lib/components/ui/language-switcher.svelte -->
 <script lang="ts">
+	import { onMount, onDestroy } from 'svelte';
 	import { ChevronDown, Globe } from 'lucide-svelte';
 
 	import { currentLocale, SUPPORTED_LOCALES, type SupportedLocale } from '$lib/i18n';
@@ -54,10 +55,14 @@
 		}
 	}
 
-	// Handle click outside
-	if (typeof window !== 'undefined') {
+	// Add click listener on mount and remove on destroy to prevent memory leaks
+	onMount(() => {
 		window.addEventListener('click', handleClickOutside);
-	}
+	});
+
+	onDestroy(() => {
+		window.removeEventListener('click', handleClickOutside);
+	});
 </script>
 
 <svelte:head>

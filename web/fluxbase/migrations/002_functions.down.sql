@@ -45,6 +45,7 @@ DROP FUNCTION IF EXISTS "public"."log_audit_event"("p_event_type" "text", "p_des
 -- Drop trigger functions
 DROP FUNCTION IF EXISTS "public"."audit_user_role_change"();
 DROP FUNCTION IF EXISTS "public"."handle_new_user"();
+DROP FUNCTION IF EXISTS "public"."sync_user_role_to_auth"();
 DROP FUNCTION IF EXISTS "public"."trigger_calculate_distance"();
 DROP FUNCTION IF EXISTS "public"."trigger_calculate_distance_enhanced"();
 DROP FUNCTION IF EXISTS "public"."update_audit_logs_updated_at"();

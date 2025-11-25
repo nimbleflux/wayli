@@ -129,6 +129,11 @@
 	function handleLanguageChange(data: { locale: SupportedLocale }) {
 		const { locale } = data;
 		changeLocale(locale);
+
+		// Update preferences object so it saves correctly
+		if (preferences) {
+			preferences.language = locale;
+		}
 	}
 
 	async function loadUserData() {
@@ -203,29 +208,55 @@
 	async function check2FAStatus() {
 		isCheckingTwoFactor = true;
 		try {
-			const session = $sessionStore;
-			if (!session) return;
+			// Check if user is authenticated via Fluxbase
+			const { data: userData } = await fluxbase.auth.getUser();
+			if (!userData.user) {
+				console.warn('⚠️ [AccountSettings] No authenticated user for 2FA status check');
+				return;
+			}
 
-			const serviceAdapter = new ServiceAdapter({ session });
-			const status = await serviceAdapter.get2FAStatus();
-			twoFactorEnabled = status.totp_enabled || false;
+			// Call get2FAStatus directly on fluxbase SDK (doesn't require session wrapper)
+			const { data, error } = await fluxbase.auth.get2FAStatus();
+
+			if (error) {
+				throw new Error(error.message || 'Failed to get 2FA status');
+			}
+
+			if (!data) {
+				console.warn('⚠️ [AccountSettings] No 2FA status data returned');
+				twoFactorEnabled = false;
+				return;
+			}
+
+			// SDK returns { totp_enabled: boolean } or { totp: Factor[] }
+			// Check both formats for compatibility
+			if (typeof data.totp_enabled === 'boolean') {
+				twoFactorEnabled = data.totp_enabled;
+			} else if (data.totp && Array.isArray(data.totp)) {
+				twoFactorEnabled = data.totp.length > 0;
+			} else {
+				twoFactorEnabled = false;
+			}
 		} catch (error) {
 			console.error('❌ [AccountSettings] Error checking 2FA status:', error);
+			twoFactorEnabled = false;
 		} finally {
 			isCheckingTwoFactor = false;
 		}
 	}
 
-	function handle2FASetupSuccess() {
+	async function handle2FASetupSuccess() {
 		showTwoFactorSetup = false;
-		twoFactorEnabled = true;
 		toast.success('Two-factor authentication enabled successfully!');
+		// Re-check 2FA status from server to ensure it's properly enabled
+		await check2FAStatus();
 	}
 
-	function handle2FADisableSuccess() {
+	async function handle2FADisableSuccess() {
 		showTwoFactorDisable = false;
-		twoFactorEnabled = false;
 		toast.success('Two-factor authentication disabled successfully!');
+		// Re-check 2FA status from server to ensure it's properly disabled
+		await check2FAStatus();
 	}
 
 	async function loadTripExclusions() {
@@ -1144,11 +1175,11 @@
 				<div class="flex items-center gap-2">
 					<Shield class="h-5 w-5 text-gray-400" />
 					<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
-						Two-Factor Authentication
+						{t('accountSettings.twoFactorAuthentication')}
 					</h2>
 				</div>
 				<p class="mt-1 text-sm text-gray-600 dark:text-gray-100">
-					Add an extra layer of security to your account with TOTP authentication
+					{t('accountSettings.twoFactorAuthDescription')}
 				</p>
 			</div>
 
@@ -1157,7 +1188,7 @@
 					<div
 						class="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"
 					></div>
-					<span>Checking 2FA status...</span>
+					<span>{t('auth.checking2FAStatus')}</span>
 				</div>
 			{:else}
 				<div class="space-y-4">
@@ -1181,12 +1212,12 @@
 							</div>
 							<div>
 								<p class="font-medium text-gray-900 dark:text-gray-100">
-									{twoFactorEnabled ? 'Enabled' : 'Disabled'}
+									{twoFactorEnabled ? t('accountSettings.enabled') : t('accountSettings.disabled')}
 								</p>
 								<p class="text-sm text-gray-600 dark:text-gray-400">
 									{twoFactorEnabled
-										? 'Your account is protected with 2FA'
-										: 'Enable 2FA for better security'}
+										? t('accountSettings.twoFactorEnabled')
+										: t('accountSettings.2faStatusDisabled')}
 								</p>
 							</div>
 						</div>
@@ -1195,14 +1226,14 @@
 								onclick={() => (showTwoFactorDisable = true)}
 								class="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-red-800 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-900/20"
 							>
-								Disable
+								{t('accountSettings.disable')}
 							</button>
 						{:else}
 							<button
 								onclick={() => (showTwoFactorSetup = true)}
 								class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
 							>
-								Enable 2FA
+								{t('accountSettings.enable2FA')}
 							</button>
 						{/if}
 					</div>
@@ -1213,8 +1244,7 @@
 					>
 						<Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
 						<p class="text-xs text-blue-700 dark:text-blue-300">
-							Two-factor authentication adds an extra layer of security by requiring a code from
-							your authenticator app when signing in.
+							{t('accountSettings.2faInfoMessage')}
 						</p>
 					</div>
 				</div>
@@ -1233,7 +1263,7 @@
 					</h2>
 				</div>
 				<p class="mt-1 text-sm text-gray-600 dark:text-gray-100">
-					Configure your language and display preferences
+					{t('accountSettings.preferencesSubtitle')}
 				</p>
 			</div>
 

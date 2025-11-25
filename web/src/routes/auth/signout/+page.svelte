@@ -20,12 +20,31 @@
 			const { error } = await fluxbase.auth.signOut();
 
 			if (error) {
-				console.error('[Signout] SDK signOut error:', error);
+				// Expired or invalid tokens during signout are expected and can be ignored
+				const isExpiredToken = error.message?.includes('Invalid or expired token') ||
+					error.message?.includes('expired') ||
+					error.message?.includes('invalid');
+
+				if (isExpiredToken) {
+					console.log('[Signout] Session already expired (this is normal)');
+				} else {
+					console.warn('[Signout] SDK signOut warning:', error.message);
+				}
 			} else {
 				console.log('[Signout] SDK signOut successful');
 			}
 		} catch (error) {
-			console.error('[Signout] Error during signout:', error);
+			// Don't log errors for expired sessions during signout
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			const isExpiredToken = errorMessage.includes('Invalid or expired token') ||
+				errorMessage.includes('expired') ||
+				errorMessage.includes('invalid');
+
+			if (isExpiredToken) {
+				console.log('[Signout] Session already expired (this is normal)');
+			} else {
+				console.error('[Signout] Unexpected error during signout:', error);
+			}
 		} finally {
 			// Always redirect to landing page after a short delay
 			setTimeout(() => {

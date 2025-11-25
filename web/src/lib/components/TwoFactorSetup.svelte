@@ -149,7 +149,7 @@
 	>
 		<!-- Modal Box -->
 		<div
-			class="animate-fade-in relative w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-8 shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+			class="animate-fade-in relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-8 shadow-2xl dark:border-gray-700 dark:bg-gray-900"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
@@ -343,7 +343,7 @@
 						>
 							<div class="grid grid-cols-2 gap-2 font-mono text-sm">
 								{#each backupCodes as code}
-									<div class="rounded bg-white px-3 py-2 dark:bg-gray-900">{code}</div>
+									<div class="rounded bg-white px-3 py-2 text-gray-900 dark:bg-gray-700 dark:text-gray-100">{code}</div>
 								{/each}
 							</div>
 						</div>

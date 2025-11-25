@@ -225,8 +225,16 @@ export class WorkerRealtimeService {
 		}
 
 		if (this.channel) {
-			// Now that Fluxbase rc.33 supports unsubscribe, use it for proper cleanup
-			await this.channel.unsubscribe();
+			try {
+				// Remove the entire channel to clean up the subscription
+				// Note: The Fluxbase SDK may log "subscription_id is required for unsubscribe" error
+				// during shutdown. This is a known SDK issue and is non-critical - the channel
+				// cleanup completes successfully and the connection is closed.
+				await fluxbase.removeChannel(this.channel);
+			} catch (error) {
+				// Suppress cleanup errors during shutdown - they're non-critical
+				console.log(`🔕 Worker ${this.options.workerId}: Channel cleanup (${error instanceof Error ? error.message : 'cleanup error'})`);
+			}
 			this.channel = null;
 		}
 

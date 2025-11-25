@@ -109,3 +109,7 @@ RUN echo 'unset NODE_OPTIONS' >> ~/.bashrc \
 ENV DEVCONTAINER=true
 
 WORKDIR /workspace
+
+# Override the node image's entrypoint to work with devcontainers
+ENTRYPOINT []
+CMD ["/bin/bash"]

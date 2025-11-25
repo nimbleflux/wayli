@@ -4,6 +4,7 @@
     "https://esm.sh/@supabase/supabase-js@2": "https://esm.sh/@supabase/supabase-js@2.55.0"
   },
   "remote": {
+    "https://esm.sh/@fluxbase/sdk@0.0.1-rc.41": "dbec28a02835503aae142a9c5d0a2cf2f5458d990839a57b693d534aa95e8c6b",
     "https://esm.sh/@supabase/supabase-js@2.39.0": "f51aeb2dbf8f67c8fa396628af45793e3513067d45705f1ea158f5c678bb0cea",
     "https://esm.sh/@supabase/supabase-js@2.55.0": "c91e56ab271414ea191edd3fc9da73863bdde4fb95c0e9465faddd5db3c6a026"
   },
@@ -12,9 +13,14 @@
       "dependencies": [
         "npm:@eslint/compat@^1.2.5",
         "npm:@eslint/js@^9.18.0",
+        "npm:@fluxbase/sdk@^0.0.1-rc.41",
         "npm:@melt-ui/svelte@~0.86.6",
-        "npm:@supabase/ssr@~0.6.1",
-        "npm:@supabase/supabase-js@^2.50.0",
+        "npm:@semantic-release/changelog@^6.0.3",
+        "npm:@semantic-release/commit-analyzer@13",
+        "npm:@semantic-release/git@^10.0.1",
+        "npm:@semantic-release/github@^11.0.3",
+        "npm:@semantic-release/npm@^12.0.1",
+        "npm:@semantic-release/release-notes-generator@^14.0.1",
         "npm:@svelte-plugins/datepicker@^1.0.11",
         "npm:@sveltejs/adapter-auto@^6.1.0",
         "npm:@sveltejs/adapter-static@^3.0.9",
@@ -32,9 +38,11 @@
         "npm:@types/pg@^8.15.4",
         "npm:@types/qrcode@^1.5.5",
         "npm:@types/uuid@10",
+        "npm:@types/ws@^8.18.1",
         "npm:@vitest/coverage-v8@^3.2.4",
         "npm:@vitest/ui@^3.2.4",
         "npm:clsx@^2.1.0",
+        "npm:concurrently@^9.1.2",
         "npm:date-fns@^4.1.0",
         "npm:dotenv@^16.5.0",
         "npm:eslint-config-prettier@^10.0.1",
@@ -62,7 +70,7 @@
         "npm:prettier-plugin-tailwindcss@~0.6.11",
         "npm:prettier@^3.4.2",
         "npm:qrcode@^1.5.4",
-        "npm:supabase@^2.39.2",
+        "npm:semantic-release@^24.2.0",
         "npm:svelte-check@4",
         "npm:svelte-sonner@^1.0.5",
         "npm:svelte@5",
@@ -74,6 +82,7 @@
         "npm:uuid@^11.1.0",
         "npm:vite@^6.2.6",
         "npm:vitest@^3.2.4",
+        "npm:ws@^8.18.3",
         "npm:zod@^4.0.5"
       ]
     }

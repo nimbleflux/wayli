@@ -3,6 +3,13 @@
 	"dockerComposeFile": "docker-compose.yml",
 	"service": "dev",
 	"workspaceFolder": "/workspace",
+	"features": {
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {
+			"version": "latest",
+			"moby": true,
+			"dockerDashComposeVersion": "v2"
+		}
+	},
 	"customizations": {
 		"vscode": {
 			"extensions": [
@@ -41,18 +48,14 @@
 		"CLAUDE_CONFIG_DIR": "/home/node/.claude"
 	},
 	"forwardPorts": [
-		5173
+		4000
 	],
 	"portsAttributes": {
-		"5173": {
+		"4000": {
 			"label": "Web App (SvelteKit)",
 			"onAutoForward": "notify"
 		}
 	},
-	"postCreateCommand": "cd web && npm install",
-	"remoteUser": "node",
-	"features": {
-		"ghcr.io/devcontainers/features/git:1": {},
-		"ghcr.io/devcontainers/features/github-cli:1": {}
-	}
+	"postCreateCommand": "bash -c 'npm config set prefix /home/node/.npm-global && echo \"export PATH=/home/node/.npm-global/bin:\\$PATH\" >> ~/.bashrc && export PATH=/home/node/.npm-global/bin:$PATH && cd /workspace/web && npm install && ([ -d /fluxbase-sdk ] && cd /fluxbase-sdk && npm install && npm link || true) && ([ -d /fluxbase-sdk-react ] && cd /fluxbase-sdk-react && npm install && npm link @fluxbase/sdk && npm link || true) && cd /workspace/web && (npm link @fluxbase/sdk @fluxbase/sdk-react || true)'",
+	"remoteUser": "node"
 }

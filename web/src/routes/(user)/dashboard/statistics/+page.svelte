@@ -117,6 +117,11 @@
 	// Service instance
 	let statisticsService = $state<ClientStatisticsService | null>(null);
 
+	// Cleanup tracking for memory leak prevention
+	let themeObserver: MutationObserver | null = null;
+	let mapInitTimeout: NodeJS.Timeout | null = null;
+	let mapInvalidateTimeout: NodeJS.Timeout | null = null;
+
 	// Helper to ensure a value is a Date object
 	function getDateObject(val: any) {
 		if (!val) return null;
@@ -159,9 +164,52 @@
 
 	// Clean up animation on component unmount
 	onDestroy(() => {
+		console.log('🧹 Cleaning up statistics page resources...');
+
+		// Clear animation timeout
 		if (progressAnimationId) {
 			clearTimeout(progressAnimationId);
+			progressAnimationId = null;
 		}
+
+		// Clear map initialization timeouts
+		if (mapInitTimeout) {
+			clearTimeout(mapInitTimeout);
+			mapInitTimeout = null;
+		}
+		if (mapInvalidateTimeout) {
+			clearTimeout(mapInvalidateTimeout);
+			mapInvalidateTimeout = null;
+		}
+
+		// Disconnect theme observer
+		if (themeObserver) {
+			themeObserver.disconnect();
+			themeObserver = null;
+		}
+
+		// Clear map markers and their event listeners
+		if (map && L) {
+			clearMapMarkers();
+
+			// Remove tile layer
+			if (currentTileLayer) {
+				map.removeLayer(currentTileLayer);
+				currentTileLayer = null;
+			}
+
+			// Destroy map instance
+			map.remove();
+			map = null as any;
+		}
+
+		// Reset service to free accumulated data
+		if (statisticsService) {
+			statisticsService.reset();
+			statisticsService = null;
+		}
+
+		console.log('✅ Statistics page cleanup complete');
 	});
 
 	// Initialize the statistics service
@@ -508,9 +556,14 @@
 	function clearMapMarkers() {
 		if (!map || !L) return;
 		for (const marker of mapMarkers) {
+			// Remove all event listeners before removing from map
+			if (marker.off) {
+				marker.off();
+			}
 			map.removeLayer(marker);
 		}
 		mapMarkers.length = 0;
+		mapMarkers = [];
 	}
 
 	// Draw data points on map
@@ -716,6 +769,7 @@
 			if (map) return;
 
 			// Small delay to ensure container is ready
+			mapInitTimeout = setTimeout(() => {}, 100);
 			await new Promise((resolve) => setTimeout(resolve, 100));
 
 			map = L.map(mapContainer, {
@@ -726,7 +780,7 @@
 			});
 
 			// Invalidate map size to ensure proper rendering
-			setTimeout(() => {
+			mapInvalidateTimeout = setTimeout(() => {
 				if (map) {
 					map.invalidateSize();
 				}
@@ -761,8 +815,8 @@
 					currentTileLayer = L.tileLayer(newUrl, { attribution: newAttribution }).addTo(map) as any;
 				}
 			};
-			const observer = new MutationObserver(updateMapTheme);
-			observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+			themeObserver = new MutationObserver(updateMapTheme);
+			themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
 			// Initial theme sync
 			updateMapTheme();

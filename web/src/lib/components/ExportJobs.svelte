@@ -5,9 +5,8 @@
 
 	import { translate } from '$lib/i18n';
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
-	import type { JobUpdate } from '$lib/services/job-realtime.service';
 	import { sessionStore } from '$lib/stores/auth';
-	import { subscribe as subscribeToJobStore, getActiveJobsMap } from '$lib/stores/job-store';
+	import { exportJobs as exportJobsStore, type JobStoreJob } from '$lib/stores/job-store';
 
 	// Use the reactive translation function
 	let t = $derived($translate);
@@ -135,37 +134,27 @@
 			.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 	}
 
-	function convertJobUpdateToExportJob(jobUpdate: JobUpdate): ExportJob {
+	function convertJobStoreJobToExportJob(job: JobStoreJob): ExportJob {
 		return {
-			id: jobUpdate.id,
-			status: jobUpdate.status,
-			type: jobUpdate.type,
-			progress: jobUpdate.progress,
-			error: jobUpdate.error || undefined, // Convert null to undefined
-			result: jobUpdate.result as ExportJob['result'],
-			created_at: jobUpdate.created_at,
-			updated_at: jobUpdate.updated_at,
-			// Add missing optional fields with defaults
-			data: undefined,
-			started_at: undefined,
-			completed_at: undefined
+			id: job.id,
+			status: job.status as ExportJob['status'],
+			type: job.job_name,
+			progress: job.progress_percent || 0,
+			error: job.error || undefined,
+			result: job.result as ExportJob['result'],
+			created_at: job.created_at,
+			updated_at: job.updated_at || job.created_at,
+			data: job.payload as ExportJob['data'],
+			started_at: job.started_at,
+			completed_at: job.completed_at
 		};
 	}
 
 	function startRealtimeMonitoring() {
-		// Subscribe to job store changes (not directly to the realtime service)
-		// The store already handles the realtime connection
-		unsubscribe = subscribeToJobStore(() => {
-			// Get all jobs from the store and filter for export jobs
-			const allJobs = getActiveJobsMap();
-			const exportJobUpdates: ExportJob[] = [];
-
-			allJobs.forEach((job) => {
-				if (job.type === 'data_export') {
-					exportJobUpdates.push(convertJobUpdateToExportJob(job));
-				}
-			});
-
+		// Subscribe to pre-filtered export jobs derived store
+		// No manual filtering needed - the store handles it
+		unsubscribe = exportJobsStore.subscribe((jobs) => {
+			const exportJobUpdates = jobs.map((job) => convertJobStoreJobToExportJob(job));
 			if (exportJobUpdates.length > 0) {
 				updateExportJobs(exportJobUpdates);
 			}

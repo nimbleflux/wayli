@@ -4,7 +4,7 @@
  * Provides real-time job monitoring using Fluxbase Realtime subscriptions
  */
 
-import { writable, get } from 'svelte/store';
+import { writable, get, derived } from 'svelte/store';
 import { fluxbase } from '$lib/fluxbase';
 import type { RealtimeChannel } from '@fluxbase/sdk';
 
@@ -217,4 +217,60 @@ export async function cleanup() {
 		realtimeChannel = null;
 		currentUserId = null;
 	}
+}
+
+// ============================================================================
+// Derived Stores - Pre-filtered by Job Type
+// ============================================================================
+
+/**
+ * Export jobs (data-export)
+ */
+export const exportJobs = derived(jobsStore, ($jobs) =>
+	Array.from($jobs.values()).filter((j) => j.job_name === 'data-export')
+);
+
+/**
+ * Trip-related jobs (trip-generation, trip-detection)
+ */
+export const tripJobs = derived(jobsStore, ($jobs) =>
+	Array.from($jobs.values()).filter(
+		(j) => j.job_name === 'trip-generation' || j.job_name === 'trip-detection'
+	)
+);
+
+/**
+ * Import jobs (data-import-geojson, data-import-gpx, data-import-owntracks)
+ */
+export const importJobs = derived(jobsStore, ($jobs) =>
+	Array.from($jobs.values()).filter((j) => j.job_name.startsWith('data-import'))
+);
+
+/**
+ * Geocoding jobs (reverse-geocoding)
+ */
+export const geocodingJobs = derived(jobsStore, ($jobs) =>
+	Array.from($jobs.values()).filter((j) => j.job_name === 'reverse-geocoding')
+);
+
+/**
+ * Distance calculation jobs
+ */
+export const distanceJobs = derived(jobsStore, ($jobs) =>
+	Array.from($jobs.values()).filter((j) => j.job_name === 'distance-calculation')
+);
+
+/**
+ * All active jobs as an array (convenience store)
+ */
+export const allJobs = derived(jobsStore, ($jobs) => Array.from($jobs.values()));
+
+/**
+ * Helper to create a custom derived store for any job type
+ * @param jobName - The job_name to filter by
+ */
+export function jobsByType(jobName: string) {
+	return derived(jobsStore, ($jobs) =>
+		Array.from($jobs.values()).filter((j) => j.job_name === jobName)
+	);
 }

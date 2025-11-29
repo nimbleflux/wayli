@@ -468,7 +468,7 @@
 		"selectFile": "Seleccionar archivo",
 		"selectedFile": "Seleccionado: {filename}",
 		"detectedFormat": "Formato detectado: {format}",
-		"importing": "Subiendo... (Esto puede tomar unos minutos para archivos grandes)",
+		"importing": "Subiendo...",
 		"importDataButton": "Importar datos",
 		"uploadSuccessful": "¡Carga exitosa!",
 		"importFailed": "La importación falló",
@@ -742,7 +742,12 @@
 		"downloadStarted": "Descarga iniciada",
 		"failedToDownloadExport": "Error al descargar exportación",
 		"cancelJob": "Cancelar trabajo",
-		"downloadExport": "Descargar exportación"
+		"downloadExport": "Descargar exportación",
+		"dismiss": "Descartar",
+		"uploading": "Subiendo",
+		"creatingJob": "Creando trabajo...",
+		"uploadComplete": "Subida completada",
+		"uploadFailed": "Error en la subida"
 	},
 	"accountSettings": {
 		"title": "Configuración de cuenta",

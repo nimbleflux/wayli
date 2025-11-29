@@ -76,31 +76,61 @@ function logSuccess(message: string, context: string, data?: unknown): void {
 }
 
 // ===== Configuration =====
-const NOMINATIM_ENDPOINT = Deno.env.get('NOMINATIM_ENDPOINT') || 'https://nominatim.openstreetmap.org';
+const PELIAS_ENDPOINT = Deno.env.get('PELIAS_ENDPOINT') || 'https://pelias.wayli.app';
 
-// Helper function to perform reverse geocoding
+// Country code conversion (3-letter to 2-letter ISO)
+const COUNTRY_CODE_3TO2: Record<string, string> = {
+	'USA': 'US', 'GBR': 'GB', 'DEU': 'DE', 'FRA': 'FR', 'ITA': 'IT', 'ESP': 'ES', 'NLD': 'NL', 'BEL': 'BE',
+	'AUT': 'AT', 'CHE': 'CH', 'POL': 'PL', 'CZE': 'CZ', 'DNK': 'DK', 'SWE': 'SE', 'NOR': 'NO', 'FIN': 'FI',
+	'PRT': 'PT', 'GRC': 'GR', 'IRL': 'IE', 'HUN': 'HU', 'ROU': 'RO', 'BGR': 'BG', 'HRV': 'HR', 'SVN': 'SI',
+	'SVK': 'SK', 'LUX': 'LU', 'EST': 'EE', 'LVA': 'LV', 'LTU': 'LT', 'CAN': 'CA', 'MEX': 'MX', 'BRA': 'BR',
+	'ARG': 'AR', 'AUS': 'AU', 'NZL': 'NZ', 'JPN': 'JP', 'KOR': 'KR', 'CHN': 'CN', 'IND': 'IN', 'RUS': 'RU',
+	'ZAF': 'ZA', 'TUR': 'TR', 'ISR': 'IL', 'ARE': 'AE', 'SGP': 'SG', 'MYS': 'MY', 'THA': 'TH', 'IDN': 'ID',
+	'PHL': 'PH', 'VNM': 'VN', 'TWN': 'TW', 'HKG': 'HK', 'MAC': 'MO'
+};
+
+function convertCountryCode3to2(code3: string): string {
+	return COUNTRY_CODE_3TO2[code3?.toUpperCase()] || code3?.toLowerCase() || '';
+}
+
+// Helper function to perform reverse geocoding using Pelias
 async function reverseGeocode(lat: number, lon: number): Promise<any | null> {
 	try {
-		const nominatimUrl = new URL('/reverse', NOMINATIM_ENDPOINT);
-		nominatimUrl.searchParams.set('lat', lat.toString());
-		nominatimUrl.searchParams.set('lon', lon.toString());
-		nominatimUrl.searchParams.set('format', 'jsonv2');
-		nominatimUrl.searchParams.set('addressdetails', '1');
-		nominatimUrl.searchParams.set('extratags', '1');
-		nominatimUrl.searchParams.set('namedetails', '1');
+		const peliasUrl = `${PELIAS_ENDPOINT}/v1/reverse?point.lat=${lat}&point.lon=${lon}&size=1`;
 
-		const response = await fetch(nominatimUrl.toString(), {
+		const response = await fetch(peliasUrl, {
 			headers: {
-				'User-Agent': 'Wayli/1.0 (https://wayli.app)'
+				'User-Agent': 'Wayli/1.0 (https://wayli.app)',
+				'Accept': 'application/json'
 			}
 		});
 
 		if (!response.ok) {
-			logError(`Nominatim API error: ${response.status}`, 'OWNTRACKS_REVERSE_GEOCODE');
+			logError(`Pelias API error: ${response.status}`, 'OWNTRACKS_REVERSE_GEOCODE');
 			return null;
 		}
 
 		const result = await response.json();
+
+		// Check if Pelias returned any results
+		if (!result.features || result.features.length === 0) {
+			logError('Pelias returned no results', 'OWNTRACKS_REVERSE_GEOCODE');
+			return null;
+		}
+
+		const feature = result.features[0];
+		const props = feature.properties;
+
+		// Build normalized address
+		const address: Record<string, string> = {};
+		if (props.locality) address.city = props.locality;
+		if (props.region) address.state = props.region;
+		if (props.country) address.country = props.country;
+		if (props.neighbourhood) address.neighbourhood = props.neighbourhood;
+		if (props.street) address.road = props.street;
+		if (props.housenumber) address.house_number = props.housenumber;
+		if (props.postalcode) address.postcode = props.postalcode;
+		if (props.country_a) address.country_code = convertCountryCode3to2(props.country_a);
 
 		// Return geocode data in the format expected by tracker_data.geocode column
 		return {
@@ -110,19 +140,20 @@ async function reverseGeocode(lat: number, lon: number): Promise<any | null> {
 				coordinates: [lon, lat]
 			},
 			properties: {
-				place_id: result.place_id,
-				osm_type: result.osm_type,
-				osm_id: result.osm_id,
-				type: result.type,
-				class: result.class,
-				addresstype: result.addresstype,
-				display_name: result.display_name,
-				name: result.name,
-				address: result.address || {},
-				extratags: result.extratags || {},
-				namedetails: result.namedetails || {},
+				display_name: props.label || '',
+				label: props.label,
+				name: props.name,
+				layer: props.layer,
+				category: props.category,
+				confidence: props.confidence,
+				address: address,
+				locality: props.locality,
+				region: props.region,
+				country: props.country,
+				neighbourhood: props.neighbourhood,
+				borough: props.borough,
 				geocoded_at: new Date().toISOString(),
-				geocoding_provider: 'nominatim'
+				geocoding_provider: 'pelias'
 			}
 		};
 	} catch (error) {
@@ -235,9 +266,9 @@ async function handler(req: FluxbaseRequest): Promise<FluxbaseResponse> {
 				let geocodeData = null;
 				let countryCode = null;
 
-				// Always fetch reverse geocode from Nominatim for consistency
+				// Always fetch reverse geocode from Pelias for consistency
 				try {
-					logInfo('Fetching reverse geocode from Nominatim', 'OWNTRACKS_GEOCODE', {
+					logInfo('Fetching reverse geocode from Pelias', 'OWNTRACKS_GEOCODE', {
 						userId: user.id,
 						lat: point.lat,
 						lon: point.lon

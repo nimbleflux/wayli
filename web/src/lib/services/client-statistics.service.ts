@@ -192,7 +192,7 @@ export class ClientStatisticsService {
 
 		let query = this.fluxbase
 			.from('tracker_data')
-			.select('*', { count: 'exact', head: true })
+			.count('*')
 			.eq('user_id', userId)
 			.not('location', 'is', null);
 
@@ -557,7 +557,7 @@ export class ClientStatisticsService {
 			});
 
 			// Transform the data to match the expected format
-			const data = (result.data || []).map((point: any) => ({
+			const transformedData = (result.data || []).map((point: any) => ({
 				recorded_at: point.recorded_at,
 				time_spent: point.time_spent,
 				country_code: point.country_code,
@@ -572,7 +572,7 @@ export class ClientStatisticsService {
 				village: point.geocode?.properties?.address?.village
 			}));
 
-			return { data, samplingApplied };
+			return { data: transformedData, samplingApplied };
 		} catch (error) {
 			console.error('❌ Error loading smart sampled data:', error);
 			// Fallback to regular loading if smart sampling fails

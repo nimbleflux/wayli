@@ -14,8 +14,8 @@ worker:
   ## Environment variables
   env:
     ## External service endpoints
-    nominatim:
-      endpoint: 'https://nominatim.wayli.app'
+    pelias:
+      endpoint: 'https://pelias.wayli.app'
 
 ## Wayli ingress configuration
 ingress:

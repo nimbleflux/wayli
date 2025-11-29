@@ -81,7 +81,7 @@ function handleJobDelete(jobId: string, currentJobs: Map<string, JobStoreJob>): 
 /**
  * Schedule automatic cleanup of completed/failed jobs after delay
  */
-function scheduleJobCleanup(jobId: string, status: string, delay = 5000) {
+function scheduleJobCleanup(jobId: string, status: string, delay = 30000) {
 	if (status === 'completed' || status === 'failed' || status === 'cancelled') {
 		setTimeout(() => {
 			jobsStore.update((currentJobs) => {
@@ -105,13 +105,13 @@ async function initializeRealtimeSubscription(userId: string) {
 
 	currentUserId = userId;
 
-	// Subscribe to Fluxbase's jobs table via realtime
+	// Subscribe to Fluxbase's job queue table via realtime
 	realtimeChannel = fluxbase
 		.channel(`jobs-user-${userId}`)
 		.on('postgres_changes', {
 			event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
-			schema: 'fluxbase', // Fluxbase's internal jobs table
-			table: 'jobs',
+			schema: 'jobs',
+			table: 'queue',
 			filter: `created_by=eq.${userId}` // Only get jobs created by this user
 		}, (payload: any) => {
 			const eventType = payload.eventType;

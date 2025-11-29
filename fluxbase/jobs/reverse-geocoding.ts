@@ -1,7 +1,7 @@
 /**
  * Batch reverse geocode missing location data
  *
- * Processes GPS points that don't have address information, calling the Nominatim
+ * Processes GPS points that don't have address information, calling the Pelias
  * API to reverse geocode coordinates into addresses. Respects rate limits and
  * provides detailed progress tracking.
  *
@@ -10,15 +10,22 @@
  * @fluxbase:allow-net true
  */
 
-import { reverseGeocode } from '../../src/lib/services/external/nominatim.service';
-import { isRetryableError } from '../../src/lib/utils/geocoding-utils';
+import { reverseGeocode } from '../../web/src/lib/services/external/pelias.service';
+import { isRetryableError } from '../../web/src/lib/utils/geocoding-utils';
 import {
 	createGeocodeErrorGeoJSON,
 	mergeGeocodingWithExisting
-} from '../../src/lib/utils/geojson-converter';
+} from '../../web/src/lib/utils/geojson-converter';
 
-export async function handler(request: Request) {
-	const context = Fluxbase.getJobContext();
+import type { FluxbaseClient, JobUtils } from './types';
+
+export async function handler(
+	req: Request,
+	fluxbase: FluxbaseClient,
+	fluxbaseService: FluxbaseClient,
+	job: JobUtils
+) {
+	const context = job.getJobContext();
 	const jobId = context.job_id;
 	const userId = context.user?.id;
 
@@ -33,7 +40,7 @@ export async function handler(request: Request) {
 		console.log(`🌍 Processing reverse geocoding missing job ${jobId}`);
 
 		// Show rate limiting settings
-		const rateLimit = parseInt(process.env?.NOMINATIM_RATE_LIMIT || '1000', 10);
+		const rateLimit = parseInt(process.env?.PELIAS_RATE_LIMIT || '1000', 10);
 		const rateLimitEnabled = rateLimit > 0;
 		const minInterval = rateLimit > 0 ? 1000 / rateLimit : 0;
 
@@ -58,9 +65,8 @@ export async function handler(request: Request) {
 
 		// First, count total points that need geocoding
 		console.log(`🔍 Checking for points that need geocoding...`);
-		const { count: totalPointsNeedingGeocoding, error: countError } = await Fluxbase.database().from(
-			'tracker_data'
-		)
+		const { count: totalPointsNeedingGeocoding, error: countError } = await fluxbase
+			.from('tracker_data')
 			.select('*', { count: 'exact', head: true })
 			.eq('user_id', userId)
 			.is('geocode->properties->>country', null)
@@ -76,7 +82,7 @@ export async function handler(request: Request) {
 		// If no points need geocoding, exit early
 		if (totalPoints === 0) {
 			console.log('✅ No points need geocoding');
-			Fluxbase.reportProgress(100, 'No tracker data points found needing geocoding');
+			job.reportProgress(100, 'No tracker data points found needing geocoding');
 			return {
 				success: true,
 				result: {
@@ -92,7 +98,7 @@ export async function handler(request: Request) {
 			`🌍 [REVERSE_GEOCODING] Found ${totalPoints.toLocaleString()} points needing geocoding. Starting processing...`
 		);
 
-		Fluxbase.reportProgress(
+		job.reportProgress(
 			0,
 			`Found ${totalPoints.toLocaleString()} tracker data points needing geocoding. Starting processing...`
 		);
@@ -117,7 +123,8 @@ export async function handler(request: Request) {
 		const pageSize = 1000;
 
 		while (true) {
-			const { data: batch, error: fetchError } = await Fluxbase.database().from('tracker_data')
+			const { data: batch, error: fetchError } = await fluxbase
+				.from('tracker_data')
 				.select('user_id, location, geocode, recorded_at, tracker_type')
 				.eq('user_id', userId)
 				.is('geocode->properties->>country', null)
@@ -153,7 +160,7 @@ export async function handler(request: Request) {
 			const batch = allPointsNeedingGeocoding.slice(startIndex, startIndex + BATCH_SIZE);
 
 			if (batch.length > 0) {
-				const results = await processPointsSequentially(batch);
+				const results = await processPointsSequentially(fluxbase, batch);
 				console.log(
 					`📊 Batch ${batchIndex + 1}/${totalBatches} completed: ${results.processed} processed, ${results.success} successful, ${results.errors} errors`
 				);
@@ -224,7 +231,7 @@ export async function handler(request: Request) {
 					}
 				}
 
-				Fluxbase.reportProgress(
+				job.reportProgress(
 					progress,
 					`Processed ${totalProcessed.toLocaleString()}/${actualPointsToProcess.toLocaleString()} points (${totalErrors} errors) - ETA: ${etaDisplay}`
 				);
@@ -252,6 +259,7 @@ export async function handler(request: Request) {
 }
 
 async function processPointsSequentially(
+	fluxbase: FluxbaseClient,
 	points: Array<{
 		user_id: string;
 		location:
@@ -272,7 +280,7 @@ async function processPointsSequentially(
 
 	for (let i = 0; i < points.length; i++) {
 		const point = points[i];
-		const result = await processSinglePoint(point);
+		const result = await processSinglePoint(fluxbase, point);
 
 		processed++;
 		if (result) {
@@ -289,22 +297,25 @@ async function processPointsSequentially(
 	return { processed, success, errors };
 }
 
-async function processSinglePoint(point: {
-	user_id: string;
-	location:
-	| string
-	| { type: string; coordinates: number[]; crs?: { type: string; properties: { name: string } } };
-	geocode: unknown;
-	recorded_at: string;
-	tracker_type: string;
-}): Promise<boolean> {
+async function processSinglePoint(
+	fluxbase: FluxbaseClient,
+	point: {
+		user_id: string;
+		location:
+		| string
+		| { type: string; coordinates: number[]; crs?: { type: string; properties: { name: string } } };
+		geocode: unknown;
+		recorded_at: string;
+		tracker_type: string;
+	}
+): Promise<boolean> {
 	try {
 		let lat: number, lon: number;
 		if (point.location && typeof point.location === 'object' && 'coordinates' in point.location) {
 			const coords = (point.location as { coordinates: number[] }).coordinates;
 			if (!Array.isArray(coords) || coords.length < 2) {
 				console.warn(`⚠️ Invalid coordinates format for tracker data point:`, point.location);
-				await updateGeocodeWithError(point, 'Invalid coordinates format');
+				await updateGeocodeWithError(fluxbase, point, 'Invalid coordinates format');
 				return false;
 			}
 			[lon, lat] = coords;
@@ -312,13 +323,13 @@ async function processSinglePoint(point: {
 			const locationMatch = point.location.match(/POINT\(([-\d.]+)\s+([-\d.]+)\)/);
 			if (!locationMatch) {
 				console.warn(`⚠️ Invalid location format for tracker data point: ${point.location}`);
-				await updateGeocodeWithError(point, 'Invalid location format');
+				await updateGeocodeWithError(fluxbase, point, 'Invalid location format');
 				return false;
 			}
 			[lon, lat] = locationMatch.slice(1).map(Number);
 		} else {
 			console.warn(`⚠️ Unknown location format for tracker data point:`, point.location);
-			await updateGeocodeWithError(point, 'Unknown location format');
+			await updateGeocodeWithError(fluxbase, point, 'Unknown location format');
 			return false;
 		}
 
@@ -333,7 +344,7 @@ async function processSinglePoint(point: {
 			lon > 180
 		) {
 			console.warn(`⚠️ Invalid coordinates for tracker data point: lat=${lat}, lon=${lon}`);
-			await updateGeocodeWithError(point, `Invalid coordinates: lat=${lat}, lon=${lon}`);
+			await updateGeocodeWithError(fluxbase, point, `Invalid coordinates: lat=${lat}, lon=${lon}`);
 			return false;
 		}
 
@@ -355,7 +366,8 @@ async function processSinglePoint(point: {
 				extractedCountryCode;
 		}
 
-		const { error: updateError } = await Fluxbase.database().from('tracker_data')
+		const { error: updateError } = await fluxbase
+			.from('tracker_data')
 			.update({
 				geocode: mergedGeocodeGeoJSON as unknown as Record<string, unknown>,
 				updated_at: new Date().toISOString()
@@ -365,19 +377,20 @@ async function processSinglePoint(point: {
 
 		if (updateError) {
 			console.error(`❌ Database update error:`, updateError);
-			await updateGeocodeWithError(point, `Database update error: ${updateError.message}`);
+			await updateGeocodeWithError(fluxbase, point, `Database update error: ${updateError.message}`);
 			return false;
 		}
 
 		return true;
 	} catch (error: unknown) {
 		console.error(`❌ Error processing tracker data point:`, (error as Error).message);
-		await updateGeocodeWithError(point, `Geocoding error: ${(error as Error).message}`);
+		await updateGeocodeWithError(fluxbase, point, `Geocoding error: ${(error as Error).message}`);
 		return false;
 	}
 }
 
 async function updateGeocodeWithError(
+	fluxbase: FluxbaseClient,
 	point: {
 		user_id: string;
 		location:
@@ -429,7 +442,8 @@ async function updateGeocodeWithError(
 			(errorGeoJSON.properties as Record<string, unknown>).permanent = true;
 		}
 
-		const { error: updateError } = await Fluxbase.database().from('tracker_data')
+		const { error: updateError } = await fluxbase
+			.from('tracker_data')
 			.update({
 				geocode: errorGeoJSON as unknown as Record<string, unknown>,
 				updated_at: new Date().toISOString()

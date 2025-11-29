@@ -6,6 +6,7 @@
  *
  * @fluxbase:require-role authenticated
  * @fluxbase:timeout 1800
+ * @fluxbase:memory 512
  * @fluxbase:allow-read true
  */
 
@@ -14,9 +15,11 @@ import {
 	normalizeCountryCode,
 	applyTimezoneCorrectionToTimestamp,
 	getTimezoneDifferenceForPoint
-} from '../../src/lib/services/external/country-reverse-geocoding.service';
+} from '../../web/src/lib/services/external/country-reverse-geocoding.service';
 
+import { JSONParser } from 'npm:@streamparser/json';
 import type { Feature } from 'geojson';
+import type { FluxbaseClient, JobUtils } from './types';
 
 interface DataImportPayload {
 	storagePath: string;
@@ -29,8 +32,13 @@ interface ErrorSummary {
 	samples: Array<{ idx: number; reason: string }>;
 }
 
-export async function handler(request: Request) {
-	const context = Fluxbase.getJobContext();
+export async function handler(
+	req: Request,
+	fluxbase: FluxbaseClient,
+	fluxbaseService: FluxbaseClient,
+	job: JobUtils
+) {
+	const context = job.getJobContext();
 	const payload = context.payload as DataImportPayload;
 	const jobId = context.job_id;
 	const userId = context.user?.id;
@@ -43,8 +51,8 @@ export async function handler(request: Request) {
 	}
 
 	try {
-		// Download file from storage using Fluxbase global API
-		const { data: fileData, error: downloadError } = await Fluxbase.storage
+		// Download file from storage
+		const { data: fileData, error: downloadError } = await fluxbase.storage
 			.from('temp-files')
 			.download(payload.storagePath);
 
@@ -52,45 +60,50 @@ export async function handler(request: Request) {
 			throw new Error(`Failed to download file from storage: ${JSON.stringify(downloadError)}`);
 		}
 
-		const fileContent = await fileData.text();
+		// Execute import with streaming JSON parser for memory efficiency
+		console.log('🗺️ Starting GeoJSON import with streaming parser');
+		job.reportProgress(0, `🗺️ Streaming GeoJSON features...`);
 
-		// Execute import with progress tracking
-		console.log('🗺️ Starting GeoJSON import with progress tracking');
-		const geojson = JSON.parse(fileContent);
-		let importedCount = 0;
-		let skippedCount = 0;
-		let errorCount = 0;
+		const startTime = Date.now();
+		const results = await processGeoJSONStream(fileData, userId, jobId, fluxbase, job, startTime);
 
-		if (geojson.type === 'FeatureCollection' && geojson.features) {
-			const totalFeatures = geojson.features.length as number;
-			console.log(`📊 Processing ${totalFeatures.toLocaleString()} features from ${payload.fileName}`);
+		const importedCount = results.importedCount;
+		const skippedCount = results.skippedCount;
+		const errorCount = results.errorCount;
+		const duplicatesCount = results.duplicatesCount;
 
-			Fluxbase.reportProgress(0, `🗺️ Processing ${totalFeatures.toLocaleString()} GeoJSON features...`);
+		const totalTime = (Date.now() - startTime) / 1000;
+		console.log(`✅ GeoJSON import completed!`);
+		console.log(`📊 Final stats:`);
+		console.log(`   📥 Imported: ${importedCount.toLocaleString()} points`);
+		console.log(`   ⏭️ Skipped: ${skippedCount.toLocaleString()} points`);
+		console.log(`   🔄 Duplicates: ${duplicatesCount.toLocaleString()} points`);
+		console.log(`   ❌ Errors: ${errorCount.toLocaleString()} points`);
+		console.log(`   ⏱️ Total time: ${totalTime.toFixed(1)}s`);
+		console.log(`   🚀 Average rate: ${(importedCount / totalTime).toFixed(1)} points/sec`);
 
-			const startTime = Date.now();
-			const results = await processFeaturesInParallel(
-				geojson.features as Feature[],
-				userId,
-				jobId,
-				payload.fileName,
-				totalFeatures,
-				startTime
-			);
+		// Trigger distance calculation job for the user after import completes
+		if (importedCount > 0) {
+			console.log(`🧮 Queueing distance calculation job for user ${userId}...`);
+			try {
+				const { data: distanceJob, error: distanceError } = await fluxbase.jobs.submit(
+					'distance-calculation',
+					{ target_user_id: userId },
+					{
+						namespace: 'wayli',
+						priority: 3 // Lower priority since import is done
+					}
+				);
 
-			importedCount = results.importedCount;
-			skippedCount = results.skippedCount;
-			errorCount = results.errorCount;
-			const duplicatesCount = results.duplicatesCount;
-
-			const totalTime = (Date.now() - startTime) / 1000;
-			console.log(`✅ GeoJSON import completed!`);
-			console.log(`📊 Final stats:`);
-			console.log(`   📥 Imported: ${importedCount.toLocaleString()} points`);
-			console.log(`   ⏭️ Skipped: ${skippedCount.toLocaleString()} points`);
-			console.log(`   🔄 Duplicates: ${duplicatesCount.toLocaleString()} points`);
-			console.log(`   ❌ Errors: ${errorCount.toLocaleString()} points`);
-			console.log(`   ⏱️ Total time: ${totalTime.toFixed(1)}s`);
-			console.log(`   🚀 Average rate: ${(importedCount / totalTime).toFixed(1)} points/sec`);
+				if (distanceError) {
+					console.warn(`⚠️ Failed to queue distance calculation job: ${distanceError.message}`);
+				} else {
+					console.log(`✅ Distance calculation job queued: ${(distanceJob as any)?.job_id || 'unknown'}`);
+				}
+			} catch (distanceQueueError) {
+				console.warn(`⚠️ Error queueing distance calculation:`, distanceQueueError);
+				// Don't fail the import if distance calculation queueing fails
+			}
 		}
 
 		return {
@@ -107,12 +120,17 @@ export async function handler(request: Request) {
 	}
 }
 
-async function processFeaturesInParallel(
-	features: Feature[],
+/**
+ * Stream-based GeoJSON processor for memory-efficient parsing of large files.
+ * Instead of loading the entire file into memory, this streams through the file
+ * and processes features in batches as they are parsed.
+ */
+async function processGeoJSONStream(
+	fileData: Blob,
 	userId: string,
-	jobId: string,
-	fileName: string,
-	totalFeatures: number,
+	_jobId: string,
+	fluxbase: FluxbaseClient,
+	job: JobUtils,
 	startTime: number
 ): Promise<{
 	importedCount: number;
@@ -126,86 +144,110 @@ async function processFeaturesInParallel(
 	let duplicatesCount = 0;
 	const errorSummary: ErrorSummary = { counts: {}, samples: [] };
 
-	const CHUNK_SIZE = 30;
-	const CONCURRENT_CHUNKS = 8;
-
-	console.log(
-		`🔄 Processing: ${CHUNK_SIZE} features per chunk, ${CONCURRENT_CHUNKS} concurrent chunks (optimized for progress updates)`
-	);
-
+	const BATCH_SIZE = 240; // Process features in batches (30 * 8 to match previous concurrent chunk size)
+	let featureBuffer: Feature[] = [];
+	let featureIndex = 0;
+	let bytesRead = 0;
+	const totalBytes = fileData.size;
 	let lastLogTime = startTime;
 
-	for (let i = 0; i < features.length; i += CHUNK_SIZE * CONCURRENT_CHUNKS) {
-		const chunkPromises: Promise<{
-			imported: number;
-			skipped: number;
-			errors: number;
-			duplicates: number;
-			errorSummary: ErrorSummary;
-		}>[] = [];
+	console.log(`🔄 Streaming mode: Processing features in batches of ${BATCH_SIZE}`);
+	console.log(`📦 File size: ${(totalBytes / 1024 / 1024).toFixed(2)} MB`);
 
-		for (let j = 0; j < CONCURRENT_CHUNKS && i + j * CHUNK_SIZE < features.length; j++) {
-			const chunkStart = i + j * CHUNK_SIZE;
-			const chunkEnd = Math.min(chunkStart + CHUNK_SIZE, features.length);
-			const chunk = features.slice(chunkStart, chunkEnd);
+	// Create streaming JSON parser that extracts features from FeatureCollection
+	const parser = new JSONParser({
+		paths: ['$.features.*'],
+		keepStack: false // Memory optimization: don't keep full stack
+	});
 
-			chunkPromises.push(processFeatureChunk(chunk, userId, chunkStart));
+	// Process a batch of features
+	const processBatch = async () => {
+		if (featureBuffer.length === 0) return;
+
+		const batch = featureBuffer;
+		featureBuffer = []; // Clear buffer immediately to free memory
+
+		const result = await processFeatureChunk(batch, userId, featureIndex - batch.length, fluxbase);
+
+		importedCount += result.imported;
+		skippedCount += result.skipped;
+		errorCount += result.errors;
+		duplicatesCount += result.duplicates;
+
+		// Merge error summaries
+		for (const [k, v] of Object.entries(result.errorSummary.counts)) {
+			errorSummary.counts[k] = (errorSummary.counts[k] || 0) + v;
 		}
+		for (const s of result.errorSummary.samples) {
+			if (errorSummary.samples.length < 10) errorSummary.samples.push(s);
+		}
+	};
 
-		const chunkResults = await Promise.allSettled(chunkPromises);
+	// Set up parser to collect features
+	parser.onValue = ({ value }: { value: unknown }) => {
+		featureBuffer.push(value as Feature);
+		featureIndex++;
+	};
 
-		for (const result of chunkResults) {
-			if (result.status === 'fulfilled') {
-				importedCount += result.value.imported;
-				skippedCount += result.value.skipped;
-				errorCount += result.value.errors;
-				duplicatesCount += result.value.duplicates;
-				// merge error summaries
-				for (const [k, v] of Object.entries(result.value.errorSummary.counts)) {
-					errorSummary.counts[k] = (errorSummary.counts[k] || 0) + v;
+	// Stream the file through the parser
+	const reader = fileData.stream().getReader();
+	const decoder = new TextDecoder();
+
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+
+			if (done) break;
+
+			bytesRead += value.length;
+			const chunk = decoder.decode(value, { stream: true });
+			parser.write(chunk);
+
+			// Process batch when buffer is full
+			if (featureBuffer.length >= BATCH_SIZE) {
+				await processBatch();
+
+				// Update progress based on bytes read
+				const currentTime = Date.now();
+				const progress = Math.round((bytesRead / totalBytes) * 100);
+
+				if (currentTime - lastLogTime > 5000) {
+					const elapsedSeconds = (currentTime - startTime) / 1000;
+					const rate = featureIndex > 0 ? (featureIndex / elapsedSeconds).toFixed(1) : '0';
+					const mbRead = (bytesRead / 1024 / 1024).toFixed(2);
+					const mbTotal = (totalBytes / 1024 / 1024).toFixed(2);
+
+					console.log(
+						`📈 Progress: ${mbRead}/${mbTotal} MB (${progress}%) - Features: ${featureIndex.toLocaleString()} - Rate: ${rate}/sec - Imported: ${importedCount.toLocaleString()}`
+					);
+
+					const topErrors = Object.entries(errorSummary.counts)
+						.sort((a, b) => b[1] - a[1])
+						.slice(0, 3)
+						.map(([k, v]) => `${k}: ${v}`)
+						.join('; ');
+
+					job.reportProgress(
+						progress,
+						`🗺️ Streaming GeoJSON... ${mbRead}/${mbTotal} MB - ${featureIndex.toLocaleString()} features - ${rate}/sec${topErrors ? ` - Errors: ${topErrors}` : ''}`
+					);
+
+					lastLogTime = currentTime;
 				}
-				for (const s of result.value.errorSummary.samples) {
-					if (errorSummary.samples.length < 10) errorSummary.samples.push(s);
-				}
-			} else {
-				errorCount += CHUNK_SIZE; // Count failed chunks as errors
-				console.error('❌ Chunk processing failed:', result.reason);
 			}
 		}
 
-		const currentTime = Date.now();
-		const processed = Math.min(i + CHUNK_SIZE * CONCURRENT_CHUNKS, totalFeatures);
-		const progress = Math.round((processed / totalFeatures) * 100);
-
-		if (processed % 100 === 0 || currentTime - lastLogTime > 10000) {
-			const elapsedSeconds = (currentTime - startTime) / 1000;
-			const rate = processed > 0 ? (processed / elapsedSeconds).toFixed(1) : '0';
-			const eta =
-				processed > 0
-					? ((totalFeatures - processed) / (processed / elapsedSeconds)).toFixed(0)
-					: '0';
-
-			console.log(
-				`📈 Progress: ${processed.toLocaleString()}/${totalFeatures.toLocaleString()} (${progress}%) - Rate: ${rate} features/sec - ETA: ${eta}s - Imported: ${importedCount.toLocaleString()} - Skipped: ${skippedCount.toLocaleString()} - Duplicates: ${duplicatesCount.toLocaleString()} - Errors: ${errorCount.toLocaleString()}`
-			);
-
-			const topErrors = Object.entries(errorSummary.counts)
-				.sort((a, b) => b[1] - a[1])
-				.slice(0, 5)
-				.map(([k, v]) => `${k}: ${v}`)
-				.join('; ');
-
-			Fluxbase.reportProgress(
-				progress,
-				`🗺️ Processing GeoJSON features... ${processed.toLocaleString()}/${totalFeatures.toLocaleString()} (${progress}%) - Rate: ${rate} features/sec - ETA: ${eta}s - Errors: ${topErrors || 'none'}`
-			);
-
-			lastLogTime = currentTime;
+		// Process any remaining features in the buffer
+		if (featureBuffer.length > 0) {
+			await processBatch();
 		}
 
-		if (importedCount > 0 && importedCount % 1000 === 0) {
-			console.log(`🎉 Milestone: Imported ${importedCount.toLocaleString()} points!`);
-		}
+		// Final progress update
+		job.reportProgress(100, `🗺️ Import complete - ${featureIndex.toLocaleString()} features processed`);
+
+		console.log(`📊 Streaming complete: ${featureIndex.toLocaleString()} total features parsed`);
+	} finally {
+		reader.releaseLock();
 	}
 
 	return { importedCount, skippedCount, errorCount, duplicatesCount };
@@ -214,7 +256,8 @@ async function processFeaturesInParallel(
 async function processFeatureChunk(
 	features: Feature[],
 	userId: string,
-	chunkStart: number
+	chunkStart: number,
+	fluxbase: FluxbaseClient
 ): Promise<{
 	imported: number;
 	skipped: number;
@@ -406,7 +449,7 @@ async function processFeatureChunk(
 				skipped += duplicatesInBatch;
 			}
 
-			const { error } = await Fluxbase.database().from('tracker_data').upsert(deduplicatedData, {
+			const { error } = await fluxbase.from('tracker_data').upsert(deduplicatedData, {
 				onConflict: 'user_id,recorded_at',
 				ignoreDuplicates: false
 			});

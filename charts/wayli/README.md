@@ -66,13 +66,13 @@ web:
 worker:
   env:
     nodeEnv: production
-    nominatim:
-      endpoint: "http://nominatim.nominatim.svc.cluster.local:8088"
+    pelias:
+      endpoint: "http://pelias.pelias.svc.cluster.local:4000"
 
 fluxbase:
   global:
     fluxbase:
-      publicUrl: "https://supa.wayli.app"  # Fluxbase API endpoint
+      publicUrl: "https://fluxbase.wayli.app"  # Fluxbase API endpoint
       siteUrl: "https://wayli.app"  # For auth redirects
 ```
 

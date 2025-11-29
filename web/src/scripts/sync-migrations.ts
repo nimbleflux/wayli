@@ -138,8 +138,10 @@ async function syncMigrations() {
 
 	try {
 		// Determine base path (different in dev vs production)
+		// In dev: /workspace/ (repo root, fluxbase is at root level)
+		// In production: /app/
 		const isProduction = process.env.NODE_ENV === 'production';
-		const basePath = isProduction ? '/app' : process.cwd();
+		const basePath = isProduction ? '/app' : join(process.cwd(), '..');
 
 		console.log(`📁 Base path: ${basePath}`);
 		console.log('🔍 Discovering migrations...\n');
@@ -191,7 +193,37 @@ async function syncMigrations() {
 		});
 
 		if (error) {
-			console.error('❌ Migration sync failed:', error);
+			console.error('❌ Migration sync failed:', JSON.stringify(error, null, 2));
+			process.exit(1);
+		}
+
+		// Check for errors in the sync result
+		const syncResult = data as {
+			summary?: { errors?: number };
+			details?: { errors?: Array<{ name: string; error: string }> };
+			warnings?: string[];
+		};
+
+		if (syncResult?.summary?.errors && syncResult.summary.errors > 0) {
+			console.error('\n❌ Migration sync completed with errors:');
+			console.error(JSON.stringify(data, null, 2));
+
+			// Show detailed error messages
+			if (syncResult.details?.errors && syncResult.details.errors.length > 0) {
+				console.error('\n📋 Failed migrations:');
+				for (const err of syncResult.details.errors) {
+					console.error(`   • ${err.name}: ${err.error}`);
+				}
+			}
+
+			// Show warnings
+			if (syncResult.warnings && syncResult.warnings.length > 0) {
+				console.error('\n⚠️  Warnings:');
+				for (const warning of syncResult.warnings) {
+					console.error(`   • ${warning}`);
+				}
+			}
+
 			process.exit(1);
 		}
 
@@ -212,13 +244,39 @@ async function syncMigrations() {
 
 		console.log('\n✨ Schema is now up to date and cache refreshed!');
 	} catch (error) {
-		console.error('❌ Unexpected error during migration sync:', error);
+		console.error('❌ Unexpected error during migration sync:');
+		// Use JSON.stringify to properly display nested objects/arrays
+		if (error instanceof Error) {
+			console.error(`   Message: ${error.message}`);
+			// Check if error has additional properties (like syncResult)
+			const errorWithData = error as Error & { syncResult?: unknown; details?: unknown };
+			if (errorWithData.syncResult) {
+				console.error('   Sync Result:', JSON.stringify(errorWithData.syncResult, null, 2));
+			}
+			if (errorWithData.details) {
+				console.error('   Details:', JSON.stringify(errorWithData.details, null, 2));
+			}
+		} else {
+			console.error(JSON.stringify(error, null, 2));
+		}
 		process.exit(1);
 	}
 }
 
 // Run the sync
 syncMigrations().catch((error) => {
-	console.error('❌ Fatal error:', error);
+	console.error('❌ Fatal error:');
+	if (error instanceof Error) {
+		console.error(`   Message: ${error.message}`);
+		const errorWithData = error as Error & { syncResult?: unknown; details?: unknown };
+		if (errorWithData.syncResult) {
+			console.error('   Sync Result:', JSON.stringify(errorWithData.syncResult, null, 2));
+		}
+		if (errorWithData.details) {
+			console.error('   Details:', JSON.stringify(errorWithData.details, null, 2));
+		}
+	} else {
+		console.error(JSON.stringify(error, null, 2));
+	}
 	process.exit(1);
 });

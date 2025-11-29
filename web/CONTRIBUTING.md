@@ -246,8 +246,8 @@ import { useAriaModal } from '$lib/accessibility/aria-modal';
 Follow the environment separation pattern:
 
 ```typescript
-// Note: Nominatim configuration is now handled directly in the service
-// No client-side config needed at this time
+// Note: Pelias configuration is now handled directly in the service
+// Client-side can use PUBLIC_PELIAS_ENDPOINT env var (defaults to https://pelias.wayli.app)
 
 // Server-only (private variables)
 import { validateServerEnvironment } from '$lib/core/config/server-environment';

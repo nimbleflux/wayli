@@ -26,7 +26,7 @@
 	} from 'lucide-svelte';
 	import { onMount } from 'svelte';
 
-	import { reverseGeocode } from '$lib/services/external/nominatim.service';
+	import { reverseGeocode } from '$lib/services/external/pelias.service';
 
 	import { toast } from 'svelte-sonner';
 
@@ -611,15 +611,31 @@
 
 		isSearching = true;
 		try {
+			// Use Pelias autocomplete endpoint for faster results
+			const peliasEndpoint = import.meta.env.PUBLIC_PELIAS_ENDPOINT || 'https://pelias.wayli.app';
 			const response = await fetch(
-				`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5&addressdetails=1`
+				`${peliasEndpoint}/v1/autocomplete?text=${encodeURIComponent(searchQuery)}&size=5`,
+				{
+					headers: {
+						'User-Agent': 'WayliApp/1.0',
+						'Accept': 'application/json'
+					}
+				}
 			);
 			const data = await response.json();
-			searchResults = data.map((result: any) => ({
-				name: result.display_name,
-				lat: result.lat,
-				lon: result.lon,
-				address: result.address || {}
+			searchResults = (data.features || []).map((feature: any) => ({
+				name: feature.properties?.label || '',
+				lat: feature.geometry?.coordinates?.[1],
+				lon: feature.geometry?.coordinates?.[0],
+				address: {
+					city: feature.properties?.locality,
+					state: feature.properties?.region,
+					country: feature.properties?.country,
+					country_code: feature.properties?.country_a,
+					neighbourhood: feature.properties?.neighbourhood,
+					road: feature.properties?.street,
+					house_number: feature.properties?.housenumber
+				}
 			}));
 			showSearchResults = true;
 		} catch (error) {

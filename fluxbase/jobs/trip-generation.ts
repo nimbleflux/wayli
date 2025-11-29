@@ -8,14 +8,20 @@
  * @fluxbase:timeout 1200
  */
 
-import { TripDetectionService } from '../../src/lib/services/trip-detection.service';
-import { UserProfileService } from '../../src/lib/services/user-profile.service';
-import { forwardGeocode } from '../../src/lib/services/external/nominatim.service';
+import { TripDetectionService } from '../../web/src/lib/services/trip-detection.service';
+import { UserProfileService } from '../../web/src/lib/services/user-profile.service';
+import { forwardGeocode } from '../../web/src/lib/services/external/pelias.service';
 
-import type { TripGenerationData, HomeAddress } from '../../src/lib/types/trip-generation.types';
+import type { TripGenerationData, HomeAddress } from '../../web/src/lib/types/trip-generation.types';
+import type { FluxbaseClient, JobUtils } from './types';
 
-export async function handler(request: Request) {
-	const context = Fluxbase.getJobContext();
+export async function handler(
+	req: Request,
+	fluxbase: FluxbaseClient,
+	fluxbaseService: FluxbaseClient,
+	job: JobUtils
+) {
+	const context = job.getJobContext();
 	const payload = context.payload as TripGenerationData;
 	const jobId = context.job_id;
 	const userId = context.user?.id;
@@ -49,7 +55,7 @@ export async function handler(request: Request) {
 		console.log(`  - useCustomHomeAddress: ${useCustomHomeAddress}`);
 		console.log(`  - customHomeAddress: ${customHomeAddress || 'not specified'}`);
 
-		Fluxbase.reportProgress(
+		job.reportProgress(
 			5,
 			'Determining available date ranges for sleep-based trip generation...'
 		);
@@ -60,7 +66,7 @@ export async function handler(request: Request) {
 			// Geocode the custom home address to get coordinates
 			console.log(`🏠 Geocoding custom home address: ${customHomeAddress}`);
 
-			Fluxbase.reportProgress(8, `Geocoding custom home address: ${customHomeAddress}...`);
+			job.reportProgress(8, `Geocoding custom home address: ${customHomeAddress}...`);
 
 			try {
 				const geocodeResult = await forwardGeocode(customHomeAddress);
@@ -68,8 +74,8 @@ export async function handler(request: Request) {
 					homeAddress = {
 						display_name: geocodeResult.display_name,
 						coordinates: {
-							lat: parseFloat(geocodeResult.lat),
-							lng: parseFloat(geocodeResult.lon)
+							lat: geocodeResult.lat,
+							lng: geocodeResult.lon
 						}
 					};
 					console.log(
@@ -108,7 +114,7 @@ export async function handler(request: Request) {
 			}
 		}
 
-		Fluxbase.reportProgress(
+		job.reportProgress(
 			10,
 			`Retrieved home address, fetching GPS data for sleep pattern analysis...`
 		);
@@ -171,7 +177,7 @@ export async function handler(request: Request) {
 
 		tripDetectionService.setProgressTracking(jobId, async (progress) => {
 			const eta = calculateEta(progress.progress);
-			Fluxbase.reportProgress(
+			job.reportProgress(
 				progress.progress,
 				`${progress.message}${eta ? ` - ETA: ${formatEta(eta)}` : ''}`
 			);
@@ -186,7 +192,8 @@ export async function handler(request: Request) {
 		if (detectedTrips.length > 0) {
 			console.log(`💾 Saving ${detectedTrips.length} detected trips to database...`);
 
-			const { data: savedTrips, error: saveError } = await Fluxbase.database().from('trips')
+			const { data: savedTrips, error: saveError } = await fluxbase
+				.from('trips')
 				.insert(detectedTrips)
 				.select();
 

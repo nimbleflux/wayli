@@ -36,9 +36,9 @@ function parseFunctionAnnotations(code: string): {
 	enabled: boolean;
 } {
 	const annotations = {
-		allow_net: false,
-		allow_env: false,
-		allow_read: false,
+		allow_net: true,
+		allow_env: true,
+		allow_read: true,
 		enabled: true
 	};
 
@@ -142,10 +142,10 @@ async function syncFunctions() {
 
 	try {
 		// Determine base path (different in dev vs production)
-		// In dev: /workspace/web/
+		// In dev: /workspace/ (repo root, fluxbase is at root level)
 		// In production: /app/
 		const isProduction = process.env.NODE_ENV === 'production';
-		const basePath = isProduction ? '/app' : process.cwd();
+		const basePath = isProduction ? '/app' : join(process.cwd(), '..');
 
 		console.log(`📁 Base path: ${basePath}`);
 		console.log('🔍 Auto-discovering edge functions...\n');

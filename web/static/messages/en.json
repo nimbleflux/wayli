@@ -459,7 +459,7 @@
 		"selectFile": "Select file",
 		"selectedFile": "Selected: {filename}",
 		"detectedFormat": "Detected format: {format}",
-		"importing": "Uploading... (This may take a few minutes for large files)",
+		"importing": "Uploading...",
 		"importDataButton": "Import data",
 		"uploadSuccessful": "Upload successful!",
 		"importFailed": "Import failed",
@@ -725,7 +725,12 @@
 		"downloadStarted": "Download started",
 		"failedToDownloadExport": "Failed to download export",
 		"cancelJob": "Cancel job",
-		"downloadExport": "Download export"
+		"downloadExport": "Download export",
+		"dismiss": "Dismiss",
+		"uploading": "Uploading",
+		"creatingJob": "Creating job...",
+		"uploadComplete": "Upload complete",
+		"uploadFailed": "Upload failed"
 	},
 	"accountSettings": {
 		"title": "Account settings",

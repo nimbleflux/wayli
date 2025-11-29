@@ -14,7 +14,9 @@ import {
 	normalizeCountryCode,
 	applyTimezoneCorrectionToTimestamp,
 	getTimezoneDifferenceForPoint
-} from '../../src/lib/services/external/country-reverse-geocoding.service';
+} from '../../web/src/lib/services/external/country-reverse-geocoding.service';
+
+import type { FluxbaseClient, JobUtils } from './types';
 
 interface DataImportPayload {
 	storagePath: string;
@@ -22,8 +24,13 @@ interface DataImportPayload {
 	fileName: string;
 }
 
-export async function handler(request: Request) {
-	const context = Fluxbase.getJobContext();
+export async function handler(
+	req: Request,
+	fluxbase: FluxbaseClient,
+	fluxbaseService: FluxbaseClient,
+	job: JobUtils
+) {
+	const context = job.getJobContext();
 	const payload = context.payload as DataImportPayload;
 	const jobId = context.job_id;
 	const userId = context.user?.id;
@@ -36,8 +43,8 @@ export async function handler(request: Request) {
 	}
 
 	try {
-		// Download file from storage using Fluxbase global API
-		const { data: fileData, error: downloadError } = await Fluxbase.storage
+		// Download file from storage
+		const { data: fileData, error: downloadError } = await fluxbase.storage
 			.from('temp-files')
 			.download(payload.storagePath);
 
@@ -69,7 +76,7 @@ export async function handler(request: Request) {
 		console.log(`   🛤️ Tracks: ${tracks.length.toLocaleString()}`);
 		console.log(`   📍 Total items: ${totalItems.toLocaleString()}`);
 
-		Fluxbase.reportProgress(0, `🗺️ Processing ${totalItems.toLocaleString()} GPX items...`);
+		job.reportProgress(0, `🗺️ Processing ${totalItems.toLocaleString()} GPX items...`);
 
 		const startTime = Date.now();
 
@@ -111,7 +118,7 @@ export async function handler(request: Request) {
 				}
 			};
 
-			const { error } = await Fluxbase.database().from('tracker_data').upsert(
+			const { error } = await fluxbase.from('tracker_data').upsert(
 				{
 					user_id: userId,
 					tracker_type: 'import',
@@ -138,7 +145,7 @@ export async function handler(request: Request) {
 
 			if (i % 10 === 0 || i === waypoints.length - 1) {
 				const progress = Math.round((i / totalItems) * 100);
-				Fluxbase.reportProgress(progress, `🎯 Processing GPX waypoints... ${i.toLocaleString()}/${waypoints.length.toLocaleString()}`);
+				job.reportProgress(progress, `🎯 Processing GPX waypoints... ${i.toLocaleString()}/${waypoints.length.toLocaleString()}`);
 			}
 		}
 
@@ -185,7 +192,7 @@ export async function handler(request: Request) {
 					}
 				};
 
-				const { error } = await Fluxbase.database().from('tracker_data').upsert(
+				const { error } = await fluxbase.from('tracker_data').upsert(
 					{
 						user_id: userId,
 						tracker_type: 'import',
@@ -196,7 +203,7 @@ export async function handler(request: Request) {
 						geocode: geocodeFeature,
 						created_at: new Date().toISOString()
 					} as any,
-					{ onConflict: 'user_id,recorded_at', ignoreDuplicates: false, defaultToNull: false }
+					{ onConflict: 'user_id,recorded_at', ignoreDuplicates: false }
 				);
 
 				if (!error) importedCount++;
@@ -211,7 +218,7 @@ export async function handler(request: Request) {
 			}
 
 			const progress = Math.round(((waypoints.length + i + 1) / totalItems) * 100);
-			Fluxbase.reportProgress(progress, `🛤️ Processing GPX tracks... ${(i + 1).toLocaleString()}/${tracks.length.toLocaleString()}`);
+			job.reportProgress(progress, `🛤️ Processing GPX tracks... ${(i + 1).toLocaleString()}/${tracks.length.toLocaleString()}`);
 		}
 
 		const totalTime = (Date.now() - startTime) / 1000;
@@ -221,6 +228,30 @@ export async function handler(request: Request) {
 		console.log(`   ⏭️ Skipped: ${skippedCount.toLocaleString()} points`);
 		console.log(`   ❌ Errors: ${errorCount.toLocaleString()} points`);
 		console.log(`   ⏱️ Total time: ${totalTime.toFixed(1)}s`);
+
+		// Trigger distance calculation job for the user after import completes
+		if (importedCount > 0) {
+			console.log(`🧮 Queueing distance calculation job for user ${userId}...`);
+			try {
+				const { data: distanceJob, error: distanceError } = await fluxbase.jobs.submit(
+					'distance-calculation',
+					{ target_user_id: userId },
+					{
+						namespace: 'wayli',
+						priority: 3 // Lower priority since import is done
+					}
+				);
+
+				if (distanceError) {
+					console.warn(`⚠️ Failed to queue distance calculation job: ${distanceError.message}`);
+				} else {
+					console.log(`✅ Distance calculation job queued: ${distanceJob?.job_id || 'unknown'}`);
+				}
+			} catch (distanceQueueError) {
+				console.warn(`⚠️ Error queueing distance calculation:`, distanceQueueError);
+				// Don't fail the import if distance calculation queueing fails
+			}
+		}
 
 		return {
 			success: true,

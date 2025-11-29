@@ -14,7 +14,9 @@ import {
 	getCountryForPoint,
 	applyTimezoneCorrectionToTimestamp,
 	getTimezoneDifferenceForPoint
-} from '../../src/lib/services/external/country-reverse-geocoding.service';
+} from '../../web/src/lib/services/external/country-reverse-geocoding.service';
+
+import type { FluxbaseClient, JobUtils } from './types';
 
 interface DataImportPayload {
 	storagePath: string;
@@ -22,8 +24,13 @@ interface DataImportPayload {
 	fileName: string;
 }
 
-export async function handler(request: Request) {
-	const context = Fluxbase.getJobContext();
+export async function handler(
+	req: Request,
+	fluxbase: FluxbaseClient,
+	fluxbaseService: FluxbaseClient,
+	job: JobUtils
+) {
+	const context = job.getJobContext();
 	const payload = context.payload as DataImportPayload;
 	const jobId = context.job_id;
 	const userId = context.user?.id;
@@ -36,8 +43,8 @@ export async function handler(request: Request) {
 	}
 
 	try {
-		// Download file from storage using Fluxbase global API
-		const { data: fileData, error: downloadError } = await Fluxbase.storage
+		// Download file from storage
+		const { data: fileData, error: downloadError } = await fluxbase.storage
 			.from('temp-files')
 			.download(payload.storagePath);
 
@@ -58,7 +65,7 @@ export async function handler(request: Request) {
 
 		console.log(`📊 OwnTracks file contains ${totalLines.toLocaleString()} data points`);
 
-		Fluxbase.reportProgress(
+		job.reportProgress(
 			0,
 			`🗺️ Processing ${totalLines.toLocaleString()} OwnTracks lines...`
 		);
@@ -84,7 +91,7 @@ export async function handler(request: Request) {
 					`📈 Progress: ${i.toLocaleString()}/${totalLines.toLocaleString()} (${progress}%) - Rate: ${rate} lines/sec - ETA: ${eta}s - Imported: ${importedCount.toLocaleString()} - Skipped: ${skippedCount.toLocaleString()} - Errors: ${errorCount.toLocaleString()}`
 				);
 
-				Fluxbase.reportProgress(
+				job.reportProgress(
 					progress,
 					`🗺️ Processing OwnTracks data... ${i.toLocaleString()}/${totalLines.toLocaleString()} (${progress}%)`
 				);
@@ -127,7 +134,7 @@ export async function handler(request: Request) {
 					}
 				};
 
-				const { error } = await Fluxbase.database().from('tracker_data').upsert(
+				const { error } = await fluxbase.from('tracker_data').upsert(
 					{
 						user_id: userId,
 						tracker_type: 'import',
@@ -165,6 +172,30 @@ export async function handler(request: Request) {
 		console.log(`   ⏭️ Skipped: ${skippedCount.toLocaleString()} points`);
 		console.log(`   ❌ Errors: ${errorCount.toLocaleString()} points`);
 		console.log(`   ⏱️ Total time: ${totalTime.toFixed(1)}s`);
+
+		// Trigger distance calculation job for the user after import completes
+		if (importedCount > 0) {
+			console.log(`🧮 Queueing distance calculation job for user ${userId}...`);
+			try {
+				const { data: distanceJob, error: distanceError } = await fluxbase.jobs.submit(
+					'distance-calculation',
+					{ target_user_id: userId },
+					{
+						namespace: 'wayli',
+						priority: 3 // Lower priority since import is done
+					}
+				);
+
+				if (distanceError) {
+					console.warn(`⚠️ Failed to queue distance calculation job: ${distanceError.message}`);
+				} else {
+					console.log(`✅ Distance calculation job queued: ${distanceJob?.job_id || 'unknown'}`);
+				}
+			} catch (distanceQueueError) {
+				console.warn(`⚠️ Error queueing distance calculation:`, distanceQueueError);
+				// Don't fail the import if distance calculation queueing fails
+			}
+		}
 
 		return {
 			success: true,

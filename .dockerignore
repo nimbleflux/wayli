@@ -1,6 +1,6 @@
 # Dependencies
 web/node_modules
-web/fluxbase/config.toml
+fluxbase/config.toml
 node_modules
 
 # Build outputs

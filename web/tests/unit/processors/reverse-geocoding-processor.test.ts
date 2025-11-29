@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { fluxbase } from '../../../src/worker/fluxbase';
-import { reverseGeocode } from '../../../src/lib/services/external/nominatim.service';
+import { reverseGeocode } from '../../../src/lib/services/external/pelias.service';
 import { JobQueueService } from '../../../src/worker/job-queue.service.worker';
 import { processReverseGeocodingMissing } from '../../../src/worker/processors/reverse-geocoding-processor.service';
 
@@ -35,8 +35,8 @@ vi.mock('../../../src/lib/utils/geocoding-utils', () => ({
 	createRetryableError: vi.fn().mockReturnValue({ error: true, retryable: true })
 }));
 
-vi.mock('../../../src/lib/services/external/nominatim.service', () => ({
-	reverseGeocode: vi.fn().mockResolvedValue({ display_name: 'Test Location' })
+vi.mock('../../../src/lib/services/external/pelias.service', () => ({
+	reverseGeocode: vi.fn().mockResolvedValue({ display_name: 'Test Location', label: 'Test Location' })
 }));
 
 vi.mock('../helpers/concurrency', () => ({

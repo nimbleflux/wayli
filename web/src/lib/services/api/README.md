@@ -20,7 +20,7 @@ The new architecture eliminates edge functions in favor of direct client-side Fl
 │  ├── Trips (CRUD, suggestions, locations)                   │
 │  ├── Jobs (CRUD, export, import)                            │
 │  ├── Admin (workers, users)                                 │
-│  └── External APIs (Nominatim geocoding, storage)           │
+│  └── External APIs (Pelias geocoding, storage)              │
 ├─────────────────────────────────────────────────────────────┤
 │  Fluxbase SDK (Direct Database Access)                      │
 │  ├── fluxbase.auth.* (Authentication)                       │
@@ -129,7 +129,7 @@ const users = await serviceAdapter.getAdminUsers({ page, limit, search, role })
 ### External APIs & Utilities
 
 ```typescript
-// Geocoding (direct Nominatim API calls)
+// Geocoding (direct Pelias API calls)
 const results = await serviceAdapter.searchGeocode(query)
 
 // Storage (signed URLs)

@@ -42,7 +42,7 @@ export interface NodeEnvironmentConfig {
 	};
 
 	// External Services
-	nominatim: {
+	pelias: {
 		endpoint: string;
 		rateLimit: number;
 	};
@@ -180,8 +180,8 @@ export function getNodeEnvironmentConfig(): NodeEnvironmentConfig {
 	const retryDelay = parseInt(mergedEnv.RETRY_DELAY || '1000', 10);
 
 	// External Services
-	const nominatimEndpoint = mergedEnv.NOMINATIM_ENDPOINT || 'https://nominatim.wayli.app';
-	const nominatimRateLimit = parseInt(mergedEnv.NOMINATIM_RATE_LIMIT || '1000', 10);
+	const peliasEndpoint = mergedEnv.PELIAS_ENDPOINT || 'https://pelias.wayli.app';
+	const peliasRateLimit = parseInt(mergedEnv.PELIAS_RATE_LIMIT || '1000', 10);
 
 	// Application Configuration
 	const nodeEnv = mergedEnv.NODE_ENV || 'development';
@@ -252,9 +252,9 @@ export function getNodeEnvironmentConfig(): NodeEnvironmentConfig {
 			retryAttempts,
 			retryDelay
 		},
-		nominatim: {
-			endpoint: nominatimEndpoint,
-			rateLimit: nominatimRateLimit
+		pelias: {
+			endpoint: peliasEndpoint,
+			rateLimit: peliasRateLimit
 		},
 		app: {
 			nodeEnv,
@@ -366,11 +366,11 @@ export function getWorkerFluxbaseConfig() {
 }
 
 /**
- * Gets the Nominatim configuration
- * @returns The Nominatim configuration
+ * Gets the Pelias configuration
+ * @returns The Pelias configuration
  */
-export function getNominatimConfig() {
-	return getNodeEnvironmentConfig().nominatim;
+export function getPeliasConfig() {
+	return getNodeEnvironmentConfig().pelias;
 }
 
 /**

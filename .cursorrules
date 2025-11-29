@@ -4,7 +4,7 @@ Most important rules:
 - Do not ever run database reset commands.
 - Do not import $env/static/private into client-side code. This could leak sensitive information.
 - When working on the web app, use the web/ folder as a base.
-- We are using Fluxbase as our backend, not Supabase. Edge functions are in web/fluxbase/functions/.
+- We are using Fluxbase as our backend, not Supabase. Edge functions are in fluxbase/functions/.
 - Prefix all log messages with an appropriate emoji.
 - Always comply with a11y.
 - Use Svelte v5's runes system where applicable.

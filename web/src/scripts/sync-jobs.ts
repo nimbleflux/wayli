@@ -10,8 +10,6 @@ import { config } from 'dotenv';
 import { createClient } from '@fluxbase/sdk';
 import { readFile, readdir } from 'fs/promises';
 import { join, basename, extname } from 'path';
-import { gzipSync } from 'zlib';
-import * as esbuild from 'esbuild';
 
 // Load environment variables from .env files
 // Priority: existing env vars > .env.local > .env
@@ -89,48 +87,6 @@ function parseJobAnnotations(code: string): {
 	}
 
 	return annotations;
-}
-
-/**
- * Prepare compressed and base64-encoded GeoJSON data for embedding
- */
-async function prepareEmbeddedGeoJSON(basePath: string): Promise<{
-	countries: string;
-	timezones: string;
-}> {
-	console.log('📦 Preparing embedded GeoJSON data...');
-
-	try {
-		// Load countries.geojson
-		const countriesPath = join(basePath, 'src/lib/data/countries.geojson');
-		const countriesData = await readFile(countriesPath, 'utf-8');
-		const countriesCompressed = gzipSync(countriesData);
-		const countriesBase64 = countriesCompressed.toString('base64');
-		const countriesSizeOriginal = (countriesData.length / 1024 / 1024).toFixed(2);
-		const countriesSizeCompressed = (countriesBase64.length / 1024 / 1024).toFixed(2);
-		console.log(
-			`  ✅ countries.geojson: ${countriesSizeOriginal} MB → ${countriesSizeCompressed} MB (compressed)`
-		);
-
-		// Load timezones.geojson
-		const timezonesPath = join(basePath, 'src/lib/data/timezones.geojson');
-		const timezonesData = await readFile(timezonesPath, 'utf-8');
-		const timezonesCompressed = gzipSync(timezonesData);
-		const timezonesBase64 = timezonesCompressed.toString('base64');
-		const timezonesSizeOriginal = (timezonesData.length / 1024 / 1024).toFixed(2);
-		const timezonesSizeCompressed = (timezonesBase64.length / 1024 / 1024).toFixed(2);
-		console.log(
-			`  ✅ timezones.geojson: ${timezonesSizeOriginal} MB → ${timezonesSizeCompressed} MB (compressed)`
-		);
-
-		return {
-			countries: countriesBase64,
-			timezones: timezonesBase64
-		};
-	} catch (error) {
-		console.error('❌ Failed to prepare embedded GeoJSON:', error);
-		throw error;
-	}
 }
 
 /**
@@ -235,10 +191,10 @@ async function syncJobs() {
 
 	try {
 		// Determine base path (different in dev vs production)
-		// In dev: /workspace/web/
+		// In dev: /workspace/ (repo root, fluxbase is at root level)
 		// In production: /app/
 		const isProduction = process.env.NODE_ENV === 'production';
-		const basePath = isProduction ? '/app' : process.cwd();
+		const basePath = isProduction ? '/app' : join(process.cwd(), '..');
 
 		console.log(`📁 Base path: ${basePath}`);
 		console.log('🔍 Auto-discovering job handlers...\n');
@@ -253,6 +209,9 @@ async function syncJobs() {
 
 		console.log(`\n✅ Discovered ${discoveredJobs.length} job handlers\n`);
 
+		// Where node_modules live (for resolving npm packages like geojson, jszip, etc.)
+		const webNodeModules = join(basePath, 'web/node_modules');
+
 		// Read and prepare job code
 		const jobsToSync = await Promise.all(
 			discoveredJobs.map(async (config: JobConfig) => {
@@ -266,6 +225,10 @@ async function syncJobs() {
 					return {
 						name: config.name,
 						code,
+						// Source directory for resolving relative imports like "../../web/src/..."
+						sourceDir: join(basePath, 'fluxbase/jobs'),
+						// Additional node_modules paths for resolving npm packages
+						nodePaths: [webNodeModules],
 						enabled: config.enabled,
 						allow_net: config.allow_net,
 						allow_env: config.allow_env,
@@ -282,64 +245,6 @@ async function syncJobs() {
 
 		console.log(`\n🚀 Preparing to sync ${jobsToSync.length} job handlers to namespace "${namespace}"...`);
 
-		// Prepare embedded GeoJSON data
-		const embeddedGeoJSON = await prepareEmbeddedGeoJSON(basePath);
-
-		console.log('\n📦 Bundling jobs locally with esbuild...\n');
-
-		// Bundle each job locally using esbuild
-		const bundledJobs = await Promise.all(
-			jobsToSync.map(async (job) => {
-				console.log(`  📦 Bundling ${job.name}...`);
-
-				try {
-					const jobFilePath = join(basePath, `fluxbase/jobs/${job.name}.ts`);
-
-					// Bundle with esbuild, injecting compressed GeoJSON data
-					const result = await esbuild.build({
-						entryPoints: [jobFilePath],
-						bundle: true,
-						write: false,
-						platform: 'node',
-						format: 'esm',
-						target: 'es2022',
-						external: ['@fluxbase/sdk'], // Provided by Fluxbase runtime
-						minify: false,
-						sourcemap: 'inline',
-						keepNames: true,
-						absWorkingDir: basePath,
-						define: {
-							// Inject compressed GeoJSON data as constants
-							EMBEDDED_COUNTRIES_GEOJSON: JSON.stringify(embeddedGeoJSON.countries),
-							EMBEDDED_TIMEZONES_GEOJSON: JSON.stringify(embeddedGeoJSON.timezones)
-						}
-					});
-
-					const bundledCode = result.outputFiles[0].text;
-					const sizeKB = (bundledCode.length / 1024).toFixed(2);
-					console.log(`  ✅ ${job.name}: ${sizeKB} KB`);
-
-					return {
-						name: job.name,
-						code: bundledCode,
-						is_pre_bundled: true,
-						original_code: job.code,
-						enabled: job.enabled,
-						allow_net: job.allow_net,
-						allow_env: job.allow_env,
-						allow_read: job.allow_read,
-						require_role: job.require_role,
-						timeout: job.timeout
-					};
-				} catch (error) {
-					console.error(`  ❌ Failed to bundle ${job.name}:`, error);
-					throw error;
-				}
-			})
-		);
-
-		console.log('\n✅ All jobs bundled successfully!\n');
-
 		// Create Fluxbase client
 		const client = createClient(fluxbaseUrl, serviceRoleKey, {
 			auth: {
@@ -348,10 +253,12 @@ async function syncJobs() {
 			}
 		});
 
-		// Sync pre-bundled jobs to Fluxbase platform
+		console.log('\n📦 Syncing jobs (SDK will handle bundling)...\n');
+
+		// Sync jobs - SDK handles bundling with proper Deno external handling
 		const { data, error } = await client.admin.jobs.syncWithBundling({
 			namespace,
-			functions: bundledJobs,
+			functions: jobsToSync,
 			options: {
 				delete_missing: deleteMissing
 			}
@@ -362,15 +269,37 @@ async function syncJobs() {
 			process.exit(1);
 		}
 
-		console.log('✅ Job sync completed successfully!');
-
 		if (data) {
 			console.log('\n📊 Sync results:');
 			console.log(JSON.stringify(data, null, 2));
+
+			// Check for errors in the response
+			const syncData = data as {
+				summary?: { errors?: number; created?: number; updated?: number };
+				errors?: Array<{ job: string; error: string; action: string }>;
+			};
+
+			if (syncData.summary?.errors && syncData.summary.errors > 0) {
+				console.error(`\n❌ Job sync failed: ${syncData.summary.errors} job(s) had errors`);
+
+				if (syncData.errors && syncData.errors.length > 0) {
+					console.error('\n📋 Failed jobs:');
+					for (const err of syncData.errors) {
+						console.error(`   • ${err.job}: ${err.error}`);
+					}
+				}
+
+				process.exit(1);
+			}
+
+			const successCount = (syncData.summary?.created || 0) + (syncData.summary?.updated || 0);
+			console.log(`\n✅ Job sync completed: ${successCount} job(s) synced successfully`);
+		} else {
+			console.log('✅ Job sync completed successfully!');
 		}
 
 		// Summary
-		console.log('\n📋 Synced job handlers:');
+		console.log('\n📋 Job handlers:');
 		jobsToSync.forEach((job: typeof jobsToSync[0]) => {
 			const details: string[] = [];
 			if (job.allow_net) details.push('net');
@@ -384,7 +313,7 @@ async function syncJobs() {
 			);
 		});
 
-		console.log('\n✨ All job handlers synced successfully!');
+		console.log('\n✨ Sync complete!');
 	} catch (error) {
 		console.error('❌ Unexpected error during job sync:', error);
 		process.exit(1);

@@ -85,8 +85,8 @@ import { getNodeEnvironmentConfig } from './node-environment';
 
 ```typescript
 // src/routes/+page.svelte
-// Note: Nominatim configuration is now handled directly in the service
-// No client-side config needed at this time
+// Note: Pelias configuration is now handled directly in the service
+// Client-side can use PUBLIC_PELIAS_ENDPOINT env var (defaults to https://pelias.wayli.app)
 ```
 
 ### Server-Side Configuration

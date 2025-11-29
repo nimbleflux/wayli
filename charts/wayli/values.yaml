@@ -222,8 +222,8 @@ worker:
     ## Maximum number of job retries before marking as failed (default: 3)
     maxJobRetries: 3
     ## External service endpoints
-    nominatim:
-      endpoint: "http://nominatim.nominatim.svc.cluster.local:8088"
+    pelias:
+      endpoint: "http://pelias.pelias.svc.cluster.local:4000"
 
   ## Extra environment variables
   extraEnvVars: []

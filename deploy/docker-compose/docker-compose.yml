@@ -100,7 +100,7 @@ services:
       FLUXBASE_FUNCTIONS_FUNCTIONS_DIR: /app/functions
 
       # Wayli-specific environment variables for edge functions
-      NOMINATIM_ENDPOINT: ${NOMINATIM_ENDPOINT:-https://nominatim.openstreetmap.org}
+      PELIAS_ENDPOINT: ${PELIAS_ENDPOINT:-https://pelias.wayli.app}
 
     volumes:
       # Mount user migrations (Fluxbase format: NNN_name.{up,down}.sql)
@@ -197,7 +197,7 @@ services:
   #     DB_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-wayli}
   #
   #     # Worker-specific
-  #     NOMINATIM_ENDPOINT: ${NOMINATIM_ENDPOINT:-https://nominatim.openstreetmap.org}
+  #     PELIAS_ENDPOINT: ${PELIAS_ENDPOINT:-https://pelias.wayli.app}
   #     MAX_CONCURRENT_JOBS: ${MAX_CONCURRENT_JOBS:-3}
   #     MAX_JOB_RETRIES: ${MAX_JOB_RETRIES:-3}
   #

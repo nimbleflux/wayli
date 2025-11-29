@@ -8,28 +8,33 @@
  * @fluxbase:timeout 600
  */
 
-/// <reference path="./types.d.ts" />
+import type { FluxbaseClient, JobUtils } from './types';
 
 interface DistanceCalculationPayload {
 	target_user_id: string;
 }
 
-export async function handler(request: Request) {
-	const context = Fluxbase.getJobContext();
+export async function handler(
+	req: Request,
+	fluxbase: FluxbaseClient,
+	fluxbaseService: FluxbaseClient,
+	job: JobUtils
+) {
+	const context = job.getJobContext();
 	const payload = context.payload as DistanceCalculationPayload;
 	const jobId = context.job_id;
 
 	try {
 		console.log(`🧮 Processing distance calculation job ${jobId}`);
 
-		Fluxbase.reportProgress(0, 'Starting distance calculation...');
+		job.reportProgress(0, 'Starting distance calculation...');
 
 		const targetUserId = payload.target_user_id;
 		const BATCH_SIZE = 1000; // Process 1000 records per batch
 
 		// Count total records for accurate progress tracking
 		console.log(`🔍 Counting total records for user ${targetUserId}...`);
-		const { count, error: countError } = await Fluxbase.database()
+		const { count, error: countError } = await fluxbase
 			.from('tracker_data')
 			.select('*', { count: 'exact', head: true })
 			.eq('user_id', targetUserId)
@@ -45,7 +50,7 @@ export async function handler(request: Request) {
 
 		if (totalRecords === 0) {
 			console.log('⏭️  No records to process');
-			Fluxbase.reportProgress(100, 'No records to process');
+			job.reportProgress(100, 'No records to process');
 			return {
 				success: true,
 				result: {
@@ -61,7 +66,7 @@ export async function handler(request: Request) {
 		// Process in chronological batches using offset
 		while (offset < totalRecords) {
 			// Check for cancellation before each batch
-			if (await Fluxbase.isCancelled()) {
+			if (await job.isCancelled()) {
 				console.log(`🛑 Distance calculation job ${jobId} was cancelled`);
 				return {
 					success: false,
@@ -73,7 +78,7 @@ export async function handler(request: Request) {
 			console.log(`🧮 Processing batch at offset ${offset}/${totalRecords}...`);
 
 			// Call V2 function which uses chronological offset-based processing
-			const { data: updatedCount, error } = await Fluxbase.database().rpc('calculate_distances_batch_v2', {
+			const { data: updatedCount, error } = await fluxbase.rpc('calculate_distances_batch_v2', {
 				p_user_id: targetUserId,
 				p_offset: offset,
 				p_limit: BATCH_SIZE
@@ -98,7 +103,7 @@ export async function handler(request: Request) {
 
 			// Update progress (cap at 95% until final completion)
 			const progressPercent = Math.min(95, Math.round((offset / totalRecords) * 100));
-			Fluxbase.reportProgress(
+			job.reportProgress(
 				progressPercent,
 				`Processing distances... ${offset}/${totalRecords} records`
 			);
@@ -109,7 +114,7 @@ export async function handler(request: Request) {
 
 		console.log(`✅ Distance calculation completed: ${totalProcessed} records processed`);
 
-		Fluxbase.reportProgress(100, `Successfully processed ${totalProcessed} records`);
+		job.reportProgress(100, `Successfully processed ${totalProcessed} records`);
 
 		return {
 			success: true,

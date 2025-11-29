@@ -8,7 +8,8 @@
       "Bash(done)",
       "Bash(find:*)",
       "Bash(npx tsc:*)",
-      "Bash(psql:*)"
+      "Bash(psql:*)",
+      "Bash(npm run dev:*)"
     ],
     "deny": [],
     "ask": []

@@ -6,6 +6,11 @@
 	import { fluxbase } from '$lib/fluxbase';
 	import { translate } from '$lib/i18n';
 	import { getActiveJobsMap, subscribe, type JobStoreJob } from '$lib/stores/job-store';
+	import {
+		activeUploads,
+		subscribe as subscribeUploads,
+		type UploadProgress
+	} from '$lib/stores/upload-store';
 
 	// Use the reactive translation function
 	let t = $derived($translate);
@@ -20,6 +25,9 @@
 	let completedExportJobs = $state<JobStoreJob[]>([]);
 	let exportJobTimers = $state(new Map<string, NodeJS.Timeout>());
 
+	// Upload progress state
+	let uploads = $state<UploadProgress[]>([]);
+
 	// Subscribe to store changes
 	onMount(() => {
 		// Initial load from store
@@ -32,8 +40,14 @@
 			activeJobs = new Map(newJobs);
 		});
 
+		// Subscribe to upload progress
+		const unsubscribeUploads = subscribeUploads((uploadMap) => {
+			uploads = Array.from(uploadMap.values());
+		});
+
 		return () => {
 			unsubscribeJobs();
+			unsubscribeUploads();
 			// Clear all timers
 			completedJobTimers.forEach((timer) => clearTimeout(timer));
 			completedJobTimers.clear();
@@ -135,6 +149,27 @@
 	function cancelConfirmation() {
 		showCancelConfirm = false;
 		jobToCancel = null;
+	}
+
+	// Dismiss a job from the UI
+	function dismissJob(jobId: string) {
+		// Remove from local state
+		activeJobs.delete(jobId);
+		activeJobs = new Map(activeJobs);
+
+		// Also clear any pending timers
+		if (completedJobTimers.has(jobId)) {
+			clearTimeout(completedJobTimers.get(jobId));
+			completedJobTimers.delete(jobId);
+		}
+		if (exportJobTimers.has(jobId)) {
+			clearTimeout(exportJobTimers.get(jobId));
+			exportJobTimers.delete(jobId);
+		}
+
+		// Remove from completed lists
+		showCompletedJobs = showCompletedJobs.filter((j) => j.id !== jobId);
+		completedExportJobs = completedExportJobs.filter((j) => j.id !== jobId);
 	}
 
 	// Download export job result
@@ -253,7 +288,54 @@
 	});
 </script>
 
-{#snippet jobCard(job: JobStoreJob, showAction: 'cancel' | 'download' | 'none')}
+{#snippet uploadCard(upload: UploadProgress)}
+	<div class="mb-3 flex items-center gap-3">
+		<div class="flex-shrink-0">
+			<Upload class="h-5 w-5 text-blue-600" />
+		</div>
+
+		<div class="min-w-0 flex-1">
+			<div class="mb-1 text-xs font-medium text-gray-700 dark:text-gray-300">
+				{t('jobProgress.uploading')}: {upload.fileName}
+			</div>
+
+			{#if upload.status === 'uploading'}
+				<div class="relative mb-1">
+					<div class="h-4 w-full rounded-full bg-gray-200 dark:bg-gray-700">
+						<div
+							class="relative h-4 rounded-full bg-blue-600 transition-all duration-300"
+							style="width: {upload.percentage}%"
+						>
+							{#if upload.percentage > 10}
+								<div class="absolute inset-0 flex items-center justify-center">
+									<span class="text-xs font-medium text-white drop-shadow-sm">
+										{upload.percentage}%
+									</span>
+								</div>
+							{/if}
+						</div>
+					</div>
+				</div>
+				<div class="text-xs text-gray-500 dark:text-gray-400">
+					{(upload.loaded / 1024 / 1024).toFixed(1)} / {(upload.total / 1024 / 1024).toFixed(1)} MB
+				</div>
+			{:else if upload.status === 'processing'}
+				<div class="relative mb-1">
+					<div class="h-4 w-full rounded-full bg-gray-200 dark:bg-gray-700">
+						<div class="h-4 w-full animate-pulse rounded-full bg-blue-600"></div>
+					</div>
+				</div>
+				<div class="text-xs text-gray-500 dark:text-gray-400">{t('jobProgress.creatingJob')}</div>
+			{:else if upload.status === 'completed'}
+				<div class="text-xs text-green-600 dark:text-green-400">✅ {t('jobProgress.uploadComplete')}</div>
+			{:else if upload.status === 'failed'}
+				<div class="text-xs text-red-600 dark:text-red-400">❌ {upload.error || t('jobProgress.uploadFailed')}</div>
+			{/if}
+		</div>
+	</div>
+{/snippet}
+
+{#snippet jobCard(job: JobStoreJob, showAction: 'cancel' | 'download' | 'dismiss' | 'none')}
 	{@const JobIcon = getJobTypeIcon(job.job_name)}
 	{@const statusColor = getStatusColor(job.status)}
 	{@const eta = getETADisplay(job)}
@@ -316,19 +398,36 @@
 			>
 				<Download class="h-4 w-4" />
 			</button>
+		{:else if showAction === 'dismiss'}
+			<button
+				onclick={() => dismissJob(job.id)}
+				class="flex-shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+				title={t('jobProgress.dismiss')}
+				aria-label={t('jobProgress.dismiss')}
+			>
+				<X class="h-4 w-4" />
+			</button>
 		{/if}
 	</div>
 {/snippet}
 
-{#if visibleJobs.length > 0 || showCompletedJobs.length > 0 || completedExportJobs.length > 0}
+{#if uploads.length > 0 || visibleJobs.length > 0 || showCompletedJobs.length > 0 || completedExportJobs.length > 0}
+	<!-- Active uploads (shown first) -->
+	{#each uploads as upload (`${upload.id}-${upload.status}-${upload.percentage}`)}
+		{@render uploadCard(upload)}
+	{/each}
+
+	<!-- Active jobs -->
 	{#each visibleJobs as job (`${job.id}-${job.status}-${job.progress_percent}`)}
 		{@render jobCard(job, job.status === 'running' || job.status === 'pending' ? 'cancel' : 'none')}
 	{/each}
 
+	<!-- Completed jobs (non-export) -->
 	{#each showCompletedJobs as job (`${job.id}-${job.status}`)}
-		{@render jobCard(job, 'none')}
+		{@render jobCard(job, 'dismiss')}
 	{/each}
 
+	<!-- Completed export jobs (with download button) -->
 	{#each completedExportJobs as job (`${job.id}-${job.status}`)}
 		{@render jobCard(job, 'download')}
 	{/each}

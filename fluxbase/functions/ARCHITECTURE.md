@@ -197,7 +197,7 @@ Authentication: Required (JWT token)
 - [x] Simplified ServiceAdapter
 
 ### Phase 4: Integration Edge Function Elimination ✅
-- [x] Eliminated geocode-search (now direct Nominatim calls)
+- [x] Eliminated geocode-search (now direct Pelias calls)
 - [x] Eliminated tracker-data-smart (no longer needed without 1000 limit)
 - [x] Eliminated export-download, connections-api-key
 - [x] Kept only server-critical functions

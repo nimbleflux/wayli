@@ -1,78 +1,45 @@
 /**
  * Type definitions for Fluxbase Jobs runtime
  *
- * These types describe the global Fluxbase API that will be available
+ * These types describe the handler function parameters that will be provided
  * when job handlers run on the Fluxbase Jobs platform.
  */
 
-declare global {
-	/**
-	 * Fluxbase Jobs runtime API
-	 * Available as a global object in job handler execution environment
-	 */
-	const Fluxbase: {
-		/**
-		 * Get the current job execution context
-		 * Provides information about the job, user, and execution environment
-		 */
-		getJobContext(): JobContext;
-
-		/**
-		 * Report job progress
-		 * Sends progress updates to the Fluxbase platform which are broadcast
-		 * to clients via Realtime WebSocket connections
-		 *
-		 * @param percent - Progress percentage (0-100)
-		 * @param message - Human-readable progress message
-		 */
-		reportProgress(percent: number, message: string): void;
-
-		/**
-		 * Fluxbase Storage API
-		 * Provides access to Fluxbase Storage with the user's permissions
-		 */
-		storage: {
-			from(bucket: string): {
-				download(path: string): Promise<{ data: Blob | null; error: Error | null }>;
-				upload(
-					path: string,
-					file: File | Blob | Buffer,
-					options?: { contentType?: string; upsert?: boolean }
-				): Promise<{ data: any; error: Error | null }>;
-				remove(paths: string[]): Promise<{ data: any; error: Error | null }>;
-				list(
-					path?: string,
-					options?: { limit?: number; offset?: number; sortBy?: { column: string; order: string } }
-				): Promise<{ data: Array<{ name: string; id?: string; updated_at?: string; created_at?: string; metadata?: any }> | null; error: Error | null }>;
-			};
-		};
-
-		/**
-		 * Fluxbase Database API
-		 * Access PostgreSQL with Row-Level Security applied based on user context
-		 */
-		database(): DatabaseClient;
-
-		/**
-		 * Fluxbase Jobs API
-		 * Query and manage job history within job handlers
-		 */
-		jobs: JobsClient;
-
-		/**
-		 * Check if the current job has been cancelled
-		 * Jobs should periodically check this and exit gracefully if cancelled
-		 */
-		isCancelled(): Promise<boolean>;
-	};
-}
-
 /**
- * Database client returned by Fluxbase.database()
+ * Fluxbase client for database, storage, and jobs operations
+ * Two instances are provided: one with RLS (user context) and one with service role
  */
-interface DatabaseClient {
+interface FluxbaseClient {
 	/**
-	 * Query a table
+	 * Storage API for file operations
+	 */
+	storage: {
+		from(bucket: string): {
+			download(path: string): Promise<{ data: Blob | null; error: Error | null }>;
+			upload(
+				path: string,
+				file: File | Blob | Buffer,
+				options?: { contentType?: string; upsert?: boolean }
+			): Promise<{ data: any; error: Error | null }>;
+			remove(paths: string[]): Promise<{ data: any; error: Error | null }>;
+			list(
+				path?: string,
+				options?: { limit?: number; offset?: number; sortBy?: { column: string; order: string } }
+			): Promise<{
+				data: Array<{
+					name: string;
+					id?: string;
+					updated_at?: string;
+					created_at?: string;
+					metadata?: any;
+				}> | null;
+				error: Error | null;
+			}>;
+		};
+	};
+
+	/**
+	 * Query a database table
 	 * @param table - Table name
 	 */
 	from<T = any>(table: string): QueryBuilder<T>;
@@ -86,16 +53,54 @@ interface DatabaseClient {
 		fn: string,
 		params?: Record<string, unknown>
 	): Promise<{ data: T | null; error: Error | null }>;
+
+	/**
+	 * Jobs API for submitting and querying jobs
+	 */
+	jobs: JobsClient;
+}
+
+/**
+ * Job utilities for progress reporting, context, and cancellation
+ */
+interface JobUtils {
+	/**
+	 * Get the current job execution context
+	 * Provides information about the job, user, and execution environment
+	 */
+	getJobContext(): JobContext;
+
+	/**
+	 * Report job progress
+	 * Sends progress updates to the Fluxbase platform which are broadcast
+	 * to clients via Realtime WebSocket connections
+	 *
+	 * @param percent - Progress percentage (0-100)
+	 * @param message - Human-readable progress message
+	 */
+	reportProgress(percent: number, message: string): void;
+
+	/**
+	 * Check if the current job has been cancelled
+	 * Jobs should periodically check this and exit gracefully if cancelled
+	 */
+	isCancelled(): Promise<boolean>;
 }
 
 /**
  * Query builder for database operations
  */
 interface QueryBuilder<T = any> {
-	select(columns?: string, options?: { count?: 'exact' | 'planned' | 'estimated'; head?: boolean }): QueryBuilder<T>;
+	select(
+		columns?: string,
+		options?: { count?: 'exact' | 'planned' | 'estimated'; head?: boolean }
+	): QueryBuilder<T>;
 	insert(data: Partial<T> | Partial<T>[]): QueryBuilder<T>;
 	update(data: Partial<T>): QueryBuilder<T>;
-	upsert(data: Partial<T> | Partial<T>[], options?: { onConflict?: string; ignoreDuplicates?: boolean }): QueryBuilder<T>;
+	upsert(
+		data: Partial<T> | Partial<T>[],
+		options?: { onConflict?: string; ignoreDuplicates?: boolean }
+	): QueryBuilder<T>;
 	delete(): QueryBuilder<T>;
 
 	eq(column: string, value: unknown): QueryBuilder<T>;
@@ -118,16 +123,42 @@ interface QueryBuilder<T = any> {
 	single(): QueryBuilder<T>;
 	maybeSingle(): QueryBuilder<T>;
 
-	then<TResult1 = { data: T[] | T | null; error: Error | null; count?: number | null }, TResult2 = never>(
-		onfulfilled?: ((value: { data: T[] | T | null; error: Error | null; count?: number | null }) => TResult1 | PromiseLike<TResult1>) | null,
+	then<
+		TResult1 = { data: T[] | T | null; error: Error | null; count?: number | null },
+		TResult2 = never
+	>(
+		onfulfilled?:
+			| ((value: {
+					data: T[] | T | null;
+					error: Error | null;
+					count?: number | null;
+			  }) => TResult1 | PromiseLike<TResult1>)
+			| null,
 		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null
 	): Promise<TResult1 | TResult2>;
 }
 
 /**
- * Jobs client for querying job history
+ * Jobs client for querying and submitting jobs
  */
 interface JobsClient {
+	/**
+	 * Submit a new job
+	 * Creates a new job that will be executed by the job worker
+	 *
+	 * @param jobName - Name of the job handler to execute
+	 * @param payload - Data to pass to the job handler
+	 * @param options - Job options (namespace, priority)
+	 */
+	submit(
+		jobName: string,
+		payload: Record<string, unknown>,
+		options?: {
+			namespace?: string;
+			priority?: number;
+		}
+	): Promise<{ data: { job_id: string; status: string } | null; error: Error | null }>;
+
 	/**
 	 * List jobs with optional filtering
 	 */
@@ -195,4 +226,4 @@ interface JobContext {
 	} | null;
 }
 
-export {};
+export { FluxbaseClient, JobUtils, QueryBuilder, JobsClient, JobRecord, JobContext };

@@ -103,8 +103,8 @@ spec:
               value: "http://{{ include "wayli.fluxbase.kongHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ include "wayli.fluxbase.kongPort" . }}"
             - name: PUBLIC_FLUXBASE_BASE_URL
               value: {{ include "wayli.fluxbase.url" . | quote }}
-            - name: NOMINATIM_ENDPOINT
-              value: {{ .Values.worker.env.nominatim.endpoint | quote }}
+            - name: PELIAS_ENDPOINT
+              value: {{ .Values.worker.env.pelias.endpoint | quote }}
             - name: MAX_CONCURRENT_JOBS
               value: {{ .Values.worker.env.maxConcurrentJobs | default 3 | quote }}
             - name: MAX_JOB_RETRIES

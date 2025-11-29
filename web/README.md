@@ -82,7 +82,7 @@ graph TB
         end
 
         subgraph "External Services"
-            NS[Nominatim Service]
+            NS[Pelias Service]
             CRGS[Country Reverse Geocoding]
             IUS[Image Upload Service]
             PS[Pexels Service]
@@ -287,8 +287,8 @@ Wayli uses a secure, layered environment configuration:
 ### Client-Safe Configuration
 
 ```typescript
-// Note: Nominatim configuration is now handled directly in the service
-// No client-side config needed at this time
+// Note: Pelias configuration is now handled directly in the service
+// Client-side can use PUBLIC_PELIAS_ENDPOINT env var (defaults to https://pelias.wayli.app)
 ```
 
 ### Server-Only Configuration

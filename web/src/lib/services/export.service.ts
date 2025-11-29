@@ -39,13 +39,17 @@ export class ExportService {
 
 			if (existingError) throw existingError;
 
+			// Handle both array response and paginated object response { jobs: [...] }
+			const jobsList = Array.isArray(existingJobs)
+				? existingJobs
+				: (existingJobs as any)?.jobs || [];
+
 			// Filter for data_export jobs that are queued or running
-			const activeExports =
-				existingJobs?.filter(
-					(job) =>
-						job.job_name === 'data-export' &&
-						(job.status === 'pending' || job.status === 'running')
-				) || [];
+			const activeExports = jobsList.filter(
+				(job: any) =>
+					job.job_name === 'data-export' &&
+					(job.status === 'pending' || job.status === 'running')
+			);
 
 			if (activeExports.length > 0) {
 				throw new Error(

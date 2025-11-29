@@ -69,11 +69,14 @@ export class ServiceAdapter {
 	async getProfile() {
 		const { fluxbase } = await import('$lib/fluxbase');
 
-		// Get user email from auth
+		// Get user email and metadata from auth
 		const { data: userData } = await fluxbase.auth.getUser();
 		if (!userData.user) {
 			throw new Error('User not authenticated');
 		}
+
+		// Extract metadata from auth user (set during signup)
+		const userMetadata = userData.user.user_metadata || {};
 
 		// Get profile data from user_profiles table
 		const { data: profile, error } = await fluxbase
@@ -86,10 +89,15 @@ export class ServiceAdapter {
 			throw new Error(error.message || 'Failed to fetch profile');
 		}
 
-		// Combine auth and profile data
+		// Combine auth and profile data, using auth metadata as fallback
+		// This handles cases where the database trigger didn't populate the profile
 		return {
 			...profile,
-			email: userData.user.email
+			email: userData.user.email,
+			// Use profile values if available, otherwise fall back to auth metadata
+			first_name: profile?.first_name || userMetadata.first_name || '',
+			last_name: profile?.last_name || userMetadata.last_name || '',
+			full_name: profile?.full_name || userMetadata.full_name || ''
 		};
 	}
 
@@ -981,19 +989,18 @@ export class ServiceAdapter {
 	}
 
 	/**
-	 * Geocoding Operations - Direct Nominatim API Call
+	 * Geocoding Operations - Direct Pelias API Call
 	 */
 	async searchGeocode(query: string) {
-		// Call Nominatim API directly from client
-		const url = new URL('https://nominatim.openstreetmap.org/search');
-		url.searchParams.set('q', query);
-		url.searchParams.set('format', 'json');
-		url.searchParams.set('addressdetails', '1');
-		url.searchParams.set('limit', '10');
+		// Call Pelias API directly from client
+		// Use autocomplete endpoint for faster results
+		const endpoint = import.meta.env.PUBLIC_PELIAS_ENDPOINT || 'https://pelias.wayli.app';
+		const url = `${endpoint}/v1/autocomplete?text=${encodeURIComponent(query)}&size=10`;
 
-		const response = await fetch(url.toString(), {
+		const response = await fetch(url, {
 			headers: {
-				'User-Agent': 'Wayli Location Tracker'
+				'User-Agent': 'WayliApp/1.0',
+				'Accept': 'application/json'
 			}
 		});
 
@@ -1002,7 +1009,32 @@ export class ServiceAdapter {
 		}
 
 		const data = await response.json();
-		return data;
+
+		// Transform Pelias GeoJSON response to a simpler format for compatibility
+		if (data.features && Array.isArray(data.features)) {
+			return data.features.map((feature: any) => ({
+				display_name: feature.properties?.label || '',
+				lat: feature.geometry?.coordinates?.[1],
+				lon: feature.geometry?.coordinates?.[0],
+				name: feature.properties?.name,
+				layer: feature.properties?.layer,
+				category: feature.properties?.category,
+				confidence: feature.properties?.confidence,
+				// Include addendum for OSM venue data (leisure, amenity, tourism, etc.)
+				addendum: feature.properties?.addendum,
+				address: {
+					city: feature.properties?.locality,
+					state: feature.properties?.region,
+					country: feature.properties?.country,
+					country_code: feature.properties?.country_a,
+					postcode: feature.properties?.postalcode,
+					road: feature.properties?.street,
+					house_number: feature.properties?.housenumber
+				}
+			}));
+		}
+
+		return [];
 	}
 
 	async getExportDownloadUrl(jobId: string) {
@@ -1064,7 +1096,10 @@ export class ServiceAdapter {
 			}
 
 			// Filter by type if provided (client-side filtering)
-			let filteredJobs = jobs || [];
+			// Handle both array response and paginated object response { jobs: [...] }
+			let filteredJobs: any[] = Array.isArray(jobs)
+				? jobs
+				: (jobs as any)?.jobs || [];
 			if (options?.type) {
 				filteredJobs = filteredJobs.filter((job) => job.job_name === options.type);
 			}

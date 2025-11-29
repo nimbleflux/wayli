@@ -2,6 +2,92 @@ import { TransportDetectionReason } from '../types/transport-mode.types';
 import type { GeocodeGeoJSONFeature } from './geojson-converter';
 
 import { SPEED_BRACKETS } from './transport-mode.config';
+
+// =============================================================================
+// Addendum/OSM Tag Extraction Helpers
+// =============================================================================
+
+/**
+ * Extracts OSM data from the addendum field of a geocode feature.
+ * Returns the osm object or null if not available.
+ */
+function getOsmDataFromAddendum(
+	reverseGeocode: GeocodeGeoJSONFeature | null | undefined
+): Record<string, unknown> | null {
+	if (!reverseGeocode?.properties?.addendum) return null;
+
+	const addendum = reverseGeocode.properties.addendum as Record<string, unknown>;
+	const osm = addendum.osm;
+
+	if (!osm || typeof osm !== 'object') return null;
+	return osm as Record<string, unknown>;
+}
+
+/**
+ * Gets the venue type from addendum OSM data.
+ * Checks leisure, amenity, tourism, shop, sport tags in priority order.
+ */
+export function getVenueTypeFromAddendum(
+	reverseGeocode: GeocodeGeoJSONFeature | null | undefined
+): string | null {
+	const osm = getOsmDataFromAddendum(reverseGeocode);
+	if (!osm) return null;
+
+	return (
+		(osm.leisure as string) ||
+		(osm.amenity as string) ||
+		(osm.tourism as string) ||
+		(osm.shop as string) ||
+		(osm.sport as string) ||
+		null
+	);
+}
+
+/**
+ * Checks if the person is at a known venue type (restaurant, golf course, etc.)
+ * This is useful for improving stationary detection confidence.
+ */
+export function isAtVenue(
+	reverseGeocode: GeocodeGeoJSONFeature | null | undefined
+): boolean {
+	return getVenueTypeFromAddendum(reverseGeocode) !== null;
+}
+
+/**
+ * Checks if the venue type suggests stationary activity.
+ * Returns true for venues where people typically stay for extended periods.
+ */
+export function isStationaryVenue(
+	reverseGeocode: GeocodeGeoJSONFeature | null | undefined
+): boolean {
+	const venueType = getVenueTypeFromAddendum(reverseGeocode);
+	if (!venueType) return false;
+
+	// Venue types where people typically stay stationary
+	const stationaryVenueTypes = [
+		// Leisure
+		'golf_course', 'sports_centre', 'fitness_centre', 'swimming_pool',
+		'park', 'playground', 'garden', 'nature_reserve', 'stadium',
+		// Amenity - Food & Drink
+		'restaurant', 'cafe', 'bar', 'pub', 'fast_food', 'food_court', 'biergarten',
+		// Amenity - Entertainment
+		'cinema', 'theatre', 'nightclub', 'casino', 'arts_centre',
+		// Amenity - Education
+		'school', 'university', 'college', 'library', 'kindergarten',
+		// Amenity - Healthcare
+		'hospital', 'clinic', 'doctors', 'dentist', 'pharmacy',
+		// Amenity - Other
+		'place_of_worship', 'community_centre', 'social_facility',
+		'bank', 'post_office', 'townhall', 'courthouse',
+		// Tourism
+		'hotel', 'motel', 'hostel', 'guest_house', 'camp_site',
+		'museum', 'gallery', 'attraction', 'theme_park', 'zoo', 'aquarium',
+		// Shop (major ones where people browse)
+		'supermarket', 'department_store', 'mall', 'shopping_centre'
+	];
+
+	return stationaryVenueTypes.includes(venueType.toLowerCase());
+}
 // Haversine distance in meters
 export function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
 	const toRad = (x: number) => (x * Math.PI) / 180;
@@ -86,7 +172,49 @@ export function isAtTrainStation(
 
 	const props = reverseGeocode.properties;
 
-	// Check top-level and address fields for class/type
+	// Pelias category-based detection
+	const category = props.category as string[] | undefined;
+	if (category && Array.isArray(category)) {
+		// Check for train/rail related categories
+		if (
+			category.some(
+				(c) =>
+					c === 'transport:station' ||
+					c === 'transport:rail' ||
+					c.startsWith('transport:rail:')
+			)
+		) {
+			return true;
+		}
+	}
+
+	// Addendum/OSM-based detection (merged from all Pelias features)
+	const osm = getOsmDataFromAddendum(reverseGeocode);
+	if (osm) {
+		// Check for railway-related OSM tags
+		const railway = osm.railway as string | undefined;
+		const publicTransport = osm.public_transport as string | undefined;
+		const building = osm.building as string | undefined;
+
+		// Railway station types
+		const railwayStationTypes = ['station', 'halt', 'platform', 'stop', 'subway_entrance', 'tram_stop'];
+		if (railway && railwayStationTypes.includes(railway)) {
+			return true;
+		}
+
+		// Public transport station types
+		const publicTransportTypes = ['station', 'platform', 'stop_position', 'stop_area'];
+		if (publicTransport && publicTransportTypes.includes(publicTransport)) {
+			return true;
+		}
+
+		// Building is a train station
+		if (building === 'train_station') {
+			return true;
+		}
+	}
+
+	// Legacy Nominatim-style detection for backward compatibility with existing data
 	const hasRailwayClass =
 		props.class === 'railway' || (props.address && props.address.class === 'railway');
 	const hasPlatformType =
@@ -109,12 +237,15 @@ export function getTrainStationName(
 	if (!reverseGeocode || !reverseGeocode.properties) return null;
 
 	const props = reverseGeocode.properties;
-	if (props.address) {
-		const city = props.address.city || '';
-		const name = props.address.name || '';
-		return city && name ? `${city} - ${name}` : name || city || null;
+
+	// Pelias properties (preferred)
+	const name = (props.name as string) || props.label || props.display_name || '';
+	const city = props.locality || props.address?.city || '';
+
+	if (city && name && name !== city) {
+		return `${city} - ${name}`;
 	}
-	return null;
+	return name || city || null;
 }
 
 // Phase 1: Airport Detection Functions
@@ -125,7 +256,35 @@ export function isAtAirport(reverseGeocode: GeocodeGeoJSONFeature | null | undef
 
 	const props = reverseGeocode.properties;
 
-	// Check for airport-related types and classes
+	// Pelias category-based detection
+	const category = props.category as string[] | undefined;
+	if (category && Array.isArray(category)) {
+		// Check for air transport related categories
+		if (category.some((c) => c.startsWith('transport:air'))) {
+			return true;
+		}
+	}
+
+	// Addendum/OSM-based detection (merged from all Pelias features)
+	const osm = getOsmDataFromAddendum(reverseGeocode);
+	if (osm) {
+		// Check for aeroway-related OSM tags
+		const aeroway = osm.aeroway as string | undefined;
+		const building = osm.building as string | undefined;
+
+		// Aeroway types that indicate airport
+		const aerowayTypes = ['aerodrome', 'terminal', 'gate', 'helipad', 'heliport', 'runway', 'taxiway', 'apron'];
+		if (aeroway && aerowayTypes.includes(aeroway)) {
+			return true;
+		}
+
+		// Building is an airport terminal
+		if (building === 'terminal' || building === 'airport') {
+			return true;
+		}
+	}
+
+	// Legacy Nominatim-style detection for backward compatibility with existing data
 	const airportTypes = ['airport', 'aerodrome', 'runway', 'terminal', 'helipad'];
 	const airportClasses = ['aeroway', 'aerialway'];
 
@@ -151,12 +310,15 @@ export function getAirportName(
 	if (!reverseGeocode || !reverseGeocode.properties) return null;
 
 	const props = reverseGeocode.properties;
-	if (props.address) {
-		const city = props.address.city || '';
-		const name = props.address.name || '';
-		return city && name ? `${city} - ${name}` : name || city || null;
+
+	// Pelias properties (preferred)
+	const name = (props.name as string) || props.label || props.display_name || '';
+	const city = props.locality || props.address?.city || '';
+
+	if (city && name && name !== city) {
+		return `${city} - ${name}`;
 	}
-	return null;
+	return name || city || null;
 }
 
 // Calculate significant distance threshold for airplane detection
@@ -316,7 +478,13 @@ export function isOnHighwayOrMotorway(
 
 	const props = reverseGeocode.properties;
 
-	// Check for highway/motorway indicators
+	// Pelias layer-based detection - streets are in 'street' layer
+	// Combined with address containing road information
+	if (props.layer === 'street' && props.address?.road) {
+		return true;
+	}
+
+	// Legacy Nominatim-style detection for backward compatibility with existing data
 	const highwayTypes = ['motorway', 'trunk', 'primary', 'highway'];
 	const highwayClasses = ['highway'];
 
@@ -597,9 +765,28 @@ export function detectEnhancedMode(
 			speedBracket = 'car';
 		}
 
+		// Venue-based stationary detection enhancement
+		// If at a stationary venue (restaurant, golf course, etc.) and speed is low,
+		// increase confidence in stationary mode even with GPS drift
+		const atStationaryVenue = isStationaryVenue(reverseGeocode);
+		if (atStationaryVenue && speedKmh < 5) {
+			// At a venue where people typically stay stationary, and speed is very low
+			// This helps overcome GPS drift that might otherwise show as walking
+			speedBracket = 'stationary';
+		} else if (atStationaryVenue && speedKmh < 10 && speedBracket === 'walking') {
+			// At a stationary venue but showing walking speeds - likely GPS drift
+			// Keep as walking but with lower confidence (context suggests stationary)
+			// The venue context provides additional information for downstream processing
+		}
+
 		// Phase 2: More restrictive train detection - only if NOT on highway/motorway
 		detectedMode = speedBracket;
 		reason = TransportDetectionReason.DEFAULT;
+
+		// Add venue context to reason if at a stationary venue
+		if (atStationaryVenue && detectedMode === 'stationary') {
+			reason = TransportDetectionReason.VENUE_STATIONARY;
+		}
 
 		// Only detect train if NOT on highway/motorway
 		if (!onHighway) {

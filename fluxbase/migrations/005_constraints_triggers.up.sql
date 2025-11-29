@@ -36,35 +36,62 @@ INSERT OR UPDATE OF "role" ON "public"."user_profiles" FOR EACH ROW EXECUTE FUNC
 COMMENT ON TRIGGER "trigger_sync_user_role" ON "public"."user_profiles" IS 'Syncs user role from user_profiles.role to auth.users.role for JWT claims';
 
 -- ============================================================================
--- FOREIGN KEY CONSTRAINTS
+-- CLEANUP ORPHANED RECORDS BEFORE ADDING FOREIGN KEY CONSTRAINTS
+-- ============================================================================
+-- Remove any records referencing non-existent users to prevent FK violations
+
+DELETE FROM "public"."user_preferences" WHERE "id" NOT IN (SELECT "id" FROM "auth"."users");
+DELETE FROM "public"."user_profiles" WHERE "id" NOT IN (SELECT "id" FROM "auth"."users");
+DELETE FROM "public"."jobs" WHERE "created_by" IS NOT NULL AND "created_by" NOT IN (SELECT "id" FROM "auth"."users");
+DELETE FROM "public"."tracker_data" WHERE "user_id" NOT IN (SELECT "id" FROM "auth"."users");
+DELETE FROM "public"."trips" WHERE "user_id" NOT IN (SELECT "id" FROM "auth"."users");
+DELETE FROM "public"."want_to_visit_places" WHERE "user_id" NOT IN (SELECT "id" FROM "auth"."users");
+
+-- ============================================================================
+-- FOREIGN KEY CONSTRAINTS (idempotent - drop if exists before adding)
 -- ============================================================================
 
+ALTER TABLE "public"."jobs" DROP CONSTRAINT IF EXISTS "jobs_created_by_fkey";
 ALTER TABLE ONLY "public"."jobs"
 ADD CONSTRAINT "jobs_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+ALTER TABLE "public"."tracker_data" DROP CONSTRAINT IF EXISTS "tracker_data_user_id_fkey";
 ALTER TABLE ONLY "public"."tracker_data"
 ADD CONSTRAINT "tracker_data_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+ALTER TABLE "public"."trips" DROP CONSTRAINT IF EXISTS "trips_user_id_fkey";
 ALTER TABLE ONLY "public"."trips"
 ADD CONSTRAINT "trips_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+ALTER TABLE "public"."user_preferences" DROP CONSTRAINT IF EXISTS "user_preferences_id_fkey";
 ALTER TABLE ONLY "public"."user_preferences"
 ADD CONSTRAINT "user_preferences_id_fkey" FOREIGN KEY ("id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+ALTER TABLE "public"."user_profiles" DROP CONSTRAINT IF EXISTS "user_profiles_id_fkey";
 ALTER TABLE ONLY "public"."user_profiles"
 ADD CONSTRAINT "user_profiles_id_fkey" FOREIGN KEY ("id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+ALTER TABLE "public"."want_to_visit_places" DROP CONSTRAINT IF EXISTS "want_to_visit_places_user_id_fkey";
 ALTER TABLE ONLY "public"."want_to_visit_places"
 ADD CONSTRAINT "want_to_visit_places_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+ALTER TABLE "public"."workers" DROP CONSTRAINT IF EXISTS "workers_current_job_fkey";
 ALTER TABLE ONLY "public"."workers"
 ADD CONSTRAINT "workers_current_job_fkey" FOREIGN KEY ("current_job") REFERENCES "public"."jobs"("id") ON DELETE
 SET NULL;
 -- Note: workers_user_id_fkey removed - workers table no longer has user_id column (system-level processes)
 
 -- ============================================================================
--- ADDITIONAL CHECK CONSTRAINTS
+-- ADDITIONAL CHECK CONSTRAINTS (idempotent - drop if exists before adding)
 -- ============================================================================
 
 -- Trip dates must be logical
+ALTER TABLE "public"."trips" DROP CONSTRAINT IF EXISTS "trips_valid_dates";
 ALTER TABLE ONLY "public"."trips"
 ADD CONSTRAINT "trips_valid_dates" CHECK ("end_date" >= "start_date");
 
 -- Battery level range (0-100)
+ALTER TABLE "public"."tracker_data" DROP CONSTRAINT IF EXISTS "tracker_data_valid_battery";
 ALTER TABLE ONLY "public"."tracker_data"
 ADD CONSTRAINT "tracker_data_valid_battery" CHECK (
     ("battery_level" IS NULL)
@@ -75,6 +102,7 @@ ADD CONSTRAINT "tracker_data_valid_battery" CHECK (
 );
 
 -- Accuracy must be non-negative
+ALTER TABLE "public"."tracker_data" DROP CONSTRAINT IF EXISTS "tracker_data_positive_accuracy";
 ALTER TABLE ONLY "public"."tracker_data"
 ADD CONSTRAINT "tracker_data_positive_accuracy" CHECK (
     ("accuracy" IS NULL)
@@ -82,6 +110,7 @@ ADD CONSTRAINT "tracker_data_positive_accuracy" CHECK (
 );
 
 -- Heading range (0-360 degrees)
+ALTER TABLE "public"."tracker_data" DROP CONSTRAINT IF EXISTS "tracker_data_valid_heading";
 ALTER TABLE ONLY "public"."tracker_data"
 ADD CONSTRAINT "tracker_data_valid_heading" CHECK (
     ("heading" IS NULL)

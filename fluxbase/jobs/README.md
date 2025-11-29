@@ -65,7 +65,7 @@ Examples:
 ### `@fluxbase:allow-net <boolean>`
 
 Allow network access for external API calls. Required for:
-- Geocoding APIs (Nominatim)
+- Geocoding APIs (Pelias)
 - External data sources
 - Webhooks
 
@@ -123,7 +123,7 @@ Fluxbase.reportProgress(100, "Import complete");
 
 ### Geocoding
 
-- **reverse-geocoding.ts** - Batch reverse geocode location points using Nominatim
+- **reverse-geocoding.ts** - Batch reverse geocode location points using Pelias
 
 ### Trip Processing
 

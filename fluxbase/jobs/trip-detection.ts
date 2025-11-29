@@ -8,10 +8,17 @@
  * @fluxbase:timeout 900
  */
 
-import { TripDetectionService } from '../../src/lib/services/trip-detection.service';
+import { TripDetectionService } from '../../web/src/lib/services/trip-detection.service';
 
-export async function handler(request: Request) {
-	const context = Fluxbase.getJobContext();
+import type { FluxbaseClient, JobUtils } from './types';
+
+export async function handler(
+	req: Request,
+	fluxbase: FluxbaseClient,
+	fluxbaseService: FluxbaseClient,
+	job: JobUtils
+) {
+	const context = job.getJobContext();
 	const payload = context.payload;
 	const jobId = context.job_id;
 	const userId = context.user?.id;
@@ -29,7 +36,7 @@ export async function handler(request: Request) {
 
 		const startTime = Date.now();
 
-		Fluxbase.reportProgress(10, 'Starting trip detection...');
+		job.reportProgress(10, 'Starting trip detection...');
 
 		// Use trip detection service
 		const tripDetectionService = new TripDetectionService(
@@ -39,7 +46,7 @@ export async function handler(request: Request) {
 
 		// Set up progress tracking
 		tripDetectionService.setProgressTracking(jobId, async (progress) => {
-			Fluxbase.reportProgress(progress.progress, progress.message);
+			job.reportProgress(progress.progress, progress.message);
 		});
 
 		// Use the trip detection service (will use default date range)
@@ -51,7 +58,8 @@ export async function handler(request: Request) {
 		if (detectedTrips.length > 0) {
 			console.log(`💾 Saving ${detectedTrips.length} detected trips to database...`);
 
-			const { data: savedTrips, error: saveError } = await Fluxbase.database().from('trips')
+			const { data: savedTrips, error: saveError } = await fluxbase
+				.from('trips')
 				.insert(detectedTrips)
 				.select();
 

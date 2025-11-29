@@ -27,7 +27,7 @@
 		"test-jobs": "tsx src/scripts/test-job-invocation.ts",
 		"sync-migrations": "tsx src/scripts/sync-migrations.ts",
 		"sync-migrations:dev": "tsx src/scripts/sync-migrations.ts",
-		"sync:all": "npm run sync-migrations && npm run sync-functions && npm run sync-jobs",
+		"sync:all": "npm run sync-functions && npm run sync-jobs && npm run sync-migrations",
 		"check:separation": "node scripts/check-environment-separation.js"
 	},
 	"devDependencies": {
@@ -71,7 +71,7 @@
 		"vitest": "^3.2.4"
 	},
 	"dependencies": {
-		"@fluxbase/sdk": "^0.0.1-rc.42",
+		"@fluxbase/sdk": "file:../../fluxbase-sdk",
 		"@melt-ui/svelte": "^0.86.6",
 		"@svelte-plugins/datepicker": "^1.0.11",
 		"@sveltejs/adapter-auto": "^6.1.0",

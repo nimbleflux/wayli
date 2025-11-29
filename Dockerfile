@@ -59,8 +59,8 @@ COPY --from=builder /app/static ./static
 COPY web/src ./src
 
 # Copy Fluxbase functions and migrations (needed for Kubernetes deployments)
-COPY web/fluxbase/functions ./fluxbase/functions
-COPY web/fluxbase/migrations ./fluxbase/migrations
+COPY fluxbase/functions ./fluxbase/functions
+COPY fluxbase/migrations ./fluxbase/migrations
 
 # Copy nginx config and serve static files
 COPY web/nginx.conf /etc/nginx/nginx.conf

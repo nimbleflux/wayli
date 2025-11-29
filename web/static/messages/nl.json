@@ -469,7 +469,7 @@
 		"selectFile": "Bestand selecteren",
 		"selectedFile": "Geselecteerd: {filename}",
 		"detectedFormat": "Gedetecteerd formaat: {format}",
-		"importing": "Uploaden... (Dit kan enkele minuten duren voor grote bestanden)",
+		"importing": "Uploaden...",
 		"importDataButton": "Data importeren",
 		"uploadSuccessful": "Upload succesvol!",
 		"importFailed": "Import mislukt",
@@ -743,7 +743,12 @@
 		"downloadStarted": "Download gestart",
 		"failedToDownloadExport": "Export downloaden mislukt",
 		"cancelJob": "Taak annuleren",
-		"downloadExport": "Export downloaden"
+		"downloadExport": "Export downloaden",
+		"dismiss": "Verwijderen",
+		"uploading": "Uploaden",
+		"creatingJob": "Taak aanmaken...",
+		"uploadComplete": "Upload voltooid",
+		"uploadFailed": "Upload mislukt"
 	},
 	"accountSettings": {
 		"title": "Gebruikersinstellingen",

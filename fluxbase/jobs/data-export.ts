@@ -14,7 +14,9 @@ import {
 	isGeoJSONGeocode,
 	getDisplayNameFromGeoJSON,
 	getAddressFromGeoJSON
-} from '../../src/lib/utils/geojson-converter';
+} from '../../web/src/lib/utils/geojson-converter';
+
+import type { FluxbaseClient, JobUtils } from './types';
 
 interface DataExportPayload {
 	format: string;
@@ -40,8 +42,13 @@ interface TrackerLocation {
 	geocode?: Record<string, unknown> | null;
 }
 
-export async function handler(request: Request) {
-	const context = Fluxbase.getJobContext();
+export async function handler(
+	req: Request,
+	fluxbase: FluxbaseClient,
+	fluxbaseService: FluxbaseClient,
+	job: JobUtils
+) {
+	const context = job.getJobContext();
 	const payload = context.payload as DataExportPayload;
 	const jobId = context.job_id;
 	const userId = context.user?.id;
@@ -75,7 +82,7 @@ export async function handler(request: Request) {
 					: 'All time'
 		});
 
-		Fluxbase.reportProgress(10, 'Starting export process...');
+		job.reportProgress(10, 'Starting export process...');
 
 		await new Promise((resolve) => setTimeout(resolve, 500));
 
@@ -85,9 +92,10 @@ export async function handler(request: Request) {
 		// Export location data if requested
 		if (payload.includeLocationData) {
 			console.log('[ExportWorker] Starting location data export...');
-			Fluxbase.reportProgress(25, 'Exporting location data...');
+			job.reportProgress(25, 'Exporting location data...');
 			await new Promise((resolve) => setTimeout(resolve, 1000));
 			const locationData = await exportLocationData(
+				fluxbase,
 				userId,
 				payload.startDate,
 				payload.endDate
@@ -110,10 +118,11 @@ export async function handler(request: Request) {
 		// Export want-to-visit data if requested
 		if (payload.includeWantToVisit) {
 			console.log('[ExportWorker] Starting want-to-visit export...');
-			Fluxbase.reportProgress(50, 'Exporting want-to-visit data...');
+			job.reportProgress(50, 'Exporting want-to-visit data...');
 			await new Promise((resolve) => setTimeout(resolve, 1000));
 			console.log('[ExportWorker] Calling exportWantToVisit');
 			const wantToVisitData = await exportWantToVisit(
+				fluxbase,
 				userId,
 				payload.startDate,
 				payload.endDate
@@ -140,9 +149,9 @@ export async function handler(request: Request) {
 		// Export trips data if requested
 		if (payload.includeTrips) {
 			console.log(`[ExportWorker] Starting trips export for job ${jobId}...`);
-			Fluxbase.reportProgress(75, 'Exporting trips data...');
+			job.reportProgress(75, 'Exporting trips data...');
 			await new Promise((resolve) => setTimeout(resolve, 1000));
-			const tripsData = await exportTrips(userId, payload.startDate, payload.endDate);
+			const tripsData = await exportTrips(fluxbase, userId, payload.startDate, payload.endDate);
 			console.log(
 				`[ExportWorker] Trips export completed for job ${jobId}, data length: ${tripsData?.length || 0}`
 			);
@@ -169,7 +178,7 @@ export async function handler(request: Request) {
 		console.log(`[ExportWorker] Uploading zip file to storage: ${filePath}`);
 
 		// Before uploading, delete old export files (keep only 5 most recent)
-		const exportJobs = await getUserExportJobs(userId);
+		const exportJobs = await getUserExportJobs(fluxbase, userId);
 		const oldJobs = exportJobs.filter((job, idx) => idx >= 5 && job.file_path);
 		if (oldJobs.length > 0) {
 			const oldPaths = oldJobs
@@ -177,11 +186,11 @@ export async function handler(request: Request) {
 				.filter((p): p is string => typeof p === 'string');
 			if (oldPaths.length > 0) {
 				console.log(`[ExportWorker] Deleting old export files:`, oldPaths);
-				await Fluxbase.storage.from('exports').remove(oldPaths);
+				await fluxbase.storage.from('exports').remove(oldPaths);
 			}
 		}
 
-		const { error: uploadError } = await Fluxbase.storage
+		const { error: uploadError } = await fluxbase.storage
 			.from('exports')
 			.upload(filePath, zipBuffer, {
 				contentType: 'application/zip',
@@ -193,7 +202,7 @@ export async function handler(request: Request) {
 			throw new Error(`Failed to upload export file: ${uploadError.message}`);
 		}
 
-		Fluxbase.reportProgress(100, 'Finalizing export...');
+		job.reportProgress(100, 'Finalizing export...');
 
 		console.log(`[ExportWorker] Export job ${jobId} completed successfully.`);
 
@@ -214,6 +223,7 @@ export async function handler(request: Request) {
 }
 
 async function exportLocationData(
+	fluxbase: FluxbaseClient,
 	userId: string,
 	startDate?: string | null,
 	endDate?: string | null
@@ -227,7 +237,7 @@ async function exportLocationData(
 	let geojson = '{"type":"FeatureCollection","features":[';
 
 	while (true) {
-		let query = Fluxbase.database().from('tracker_data').select('*').eq('user_id', userId);
+		let query = fluxbase.from('tracker_data').select('*').eq('user_id', userId);
 		if (startDate) query = query.gte('recorded_at', startDate);
 		if (endDate) query = query.lte('recorded_at', endDate);
 		query = query.order('recorded_at', { ascending: true }).range(offset, offset + batchSize - 1);
@@ -293,12 +303,13 @@ async function exportLocationData(
 }
 
 async function exportWantToVisit(
+	fluxbase: FluxbaseClient,
 	userId: string,
 	startDate?: string | null,
 	endDate?: string | null
 ): Promise<string | null> {
 	console.log('[ExportWorker] exportWantToVisit starting', { userId, startDate, endDate });
-	let query = Fluxbase.database().from('want_to_visit_places').select('*').eq('user_id', userId);
+	let query = fluxbase.from('want_to_visit_places').select('*').eq('user_id', userId);
 	if (startDate) query = query.gte('created_at', startDate);
 	if (endDate) query = query.lte('created_at', endDate);
 	query = query.order('created_at', { ascending: true });
@@ -319,12 +330,13 @@ async function exportWantToVisit(
 }
 
 async function exportTrips(
+	fluxbase: FluxbaseClient,
 	userId: string,
 	startDate?: string | null,
 	endDate?: string | null
 ): Promise<string | null> {
 	console.log('[ExportWorker] exportTrips starting', { userId, startDate, endDate });
-	let query = Fluxbase.database().from('trips').select('*').eq('user_id', userId);
+	let query = fluxbase.from('trips').select('*').eq('user_id', userId);
 	if (startDate) query = query.gte('start_date', startDate);
 	if (endDate) query = query.lte('end_date', endDate);
 	query = query.order('start_date', { ascending: true });
@@ -344,9 +356,12 @@ async function exportTrips(
 	return result;
 }
 
-async function getUserExportJobs(userId: string): Promise<Array<{ file_path: string | null }>> {
+async function getUserExportJobs(
+	fluxbase: FluxbaseClient,
+	userId: string
+): Promise<Array<{ file_path: string | null }>> {
 	// Use Fluxbase Jobs API to query completed export jobs
-	const { data: jobs, error } = await Fluxbase.jobs.list({
+	const { data: jobs, error } = await fluxbase.jobs.list({
 		status: 'completed',
 		job_name: 'data-export',
 		limit: 100

@@ -504,7 +504,8 @@
 		"supportedFormats": "Formatos soportados",
 		"locationData": "Datos de ubicación",
 		"wantToVisit": "Quiero visitar",
-		"trips": "Viajes"
+		"trips": "Viajes",
+		"exportAllDataHint": "Sin rango de fechas seleccionado - se exportarán todos los datos"
 	},
 	"trips": {
 		"title": "Viajes",

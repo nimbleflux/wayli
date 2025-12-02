@@ -156,29 +156,23 @@
 
 	// Export functions
 	async function handleExport() {
-		if (!exportStartDate || !exportEndDate) {
-			toast.error(t('importExport.pleaseSelectDates'));
-			return;
-		}
-
-		// We know these are Date objects at this point
-		const startDate = exportStartDate;
-		const endDate = exportEndDate;
-
+		// Dates are optional - no date range means "export all data"
 		try {
 			await jobCreationService.createExportJob({
 				format: exportFormat,
 				includeLocationData: includeLocationDataExport,
 				includeWantToVisit: includeWantToVisitExport,
 				includeTrips: includeTripsExport,
-				startDate: startDate,
-				endDate: endDate
+				startDate: exportStartDate,
+				endDate: exportEndDate
 			});
 
 			// Reset form
 			exportFormat = 'JSON';
 			exportStartDate = undefined;
 			exportEndDate = undefined;
+			localExportStartDate = undefined;
+			localExportEndDate = undefined;
 			includeLocationDataExport = true;
 			includeWantToVisitExport = true;
 			includeTripsExport = true;
@@ -376,9 +370,14 @@
 							bind:endDate={localExportEndDate}
 							pickLabel={t('importExport.pickDateRange')}
 							onChange={handleExportDateRangeChange}
-							showClear={false}
+							showClear={true}
 						/>
 					</div>
+					{#if !localExportStartDate && !localExportEndDate}
+						<p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+							{t('importExport.exportAllDataHint')}
+						</p>
+					{/if}
 				</div>
 			</div>
 

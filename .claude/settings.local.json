@@ -14,7 +14,9 @@
       "Bash(grep:*)",
       "Bash(cat:*)",
       "Bash(npx svelte-check:*)",
-      "Bash(xargs:*)"
+      "Bash(xargs:*)",
+      "Bash(npm test:*)",
+      "Bash(npx vitest:*)"
     ],
     "deny": [],
     "ask": []

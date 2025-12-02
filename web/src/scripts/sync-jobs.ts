@@ -25,6 +25,7 @@ interface JobConfig {
 	allow_net?: boolean;
 	allow_env?: boolean;
 	allow_read?: boolean;
+	allow_write?: boolean;
 	require_role?: string;
 	timeout?: number;
 }
@@ -35,6 +36,7 @@ interface JobConfig {
  * - @fluxbase:allow-net
  * - @fluxbase:allow-env
  * - @fluxbase:allow-read
+ * - @fluxbase:allow-write
  * - @fluxbase:disabled
  * - @fluxbase:require-role <role>
  * - @fluxbase:timeout <seconds>
@@ -43,6 +45,7 @@ function parseJobAnnotations(code: string): {
 	allow_net: boolean;
 	allow_env: boolean;
 	allow_read: boolean;
+	allow_write: boolean;
 	enabled: boolean;
 	require_role?: string;
 	timeout?: number;
@@ -51,6 +54,7 @@ function parseJobAnnotations(code: string): {
 		allow_net: boolean;
 		allow_env: boolean;
 		allow_read: boolean;
+		allow_write: boolean;
 		enabled: boolean;
 		require_role?: string;
 		timeout?: number;
@@ -58,6 +62,7 @@ function parseJobAnnotations(code: string): {
 		allow_net: false,
 		allow_env: false,
 		allow_read: false,
+		allow_write: false,
 		enabled: true
 	};
 
@@ -73,6 +78,7 @@ function parseJobAnnotations(code: string): {
 	if (jsdoc.includes('@fluxbase:allow-net')) annotations.allow_net = true;
 	if (jsdoc.includes('@fluxbase:allow-env')) annotations.allow_env = true;
 	if (jsdoc.includes('@fluxbase:allow-read')) annotations.allow_read = true;
+	if (jsdoc.includes('@fluxbase:allow-write')) annotations.allow_write = true;
 	if (jsdoc.includes('@fluxbase:disabled')) annotations.enabled = false;
 
 	// Parse require-role
@@ -145,6 +151,7 @@ async function discoverJobs(basePath: string): Promise<JobConfig[]> {
 				allow_net: annotations.allow_net,
 				allow_env: annotations.allow_env,
 				allow_read: annotations.allow_read,
+				allow_write: annotations.allow_write,
 				require_role: annotations.require_role,
 				timeout: annotations.timeout
 			});
@@ -153,6 +160,7 @@ async function discoverJobs(basePath: string): Promise<JobConfig[]> {
 			if (annotations.allow_net) permissions.push('net');
 			if (annotations.allow_env) permissions.push('env');
 			if (annotations.allow_read) permissions.push('read');
+			if (annotations.allow_write) permissions.push('write');
 			if (annotations.require_role) permissions.push(`role=${annotations.require_role}`);
 			if (annotations.timeout) permissions.push(`timeout=${annotations.timeout}s`);
 
@@ -267,6 +275,7 @@ async function syncJobs() {
 						allow_net: config.allow_net,
 						allow_env: config.allow_env,
 						allow_read: config.allow_read,
+						allow_write: config.allow_write,
 						require_role: config.require_role,
 						timeout: config.timeout
 					};
@@ -345,6 +354,7 @@ async function syncJobs() {
 			if (job.allow_net) details.push('net');
 			if (job.allow_env) details.push('env');
 			if (job.allow_read) details.push('read');
+			if (job.allow_write) details.push('write');
 			if (job.require_role) details.push(`role=${job.require_role}`);
 			if (job.timeout) details.push(`timeout=${job.timeout}s`);
 

@@ -505,7 +505,8 @@
 		"supportedFormats": "Ondersteunde formaten",
 		"locationData": "Locatiedata",
 		"wantToVisit": "Wil bezoeken",
-		"trips": "Reizen"
+		"trips": "Reizen",
+		"exportAllDataHint": "Geen datumbereik geselecteerd - alle gegevens worden geëxporteerd"
 	},
 	"trips": {
 		"title": "Reizen",

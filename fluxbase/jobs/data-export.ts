@@ -7,7 +7,18 @@
  * @fluxbase:require-role authenticated
  * @fluxbase:timeout 900
  * @fluxbase:allow-read true
+ * @fluxbase:allow-write true
  */
+
+// Deno runtime types (available at runtime in Fluxbase Jobs)
+declare const Deno: {
+	open(
+		path: string,
+		options: { write?: boolean; create?: boolean; truncate?: boolean }
+	): Promise<{ write(data: Uint8Array): Promise<number>; close(): void }>;
+	readFile(path: string): Promise<Uint8Array>;
+	remove(path: string): Promise<void>;
+};
 
 import JSZip from 'jszip';
 import {
@@ -55,6 +66,49 @@ interface TrackerLocation {
 	geocode?: Record<string, unknown> | null;
 }
 
+interface ExportCounts {
+	locations: number;
+	wantToVisit: number;
+	trips: number;
+	total: number;
+}
+
+// Count records to be exported
+async function countRecords(
+	fluxbase: FluxbaseClient,
+	userId: string,
+	payload: DataExportPayload
+): Promise<ExportCounts> {
+	const counts: ExportCounts = { locations: 0, wantToVisit: 0, trips: 0, total: 0 };
+
+	if (payload.includeLocationData) {
+		let query = fluxbase.from('tracker_data').select('*', { count: 'exact', head: true }).eq('user_id', userId);
+		if (payload.startDate) query = query.gte('recorded_at', payload.startDate);
+		if (payload.endDate) query = query.lte('recorded_at', payload.endDate);
+		const { count } = await query;
+		counts.locations = count || 0;
+	}
+
+	if (payload.includeWantToVisit) {
+		let query = fluxbase.from('want_to_visit_places').select('*', { count: 'exact', head: true }).eq('user_id', userId);
+		if (payload.startDate) query = query.gte('created_at', payload.startDate);
+		if (payload.endDate) query = query.lte('created_at', payload.endDate);
+		const { count } = await query;
+		counts.wantToVisit = count || 0;
+	}
+
+	if (payload.includeTrips) {
+		let query = fluxbase.from('trips').select('*', { count: 'exact', head: true }).eq('user_id', userId);
+		if (payload.startDate) query = query.gte('start_date', payload.startDate);
+		if (payload.endDate) query = query.lte('end_date', payload.endDate);
+		const { count } = await query;
+		counts.trips = count || 0;
+	}
+
+	counts.total = counts.locations + counts.wantToVisit + counts.trips;
+	return counts;
+}
+
 export async function handler(
 	req: Request,
 	fluxbase: FluxbaseClient,
@@ -95,131 +149,173 @@ export async function handler(
 					: 'All time'
 		});
 
-		safeReportProgress(job, 10, '📦 Starting export process...');
+		safeReportProgress(job, 1, '📊 Counting records to export...');
 
-		await new Promise((resolve) => setTimeout(resolve, 500));
+		// First, count all records to be exported
+		const counts = await countRecords(fluxbase, userId, payload);
+		console.log('📊 Record counts:', counts);
+
+		if (counts.total === 0) {
+			console.log('⚠️ No records to export');
+			return {
+				success: false,
+				error: 'No records found to export'
+			};
+		}
+
+		safeReportProgress(job, 5, `📊 Found ${counts.total.toLocaleString()} records to export`);
 
 		const zip = new JSZip();
 		let totalFiles = 0;
+		let processedRecords = 0;
+
+		// Helper to calculate and report progress based on records processed
+		const reportProgress = (currentProcessed: number, message: string) => {
+			// Progress from 5% to 90% based on records processed
+			const percent = Math.round(5 + (currentProcessed / counts.total) * 85);
+			safeReportProgress(job, Math.min(percent, 90), message);
+		};
 
 		// Export location data if requested
-		if (payload.includeLocationData) {
-			console.log('📍 Starting location data export...');
-			safeReportProgress(job, 25, '📍 Exporting location data...');
-			await new Promise((resolve) => setTimeout(resolve, 1000));
+		if (payload.includeLocationData && counts.locations > 0) {
+			console.log(`📍 Starting location data export (${counts.locations.toLocaleString()} records)...`);
 			const locationData = await exportLocationData(
 				fluxbase,
 				userId,
 				payload.startDate,
-				payload.endDate
+				payload.endDate,
+				counts.locations,
+				(processed, total) => {
+					// Update progress based on actual records processed
+					reportProgress(processed, `📍 Exporting locations: ${processed.toLocaleString()} / ${total.toLocaleString()}`);
+				}
 			);
 			if (locationData) {
-				console.log(`✅ Location data exported successfully, length: ${locationData.length.toLocaleString()}`);
+				console.log(`✅ Location data exported successfully, size: ${(locationData.length / 1024 / 1024).toFixed(2)} MB`);
 				zip.file('locations.geojson', locationData);
 				totalFiles++;
+				processedRecords = counts.locations;
+				reportProgress(processedRecords, `📍 Exported ${counts.locations.toLocaleString()} locations`);
 				console.log('📦 Added locations.geojson to ZIP file');
-			} else {
-				console.log(`⏭️ No location data found for user ${userId}`);
 			}
+		} else if (payload.includeLocationData) {
+			console.log(`⏭️ No location data found for user ${userId}`);
 		} else {
 			console.log('⏭️ Location data export skipped (not requested)');
 		}
 
 		// Export want-to-visit data if requested
-		if (payload.includeWantToVisit) {
-			console.log('📌 Starting want-to-visit export...');
-			safeReportProgress(job, 50, '📌 Exporting want-to-visit data...');
-			await new Promise((resolve) => setTimeout(resolve, 1000));
-			console.log('🔍 Calling exportWantToVisit');
+		if (payload.includeWantToVisit && counts.wantToVisit > 0) {
+			console.log(`📌 Starting want-to-visit export (${counts.wantToVisit.toLocaleString()} records)...`);
 			const wantToVisitData = await exportWantToVisit(
 				fluxbase,
 				userId,
 				payload.startDate,
 				payload.endDate
 			);
-			console.log('📊 exportWantToVisit returned', {
-				hasData: !!wantToVisitData,
-				dataLength: wantToVisitData?.length || 0
-			});
 			if (wantToVisitData) {
 				console.log(`✅ Want-to-visit data exported successfully, length: ${wantToVisitData.length.toLocaleString()}`);
 				zip.file('want-to-visit.json', wantToVisitData);
 				totalFiles++;
+				processedRecords += counts.wantToVisit;
+				reportProgress(processedRecords, `📌 Exported ${counts.wantToVisit.toLocaleString()} want-to-visit places`);
 				console.log('📦 Added want-to-visit.json to ZIP file');
-			} else {
-				console.log(`⏭️ No want-to-visit data found for user ${userId}`);
 			}
+		} else if (payload.includeWantToVisit) {
+			console.log(`⏭️ No want-to-visit data found for user ${userId}`);
 		} else {
 			console.log('⏭️ Want-to-visit export skipped (not requested)');
 		}
 
 		// Export trips data if requested
-		if (payload.includeTrips) {
-			console.log(`✈️ Starting trips export for job ${jobId}...`);
-			safeReportProgress(job, 75, '✈️ Exporting trips data...');
-			await new Promise((resolve) => setTimeout(resolve, 1000));
+		if (payload.includeTrips && counts.trips > 0) {
+			console.log(`✈️ Starting trips export (${counts.trips.toLocaleString()} records)...`);
 			const tripsData = await exportTrips(fluxbase, userId, payload.startDate, payload.endDate);
-			console.log(`📊 Trips export completed for job ${jobId}, data length: ${tripsData?.length || 0}`);
 			if (tripsData) {
 				console.log(`✅ Trips data exported successfully, length: ${tripsData.length.toLocaleString()}`);
 				zip.file('trips.json', tripsData);
 				totalFiles++;
+				processedRecords += counts.trips;
+				reportProgress(processedRecords, `✈️ Exported ${counts.trips.toLocaleString()} trips`);
 				console.log('📦 Added trips.json to ZIP file');
-			} else {
-				console.log(`⏭️ No trips data found for user ${userId}`);
 			}
+		} else if (payload.includeTrips) {
+			console.log(`⏭️ No trips data found for user ${userId}`);
 		} else {
 			console.log('⏭️ Trips export skipped (not requested)');
 		}
 
 		// Generate zip file
+		safeReportProgress(job, 92, '📦 Generating ZIP file...');
 		console.log(`📦 Generating zip file for job ${jobId} with ${totalFiles} files`);
-		const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+		const zipBuffer = await zip.generateAsync({ type: 'uint8array' });
 		console.log(`📊 Zip file generated, size: ${(zipBuffer.length / 1024 / 1024).toFixed(2)} MB`);
 
 		// Upload to storage
+		safeReportProgress(job, 95, '📤 Uploading export file...');
 		const fileName = `export_${userId}_${Date.now()}.zip`;
 		const filePath = `${userId}/${fileName}`;
 		console.log(`📤 Uploading zip file to storage: ${filePath}`);
 
 		// Before uploading, delete old export files (keep only 5 most recent)
-		const exportJobs = await getUserExportJobs(fluxbase, userId);
-		const oldJobs = exportJobs.filter((job, idx) => idx >= 5 && job.file_path);
-		if (oldJobs.length > 0) {
-			const oldPaths = oldJobs
-				.map((job) => job.file_path)
-				.filter((p): p is string => typeof p === 'string');
-			if (oldPaths.length > 0) {
-				console.log(`🗑️ Deleting old export files:`, oldPaths);
-				await fluxbase.storage.from('exports').remove(oldPaths);
+		try {
+			const exportJobs = await getUserExportJobs(fluxbaseService, userId);
+			const oldJobs = exportJobs.filter((job, idx) => idx >= 5 && job.file_path);
+			if (oldJobs.length > 0) {
+				const oldPaths = oldJobs
+					.map((job) => job.file_path)
+					.filter((p): p is string => typeof p === 'string');
+				if (oldPaths.length > 0) {
+					console.log(`🗑️ Deleting old export files:`, oldPaths);
+					await fluxbaseService.storage.from('temp-files').remove(oldPaths);
+				}
 			}
+		} catch (cleanupError) {
+			console.warn('⚠️ Failed to cleanup old exports:', cleanupError);
+			// Continue with upload even if cleanup fails
 		}
 
-		const { error: uploadError } = await fluxbase.storage
-			.from('exports')
-			.upload(filePath, zipBuffer, {
-				contentType: 'application/zip',
-				upsert: false
-			});
+		// Upload using the Fluxbase Storage API (using service role for storage access)
+		console.log('📤 Attempting upload to Fluxbase Storage...');
+
+		// Use service role client for storage operations (temp-files bucket is already configured)
+		const storage = fluxbaseService.storage.from('temp-files');
+
+		// Log available methods on storage for debugging
+		console.log('📤 Storage methods:', Object.keys(storage));
+
+		// Upload the Uint8Array directly (File constructor may not work properly in Deno)
+		console.log(`📁 Uploading buffer: size=${zipBuffer.length} bytes`);
+
+		// Upload using the standard storage API with Uint8Array directly
+		console.log('📤 Uploading via storage.upload...');
+		const { data: uploadData, error: uploadError } = await storage.upload(filePath, zipBuffer, {
+			contentType: 'application/zip',
+			upsert: true
+		});
 
 		if (uploadError) {
-			console.error(`❌ Failed to upload export file: ${uploadError.message}`);
+			console.error(`❌ Upload failed:`, uploadError);
 			throw new Error(`Failed to upload export file: ${uploadError.message}`);
 		}
 
-		safeReportProgress(job, 100, '✅ Finalizing export...');
+		console.log('✅ Upload successful:', uploadData);
+
+		safeReportProgress(job, 100, '✅ Export completed!');
 
 		console.log(`✅ Export job ${jobId} completed successfully.`);
 
+		// Return result directly (not wrapped) - this becomes job.result
 		return {
-			success: true,
-			result: {
-				totalFiles,
-				format: payload.format,
-				exportedAt: new Date().toISOString(),
-				file_path: filePath,
-				file_size: zipBuffer.length
-			}
+			totalFiles,
+			totalRecords: counts.total,
+			locationRecords: counts.locations,
+			wantToVisitRecords: counts.wantToVisit,
+			tripRecords: counts.trips,
+			format: payload.format,
+			exportedAt: new Date().toISOString(),
+			file_path: filePath,
+			file_size: zipBuffer.length
 		};
 	} catch (error: unknown) {
 		console.error(`❌ Export processing failed for job ${jobId}:`, error);
@@ -231,80 +327,127 @@ async function exportLocationData(
 	fluxbase: FluxbaseClient,
 	userId: string,
 	startDate?: string | null,
-	endDate?: string | null
-): Promise<string | null> {
-	console.log('📍 exportLocationData', { userId, startDate, endDate });
-	const batchSize = 1000;
-	let offset = 0;
+	endDate?: string | null,
+	totalCount?: number,
+	onProgress?: (processed: number, total: number) => void
+): Promise<Uint8Array | null> {
+	console.log('📍 exportLocationData', { userId, startDate, endDate, totalCount });
+	const batchSize = 1000; // Supabase has a default limit of 1000 rows
 	let totalFetched = 0;
 	let batchNum = 0;
 	let firstFeature = true;
-	let geojson = '{"type":"FeatureCollection","features":[';
 
-	while (true) {
-		let query = fluxbase.from('tracker_data').select('*').eq('user_id', userId);
-		if (startDate) query = query.gte('recorded_at', startDate);
-		if (endDate) query = query.lte('recorded_at', endDate);
-		query = query.order('recorded_at', { ascending: true }).range(offset, offset + batchSize - 1);
-		const { data: locations, error } = await query;
-		batchNum++;
-		console.log(`📈 exportLocationData batch ${batchNum}`, {
-			offset,
-			count: locations?.length,
-			error
-		});
-		if (error) throw error;
-		if (!locations || locations.length === 0) break;
+	// Stream to temp file to avoid OOM for large exports
+	const tempPath = `/tmp/export_locations_${Date.now()}.geojson`;
+	const encoder = new TextEncoder();
 
-		const features = locations.map((location: TrackerLocation) => {
-			// Handle geocode data - if it's in GeoJSON format, extract the properties
-			let geocodeProperties = null;
-			if (location.geocode) {
-				if (isGeoJSONGeocode(location.geocode)) {
-					// Extract properties from GeoJSON geocode
-					const geocodeGeoJSON = location.geocode as Record<string, unknown>;
-					geocodeProperties = geocodeGeoJSON.properties || null;
-				} else {
-					// Legacy format - use as is
-					geocodeProperties = location.geocode;
-				}
+	// Open file for writing
+	const file = await Deno.open(tempPath, { write: true, create: true, truncate: true });
+
+	try {
+		// Write GeoJSON header
+		await file.write(encoder.encode('{"type":"FeatureCollection","features":['));
+
+		// Use cursor-based pagination with recorded_at timestamp
+		let lastRecordedAt: string | null = null;
+
+		while (true) {
+			let query = fluxbase.from('tracker_data').select('*').eq('user_id', userId);
+
+			// Apply date range filters
+			if (startDate) query = query.gte('recorded_at', startDate);
+			if (endDate) query = query.lte('recorded_at', endDate);
+
+			// Cursor-based pagination: fetch records after the last timestamp
+			if (lastRecordedAt) {
+				query = query.gt('recorded_at', lastRecordedAt);
 			}
 
-			return JSON.stringify({
-				type: 'Feature',
-				geometry: {
-					type: 'Point',
-					coordinates: [location.location.coordinates[0], location.location.coordinates[1]]
-				},
-				properties: {
-					recorded_at: location.recorded_at,
-					altitude: location.altitude,
-					accuracy: location.accuracy,
-					speed: location.speed,
-					heading: location.heading,
-					battery_level: location.battery_level,
-					is_charging: location.is_charging,
-					activity_type: location.activity_type,
-					country_code: location.country_code,
-					geocode: geocodeProperties
-				}
+			query = query.order('recorded_at', { ascending: true }).limit(batchSize);
+			const { data: locations, error } = await query;
+			batchNum++;
+			console.log(`📈 exportLocationData batch ${batchNum}`, {
+				cursor: lastRecordedAt,
+				count: locations?.length,
+				error: error?.message
 			});
-		});
+			if (error) throw error;
+			if (!locations || locations.length === 0) break;
 
-		if (!firstFeature) geojson += ',';
-		geojson += features.join(',');
-		firstFeature = false;
+			// Write features one by one to stream
+			for (const location of locations as TrackerLocation[]) {
+				// Handle geocode data - if it's in GeoJSON format, extract the properties
+				let geocodeProperties = null;
+				if (location.geocode) {
+					if (isGeoJSONGeocode(location.geocode)) {
+						const geocodeGeoJSON = location.geocode as Record<string, unknown>;
+						geocodeProperties = geocodeGeoJSON.properties || null;
+					} else {
+						geocodeProperties = location.geocode;
+					}
+				}
 
-		totalFetched += locations.length;
-		offset += batchSize;
+				const feature = JSON.stringify({
+					type: 'Feature',
+					geometry: {
+						type: 'Point',
+						coordinates: [location.location.coordinates[0], location.location.coordinates[1]]
+					},
+					properties: {
+						recorded_at: location.recorded_at,
+						altitude: location.altitude,
+						accuracy: location.accuracy,
+						speed: location.speed,
+						heading: location.heading,
+						battery_level: location.battery_level,
+						is_charging: location.is_charging,
+						activity_type: location.activity_type,
+						country_code: location.country_code,
+						geocode: geocodeProperties
+					}
+				});
 
-		// If less than batchSize, this was the last batch
-		if (locations.length < batchSize) break;
+				if (!firstFeature) {
+					await file.write(encoder.encode(','));
+				}
+				await file.write(encoder.encode(feature));
+				firstFeature = false;
+			}
+
+			totalFetched += locations.length;
+
+			// Update cursor for next batch
+			const lastLocation = locations[locations.length - 1] as TrackerLocation;
+			lastRecordedAt = lastLocation.recorded_at;
+
+			// Report progress after each batch
+			if (onProgress && totalCount) {
+				onProgress(totalFetched, totalCount);
+			}
+
+			// If less than batchSize, this was the last batch
+			if (locations.length < batchSize) break;
+		}
+
+		// Write GeoJSON footer
+		await file.write(encoder.encode(']}'));
+	} finally {
+		file.close();
 	}
 
-	geojson += ']}';
 	console.log(`✅ exportLocationData done: ${totalFetched.toLocaleString()} points in ${batchNum} batches`);
-	return geojson;
+
+	if (totalFetched === 0) {
+		await Deno.remove(tempPath);
+		return null;
+	}
+
+	// Read the file content and clean up
+	const content = await Deno.readFile(tempPath);
+	await Deno.remove(tempPath);
+	console.log(`📁 Location file size: ${(content.length / 1024 / 1024).toFixed(2)} MB`);
+
+	return content;
 }
 
 async function exportWantToVisit(
@@ -362,7 +505,7 @@ async function getUserExportJobs(
 	userId: string
 ): Promise<Array<{ file_path: string | null }>> {
 	// Use Fluxbase Jobs API to query completed export jobs
-	const { data: jobs, error } = await fluxbase.jobs.list({
+	const { data, error } = await fluxbase.jobs.list({
 		status: 'completed',
 		job_name: 'data-export',
 		limit: 100
@@ -370,7 +513,10 @@ async function getUserExportJobs(
 
 	if (error) throw error;
 
-	if (!jobs) return [];
+	if (!data) return [];
+
+	// Handle both array response and paginated object response { jobs: [...] }
+	const jobs: any[] = Array.isArray(data) ? data : (data as any)?.jobs || [];
 
 	// Filter jobs by user and extract file paths from job results
 	return jobs

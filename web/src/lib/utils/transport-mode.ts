@@ -478,10 +478,16 @@ export function isOnHighwayOrMotorway(
 
 	const props = reverseGeocode.properties;
 
-	// Pelias layer-based detection - streets are in 'street' layer
-	// Combined with address containing road information
-	if (props.layer === 'street' && props.address?.road) {
-		return true;
+	// OSM highway types that indicate major roads (motorways, trunk roads, primary roads)
+	const majorHighwayTypes = ['motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link'];
+
+	// Pelias addendum/OSM-based detection (preferred for Pelias data)
+	const osm = getOsmDataFromAddendum(reverseGeocode);
+	if (osm) {
+		const highway = osm.highway as string | undefined;
+		if (highway && majorHighwayTypes.includes(highway)) {
+			return true;
+		}
 	}
 
 	// Legacy Nominatim-style detection for backward compatibility with existing data
@@ -498,7 +504,7 @@ export function isOnHighwayOrMotorway(
 			highwayTypes.includes(props.address.type)) ||
 		(props.address &&
 			props.address.class &&
-			typeof props.address.class === 'string' &&
+			typeof props.class === 'string' &&
 			highwayClasses.includes(props.address.class))
 	);
 }

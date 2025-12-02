@@ -870,18 +870,55 @@ export class ServiceAdapter {
 	 * Export Operations (now using centralized jobs system)
 	 */
 	async getExportJobs(options?: { limit?: number; offset?: number }) {
-		// Use getJobs with type filter
-		return this.getJobs({
-			limit: options?.limit,
-			offset: options?.offset,
-			type: 'data_export'
-		});
+		const { fluxbase } = await import('$lib/fluxbase');
+
+		try {
+			// Fetch jobs with all statuses to include completed exports
+			// Use includeResult: true for completed jobs to get the file_path for download links
+			const [completedResult, runningResult, pendingResult, failedResult] = await Promise.all([
+				fluxbase.jobs.list({ namespace: 'wayli', status: 'completed', limit: options?.limit || 50, includeResult: true }),
+				fluxbase.jobs.list({ namespace: 'wayli', status: 'running', limit: 20 }),
+				fluxbase.jobs.list({ namespace: 'wayli', status: 'pending', limit: 20 }),
+				fluxbase.jobs.list({ namespace: 'wayli', status: 'failed', limit: 20 })
+			]);
+
+			// Helper to safely extract array from response
+			const toArray = (data: any): any[] => {
+				if (!data) return [];
+				if (Array.isArray(data)) return data;
+				if (data.jobs && Array.isArray(data.jobs)) return data.jobs;
+				return [];
+			};
+
+			const completedJobs = toArray(completedResult.data);
+			const runningJobs = toArray(runningResult.data);
+			const pendingJobs = toArray(pendingResult.data);
+			const failedJobs = toArray(failedResult.data);
+
+			// Combine all jobs and filter for data-export only (client-side)
+			const allJobs = [
+				...completedJobs,
+				...runningJobs,
+				...pendingJobs,
+				...failedJobs
+			].filter((job) => job.job_name === 'data-export');
+
+			// Sort by created_at descending
+			allJobs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+			console.log('[ServiceAdapter] getExportJobs:', allJobs.length, 'data-export jobs');
+			return allJobs;
+		} catch (error) {
+			console.error('[ServiceAdapter] getExportJobs error:', error);
+			throw error;
+		}
 	}
 
 	async createExportJob(exportData: Record<string, unknown>) {
 		// Use createJob with export type
+		// Note: job_name uses hyphen (data-export), matching the filename
 		return this.createJob({
-			type: 'data_export',
+			type: 'data-export',
 			data: exportData
 		});
 	}
@@ -1046,34 +1083,62 @@ export class ServiceAdapter {
 			throw new Error('User not authenticated');
 		}
 
-		// Fetch the job to get the file path
-		const { data: job, error: jobError } = await fluxbase
-			.from('jobs')
-			.select('*')
-			.eq('id', jobId)
-			.eq('created_by', userData.user.id)
-			.eq('type', 'data_export')
-			.single();
+		// Fetch the job using Jobs API
+		const { data: job, error: jobError } = await fluxbase.jobs.get(jobId);
 
 		if (jobError || !job) {
+			console.error('[ServiceAdapter] getExportDownloadUrl - job not found:', jobError);
 			throw new Error('Export job not found');
 		}
 
+		// Verify the job belongs to this user and is an export job
+		if (job.created_by !== userData.user.id) {
+			throw new Error('Export job not found');
+		}
+
+		if (job.job_name !== 'data-export') {
+			throw new Error('Not an export job');
+		}
+
 		// Check if job has completed and has a file path
-		if (job.status !== 'completed' || !job.metadata?.file_path) {
+		// Handle JSON string result (API returns stringified JSON) and nested formats
+		let result = job.result as { file_path?: string; result?: { file_path?: string } } | string | null;
+
+		// Parse if it's a JSON string
+		if (typeof result === 'string') {
+			try {
+				result = JSON.parse(result);
+			} catch {
+				result = null;
+			}
+		}
+
+		const parsedResult = result as { file_path?: string; result?: { file_path?: string } } | null;
+		const filePath = parsedResult?.file_path || parsedResult?.result?.file_path;
+
+		if (job.status !== 'completed' || !filePath) {
+			console.error('[ServiceAdapter] getExportDownloadUrl - job not ready:', {
+				status: job.status,
+				hasResult: !!parsedResult,
+				filePath
+			});
 			throw new Error('Export file not ready');
 		}
 
-		// Generate signed URL for the export file
+		console.log('[ServiceAdapter] getExportDownloadUrl - generating signed URL for:', filePath);
+
+		// Generate signed URL for the export file (stored in temp-files bucket)
 		const { data: signedUrl, error: urlError } = await fluxbase.storage
-			.from('exports')
-			.createSignedUrl(job.metadata.file_path, 3600); // 1 hour expiry
+			.from('temp-files')
+			.createSignedUrl(filePath, 3600); // 1 hour expiry
 
 		if (urlError) {
+			console.error('[ServiceAdapter] getExportDownloadUrl - signed URL error:', urlError);
 			throw new Error(urlError.message || 'Failed to generate download URL');
 		}
 
-		return { url: signedUrl.signedUrl };
+		console.log('[ServiceAdapter] getExportDownloadUrl - signed URL generated successfully');
+		return { downloadUrl: signedUrl.signedUrl };
 	}
 
 	/**

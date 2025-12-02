@@ -495,7 +495,8 @@
 		"supportedFormats": "Supported formats",
 		"locationData": "Location data",
 		"wantToVisit": "Want to visit",
-		"trips": "Trips"
+		"trips": "Trips",
+		"exportAllDataHint": "No date range selected - will export all data"
 	},
 	"trips": {
 		"title": "Trips",

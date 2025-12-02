@@ -56,8 +56,8 @@ interface ExportOptions {
 	includeLocationData?: boolean;
 	includeWantToVisit?: boolean;
 	includeTrips?: boolean;
-	startDate?: Date;
-	endDate?: Date;
+	startDate?: Date | string | number;
+	endDate?: Date | string | number;
 }
 
 class JobCreationService {
@@ -172,6 +172,20 @@ class JobCreationService {
 	 * Create an export job
 	 */
 	async createExportJob(options: ExportOptions): Promise<JobResult> {
+		// Helper to convert to ISO string, handling Date, string, and timestamp inputs
+		const toISOString = (date: Date | string | number | undefined): string | undefined => {
+			if (!date) return undefined;
+			if (typeof date === 'string') return date;
+			if (typeof date === 'number') return new Date(date).toISOString();
+			if (date instanceof Date) return date.toISOString();
+			// Fallback: try to create a Date from any other value
+			try {
+				return new Date(date as any).toISOString();
+			} catch {
+				return undefined;
+			}
+		};
+
 		return this.createJob({
 			type: 'data-export',
 			data: {
@@ -179,8 +193,8 @@ class JobCreationService {
 				includeLocationData: options.includeLocationData,
 				includeWantToVisit: options.includeWantToVisit,
 				includeTrips: options.includeTrips,
-				startDate: options.startDate?.toISOString(),
-				endDate: options.endDate?.toISOString()
+				startDate: toISOString(options.startDate),
+				endDate: toISOString(options.endDate)
 			}
 		});
 	}

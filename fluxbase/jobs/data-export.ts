@@ -18,6 +18,19 @@ import {
 
 import type { FluxbaseClient, JobUtils } from './types';
 
+// Safe wrapper for reportProgress - logs if method doesn't exist
+function safeReportProgress(job: JobUtils, percent: number, message: string): void {
+	if (typeof (job as any)?.reportProgress === 'function') {
+		try {
+			job.reportProgress(percent, message);
+		} catch (e) {
+			console.log(`[Progress ${percent}%] ${message}`);
+		}
+	} else {
+		console.log(`[Progress ${percent}%] ${message}`);
+	}
+}
+
 interface DataExportPayload {
 	format: string;
 	includeLocationData: boolean;
@@ -61,8 +74,8 @@ export async function handler(
 	}
 
 	try {
-		console.log(`[ExportWorker] Starting export job ${jobId}`);
-		console.log('[ExportWorker] Job data:', {
+		console.log(`📦 Starting export job ${jobId}`);
+		console.log('📋 Job data:', {
 			userId,
 			includeLocationData: payload.includeLocationData,
 			includeWantToVisit: payload.includeWantToVisit,
@@ -71,7 +84,7 @@ export async function handler(
 			endDate: payload.endDate
 		});
 
-		console.log('[ExportWorker] Export configuration:', {
+		console.log('⚙️ Export configuration:', {
 			'Location Data': payload.includeLocationData ? '✅ INCLUDED' : '❌ EXCLUDED',
 			'Want to Visit': payload.includeWantToVisit ? '✅ INCLUDED' : '❌ EXCLUDED',
 			Trips: payload.includeTrips ? '✅ INCLUDED' : '❌ EXCLUDED',
@@ -82,7 +95,7 @@ export async function handler(
 					: 'All time'
 		});
 
-		job.reportProgress(10, 'Starting export process...');
+		safeReportProgress(job, 10, '📦 Starting export process...');
 
 		await new Promise((resolve) => setTimeout(resolve, 500));
 
@@ -91,8 +104,8 @@ export async function handler(
 
 		// Export location data if requested
 		if (payload.includeLocationData) {
-			console.log('[ExportWorker] Starting location data export...');
-			job.reportProgress(25, 'Exporting location data...');
+			console.log('📍 Starting location data export...');
+			safeReportProgress(job, 25, '📍 Exporting location data...');
 			await new Promise((resolve) => setTimeout(resolve, 1000));
 			const locationData = await exportLocationData(
 				fluxbase,
@@ -101,81 +114,73 @@ export async function handler(
 				payload.endDate
 			);
 			if (locationData) {
-				console.log(
-					'[ExportWorker] Location data exported successfully, length:',
-					locationData.length
-				);
+				console.log(`✅ Location data exported successfully, length: ${locationData.length.toLocaleString()}`);
 				zip.file('locations.geojson', locationData);
 				totalFiles++;
-				console.log('[ExportWorker] Added locations.geojson to ZIP file');
+				console.log('📦 Added locations.geojson to ZIP file');
 			} else {
-				console.log(`[ExportWorker] No location data found for user ${userId}`);
+				console.log(`⏭️ No location data found for user ${userId}`);
 			}
 		} else {
-			console.log('[ExportWorker] Location data export skipped (not requested)');
+			console.log('⏭️ Location data export skipped (not requested)');
 		}
 
 		// Export want-to-visit data if requested
 		if (payload.includeWantToVisit) {
-			console.log('[ExportWorker] Starting want-to-visit export...');
-			job.reportProgress(50, 'Exporting want-to-visit data...');
+			console.log('📌 Starting want-to-visit export...');
+			safeReportProgress(job, 50, '📌 Exporting want-to-visit data...');
 			await new Promise((resolve) => setTimeout(resolve, 1000));
-			console.log('[ExportWorker] Calling exportWantToVisit');
+			console.log('🔍 Calling exportWantToVisit');
 			const wantToVisitData = await exportWantToVisit(
 				fluxbase,
 				userId,
 				payload.startDate,
 				payload.endDate
 			);
-			console.log('[ExportWorker] exportWantToVisit returned', {
+			console.log('📊 exportWantToVisit returned', {
 				hasData: !!wantToVisitData,
 				dataLength: wantToVisitData?.length || 0
 			});
 			if (wantToVisitData) {
-				console.log(
-					'[ExportWorker] Want-to-visit data exported successfully, length:',
-					wantToVisitData.length
-				);
+				console.log(`✅ Want-to-visit data exported successfully, length: ${wantToVisitData.length.toLocaleString()}`);
 				zip.file('want-to-visit.json', wantToVisitData);
 				totalFiles++;
-				console.log('[ExportWorker] Added want-to-visit.json to ZIP file');
+				console.log('📦 Added want-to-visit.json to ZIP file');
 			} else {
-				console.log(`[ExportWorker] No want-to-visit data found for user ${userId}`);
+				console.log(`⏭️ No want-to-visit data found for user ${userId}`);
 			}
 		} else {
-			console.log('[ExportWorker] Want-to-visit export skipped (not requested)');
+			console.log('⏭️ Want-to-visit export skipped (not requested)');
 		}
 
 		// Export trips data if requested
 		if (payload.includeTrips) {
-			console.log(`[ExportWorker] Starting trips export for job ${jobId}...`);
-			job.reportProgress(75, 'Exporting trips data...');
+			console.log(`✈️ Starting trips export for job ${jobId}...`);
+			safeReportProgress(job, 75, '✈️ Exporting trips data...');
 			await new Promise((resolve) => setTimeout(resolve, 1000));
 			const tripsData = await exportTrips(fluxbase, userId, payload.startDate, payload.endDate);
-			console.log(
-				`[ExportWorker] Trips export completed for job ${jobId}, data length: ${tripsData?.length || 0}`
-			);
+			console.log(`📊 Trips export completed for job ${jobId}, data length: ${tripsData?.length || 0}`);
 			if (tripsData) {
-				console.log('[ExportWorker] Trips data exported successfully, length:', tripsData.length);
+				console.log(`✅ Trips data exported successfully, length: ${tripsData.length.toLocaleString()}`);
 				zip.file('trips.json', tripsData);
 				totalFiles++;
-				console.log('[ExportWorker] Added trips.json to ZIP file');
+				console.log('📦 Added trips.json to ZIP file');
 			} else {
-				console.log(`[ExportWorker] No trips data found for user ${userId}`);
+				console.log(`⏭️ No trips data found for user ${userId}`);
 			}
 		} else {
-			console.log('[ExportWorker] Trips export skipped (not requested)');
+			console.log('⏭️ Trips export skipped (not requested)');
 		}
 
 		// Generate zip file
-		console.log(`[ExportWorker] Generating zip file for job ${jobId} with ${totalFiles} files`);
+		console.log(`📦 Generating zip file for job ${jobId} with ${totalFiles} files`);
 		const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
-		console.log(`[ExportWorker] Zip file generated, size: ${zipBuffer.length} bytes`);
+		console.log(`📊 Zip file generated, size: ${(zipBuffer.length / 1024 / 1024).toFixed(2)} MB`);
 
 		// Upload to storage
 		const fileName = `export_${userId}_${Date.now()}.zip`;
 		const filePath = `${userId}/${fileName}`;
-		console.log(`[ExportWorker] Uploading zip file to storage: ${filePath}`);
+		console.log(`📤 Uploading zip file to storage: ${filePath}`);
 
 		// Before uploading, delete old export files (keep only 5 most recent)
 		const exportJobs = await getUserExportJobs(fluxbase, userId);
@@ -185,7 +190,7 @@ export async function handler(
 				.map((job) => job.file_path)
 				.filter((p): p is string => typeof p === 'string');
 			if (oldPaths.length > 0) {
-				console.log(`[ExportWorker] Deleting old export files:`, oldPaths);
+				console.log(`🗑️ Deleting old export files:`, oldPaths);
 				await fluxbase.storage.from('exports').remove(oldPaths);
 			}
 		}
@@ -198,13 +203,13 @@ export async function handler(
 			});
 
 		if (uploadError) {
-			console.error(`[ExportWorker] Failed to upload export file: ${uploadError.message}`);
+			console.error(`❌ Failed to upload export file: ${uploadError.message}`);
 			throw new Error(`Failed to upload export file: ${uploadError.message}`);
 		}
 
-		job.reportProgress(100, 'Finalizing export...');
+		safeReportProgress(job, 100, '✅ Finalizing export...');
 
-		console.log(`[ExportWorker] Export job ${jobId} completed successfully.`);
+		console.log(`✅ Export job ${jobId} completed successfully.`);
 
 		return {
 			success: true,
@@ -217,7 +222,7 @@ export async function handler(
 			}
 		};
 	} catch (error: unknown) {
-		console.error(`[ExportWorker] Export processing failed for job ${jobId}:`, error);
+		console.error(`❌ Export processing failed for job ${jobId}:`, error);
 		throw error;
 	}
 }
@@ -228,7 +233,7 @@ async function exportLocationData(
 	startDate?: string | null,
 	endDate?: string | null
 ): Promise<string | null> {
-	console.log('[ExportWorker] exportLocationData', { userId, startDate, endDate });
+	console.log('📍 exportLocationData', { userId, startDate, endDate });
 	const batchSize = 1000;
 	let offset = 0;
 	let totalFetched = 0;
@@ -243,7 +248,7 @@ async function exportLocationData(
 		query = query.order('recorded_at', { ascending: true }).range(offset, offset + batchSize - 1);
 		const { data: locations, error } = await query;
 		batchNum++;
-		console.log(`[ExportWorker] exportLocationData batch ${batchNum}`, {
+		console.log(`📈 exportLocationData batch ${batchNum}`, {
 			offset,
 			count: locations?.length,
 			error
@@ -298,7 +303,7 @@ async function exportLocationData(
 	}
 
 	geojson += ']}';
-	console.log('[ExportWorker] exportLocationData done', { totalFetched, batches: batchNum });
+	console.log(`✅ exportLocationData done: ${totalFetched.toLocaleString()} points in ${batchNum} batches`);
 	return geojson;
 }
 
@@ -308,24 +313,22 @@ async function exportWantToVisit(
 	startDate?: string | null,
 	endDate?: string | null
 ): Promise<string | null> {
-	console.log('[ExportWorker] exportWantToVisit starting', { userId, startDate, endDate });
+	console.log('📌 exportWantToVisit starting', { userId, startDate, endDate });
 	let query = fluxbase.from('want_to_visit_places').select('*').eq('user_id', userId);
 	if (startDate) query = query.gte('created_at', startDate);
 	if (endDate) query = query.lte('created_at', endDate);
 	query = query.order('created_at', { ascending: true });
 	const { data: wantToVisit, error } = await query;
-	console.log('[ExportWorker] exportWantToVisit query result', {
+	console.log('📊 exportWantToVisit query result', {
 		count: wantToVisit?.length || 0,
 		error: error?.message
 	});
 	if (error || !wantToVisit || wantToVisit.length === 0) {
-		console.log('[ExportWorker] exportWantToVisit returning null');
+		console.log('⏭️ exportWantToVisit returning null');
 		return null;
 	}
 	const result = JSON.stringify(wantToVisit, null, 2);
-	console.log('[ExportWorker] exportWantToVisit completed', {
-		resultLength: result.length
-	});
+	console.log(`✅ exportWantToVisit completed: ${result.length.toLocaleString()} bytes`);
 	return result;
 }
 
@@ -335,24 +338,22 @@ async function exportTrips(
 	startDate?: string | null,
 	endDate?: string | null
 ): Promise<string | null> {
-	console.log('[ExportWorker] exportTrips starting', { userId, startDate, endDate });
+	console.log('✈️ exportTrips starting', { userId, startDate, endDate });
 	let query = fluxbase.from('trips').select('*').eq('user_id', userId);
 	if (startDate) query = query.gte('start_date', startDate);
 	if (endDate) query = query.lte('end_date', endDate);
 	query = query.order('start_date', { ascending: true });
 	const { data: trips, error } = await query;
-	console.log('[ExportWorker] exportTrips query result', {
+	console.log('📊 exportTrips query result', {
 		count: trips?.length || 0,
 		error: error?.message
 	});
 	if (error || !trips || trips.length === 0) {
-		console.log('[ExportWorker] exportTrips returning null');
+		console.log('⏭️ exportTrips returning null');
 		return null;
 	}
 	const result = JSON.stringify(trips, null, 2);
-	console.log('[ExportWorker] exportTrips completed', {
-		resultLength: result.length
-	});
+	console.log(`✅ exportTrips completed: ${result.length.toLocaleString()} bytes`);
 	return result;
 }
 

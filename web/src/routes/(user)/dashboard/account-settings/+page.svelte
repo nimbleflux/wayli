@@ -20,6 +20,7 @@
 	import LanguageSelector from '$lib/components/ui/language-selector/index.svelte';
 	import { translate, changeLocale, currentLocale, type SupportedLocale } from '$lib/i18n';
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
+	import { sessionManager } from '$lib/services/session';
 	import { sessionStore } from '$lib/stores/auth';
 	import { fluxbase } from '$lib/fluxbase';
 
@@ -257,6 +258,14 @@
 		toast.success('Two-factor authentication disabled successfully!');
 		// Re-check 2FA status from server to ensure it's properly disabled
 		await check2FAStatus();
+	}
+
+	// Require re-authentication before enabling 2FA (sensitive action)
+	async function handleEnable2FA() {
+		const confirmed = await sessionManager.requireReauth();
+		if (confirmed) {
+			showTwoFactorSetup = true;
+		}
 	}
 
 	async function loadTripExclusions() {
@@ -1228,7 +1237,7 @@
 							</button>
 						{:else}
 							<button
-								onclick={() => (showTwoFactorSetup = true)}
+								onclick={handleEnable2FA}
 								class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
 							>
 								{t('accountSettings.enable2FA')}

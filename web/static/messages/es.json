@@ -254,6 +254,7 @@
 		"enterPasswordPlaceholder": "Ingresa tu contraseña",
 		"enterPasswordForQR": "Ingresa tu contraseña para generar un código QR para tu aplicación de autenticación",
 		"forgotPassword": "¿Olvidaste tu contraseña?",
+		"rememberMe": "Recordarme",
 		"firstName": "Nombre",
 		"lastName": "Apellido",
 		"createPassword": "Crear una contraseña",
@@ -354,7 +355,11 @@
 		"checkEmailPasswordReset": "Revisa tu correo electrónico para obtener un enlace de restablecimiento de contraseña.",
 		"passwordResetSuccess": "¡Tu contraseña ha sido restablecida exitosamente!",
 		"redirectingToSignIn": "Redirigiendo al inicio de sesión...",
-		"enterValidEmail": "Por favor ingresa una dirección de correo electrónico válida"
+		"enterValidEmail": "Por favor ingresa una dirección de correo electrónico válida",
+		"confirmYourIdentity": "Confirma Tu Identidad",
+		"confirmYourIdentityDescription": "Por tu seguridad, ingresa tu contraseña para continuar.",
+		"incorrectPassword": "Contraseña incorrecta. Por favor intenta de nuevo.",
+		"confirm": "Confirmar"
 	},
 	"signup": {
 		"firstUserWelcome": "¡Bienvenido! Estás configurando Wayli por primera vez.",
@@ -730,6 +735,7 @@
 		"tripGeneration": "Generación de viajes",
 		"job": "Trabajo",
 		"queued": "En cola...",
+		"determiningEta": "Determinando ETA...",
 		"calculating": "Calculando...",
 		"complete": "Completo",
 		"inProgress": "En progreso",
@@ -742,6 +748,9 @@
 		"downloadStarted": "Descarga iniciada",
 		"failedToDownloadExport": "Error al descargar exportación",
 		"cancelJob": "Cancelar trabajo",
+		"cancelling": "Cancelando...",
+		"cancelSuccess": "Trabajo cancelado exitosamente",
+		"cancelFailed": "Error al cancelar trabajo",
 		"downloadExport": "Descargar exportación",
 		"dismiss": "Descartar",
 		"uploading": "Subiendo",

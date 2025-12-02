@@ -12,6 +12,19 @@ import { TripDetectionService } from '../../web/src/lib/services/trip-detection.
 
 import type { FluxbaseClient, JobUtils } from './types';
 
+// Safe wrapper for reportProgress - logs if method doesn't exist
+function safeReportProgress(job: JobUtils, percent: number, message: string): void {
+	if (typeof (job as any)?.reportProgress === 'function') {
+		try {
+			job.reportProgress(percent, message);
+		} catch (e) {
+			console.log(`[Progress ${percent}%] ${message}`);
+		}
+	} else {
+		console.log(`[Progress ${percent}%] ${message}`);
+	}
+}
+
 export async function handler(
 	req: Request,
 	fluxbase: FluxbaseClient,
@@ -36,7 +49,7 @@ export async function handler(
 
 		const startTime = Date.now();
 
-		job.reportProgress(10, 'Starting trip detection...');
+		safeReportProgress(job, 10, '✈️ Starting trip detection...');
 
 		// Use trip detection service
 		const tripDetectionService = new TripDetectionService(
@@ -46,7 +59,7 @@ export async function handler(
 
 		// Set up progress tracking
 		tripDetectionService.setProgressTracking(jobId, async (progress) => {
-			job.reportProgress(progress.progress, progress.message);
+			safeReportProgress(job, progress.progress, progress.message);
 		});
 
 		// Use the trip detection service (will use default date range)

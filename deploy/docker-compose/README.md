@@ -102,7 +102,7 @@ FLUXBASE_PUBLIC_URL=http://localhost:8000
 
 # Fluxbase CORS - Automatically derived from SITE_URL by generate-env.sh
 # For Edge Functions - must NOT include protocol (http:// or https://)
-FLUXBASE_CORS_ALLOW_ORIGIN=wayli.app,localhost:4000
+FLUXBASE_CORS_ALLOW_ORIGIN=wayli.app,pelias.wayli.app,localhost:4000
 ```
 
 ### Fluxbase Secrets

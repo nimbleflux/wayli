@@ -10,6 +10,7 @@ import { config } from 'dotenv';
 import { createClient } from '@fluxbase/sdk';
 import { readFile, readdir } from 'fs/promises';
 import { join, basename, extname } from 'path';
+import { gzipSync } from 'zlib';
 
 // Load environment variables from .env files
 // Priority: existing env vars > .env.local > .env
@@ -165,6 +166,35 @@ async function discoverJobs(basePath: string): Promise<JobConfig[]> {
 	}
 }
 
+/**
+ * Load and compress GeoJSON files for embedding in bundled code
+ * Returns define values for esbuild
+ */
+async function loadEmbeddedGeoJSON(basePath: string): Promise<Record<string, string>> {
+	const defines: Record<string, string> = {};
+
+	const geoJsonFiles = [
+		{ name: 'EMBEDDED_COUNTRIES_GEOJSON', path: 'web/src/lib/data/countries.geojson' },
+		{ name: 'EMBEDDED_TIMEZONES_GEOJSON', path: 'web/src/lib/data/timezones.geojson' }
+	];
+
+	for (const file of geoJsonFiles) {
+		const filePath = join(basePath, file.path);
+		try {
+			const content = await readFile(filePath, 'utf-8');
+			// Compress with gzip and base64 encode
+			const compressed = gzipSync(content);
+			const base64 = compressed.toString('base64');
+			defines[file.name] = JSON.stringify(base64);
+			console.log(`📦 Embedded ${file.name}: ${(content.length / 1024).toFixed(1)}KB -> ${(base64.length / 1024).toFixed(1)}KB (compressed)`);
+		} catch (error) {
+			console.warn(`⚠️  Could not load ${file.path}: ${(error as Error).message}`);
+		}
+	}
+
+	return defines;
+}
+
 async function syncJobs() {
 	console.log('🔄 Starting Fluxbase job handler sync...');
 
@@ -208,6 +238,10 @@ async function syncJobs() {
 		}
 
 		console.log(`\n✅ Discovered ${discoveredJobs.length} job handlers\n`);
+
+		// Load embedded GeoJSON data for country/timezone lookups
+		console.log('📦 Loading embedded GeoJSON data...');
+		const embeddedDefines = await loadEmbeddedGeoJSON(basePath);
 
 		// Where node_modules live (for resolving npm packages like geojson, jszip, etc.)
 		const webNodeModules = join(basePath, 'web/node_modules');
@@ -256,13 +290,19 @@ async function syncJobs() {
 		console.log('\n📦 Syncing jobs (SDK will handle bundling)...\n');
 
 		// Sync jobs - SDK handles bundling with proper Deno external handling
-		const { data, error } = await client.admin.jobs.syncWithBundling({
-			namespace,
-			functions: jobsToSync,
-			options: {
-				delete_missing: deleteMissing
+		const { data, error } = await client.admin.jobs.syncWithBundling(
+			{
+				namespace,
+				functions: jobsToSync,
+				options: {
+					delete_missing: deleteMissing
+				}
+			},
+			{
+				// Embed GeoJSON data as compile-time constants
+				define: embeddedDefines
 			}
-		});
+		);
 
 		if (error) {
 			console.error('❌ Job sync failed:', error);

@@ -4,6 +4,7 @@
 	import { Toaster } from 'svelte-sonner';
 
 	import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
+	import ReauthenticationModal from '$lib/components/ReauthenticationModal.svelte';
 	import { initializeI18n } from '$lib/i18n';
 	import { serviceAdapter } from '$lib/services/service-layer-adapter';
 	import { sessionManager } from '$lib/services/session';
@@ -55,3 +56,6 @@
 <ErrorBoundary>
 	<slot />
 </ErrorBoundary>
+
+<!-- Global re-authentication modal for sensitive actions -->
+<ReauthenticationModal />

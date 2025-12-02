@@ -254,6 +254,7 @@
 		"enterPasswordPlaceholder": "Voer je wachtwoord in",
 		"enterPasswordForQR": "Voer je wachtwoord in om een QR-code te genereren voor je authenticator-app",
 		"forgotPassword": "Wachtwoord vergeten?",
+		"rememberMe": "Onthoud mij",
 		"firstName": "Voornaam",
 		"lastName": "Achternaam",
 		"createPassword": "Maak een wachtwoord aan",
@@ -355,7 +356,11 @@
 		"checkEmailPasswordReset": "Controleer je e-mail voor een wachtwoord reset link.",
 		"passwordResetSuccess": "Je wachtwoord is succesvol gereset!",
 		"redirectingToSignIn": "Doorsturen naar inloggen...",
-		"enterValidEmail": "Voer een geldig e-mailadres in"
+		"enterValidEmail": "Voer een geldig e-mailadres in",
+		"confirmYourIdentity": "Bevestig Je Identiteit",
+		"confirmYourIdentityDescription": "Voor je veiligheid, voer je wachtwoord in om door te gaan.",
+		"incorrectPassword": "Onjuist wachtwoord. Probeer het opnieuw.",
+		"confirm": "Bevestigen"
 	},
 	"signup": {
 		"firstUserWelcome": "Welkom! Je stelt Wayli voor de eerste keer in.",
@@ -731,6 +736,7 @@
 		"tripGeneration": "Reis genereren",
 		"job": "Taak",
 		"queued": "In de wachtrij...",
+		"determiningEta": "ETA bepalen...",
 		"calculating": "Berekenen...",
 		"complete": "Voltooid",
 		"inProgress": "Bezig",
@@ -743,6 +749,9 @@
 		"downloadStarted": "Download gestart",
 		"failedToDownloadExport": "Export downloaden mislukt",
 		"cancelJob": "Taak annuleren",
+		"cancelling": "Annuleren...",
+		"cancelSuccess": "Taak succesvol geannuleerd",
+		"cancelFailed": "Annuleren mislukt",
 		"downloadExport": "Export downloaden",
 		"dismiss": "Verwijderen",
 		"uploading": "Uploaden",

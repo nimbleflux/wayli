@@ -6,6 +6,7 @@
 	import { translate } from '$lib/i18n';
 	import { userStore } from '$lib/stores/auth';
 	import { fluxbase } from '$lib/fluxbase';
+	import { sessionManager } from '$lib/services/session';
 	import TwoFactorVerify from '$lib/components/TwoFactorVerify.svelte';
 
 	import { goto } from '$app/navigation';
@@ -18,6 +19,7 @@
 	let password = $state<string>('');
 	let loading = $state(false);
 	let showPassword = $state(false);
+	let rememberMe = $state(true); // Default to checked
 	let isMagicLinkSent = $state(false);
 	let show2FAModal = $state(false);
 	let twoFactorUserId = $state('');
@@ -77,6 +79,9 @@
 				hasAccessToken: !!session.access_token,
 				expiresAt: session.expires_at
 			});
+
+			// Record login with Remember Me preference
+			sessionManager.recordLogin(rememberMe);
 
 			// Check localStorage for the session
 			setTimeout(() => {
@@ -184,11 +189,20 @@
 
 		// Store session in fluxbase client
 		if (authData.access_token && authData.refresh_token) {
+			// Calculate expires_at from expires_in if provided, otherwise default to 1 hour
+			// (matching FLUXBASE_AUTH_JWT_EXPIRY default)
+			const expiresIn = authData.expires_in || 3600;
+			const expiresAt = Math.floor(Date.now() / 1000) + expiresIn;
+
 			await fluxbase.auth.setSession({
 				access_token: authData.access_token,
-				refresh_token: authData.refresh_token
+				refresh_token: authData.refresh_token,
+				expires_at: expiresAt
 			});
 		}
+
+		// Record login with Remember Me preference
+		sessionManager.recordLogin(rememberMe);
 
 		// Redirect to dashboard
 		const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/statistics';
@@ -308,8 +322,18 @@
 						</div>
 					</div>
 
-					<!-- Forgot Password Link -->
-					<div class="flex items-center justify-end">
+					<!-- Remember Me & Forgot Password -->
+					<div class="flex items-center justify-between">
+						<label class="flex cursor-pointer items-center">
+							<input
+								type="checkbox"
+								bind:checked={rememberMe}
+								class="h-4 w-4 cursor-pointer rounded border-gray-300 text-[rgb(37,140,244)] focus:ring-[rgb(37,140,244)] dark:border-gray-600 dark:bg-gray-700"
+							/>
+							<span class="ml-2 text-sm text-gray-600 dark:text-gray-400">
+								{t('auth.rememberMe')}
+							</span>
+						</label>
 						<button
 							type="button"
 							onclick={handlePasswordReset}

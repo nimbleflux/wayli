@@ -52,7 +52,12 @@
 			// Read public Wayli settings from app.settings (RLS allows anonymous read)
 			const publicSettings = await fluxbase.settings.getMany([
 				'wayli.is_setup_complete',
-				'wayli.server_name'
+				'wayli.server_name',
+				'wayli.password_min_length',
+				'wayli.password_require_uppercase',
+				'wayli.password_require_lowercase',
+				'wayli.password_require_number',
+				'wayli.password_require_special'
 			]);
 
 			// The value is wrapped in an object: {"value": false}
@@ -62,22 +67,21 @@
 			// First user can always sign up
 			isFirstUser = !is_setup_complete;
 
-			// Try to fetch password requirements from app settings
-			// Note: These should be publicly readable for the signup page
-			try {
-				const appSettings = await fluxbase.admin.settings.app.get();
-
-				// Update password requirements from server settings
-				if (appSettings?.authentication) {
-					passwordMinLength = appSettings.authentication.password_min_length || 8;
-					requireUppercase = appSettings.authentication.password_complexity?.require_uppercase ?? true;
-					requireLowercase = appSettings.authentication.password_complexity?.require_lowercase ?? true;
-					requireNumber = appSettings.authentication.password_complexity?.require_number ?? true;
-					requireSpecial = appSettings.authentication.password_complexity?.require_special ?? true;
-				}
-			} catch (error) {
-				// If we can't fetch app settings (e.g., not publicly readable), use defaults
-				console.log('Using default password requirements (app settings not publicly accessible)');
+			// Read password requirements from public settings
+			if (publicSettings['wayli.password_min_length']?.value !== undefined) {
+				passwordMinLength = publicSettings['wayli.password_min_length'].value;
+			}
+			if (publicSettings['wayli.password_require_uppercase']?.value !== undefined) {
+				requireUppercase = publicSettings['wayli.password_require_uppercase'].value;
+			}
+			if (publicSettings['wayli.password_require_lowercase']?.value !== undefined) {
+				requireLowercase = publicSettings['wayli.password_require_lowercase'].value;
+			}
+			if (publicSettings['wayli.password_require_number']?.value !== undefined) {
+				requireNumber = publicSettings['wayli.password_require_number'].value;
+			}
+			if (publicSettings['wayli.password_require_special']?.value !== undefined) {
+				requireSpecial = publicSettings['wayli.password_require_special'].value;
 			}
 
 			// Don't check signup_enabled from admin settings - that requires authentication

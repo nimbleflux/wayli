@@ -45,6 +45,47 @@ VALUES (
     "description" = EXCLUDED."description",
     "updated_at" = NOW();
 
+-- Insert password requirement settings (public for signup page validation)
+INSERT INTO "app"."settings" ("key", "value", "is_public", "description")
+VALUES (
+    'wayli.password_min_length',
+    '{"value": 8}'::jsonb,
+    true,
+    'Minimum password length for user registration'
+) ON CONFLICT ("key") DO NOTHING;
+
+INSERT INTO "app"."settings" ("key", "value", "is_public", "description")
+VALUES (
+    'wayli.password_require_uppercase',
+    '{"value": true}'::jsonb,
+    true,
+    'Require at least one uppercase letter in password'
+) ON CONFLICT ("key") DO NOTHING;
+
+INSERT INTO "app"."settings" ("key", "value", "is_public", "description")
+VALUES (
+    'wayli.password_require_lowercase',
+    '{"value": true}'::jsonb,
+    true,
+    'Require at least one lowercase letter in password'
+) ON CONFLICT ("key") DO NOTHING;
+
+INSERT INTO "app"."settings" ("key", "value", "is_public", "description")
+VALUES (
+    'wayli.password_require_number',
+    '{"value": true}'::jsonb,
+    true,
+    'Require at least one number in password'
+) ON CONFLICT ("key") DO NOTHING;
+
+INSERT INTO "app"."settings" ("key", "value", "is_public", "description")
+VALUES (
+    'wayli.password_require_special',
+    '{"value": true}'::jsonb,
+    true,
+    'Require at least one special character in password'
+) ON CONFLICT ("key") DO NOTHING;
+
 -- Create function to mark setup as complete
 CREATE OR REPLACE FUNCTION "public"."mark_setup_complete"()
 RETURNS TRIGGER
@@ -91,7 +132,12 @@ USING (
     "is_public" = true
     AND "key" IN (
         'wayli.is_setup_complete',
-        'wayli.server_name'
+        'wayli.server_name',
+        'wayli.password_min_length',
+        'wayli.password_require_uppercase',
+        'wayli.password_require_lowercase',
+        'wayli.password_require_number',
+        'wayli.password_require_special'
     )
 );
 

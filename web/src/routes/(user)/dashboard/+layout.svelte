@@ -7,6 +7,7 @@
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
 	import { sessionManager } from '$lib/services/session';
 	import { userStore, sessionStore } from '$lib/stores/auth';
+	import { connectionStatusStore } from '$lib/stores/job-store';
 	import { fluxbase } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
@@ -21,11 +22,8 @@
 	let isCheckingAdmin = $state(true);
 
 	let isInitializing = true;
-	// TODO: Implement realtime connection status monitoring when Fluxbase Jobs is live
-	// For now, connection status is always 'connected' since Fluxbase SDK handles reconnection
-	let realtimeConnectionStatus = $state<'connecting' | 'connected' | 'disconnected' | 'error'>(
-		'connected'
-	);
+	// Get realtime connection status from job store
+	let realtimeConnectionStatus = $derived($connectionStatusStore);
 
 	async function handleSignout() {
 		try {

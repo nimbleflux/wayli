@@ -15,6 +15,19 @@ import { forwardGeocode } from '../../web/src/lib/services/external/pelias.servi
 import type { TripGenerationData, HomeAddress } from '../../web/src/lib/types/trip-generation.types';
 import type { FluxbaseClient, JobUtils } from './types';
 
+// Safe wrapper for reportProgress - logs if method doesn't exist
+function safeReportProgress(job: JobUtils, percent: number, message: string): void {
+	if (typeof (job as any)?.reportProgress === 'function') {
+		try {
+			job.reportProgress(percent, message);
+		} catch (e) {
+			console.log(`[Progress ${percent}%] ${message}`);
+		}
+	} else {
+		console.log(`[Progress ${percent}%] ${message}`);
+	}
+}
+
 export async function handler(
 	req: Request,
 	fluxbase: FluxbaseClient,
@@ -55,9 +68,10 @@ export async function handler(
 		console.log(`  - useCustomHomeAddress: ${useCustomHomeAddress}`);
 		console.log(`  - customHomeAddress: ${customHomeAddress || 'not specified'}`);
 
-		job.reportProgress(
+		safeReportProgress(
+			job,
 			5,
-			'Determining available date ranges for sleep-based trip generation...'
+			'✈️ Determining available date ranges for sleep-based trip generation...'
 		);
 
 		// Get user's home address
@@ -66,7 +80,7 @@ export async function handler(
 			// Geocode the custom home address to get coordinates
 			console.log(`🏠 Geocoding custom home address: ${customHomeAddress}`);
 
-			job.reportProgress(8, `Geocoding custom home address: ${customHomeAddress}...`);
+			safeReportProgress(job, 8, `🏠 Geocoding custom home address: ${customHomeAddress}...`);
 
 			try {
 				const geocodeResult = await forwardGeocode(customHomeAddress);
@@ -114,9 +128,10 @@ export async function handler(
 			}
 		}
 
-		job.reportProgress(
+		safeReportProgress(
+			job,
 			10,
-			`Retrieved home address, fetching GPS data for sleep pattern analysis...`
+			`🏠 Retrieved home address, fetching GPS data for sleep pattern analysis...`
 		);
 
 		// Configure UserProfileService for worker environment
@@ -177,7 +192,8 @@ export async function handler(
 
 		tripDetectionService.setProgressTracking(jobId, async (progress) => {
 			const eta = calculateEta(progress.progress);
-			job.reportProgress(
+			safeReportProgress(
+				job,
 				progress.progress,
 				`${progress.message}${eta ? ` - ETA: ${formatEta(eta)}` : ''}`
 			);

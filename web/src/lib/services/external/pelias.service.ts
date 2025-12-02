@@ -181,7 +181,7 @@ export async function reverseGeocode(lat: number, lon: number): Promise<PeliasRe
 
 			const response = await fetch(url, {
 				headers: {
-					'User-Agent': 'WayliApp/1.0',
+					'X-Client-App': 'WayliApp/1.0',
 					Accept: 'application/json'
 				}
 			});
@@ -258,7 +258,7 @@ export async function forwardGeocode(query: string): Promise<PeliasSearchRespons
 
 			const response = await fetch(url, {
 				headers: {
-					'User-Agent': 'WayliApp/1.0',
+					'X-Client-App': 'WayliApp/1.0',
 					Accept: 'application/json'
 				}
 			});
@@ -343,7 +343,7 @@ export async function searchAddresses(
 
 			const response = await fetch(url, {
 				headers: {
-					'User-Agent': 'WayliApp/1.0',
+					'X-Client-App': 'WayliApp/1.0',
 					Accept: 'application/json'
 				}
 			});

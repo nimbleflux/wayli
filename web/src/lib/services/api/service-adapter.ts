@@ -999,7 +999,7 @@ export class ServiceAdapter {
 
 		const response = await fetch(url, {
 			headers: {
-				'User-Agent': 'WayliApp/1.0',
+				'X-Client-App': 'WayliApp/1.0',
 				'Accept': 'application/json'
 			}
 		});

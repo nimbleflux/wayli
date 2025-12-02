@@ -8,6 +8,7 @@
  * @fluxbase:require-role authenticated
  * @fluxbase:timeout 7200
  * @fluxbase:allow-net true
+ * @fluxbase:allow-env true
  */
 
 import { reverseGeocode } from '../../web/src/lib/services/external/pelias.service';
@@ -19,6 +20,23 @@ import {
 
 import type { FluxbaseClient, JobUtils } from './types';
 
+interface ReverseGeocodingPayload {
+	target_user_id?: string;
+}
+
+// Safe wrapper for reportProgress - logs if method doesn't exist
+function safeReportProgress(job: JobUtils, percent: number, message: string): void {
+	if (typeof (job as any)?.reportProgress === 'function') {
+		try {
+			job.reportProgress(percent, message);
+		} catch (e) {
+			console.log(`[Progress ${percent}%] ${message}`);
+		}
+	} else {
+		console.log(`[Progress ${percent}%] ${message}`);
+	}
+}
+
 export async function handler(
 	req: Request,
 	fluxbase: FluxbaseClient,
@@ -26,15 +44,40 @@ export async function handler(
 	job: JobUtils
 ) {
 	const context = job.getJobContext();
+	const payload = context.payload as ReverseGeocodingPayload;
 	const jobId = context.job_id;
-	const userId = context.user?.id;
+
+	const authenticatedUserId = context.user?.id;
+	const userRole = context.user?.role;
+	const isAdmin = userRole === 'admin' || userRole === 'dashboard_admin';
+
+	// Use target_user_id from payload if provided, otherwise fall back to authenticated user
+	const userId = payload?.target_user_id || authenticatedUserId;
 
 	if (!userId) {
 		return {
 			success: false,
-			error: 'No user context available'
+			error: 'No user context available (provide target_user_id in payload or authenticate)'
 		};
 	}
+
+	// Authorization check: only admins can process data for other users
+	// Service role calls (no user context) are trusted - they come from other jobs
+	if (
+		payload?.target_user_id &&
+		authenticatedUserId &&
+		payload.target_user_id !== authenticatedUserId &&
+		!isAdmin
+	) {
+		return {
+			success: false,
+			error: 'Unauthorized: only admins can process data for other users'
+		};
+	}
+
+	// Use service role client when operating on behalf of target_user_id (no user context)
+	// This bypasses RLS and allows the job to query data for the specified user
+	const db = authenticatedUserId ? fluxbase : fluxbaseService;
 
 	try {
 		console.log(`🌍 Processing reverse geocoding missing job ${jobId}`);
@@ -65,11 +108,11 @@ export async function handler(
 
 		// First, count total points that need geocoding
 		console.log(`🔍 Checking for points that need geocoding...`);
-		const { count: totalPointsNeedingGeocoding, error: countError } = await fluxbase
+		const { count: totalPointsNeedingGeocoding, error: countError } = await db
 			.from('tracker_data')
 			.select('*', { count: 'exact', head: true })
 			.eq('user_id', userId)
-			.is('geocode->properties->>country', null)
+			.is('geocode->properties->>geocoded_at', null)
 			.is('geocode->properties->>geocode_error', null);
 
 		if (countError) throw countError;
@@ -82,7 +125,7 @@ export async function handler(
 		// If no points need geocoding, exit early
 		if (totalPoints === 0) {
 			console.log('✅ No points need geocoding');
-			job.reportProgress(100, 'No tracker data points found needing geocoding');
+			safeReportProgress(job, 100, '✅ No tracker data points found needing geocoding');
 			return {
 				success: true,
 				result: {
@@ -98,144 +141,105 @@ export async function handler(
 			`🌍 [REVERSE_GEOCODING] Found ${totalPoints.toLocaleString()} points needing geocoding. Starting processing...`
 		);
 
-		job.reportProgress(
+		safeReportProgress(
+			job,
 			0,
-			`Found ${totalPoints.toLocaleString()} tracker data points needing geocoding. Starting processing...`
+			`🌍 Found ${totalPoints.toLocaleString()} tracker data points needing geocoding. Starting processing...`
 		);
 
-		// Fetch all points that need geocoding using pagination
-		console.log(`🔍 Fetching all points that need geocoding...`);
-		const allPointsNeedingGeocoding: Array<{
-			user_id: string;
-			location:
-			| string
-			| {
-				type: string;
-				coordinates: number[];
-				crs?: { type: string; properties: { name: string } };
-			};
-			geocode: unknown;
-			recorded_at: string;
-			tracker_type: string;
-		}> = [];
+		// Process in batches - fetch and process each batch directly from the database
+		// Since processed records no longer match the filter (they have country set),
+		// we can keep fetching batches until no more unprocessed records remain
+		let batchNumber = 0;
 
-		let offset = 0;
-		const pageSize = 1000;
+		while (totalProcessed < totalPoints) {
+			batchNumber++;
 
-		while (true) {
-			const { data: batch, error: fetchError } = await fluxbase
+			// Fetch next batch of unprocessed points
+			const { data: batch, error: fetchError } = await db
 				.from('tracker_data')
 				.select('user_id, location, geocode, recorded_at, tracker_type')
 				.eq('user_id', userId)
-				.is('geocode->properties->>country', null)
+				.is('geocode->properties->>geocoded_at', null)
 				.is('geocode->properties->>geocode_error', null)
 				.order('recorded_at', { ascending: false })
-				.range(offset, offset + pageSize - 1);
+				.limit(BATCH_SIZE);
 
 			if (fetchError) throw fetchError;
 
+			// No more points to process
 			if (!batch || batch.length === 0) {
+				console.log(`📊 No more unprocessed points found after ${totalProcessed} processed`);
 				break;
 			}
 
-			allPointsNeedingGeocoding.push(...batch);
-			offset += pageSize;
+			const results = await processPointsConcurrently(db, batch);
 
-			if (offset > 1000000) {
-				console.warn('⚠️ Too many records, stopping at 1M');
-				break;
+			totalScanned += batch.length;
+			totalProcessed += results.processed;
+			totalSuccess += results.success;
+			totalErrors += results.errors;
+
+			// Calculate progress based on initial total count
+			const progress = Math.min(100, Math.round((totalProcessed / totalPoints) * 100));
+
+			console.log(
+				`📊 Batch ${batchNumber}: ${totalProcessed.toLocaleString()}/${totalPoints.toLocaleString()} (${progress}%) - ${results.success} ok, ${results.errors} errors`
+			);
+
+			// ETA calculation
+			const now = Date.now();
+			scanSamples.push({ time: now, scanned: totalScanned });
+			while (scanSamples.length > 1 && scanSamples[0].time < now - RATE_WINDOW_MS) {
+				scanSamples.shift();
 			}
-		}
 
-		console.log(`📊 Fetched ${allPointsNeedingGeocoding.length} points that need geocoding`);
+			const MIN_ELAPSED_SECONDS = 3;
+			const MIN_SAMPLES = 2;
+			const MIN_POINTS_PROCESSED = Math.min(50, Math.ceil(totalPoints * 0.02));
+			const elapsedSeconds = (now - startTime) / 1000;
 
-		const actualPointsToProcess = allPointsNeedingGeocoding?.length || 0;
-		const totalBatches = Math.ceil(actualPointsToProcess / BATCH_SIZE);
+			let etaDisplay = 'Calculating...';
 
-		console.log(`📊 Processing ${totalBatches} batches of ${BATCH_SIZE} points each`);
+			if (
+				elapsedSeconds >= MIN_ELAPSED_SECONDS &&
+				scanSamples.length >= MIN_SAMPLES &&
+				totalProcessed >= MIN_POINTS_PROCESSED
+			) {
+				let scanRate = 0;
 
-		// Process in batches
-		for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-			const startIndex = batchIndex * BATCH_SIZE;
-			const batch = allPointsNeedingGeocoding.slice(startIndex, startIndex + BATCH_SIZE);
-
-			if (batch.length > 0) {
-				const results = await processPointsSequentially(fluxbase, batch);
-				console.log(
-					`📊 Batch ${batchIndex + 1}/${totalBatches} completed: ${results.processed} processed, ${results.success} successful, ${results.errors} errors`
-				);
-
-				totalScanned += batch.length;
-				totalProcessed += results.processed;
-				totalSuccess += results.success;
-				totalErrors += results.errors;
-
-				// Calculate progress
-				const progress =
-					actualPointsToProcess === 0
-						? 100
-						: Math.min(100, Math.round((totalProcessed / actualPointsToProcess) * 100));
-
-				// Debug logging
-				if (totalProcessed % 100 === 0 || progress % 5 === 0) {
-					console.log(
-						`📊 [PROGRESS] totalProcessed: ${totalProcessed}, actualPointsToProcess: ${actualPointsToProcess}, progress: ${progress}%, batch: ${batchIndex + 1}/${totalBatches}`
-					);
-				}
-
-				// ETA calculation
-				const now = Date.now();
-				scanSamples.push({ time: now, scanned: totalScanned });
-				while (scanSamples.length > 1 && scanSamples[0].time < now - RATE_WINDOW_MS) {
-					scanSamples.shift();
-				}
-
-				const MIN_ELAPSED_SECONDS = 3;
-				const MIN_SAMPLES = 2;
-				const MIN_POINTS_PROCESSED = Math.min(50, Math.ceil(totalPoints * 0.02));
-				const elapsedSeconds = (now - startTime) / 1000;
-
-				let etaDisplay = 'Calculating...';
-
-				if (
-					elapsedSeconds >= MIN_ELAPSED_SECONDS &&
-					scanSamples.length >= MIN_SAMPLES &&
-					totalProcessed >= MIN_POINTS_PROCESSED
-				) {
-					let scanRate = 0;
-
-					if (scanSamples.length >= 2) {
-						const first = scanSamples[0];
-						const last = scanSamples[scanSamples.length - 1];
-						const deltaScanned = last.scanned - first.scanned;
-						const deltaSeconds = (last.time - first.time) / 1000;
-						if (deltaSeconds >= 1 && deltaScanned >= 0) {
-							scanRate = deltaScanned / deltaSeconds;
-							if (!isFinite(scanRate)) {
-								scanRate = 0;
-							}
-						}
-					}
-
-					if (scanRate === 0 && elapsedSeconds >= MIN_ELAPSED_SECONDS) {
-						scanRate = totalScanned > 0 ? totalScanned / elapsedSeconds : 0;
+				if (scanSamples.length >= 2) {
+					const first = scanSamples[0];
+					const last = scanSamples[scanSamples.length - 1];
+					const deltaScanned = last.scanned - first.scanned;
+					const deltaSeconds = (last.time - first.time) / 1000;
+					if (deltaSeconds >= 1 && deltaScanned >= 0) {
+						scanRate = deltaScanned / deltaSeconds;
 						if (!isFinite(scanRate)) {
 							scanRate = 0;
 						}
 					}
+				}
 
-					if (scanRate > 0) {
-						const remainingScans = Math.max(actualPointsToProcess - totalProcessed, 0);
-						const remainingSeconds = Math.round(remainingScans / scanRate);
-						etaDisplay = formatEta(remainingSeconds);
+				if (scanRate === 0 && elapsedSeconds >= MIN_ELAPSED_SECONDS) {
+					scanRate = totalScanned > 0 ? totalScanned / elapsedSeconds : 0;
+					if (!isFinite(scanRate)) {
+						scanRate = 0;
 					}
 				}
 
-				job.reportProgress(
-					progress,
-					`Processed ${totalProcessed.toLocaleString()}/${actualPointsToProcess.toLocaleString()} points (${totalErrors} errors) - ETA: ${etaDisplay}`
-				);
+				if (scanRate > 0) {
+					const remainingScans = Math.max(totalPoints - totalProcessed, 0);
+					const remainingSeconds = Math.round(remainingScans / scanRate);
+					etaDisplay = formatEta(remainingSeconds);
+				}
 			}
+
+			safeReportProgress(
+				job,
+				progress,
+				`🌍 Processed ${totalProcessed.toLocaleString()}/${totalPoints.toLocaleString()} points (${totalErrors} errors) - ETA: ${etaDisplay}`
+			);
 		}
 
 		console.log(
@@ -258,7 +262,9 @@ export async function handler(
 	}
 }
 
-async function processPointsSequentially(
+const CONCURRENCY = 20;
+
+async function processPointsConcurrently(
 	fluxbase: FluxbaseClient,
 	points: Array<{
 		user_id: string;
@@ -274,27 +280,26 @@ async function processPointsSequentially(
 		tracker_type: string;
 	}>
 ): Promise<{ processed: number; success: number; errors: number }> {
-	let processed = 0;
 	let success = 0;
 	let errors = 0;
 
-	for (let i = 0; i < points.length; i++) {
-		const point = points[i];
-		const result = await processSinglePoint(fluxbase, point);
+	// Process in concurrent chunks
+	for (let i = 0; i < points.length; i += CONCURRENCY) {
+		const chunk = points.slice(i, i + CONCURRENCY);
+		const results = await Promise.all(
+			chunk.map((point) => processSinglePoint(fluxbase, point))
+		);
 
-		processed++;
-		if (result) {
-			success++;
-		} else {
-			errors++;
-		}
-
-		if ((i + 1) % 100 === 0) {
-			console.log(`📊 Processed ${i + 1}/${points.length} points in current batch`);
+		for (const result of results) {
+			if (result) {
+				success++;
+			} else {
+				errors++;
+			}
 		}
 	}
 
-	return { processed, success, errors };
+	return { processed: points.length, success, errors };
 }
 
 async function processSinglePoint(
@@ -352,19 +357,6 @@ async function processSinglePoint(
 
 		// Merge new geocoding data with existing properties
 		const mergedGeocodeGeoJSON = mergeGeocodingWithExisting(point.geocode, lat, lon, geocodeResult);
-
-		// Extract country_code from the geocoded address
-		let extractedCountryCode = null;
-		if (geocodeResult.address && typeof geocodeResult.address === 'object') {
-			const address = geocodeResult.address as Record<string, string>;
-			extractedCountryCode = address.country_code || address.country;
-		}
-
-		// Add country_code to the geocode properties
-		if (extractedCountryCode) {
-			(mergedGeocodeGeoJSON.properties as Record<string, unknown>).country_code =
-				extractedCountryCode;
-		}
 
 		const { error: updateError } = await fluxbase
 			.from('tracker_data')

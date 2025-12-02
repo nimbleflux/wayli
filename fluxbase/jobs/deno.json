@@ -1,6 +1,5 @@
 {
   "imports": {
-    "@fluxbase/sdk": "npm:@fluxbase/sdk@0.1.0",
     "@streamparser/json": "npm:@streamparser/json@^0.0.21"
   },
   "compilerOptions": {

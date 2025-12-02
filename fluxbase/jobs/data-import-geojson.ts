@@ -8,6 +8,7 @@
  * @fluxbase:timeout 1800
  * @fluxbase:memory 512
  * @fluxbase:allow-read true
+ * @fluxbase:allow-env true
  */
 
 import {
@@ -32,6 +33,19 @@ interface ErrorSummary {
 	samples: Array<{ idx: number; reason: string }>;
 }
 
+// Safe wrapper for reportProgress - logs if method doesn't exist
+function safeReportProgress(job: JobUtils, percent: number, message: string): void {
+	if (typeof (job as any)?.reportProgress === 'function') {
+		try {
+			job.reportProgress(percent, message);
+		} catch (e) {
+			console.log(`[Progress ${percent}%] ${message}`);
+		}
+	} else {
+		console.log(`[Progress ${percent}%] ${message}`);
+	}
+}
+
 export async function handler(
 	req: Request,
 	fluxbase: FluxbaseClient,
@@ -51,21 +65,53 @@ export async function handler(
 	}
 
 	try {
-		// Download file from storage
-		const { data: fileData, error: downloadError } = await fluxbase.storage
-			.from('temp-files')
-			.download(payload.storagePath);
+		// Use resumable chunked download for large files - handles connection timeouts gracefully
+		console.log('🗺️ Starting GeoJSON import with resumable chunked download...');
+		const storage = fluxbase.storage.from('temp-files') as any;
 
-		if (downloadError || !fileData) {
-			throw new Error(`Failed to download file from storage: ${JSON.stringify(downloadError)}`);
+		let lastDownloadLog = 0;
+		const { data: downloadData, error: downloadError } = await storage.downloadResumable(
+			payload.storagePath,
+			{
+				chunkSize: 5 * 1024 * 1024, // 5MB chunks
+				maxRetries: 3,
+				onProgress: (progress: {
+					loaded?: number;
+					total?: number;
+					percentage?: number;
+					bytesPerSecond?: number;
+					currentChunk?: number;
+					totalChunks?: number;
+				}) => {
+					// Log download progress every 5 seconds
+					const now = Date.now();
+					if (now - lastDownloadLog > 5000) {
+						const mb = ((progress.loaded ?? 0) / 1024 / 1024).toFixed(1);
+						const totalMb = ((progress.total ?? 0) / 1024 / 1024).toFixed(1);
+						const speed = ((progress.bytesPerSecond ?? 0) / 1024 / 1024).toFixed(1);
+						const pct = (progress.percentage ?? 0).toFixed(1);
+						console.log(
+							`📥 Downloading: ${mb}/${totalMb} MB (${pct}%) - ${speed} MB/s - Chunk ${progress.currentChunk ?? '?'}/${progress.totalChunks ?? '?'}`
+						);
+						lastDownloadLog = now;
+					}
+				}
+			}
+		);
+
+		if (downloadError || !downloadData) {
+			throw new Error(`Failed to download file: ${JSON.stringify(downloadError)}`);
 		}
 
-		// Execute import with streaming JSON parser for memory efficiency
-		console.log('🗺️ Starting GeoJSON import with streaming parser');
-		job.reportProgress(0, `🗺️ Streaming GeoJSON features...`);
+		// downloadResumable returns { size: number, stream: ReadableStream }
+		const stream: ReadableStream<Uint8Array> = downloadData.stream;
+		const totalBytes = downloadData.size || 0;
+		console.log(`📦 File size: ${(totalBytes / 1024 / 1024).toFixed(2)} MB`);
+
+		safeReportProgress(job, 0, `🗺️ Streaming GeoJSON features...`);
 
 		const startTime = Date.now();
-		const results = await processGeoJSONStream(fileData, userId, jobId, fluxbase, job, startTime);
+		const results = await processGeoJSONStream(stream, totalBytes, userId, jobId, fluxbase, job, startTime);
 
 		const importedCount = results.importedCount;
 		const skippedCount = results.skippedCount;
@@ -82,11 +128,11 @@ export async function handler(
 		console.log(`   ⏱️ Total time: ${totalTime.toFixed(1)}s`);
 		console.log(`   🚀 Average rate: ${(importedCount / totalTime).toFixed(1)} points/sec`);
 
-		// Trigger distance calculation job for the user after import completes
+		// Trigger follow-up jobs after import completes
 		if (importedCount > 0) {
 			console.log(`🧮 Queueing distance calculation job for user ${userId}...`);
 			try {
-				const { data: distanceJob, error: distanceError } = await fluxbase.jobs.submit(
+				const { data: distanceJob, error: distanceError } = await fluxbaseService.jobs.submit(
 					'distance-calculation',
 					{ target_user_id: userId },
 					{
@@ -100,9 +146,26 @@ export async function handler(
 				} else {
 					console.log(`✅ Distance calculation job queued: ${(distanceJob as any)?.job_id || 'unknown'}`);
 				}
+
+				// Queue reverse geocoding job to get address info for imported points
+				console.log(`🌍 Queueing reverse geocoding job for user ${userId}...`);
+				const { data: geocodeJob, error: geocodeError } = await fluxbaseService.jobs.submit(
+					'reverse-geocoding',
+					{ target_user_id: userId },
+					{
+						namespace: 'wayli',
+						priority: 4 // Lower priority than distance calculation
+					}
+				);
+
+				if (geocodeError) {
+					console.warn(`⚠️ Failed to queue reverse geocoding job: ${geocodeError.message}`);
+				} else {
+					console.log(`✅ Reverse geocoding job queued: ${(geocodeJob as any)?.job_id || 'unknown'}`);
+				}
 			} catch (distanceQueueError) {
-				console.warn(`⚠️ Error queueing distance calculation:`, distanceQueueError);
-				// Don't fail the import if distance calculation queueing fails
+				console.warn(`⚠️ Error queueing follow-up jobs:`, distanceQueueError);
+				// Don't fail the import if follow-up job queueing fails
 			}
 		}
 
@@ -122,11 +185,12 @@ export async function handler(
 
 /**
  * Stream-based GeoJSON processor for memory-efficient parsing of large files.
- * Instead of loading the entire file into memory, this streams through the file
- * and processes features in batches as they are parsed.
+ * Uses a true streaming approach - file is never fully loaded into memory.
+ * Processes features in batches as they are parsed from the stream.
  */
 async function processGeoJSONStream(
-	fileData: Blob,
+	stream: ReadableStream<Uint8Array>,
+	totalBytes: number,
 	userId: string,
 	_jobId: string,
 	fluxbase: FluxbaseClient,
@@ -148,11 +212,10 @@ async function processGeoJSONStream(
 	let featureBuffer: Feature[] = [];
 	let featureIndex = 0;
 	let bytesRead = 0;
-	const totalBytes = fileData.size;
 	let lastLogTime = startTime;
 
-	console.log(`🔄 Streaming mode: Processing features in batches of ${BATCH_SIZE}`);
-	console.log(`📦 File size: ${(totalBytes / 1024 / 1024).toFixed(2)} MB`);
+	console.log(`🔄 True streaming mode: Processing features in batches of ${BATCH_SIZE}`);
+	console.log(`📦 File size: ${totalBytes > 0 ? (totalBytes / 1024 / 1024).toFixed(2) + ' MB' : 'unknown'}`);
 
 	// Create streaming JSON parser that extracts features from FeatureCollection
 	const parser = new JSONParser({
@@ -160,14 +223,19 @@ async function processGeoJSONStream(
 		keepStack: false // Memory optimization: don't keep full stack
 	});
 
-	// Process a batch of features
+	// Track how many features we've processed for correct chunk indexing
+	let processedFeatureCount = 0;
+
+	// Process a batch of features - takes only BATCH_SIZE items at a time
 	const processBatch = async () => {
 		if (featureBuffer.length === 0) return;
 
-		const batch = featureBuffer;
-		featureBuffer = []; // Clear buffer immediately to free memory
+		// Take only BATCH_SIZE features, leave the rest in buffer
+		const batch = featureBuffer.slice(0, BATCH_SIZE);
+		featureBuffer = featureBuffer.slice(BATCH_SIZE);
 
-		const result = await processFeatureChunk(batch, userId, featureIndex - batch.length, fluxbase);
+		const result = await processFeatureChunk(batch, userId, processedFeatureCount, fluxbase);
+		processedFeatureCount += batch.length;
 
 		importedCount += result.imported;
 		skippedCount += result.skipped;
@@ -190,7 +258,7 @@ async function processGeoJSONStream(
 	};
 
 	// Stream the file through the parser
-	const reader = fileData.stream().getReader();
+	const reader = stream.getReader();
 	const decoder = new TextDecoder();
 
 	try {
@@ -203,47 +271,47 @@ async function processGeoJSONStream(
 			const chunk = decoder.decode(value, { stream: true });
 			parser.write(chunk);
 
-			// Process batch when buffer is full
-			if (featureBuffer.length >= BATCH_SIZE) {
+			// Process ALL batches that accumulated from this chunk (a single chunk can parse many features)
+			while (featureBuffer.length >= BATCH_SIZE) {
 				await processBatch();
+			}
 
-				// Update progress based on bytes read
-				const currentTime = Date.now();
-				const progress = Math.round((bytesRead / totalBytes) * 100);
+			// Update progress based on bytes read (throttled to every 5 seconds)
+			const currentTime = Date.now();
+			if (currentTime - lastLogTime > 5000) {
+				const progress = totalBytes > 0 ? Math.round((bytesRead / totalBytes) * 100) : 0;
+				const elapsedSeconds = (currentTime - startTime) / 1000;
+				const rate = featureIndex > 0 ? (featureIndex / elapsedSeconds).toFixed(1) : '0';
+				const mbRead = (bytesRead / 1024 / 1024).toFixed(2);
+				const mbTotal = totalBytes > 0 ? (totalBytes / 1024 / 1024).toFixed(2) : '?';
 
-				if (currentTime - lastLogTime > 5000) {
-					const elapsedSeconds = (currentTime - startTime) / 1000;
-					const rate = featureIndex > 0 ? (featureIndex / elapsedSeconds).toFixed(1) : '0';
-					const mbRead = (bytesRead / 1024 / 1024).toFixed(2);
-					const mbTotal = (totalBytes / 1024 / 1024).toFixed(2);
+				console.log(
+					`📈 Progress: ${mbRead}/${mbTotal} MB (${progress}%) - Features: ${featureIndex.toLocaleString()} - Rate: ${rate}/sec - Imported: ${importedCount.toLocaleString()} - Buffer: ${featureBuffer.length}`
+				);
 
-					console.log(
-						`📈 Progress: ${mbRead}/${mbTotal} MB (${progress}%) - Features: ${featureIndex.toLocaleString()} - Rate: ${rate}/sec - Imported: ${importedCount.toLocaleString()}`
-					);
+				const topErrors = Object.entries(errorSummary.counts)
+					.sort((a, b) => b[1] - a[1])
+					.slice(0, 3)
+					.map(([k, v]) => `${k}: ${v}`)
+					.join('; ');
 
-					const topErrors = Object.entries(errorSummary.counts)
-						.sort((a, b) => b[1] - a[1])
-						.slice(0, 3)
-						.map(([k, v]) => `${k}: ${v}`)
-						.join('; ');
+				safeReportProgress(
+					job,
+					progress,
+					`🗺️ Streaming GeoJSON... ${mbRead}/${mbTotal} MB - ${featureIndex.toLocaleString()} features - ${rate}/sec${topErrors ? ` - Errors: ${topErrors}` : ''}`
+				);
 
-					job.reportProgress(
-						progress,
-						`🗺️ Streaming GeoJSON... ${mbRead}/${mbTotal} MB - ${featureIndex.toLocaleString()} features - ${rate}/sec${topErrors ? ` - Errors: ${topErrors}` : ''}`
-					);
-
-					lastLogTime = currentTime;
-				}
+				lastLogTime = currentTime;
 			}
 		}
 
 		// Process any remaining features in the buffer
-		if (featureBuffer.length > 0) {
+		while (featureBuffer.length > 0) {
 			await processBatch();
 		}
 
 		// Final progress update
-		job.reportProgress(100, `🗺️ Import complete - ${featureIndex.toLocaleString()} features processed`);
+		safeReportProgress(job, 100, `🗺️ Import complete - ${featureIndex.toLocaleString()} features processed`);
 
 		console.log(`📊 Streaming complete: ${featureIndex.toLocaleString()} total features parsed`);
 	} finally {
@@ -314,8 +382,14 @@ async function processFeatureChunk(
 
 			let recordedAt = new Date().toISOString();
 
-			// Process timestamp from properties
+			// Process timestamp from properties - check multiple common field names
 			if (
+				(properties as Record<string, unknown>).recorded_at &&
+				typeof (properties as Record<string, unknown>).recorded_at === 'string'
+			) {
+				// Already an ISO string from previous export
+				recordedAt = (properties as Record<string, unknown>).recorded_at as string;
+			} else if (
 				(properties as Record<string, unknown>).timestamp &&
 				typeof (properties as Record<string, unknown>).timestamp === 'number'
 			) {

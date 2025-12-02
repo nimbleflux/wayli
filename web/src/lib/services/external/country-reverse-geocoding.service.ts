@@ -15,7 +15,7 @@ const __dirname = path.dirname(__filename);
 let countriesGeoJSON: FeatureCollection<Polygon | MultiPolygon> | null = null;
 function loadCountriesGeoJSON(): FeatureCollection<Polygon | MultiPolygon> {
 	if (!countriesGeoJSON) {
-		let rawGeoJSON: FeatureCollection<Polygon | MultiPolygon>;
+		let rawGeoJSON: FeatureCollection<Polygon | MultiPolygon> | null = null;
 
 		// Try to load embedded compressed data first (for bundled mode)
 		try {
@@ -27,9 +27,32 @@ function loadCountriesGeoJSON(): FeatureCollection<Polygon | MultiPolygon> {
 			console.log('✅ Loaded countries.geojson from embedded compressed data');
 		} catch {
 			// Fallback to filesystem (for development mode)
-			const filePath = path.resolve(__dirname, '../../data/countries.geojson');
-			const data = fs.readFileSync(filePath, 'utf-8');
-			rawGeoJSON = JSON.parse(data) as FeatureCollection<Polygon | MultiPolygon>;
+			const possiblePaths = [
+				path.resolve(__dirname, '../../data/countries.geojson'),
+				path.resolve(process.cwd(), 'src/lib/data/countries.geojson'),
+				path.resolve(process.cwd(), 'web/src/lib/data/countries.geojson'),
+				'/data/countries.geojson'
+			];
+
+			for (const filePath of possiblePaths) {
+				try {
+					const data = fs.readFileSync(filePath, 'utf-8');
+					rawGeoJSON = JSON.parse(data) as FeatureCollection<Polygon | MultiPolygon>;
+					break;
+				} catch {
+					// Continue trying other paths
+				}
+			}
+
+			if (!rawGeoJSON) {
+				console.error('❌ [COUNTRY] Failed to load countries.geojson from any path');
+				// Return empty feature collection to prevent crashes
+				countriesGeoJSON = {
+					type: 'FeatureCollection',
+					features: []
+				} as FeatureCollection<Polygon | MultiPolygon>;
+				return countriesGeoJSON;
+			}
 		}
 
 		// Normalize properties

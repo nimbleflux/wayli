@@ -277,24 +277,35 @@ export function mergeGeocodingWithExisting(
 
 	const existingProperties = existing.properties as Record<string, unknown>;
 
-	// Merge properties: existing properties take precedence, but add new geocoding data
-	const mergedProperties = {
-		// Start with existing properties (from import)
-		...existingProperties,
-		// Add/update geocoding-specific properties
-		...newGeocodeGeoJSON.properties,
-		// Add extracted city and country directly to properties
-		city: extractedCity,
-		country: extractedCountry,
-		// Ensure we keep the original import metadata
-		imported_at: existingProperties.imported_at,
-		import_source: existingProperties.import_source,
-		// Add geocoding metadata
-		geocoded_at: newGeocodeGeoJSON.properties.geocoded_at,
-		geocoding_provider: newGeocodeGeoJSON.properties.geocoding_provider,
-		// Include addendum data from geocoding
-		addendum: newGeocodeGeoJSON.properties.addendum
-	};
+	// If existing data was never properly geocoded (no geocoded_at), replace it entirely
+	// but preserve import metadata
+	const wasProperlyGeocoded = !!existingProperties.geocoded_at;
+
+	let mergedProperties: Record<string, unknown>;
+
+	if (wasProperlyGeocoded) {
+		// Merge with existing geocoded data
+		mergedProperties = {
+			...existingProperties,
+			...newGeocodeGeoJSON.properties,
+			city: extractedCity,
+			country: extractedCountry,
+			imported_at: existingProperties.imported_at,
+			import_source: existingProperties.import_source,
+			geocoded_at: newGeocodeGeoJSON.properties.geocoded_at,
+			geocoding_provider: newGeocodeGeoJSON.properties.geocoding_provider,
+			addendum: newGeocodeGeoJSON.properties.addendum
+		};
+	} else {
+		// Replace entirely, only preserve import metadata
+		mergedProperties = {
+			...newGeocodeGeoJSON.properties,
+			city: extractedCity,
+			country: extractedCountry,
+			imported_at: existingProperties.imported_at,
+			import_source: existingProperties.import_source
+		};
+	}
 
 	return {
 		type: 'Feature',

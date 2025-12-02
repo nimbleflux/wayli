@@ -10,6 +10,19 @@
 
 import type { FluxbaseClient, JobUtils } from './types';
 
+// Safe wrapper for reportProgress - logs if method doesn't exist
+function safeReportProgress(job: JobUtils, percent: number, message: string): void {
+	if (typeof (job as any)?.reportProgress === 'function') {
+		try {
+			job.reportProgress(percent, message);
+		} catch (e) {
+			console.log(`[Progress ${percent}%] ${message}`);
+		}
+	} else {
+		console.log(`[Progress ${percent}%] ${message}`);
+	}
+}
+
 interface DistanceCalculationPayload {
 	target_user_id: string;
 }
@@ -27,7 +40,7 @@ export async function handler(
 	try {
 		console.log(`🧮 Processing distance calculation job ${jobId}`);
 
-		job.reportProgress(0, 'Starting distance calculation...');
+		safeReportProgress(job, 0, '🧮 Starting distance calculation...');
 
 		const targetUserId = payload.target_user_id;
 		const BATCH_SIZE = 1000; // Process 1000 records per batch
@@ -49,8 +62,8 @@ export async function handler(
 		console.log(`📊 Total records to process: ${totalRecords}`);
 
 		if (totalRecords === 0) {
-			console.log('⏭️  No records to process');
-			job.reportProgress(100, 'No records to process');
+			console.log('⏭️ No records to process');
+			safeReportProgress(job, 100, '⏭️ No records to process');
 			return {
 				success: true,
 				result: {
@@ -103,18 +116,19 @@ export async function handler(
 
 			// Update progress (cap at 95% until final completion)
 			const progressPercent = Math.min(95, Math.round((offset / totalRecords) * 100));
-			job.reportProgress(
+			safeReportProgress(
+				job,
 				progressPercent,
-				`Processing distances... ${offset}/${totalRecords} records`
+				`🧮 Processing distances... ${offset.toLocaleString()}/${totalRecords.toLocaleString()} records`
 			);
 
 			// Small delay between batches to avoid overwhelming the database
 			await new Promise((resolve) => setTimeout(resolve, 50));
 		}
 
-		console.log(`✅ Distance calculation completed: ${totalProcessed} records processed`);
+		console.log(`✅ Distance calculation completed: ${totalProcessed.toLocaleString()} records processed`);
 
-		job.reportProgress(100, `Successfully processed ${totalProcessed} records`);
+		safeReportProgress(job, 100, `✅ Successfully processed ${totalProcessed.toLocaleString()} records`);
 
 		return {
 			success: true,

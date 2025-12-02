@@ -3,9 +3,10 @@
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
+	import JobDetailModal from '$lib/components/modals/JobDetailModal.svelte';
 	import { fluxbase } from '$lib/fluxbase';
 	import { translate } from '$lib/i18n';
-	import { getActiveJobsMap, subscribe, type JobStoreJob } from '$lib/stores/job-store';
+	import { getActiveJobsMap, subscribe, removeJobFromStore, type JobStoreJob } from '$lib/stores/job-store';
 	import {
 		activeUploads,
 		subscribe as subscribeUploads,
@@ -27,6 +28,10 @@
 
 	// Upload progress state
 	let uploads = $state<UploadProgress[]>([]);
+
+	// Detail modal state
+	let showDetailModal = $state(false);
+	let selectedJob = $state<JobStoreJob | null>(null);
 
 	// Subscribe to store changes
 	onMount(() => {
@@ -82,7 +87,7 @@
 			: jobName.charAt(0).toUpperCase() + jobName.slice(1).replace(/[_-]/g, ' ');
 	}
 
-	// Get ETA display
+	// Get ETA display - format estimated_seconds_left into human-readable string
 	function getETADisplay(job: JobStoreJob): string {
 		// Only show for active jobs
 		if (job.status !== 'running' && job.status !== 'pending') {
@@ -94,8 +99,19 @@
 			return t('jobProgress.queued');
 		}
 
-		// Use Fluxbase's progress_message directly - it handles ETA formatting
-		return job.progress_message || '';
+		// Format estimated_seconds_left into readable ETA
+		const seconds = job.estimated_seconds_left;
+		if (!seconds || seconds <= 0) {
+			return t('jobProgress.determiningEta');
+		}
+
+		if (seconds < 60) {
+			return `~${Math.round(seconds)}s remaining`;
+		}
+		if (seconds < 3600) {
+			return `~${Math.ceil(seconds / 60)}m remaining`;
+		}
+		return `~${Math.ceil(seconds / 3600)}h remaining`;
 	}
 
 	// Status color mapping
@@ -112,7 +128,8 @@
 	}
 
 	// Cancel job function
-	async function handleCancelJob(job: JobStoreJob) {
+	async function handleCancelJob(job: JobStoreJob, event?: MouseEvent) {
+		event?.stopPropagation();
 		jobToCancel = job;
 		showCancelConfirm = true;
 	}
@@ -152,7 +169,10 @@
 	}
 
 	// Dismiss a job from the UI
-	function dismissJob(jobId: string) {
+	function dismissJob(jobId: string, event?: MouseEvent) {
+		// Stop propagation to prevent opening the detail modal
+		event?.stopPropagation();
+
 		// Remove from local state
 		activeJobs.delete(jobId);
 		activeJobs = new Map(activeJobs);
@@ -170,10 +190,26 @@
 		// Remove from completed lists
 		showCompletedJobs = showCompletedJobs.filter((j) => j.id !== jobId);
 		completedExportJobs = completedExportJobs.filter((j) => j.id !== jobId);
+
+		// Remove from global store (for cancelled jobs that persist)
+		removeJobFromStore(jobId);
+	}
+
+	// Open job detail modal
+	function openJobDetail(job: JobStoreJob) {
+		selectedJob = job;
+		showDetailModal = true;
+	}
+
+	// Close job detail modal
+	function closeJobDetail() {
+		showDetailModal = false;
+		selectedJob = null;
 	}
 
 	// Download export job result
-	async function handleDownloadExport(job: JobStoreJob) {
+	async function handleDownloadExport(job: JobStoreJob, event?: MouseEvent) {
+		event?.stopPropagation();
 		try {
 			const { data: sessionData } = await fluxbase.auth.getSession();
 			if (!sessionData?.session) {
@@ -218,6 +254,14 @@
 	let jobsArray = $derived(Array.from(activeJobs.values()));
 	let activeJobsList = $derived(
 		jobsArray.filter((job) => job.status === 'pending' || job.status === 'running')
+	);
+	// Cancelled jobs stay visible until dismissed by user
+	let cancelledJobsList = $derived(
+		jobsArray.filter((job) => job.status === 'cancelled')
+	);
+	// Failed jobs also stay visible until dismissed
+	let failedJobsList = $derived(
+		jobsArray.filter((job) => job.status === 'failed')
 	);
 	let recentlyCompletedJobs = $derived(
 		jobsArray.filter(
@@ -341,7 +385,14 @@
 	{@const eta = getETADisplay(job)}
 	{@const jobTypeName = getJobTypeDisplayName(job.job_name)}
 
-	<div class="mb-3 flex items-center gap-3">
+	<!-- Using div with role="button" to avoid nested button a11y issue -->
+	<div
+		role="button"
+		tabindex="0"
+		class="mb-3 flex w-full cursor-pointer items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+		onclick={() => openJobDetail(job)}
+		onkeydown={(e) => e.key === 'Enter' && openJobDetail(job)}
+	>
 		<div class="flex-shrink-0">
 			<JobIcon class="h-5 w-5 {statusColor}" />
 		</div>
@@ -377,13 +428,16 @@
 				</div>
 			{:else if job.status === 'failed'}
 				<div class="text-xs text-red-600 dark:text-red-400">❌ Failed</div>
+			{:else if job.status === 'cancelled'}
+				<div class="text-xs text-gray-600 dark:text-gray-400">⏹️ Cancelled</div>
 			{/if}
 		</div>
 
 		{#if showAction === 'cancel'}
 			<button
-				onclick={() => handleCancelJob(job)}
-				class="flex-shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-red-500 dark:hover:bg-gray-700 dark:hover:text-red-400"
+				type="button"
+				onclick={(e) => handleCancelJob(job, e)}
+				class="flex-shrink-0 rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-red-500 dark:hover:bg-gray-600 dark:hover:text-red-400"
 				title={t('jobProgress.cancelJob')}
 				aria-label={t('jobProgress.cancelJob')}
 			>
@@ -391,8 +445,9 @@
 			</button>
 		{:else if showAction === 'download'}
 			<button
-				onclick={() => handleDownloadExport(job)}
-				class="flex-shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-blue-500 dark:hover:bg-gray-700 dark:hover:text-blue-400"
+				type="button"
+				onclick={(e) => handleDownloadExport(job, e)}
+				class="flex-shrink-0 rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-blue-500 dark:hover:bg-gray-600 dark:hover:text-blue-400"
 				title={t('jobProgress.downloadExport')}
 				aria-label={t('jobProgress.downloadExport')}
 			>
@@ -400,8 +455,9 @@
 			</button>
 		{:else if showAction === 'dismiss'}
 			<button
-				onclick={() => dismissJob(job.id)}
-				class="flex-shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+				type="button"
+				onclick={(e) => dismissJob(job.id, e)}
+				class="flex-shrink-0 rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-600 dark:hover:text-gray-300"
 				title={t('jobProgress.dismiss')}
 				aria-label={t('jobProgress.dismiss')}
 			>
@@ -411,7 +467,7 @@
 	</div>
 {/snippet}
 
-{#if uploads.length > 0 || visibleJobs.length > 0 || showCompletedJobs.length > 0 || completedExportJobs.length > 0}
+{#if uploads.length > 0 || visibleJobs.length > 0 || showCompletedJobs.length > 0 || completedExportJobs.length > 0 || cancelledJobsList.length > 0 || failedJobsList.length > 0}
 	<!-- Active uploads (shown first) -->
 	{#each uploads as upload (`${upload.id}-${upload.status}-${upload.percentage}`)}
 		{@render uploadCard(upload)}
@@ -431,7 +487,24 @@
 	{#each completedExportJobs as job (`${job.id}-${job.status}`)}
 		{@render jobCard(job, 'download')}
 	{/each}
+
+	<!-- Cancelled jobs (user must dismiss) -->
+	{#each cancelledJobsList as job (`${job.id}-cancelled`)}
+		{@render jobCard(job, 'dismiss')}
+	{/each}
+
+	<!-- Failed jobs (user must dismiss) -->
+	{#each failedJobsList as job (`${job.id}-failed`)}
+		{@render jobCard(job, 'dismiss')}
+	{/each}
 {/if}
+
+<!-- Job Detail Modal -->
+<JobDetailModal
+	open={showDetailModal}
+	job={selectedJob}
+	onClose={closeJobDetail}
+/>
 
 <!-- Cancel Confirmation Modal -->
 {#if showCancelConfirm && jobToCancel}

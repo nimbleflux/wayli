@@ -254,6 +254,7 @@
 		"enterPasswordPlaceholder": "Enter your password",
 		"enterPasswordForQR": "Enter your password to generate a QR code for your authenticator app",
 		"forgotPassword": "Forgot your password?",
+		"rememberMe": "Remember me",
 		"firstName": "First name",
 		"lastName": "Last name",
 		"createPassword": "Create a password",
@@ -345,7 +346,11 @@
 		"failedToResendEmail": "Failed to resend verification email",
 		"pleaseWaitBeforeResending": "Please wait before requesting another email",
 		"resendIn": "Resend in {seconds}s",
-		"enterValidEmail": "Please enter a valid email address"
+		"enterValidEmail": "Please enter a valid email address",
+		"confirmYourIdentity": "Confirm Your Identity",
+		"confirmYourIdentityDescription": "For your security, please enter your password to continue.",
+		"incorrectPassword": "Incorrect password. Please try again.",
+		"confirm": "Confirm"
 	},
 	"signup": {
 		"firstUserWelcome": "Welcome! You're setting up Wayli for the first time.",
@@ -713,6 +718,7 @@
 		"tripGeneration": "Trip generation",
 		"job": "Job",
 		"queued": "Queued...",
+		"determiningEta": "Determining ETA...",
 		"calculating": "Calculating...",
 		"complete": "Complete",
 		"inProgress": "In progress",
@@ -725,6 +731,9 @@
 		"downloadStarted": "Download started",
 		"failedToDownloadExport": "Failed to download export",
 		"cancelJob": "Cancel job",
+		"cancelling": "Cancelling...",
+		"cancelSuccess": "Job cancelled successfully",
+		"cancelFailed": "Failed to cancel job",
 		"downloadExport": "Download export",
 		"dismiss": "Dismiss",
 		"uploading": "Uploading",

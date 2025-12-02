@@ -9,7 +9,12 @@
       "Bash(find:*)",
       "Bash(npx tsc:*)",
       "Bash(psql:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(npm run sync-jobs:*)",
+      "Bash(grep:*)",
+      "Bash(cat:*)",
+      "Bash(npx svelte-check:*)",
+      "Bash(xargs:*)"
     ],
     "deny": [],
     "ask": []

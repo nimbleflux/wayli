@@ -1,4 +1,4 @@
-import { createWorkerClient } from '../../worker/client';
+import { fluxbase } from '$lib/fluxbase';
 import type { GeocodeGeoJSONFeature } from '../utils/geojson-converter';
 
 export interface TripLocation {
@@ -60,11 +60,11 @@ export interface GeocodeData {
 }
 
 export class TripLocationsService {
-	private supabase: ReturnType<typeof createWorkerClient>;
+	private fluxbase: typeof fluxbase;
 
 	constructor() {
 		// Use the worker client
-		this.supabase = createWorkerClient();
+		this.fluxbase = fluxbase;
 	}
 
 	// Note: Static client override functionality to be implemented in future version
@@ -75,14 +75,14 @@ export class TripLocationsService {
 
 	// Instance method to switch to worker client
 	useWorkerClient() {
-		this.supabase = createWorkerClient();
-		console.log('🔧 [TripLocationsService] Switched to worker Supabase client');
+		this.fluxbase = fluxbase;
+		console.log('🔧 [TripLocationsService] Switched to worker Fluxbase client');
 	}
 
 	async getTripLocations(tripId: string, userId?: string): Promise<TripLocation[]> {
 		try {
 			// First, get the trip to get its date range
-			const { data: trip, error: tripError } = await this.supabase
+			const { data: trip, error: tripError } = await this.fluxbase
 				.from('trips')
 				.select('start_date, end_date, user_id')
 				.eq('id', tripId)
@@ -97,7 +97,7 @@ export class TripLocationsService {
 			const targetUserId = userId || trip.user_id;
 
 			// Fetch tracker data for the user within the trip's date range
-			const { data: locations, error } = await this.supabase
+			const { data: locations, error } = await this.fluxbase
 				.from('tracker_data')
 				.select('*')
 				.eq('user_id', targetUserId)
@@ -136,7 +136,7 @@ export class TripLocationsService {
 		hasMore: boolean;
 	}> {
 		try {
-			let query = this.supabase
+			let query = this.fluxbase
 				.from('tracker_data')
 				.select('*', { count: 'exact' })
 				.order('recorded_at', { ascending: true })

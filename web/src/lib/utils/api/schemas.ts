@@ -475,7 +475,7 @@ export const serverSettingsSchema = z.object({
 		.optional(), // 1KB to 100MB
 	maxImportSize: z.number().int().min(1000).max(1000000).optional(), // 1K to 1M records
 	geocodingEnabled: z.boolean().optional(),
-	geocodingProvider: z.enum(['nominatim', 'google', 'mapbox']).optional(),
+	geocodingProvider: z.enum(['pelias', 'google', 'mapbox']).optional(),
 	workerCount: z.number().int().min(1).max(10).optional()
 });
 

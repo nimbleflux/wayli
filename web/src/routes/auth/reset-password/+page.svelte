@@ -4,7 +4,7 @@
 	import { toast } from 'svelte-sonner';
 
 	import { translate } from '$lib/i18n';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
 
@@ -20,11 +20,9 @@
 
 	onMount(async () => {
 		// Check if we have a valid session with password reset token
-		const {
-			data: { session }
-		} = await supabase.auth.getSession();
+		const { data } = await fluxbase.auth.getSession();
 
-		if (!session) {
+		if (!data?.session) {
 			toast.error('Invalid or expired password reset link');
 			goto('/auth/signin');
 		}
@@ -46,7 +44,7 @@
 		loading = true;
 
 		try {
-			const { error } = await supabase.auth.updateUser({
+			const { error } = await fluxbase.auth.updateUser({
 				password: password
 			});
 

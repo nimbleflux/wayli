@@ -19,7 +19,7 @@
 	import { translate } from '$lib/i18n';
 	import { setTheme, initializeTheme } from '$lib/stores/app-state.svelte';
 	import { userStore } from '$lib/stores/auth';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import type { UserProfile } from '$lib/types/user.types';
 
@@ -98,7 +98,7 @@
 		}
 
 		if ($userStore) {
-			const { data } = await supabase
+			const { data } = await fluxbase
 				.from('user_profiles')
 				.select('home_address, home_address_skipped, onboarding_dismissed')
 				.eq('id', $userStore.id)

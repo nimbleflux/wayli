@@ -6,20 +6,22 @@
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
-	// ✅ CORRECT: Import from client and shared environments
-	import { translate } from '$lib/client/i18n';
-	import { getEdgeFunctionUrl } from '$lib/client/utils/url-utils';
-	import { CLIENT_ENVIRONMENT, logClient } from '$lib/client/environment';
-	import { UserType } from '$lib/shared/types';
+	import { translate } from '$lib/i18n';
+	import { config } from '$lib/config';
 
-	import { page } from '$app/stores';
-	import { supabase } from '$lib/shared/supabase/client';
+	import { fluxbase } from '$lib/fluxbase';
+
+	// Simple client logger
+	function logClient(message: string, level: 'info' | 'error') {
+		if (level === 'error') {
+			console.error(`[Connections] ${message}`);
+		} else {
+			console.log(`[Connections] ${message}`);
+		}
+	}
 
 	// Use the reactive translation function
 	let t = $derived($translate);
-
-	// Log client environment info
-	logClient('Connections page loaded', 'info');
 
 	let copiedField = $state('');
 
@@ -27,20 +29,34 @@
 	let owntracksEndpoint = $state<string | null>(null);
 
 	async function refreshApiKeyData() {
-		const {
-			data: { user },
-			error
-		} = await supabase.auth.getUser();
+		const { data, error } = await fluxbase.auth.getUser();
 
-		if (user && !error) {
-			owntracksApiKey = user.user_metadata?.owntracks_api_key || null;
+		if (data?.user && !error) {
+			const user = data.user;
 
-			// Construct the endpoint URL using centralized utility
+			// Get the API key from user_preferences table
+			const { data: preferences, error: prefsError } = await fluxbase
+				.from('user_preferences')
+				.select('owntracks_api_key')
+				.eq('id', user.id)
+				.single();
+
+			if (prefsError) {
+				logClient('Error fetching user preferences', 'error');
+				owntracksApiKey = null;
+				owntracksEndpoint = null;
+				return;
+			}
+
+			owntracksApiKey = preferences?.owntracks_api_key || null;
+
+			// Construct the endpoint URL for OwnTracks integration
 			if (owntracksApiKey) {
-				owntracksEndpoint = getEdgeFunctionUrl('owntracks-points', {
-					api_key: owntracksApiKey,
-					user_id: user.id
-				});
+				const baseUrl = config.fluxbaseUrl;
+				const url = new URL(`${baseUrl}/functions/v1/owntracks-points`);
+				url.searchParams.append('api_key', owntracksApiKey);
+				url.searchParams.append('user_id', user.id);
+				owntracksEndpoint = url.toString();
 			} else {
 				owntracksEndpoint = null;
 			}
@@ -49,32 +65,49 @@
 
 	async function generateApiKey() {
 		try {
-			const {
-				data: { user }
-			} = await supabase.auth.getUser();
-			if (!user) {
+			const { data } = await fluxbase.auth.getUser();
+			if (!data?.user) {
 				toast.error(t('connections.userNotAuthenticated'));
 				return;
 			}
 
-			const { data, error } = await supabase.functions.invoke('connections-api-key', {
-				body: { action: 'generate' }
-			});
+			// Generate a secure random API key (32 bytes = 64 hex characters)
+			const array = new Uint8Array(32);
+			crypto.getRandomValues(array);
+			const newApiKey = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+
+			logClient(`Generating new API key for user: ${data.user.id}`, 'info');
+
+			// Store the API key in user_preferences table
+			const { error } = await fluxbase
+				.from('user_preferences')
+				.update({
+					owntracks_api_key: newApiKey,
+					updated_at: new Date().toISOString()
+				})
+				.eq('id', data.user.id);
 
 			if (error) {
-				logClient('Error generating API key', 'error');
+				logClient('Error storing API key in user preferences', 'error');
+				console.error('❌ Error details:', error);
 				toast.error(t('connections.failedToGenerateApiKey'));
 				return;
 			}
 
-			if (data?.success) {
-				logClient('API key generated successfully', 'info');
-				toast.success(t('connections.apiKeyGeneratedSuccess'));
-				// Refresh the data to show the new API key
-				await refreshApiKeyData();
-			} else {
-				toast.error(t('connections.failedToGenerateApiKey'));
-			}
+			logClient('API key stored successfully in user_preferences', 'info');
+
+			// Immediately update the UI with the new API key
+			owntracksApiKey = newApiKey;
+
+			// Construct the endpoint URL with the new API key
+			const baseUrl = config.fluxbaseUrl;
+			const url = new URL(`${baseUrl}/functions/v1/owntracks-points`);
+			url.searchParams.append('api_key', newApiKey);
+			url.searchParams.append('user_id', data.user.id);
+			owntracksEndpoint = url.toString();
+
+			logClient('API key generated successfully', 'info');
+			toast.success(t('connections.apiKeyGeneratedSuccess'));
 		} catch (error) {
 			logClient('Error generating API key', 'error');
 			toast.error(t('connections.failedToGenerateApiKey'));
@@ -99,20 +132,6 @@
 	onMount(async () => {
 		logClient('Connections page mounted', 'info');
 		await refreshApiKeyData();
-
-		// Show success message if API key was generated
-		if ($page.form?.success) {
-			toast.success(t('connections.apiKeyGeneratedSuccess'));
-		}
-	});
-
-	// Watch for form results
-	$effect(() => {
-		if ($page.form?.success) {
-			toast.success(t('connections.apiKeyGeneratedSuccess'));
-		} else if ($page.form?.error) {
-			toast.error($page.form.error);
-		}
 	});
 </script>
 
@@ -125,12 +144,6 @@
 				{t('connections.title')}
 			</h1>
 		</div>
-		<!-- Environment indicator for development -->
-		{#if CLIENT_ENVIRONMENT.IS_DEVELOPMENT}
-			<div class="mt-2 text-sm text-gray-500">
-				🖥️ Client Environment | {CLIENT_ENVIRONMENT.NODE_ENV}
-			</div>
-		{/if}
 	</div>
 
 	<!-- Connections -->

@@ -30,7 +30,7 @@ describe('Service Integration Tests', () => {
 
 	describe('Audit Logging', () => {
 		it('should log events successfully', async () => {
-			const mockRequest = new Request('http://localhost:3000/test');
+			const mockRequest = new Request('http://localhost:4000/test');
 			await auditLogger.logEvent(
 				AuditEventType.DATA_VIEW,
 				'Test event description',
@@ -51,7 +51,7 @@ describe('Service Integration Tests', () => {
 		});
 
 		it('should log data access events', async () => {
-			const mockRequest = new Request('http://localhost:3000/test');
+			const mockRequest = new Request('http://localhost:4000/test');
 			await auditLogger.logDataAccess('test_user', 'view', 'test_resource', undefined, mockRequest);
 
 			expect(auditLogger.logDataAccess).toHaveBeenCalledWith(
@@ -66,7 +66,7 @@ describe('Service Integration Tests', () => {
 
 	describe('Rate Limiting', () => {
 		it('should check rate limits', () => {
-			const mockRequest = new Request('http://localhost:3000/test');
+			const mockRequest = new Request('http://localhost:4000/test');
 			const config = { windowMs: 60000, maxRequests: 100 };
 			const result = rateLimitService.checkRateLimit(mockRequest, config);
 
@@ -75,7 +75,7 @@ describe('Service Integration Tests', () => {
 		});
 
 		it('should handle rate limit exceeded', () => {
-			const mockRequest = new Request('http://localhost:3000/test');
+			const mockRequest = new Request('http://localhost:4000/test');
 			const config = { windowMs: 60000, maxRequests: 100 };
 			vi.mocked(rateLimitService.checkRateLimit).mockReturnValue({
 				allowed: false,
@@ -95,7 +95,7 @@ describe('Service Integration Tests', () => {
 
 	describe('Service Interaction', () => {
 		it('should integrate audit logging with rate limiting', async () => {
-			const mockRequest = new Request('http://localhost:3000/test');
+			const mockRequest = new Request('http://localhost:4000/test');
 			const config = { windowMs: 60000, maxRequests: 100 };
 
 			// Simulate a rate-limited request

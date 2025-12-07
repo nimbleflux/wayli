@@ -26,7 +26,7 @@
 	} from 'lucide-svelte';
 	import { onMount } from 'svelte';
 
-	import { reverseGeocode } from '$lib/services/external/nominatim.service';
+	import { reverseGeocode } from '$lib/services/external/pelias.service';
 
 	import { toast } from 'svelte-sonner';
 
@@ -36,7 +36,7 @@
 	let t = $derived($translate);
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
 	import { WantToVisitService } from '$lib/services/want-to-visit.service';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import type { UserProfile } from '$lib/types/user.types';
 	import type { Place } from '$lib/types/want-to-visit.types';
@@ -270,15 +270,15 @@
 
 		isLoadingProfile = true;
 		try {
-			const session = await supabase.auth.getSession();
+			const session = await fluxbase.auth.getSession();
 			if (!session.data.session?.user) {
 				console.error('No session found');
 				return;
 			}
 
-			// Use the Edge Function to get user profile
+			// Get user profile using ServiceAdapter (now uses SDK internally)
 			const serviceAdapter = new ServiceAdapter({ session: session.data.session });
-			const profile = (await serviceAdapter.callApi('auth-profile')) as any;
+			const profile = (await serviceAdapter.getProfile()) as any;
 
 			userProfile = profile as UserProfile;
 
@@ -332,15 +332,15 @@
 				(selectedTypes.length === 1 && selectedTypes[0] === 'All') ||
 				selectedTypes.some((selectedType) => place.markerType && place.markerType === selectedType);
 
-			// Search filter - search in title, description, labels, and location
+			// Search filter - search in title, description, labels, and address
 			const searchLower = searchQuery.toLowerCase();
 			const searchMatch =
 				!searchQuery ||
 				place.title.toLowerCase().includes(searchLower) ||
 				(place.description && place.description.toLowerCase().includes(searchLower)) ||
 				(place.labels && place.labels.some((label) => label.toLowerCase().includes(searchLower))) ||
-				(place.location && place.location.toLowerCase().includes(searchLower)) ||
-				(place.address && place.address.toLowerCase().includes(searchLower));
+				(place.address && place.address.toLowerCase().includes(searchLower)) ||
+				(place.coordinates && place.coordinates.toLowerCase().includes(searchLower));
 
 			// Favourited filter - show only favourited places when enabled
 			const favouritedMatch = !showFavouritedOnly || place.favorite;
@@ -611,15 +611,31 @@
 
 		isSearching = true;
 		try {
+			// Use Pelias autocomplete endpoint for faster results
+			const peliasEndpoint = import.meta.env.PUBLIC_PELIAS_ENDPOINT || 'https://pelias.wayli.app';
 			const response = await fetch(
-				`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5&addressdetails=1`
+				`${peliasEndpoint}/v1/autocomplete?text=${encodeURIComponent(searchQuery)}&size=5`,
+				{
+					headers: {
+						'User-Agent': 'WayliApp/1.0',
+						'Accept': 'application/json'
+					}
+				}
 			);
 			const data = await response.json();
-			searchResults = data.map((result: any) => ({
-				name: result.display_name,
-				lat: result.lat,
-				lon: result.lon,
-				address: result.address || {}
+			searchResults = (data.features || []).map((feature: any) => ({
+				name: feature.properties?.label || '',
+				lat: feature.geometry?.coordinates?.[1],
+				lon: feature.geometry?.coordinates?.[0],
+				address: {
+					city: feature.properties?.locality,
+					state: feature.properties?.region,
+					country: feature.properties?.country,
+					country_code: feature.properties?.country_a,
+					neighbourhood: feature.properties?.neighbourhood,
+					road: feature.properties?.street,
+					house_number: feature.properties?.housenumber
+				}
 			}));
 			showSearchResults = true;
 		} catch (error) {
@@ -724,7 +740,6 @@
 				coordinates: `${latitude}, ${longitude}`,
 				description,
 				address,
-				location: address.split(',').slice(-2).join(',').trim(),
 				markerType: selectedMarkerType,
 				markerColor: selectedMarkerColor,
 				labels: [...labels],
@@ -765,7 +780,6 @@
 				coordinates: `${latitude}, ${longitude}`,
 				description,
 				address,
-				location: address.split(',').slice(-2).join(',').trim(),
 				markerType: selectedMarkerType,
 				markerColor: selectedMarkerColor,
 				labels: [...labels]
@@ -1666,7 +1680,7 @@
 						</div>
 						<div class="mb-2 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
 							<MapPin class="h-4 w-4" />
-							{place.location || place.address}
+							{place.address || place.coordinates}
 						</div>
 						<span
 							class="inline-block rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"

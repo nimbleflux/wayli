@@ -85,8 +85,8 @@ import { getNodeEnvironmentConfig } from './node-environment';
 
 ```typescript
 // src/routes/+page.svelte
-// Note: Nominatim configuration is now handled directly in the service
-// No client-side config needed at this time
+// Note: Pelias configuration is now handled directly in the service
+// Client-side can use PUBLIC_PELIAS_ENDPOINT env var (defaults to https://pelias.wayli.app)
 ```
 
 ### Server-Side Configuration
@@ -96,8 +96,8 @@ import { getNodeEnvironmentConfig } from './node-environment';
 import { validateServerEnvironmentConfig } from '$lib/core/config/server-environment';
 
 const config = validateServerEnvironmentConfig(true);
-// config.supabase.url = 'https://your-project.supabase.co'
-// config.supabase.serviceRoleKey = 'your-service-role-key'
+// config.fluxbase.url = 'https://your-project.fluxbase.eu'
+// config.fluxbase.serviceRoleKey = 'your-service-role-key'
 ```
 
 ### Worker Configuration
@@ -107,8 +107,8 @@ const config = validateServerEnvironmentConfig(true);
 import { validateWorkerEnvironmentConfig } from '$lib/core/config/worker-environment';
 
 const config = validateWorkerEnvironmentConfig();
-// config.supabase.url = 'https://your-project.supabase.co'
-// config.supabase.serviceRoleKey = 'your-service-role-key'
+// config.fluxbase.url = 'https://your-project.fluxbase.eu'
+// config.fluxbase.serviceRoleKey = 'your-service-role-key'
 ```
 
 ### Node.js Configuration
@@ -126,15 +126,15 @@ const config = getNodeEnvironmentConfig();
 ### Public Variables (Client-Safe)
 
 ```env
-PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+PUBLIC_FLUXBASE_BASE_URL=https://your-project.fluxbase.eu
+PUBLIC_FLUXBASE_ANON_KEY=your-anon-key
 NODE_ENV=development
 ```
 
 ### Private Variables (Server-Only)
 
 ```env
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+FLUXBASE_SERVICE_ROLE_KEY=your-service-role-key
 JWT_SECRET=your-jwt-secret
 SESSION_SECRET=your-session-secret
 COOKIE_SECRET=your-cookie-secret
@@ -171,12 +171,12 @@ describe('Server Environment Config', () => {
 	});
 
 	it('should validate required environment variables', () => {
-		process.env.PUBLIC_SUPABASE_URL = 'https://test.supabase.co';
-		process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-key';
+		process.env.PUBLIC_FLUXBASE_BASE_URL = 'https://test.fluxbase.eu';
+		process.env.FLUXBASE_SERVICE_ROLE_KEY = 'test-service-key';
 
 		const config = validateServerEnvironmentConfig(true);
-		expect(config.supabase.url).toBe('https://test.supabase.co');
-		expect(config.supabase.serviceRoleKey).toBe('test-service-key');
+		expect(config.fluxbase.url).toBe('https://test.fluxbase.eu');
+		expect(config.fluxbase.serviceRoleKey).toBe('test-service-key');
 	});
 });
 ```
@@ -216,7 +216,7 @@ Warning: Sensitive environment variable exposed to client
 ## 📚 Related Documentation
 
 - [SvelteKit Environment Variables](https://kit.svelte.dev/docs/modules#$env-static-private)
-- [Supabase Environment Setup](https://supabase.com/docs/guides/getting-started/environment-variables)
+- [Fluxbase Environment Setup](https://fluxbase.eu/docs/guides/getting-started/environment-variables)
 - [Node.js Environment Variables](https://nodejs.org/api/process.html#processenv)
 
 ## 🔄 Migration Guide
@@ -225,8 +225,8 @@ Warning: Sensitive environment variable exposed to client
 
 ```typescript
 // ❌ Old way
-import { PUBLIC_SUPABASE_URL } from '$env/static/public';
-import { SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
+import { PUBLIC_FLUXBASE_BASE_URL } from '$env/static/public';
+import { FLUXBASE_SERVICE_ROLE_KEY } from '$env/static/private';
 
 // ✅ New way
 import { validateServerEnvironmentConfig } from '$lib/core/config/server-environment';
@@ -237,9 +237,9 @@ const config = validateServerEnvironmentConfig();
 
 ```typescript
 // ❌ Old way
-const url = process.env.PUBLIC_SUPABASE_URL;
+const url = process.env.PUBLIC_FLUXBASE_BASE_URL;
 
 // ✅ New way
-import { PUBLIC_SUPABASE_URL } from '$lib/supabase';
-const url = PUBLIC_SUPABASE_URL;
+import { PUBLIC_FLUXBASE_BASE_URL } from '$lib/fluxbase';
+const url = PUBLIC_FLUXBASE_BASE_URL;
 ```

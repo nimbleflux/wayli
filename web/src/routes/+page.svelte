@@ -19,8 +19,7 @@
 	import { translate, messages, currentLocale } from '$lib/i18n';
 	import { setTheme, initializeTheme } from '$lib/stores/app-state.svelte';
 	import { userStore, sessionStore } from '$lib/stores/auth';
-	import { supabase } from '$lib/supabase';
-	import { getEdgeFunctionUrl } from '$lib/utils/url-utils';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
@@ -45,7 +44,7 @@
 		console.log('🏠 [LANDING] Signout initiated');
 		try {
 			// Ensure client session/localStorage are cleared first
-			await supabase.auth.signOut();
+			await fluxbase.auth.signOut();
 		} catch (e) {
 			console.warn('🏠 [LANDING] Client signout warning:', e);
 		}
@@ -55,27 +54,23 @@
 
 	async function checkSetupStatus() {
 		try {
-			const { data, error } = await supabase.functions.invoke('server-settings', {
-				method: 'GET'
-			});
+			// Read setup status from app.settings (RLS allows anonymous read for public settings)
+			const isSetupComplete = await fluxbase.settings.get('wayli.is_setup_complete');
 
-			console.log('🏠 [LANDING] Raw response:', { data, error });
+			console.log('🏠 [LANDING] Setup status check:', { isSetupComplete });
 
-			if (!error && data) {
-				// Handle the response - data might already be unwrapped or might be wrapped in { data: ... }
-				const settings = data.data || data;
-				const isSetupComplete = settings.is_setup_complete ?? false;
-				console.log('🏠 [LANDING] Setup status check:', { isSetupComplete, settings });
-
-				// If setup is not complete, redirect to signup for initial setup
-				if (!isSetupComplete) {
-					console.log('🏠 [LANDING] Setup not complete, redirecting to initial setup');
-					goto('/auth/signup');
-					return;
-				}
+			// Only redirect if setup is explicitly marked as incomplete
+			// If the setting doesn't exist or is undefined, assume setup is complete
+			// (landing page should be accessible by default)
+			const setupValue = isSetupComplete?.value;
+			if (setupValue === false || setupValue === 'false') {
+				console.log('🏠 [LANDING] Setup explicitly incomplete, redirecting to initial setup');
+				goto('/auth/signup');
+				return;
 			}
 		} catch (error) {
 			console.error('🏠 [LANDING] Error checking setup status:', error);
+			// On error, don't redirect - let the user access the landing page
 		} finally {
 			checkingUserCount = false;
 		}
@@ -252,14 +247,14 @@
 				<div class="flex flex-col justify-center gap-4 sm:flex-row">
 					<a
 						href="/auth/signup"
-						class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[rgb(37,140,244)] px-8 py-4 font-semibold text-white shadow-lg transition-colors hover:bg-[rgb(37,140,244)]/90"
+						class="inline-flex cursor-pointer items-center gap-2 rounded-lg border-2 border-gray-300 px-8 py-4 font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
 					>
 						{t('landing.getStarted')}
 						<ArrowRight class="h-5 w-5" />
 					</a>
 					<a
 						href="/auth/signin"
-						class="inline-flex cursor-pointer items-center gap-2 rounded-lg border-2 border-gray-300 px-8 py-4 font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+						class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[rgb(37,140,244)] px-8 py-4 font-semibold text-white shadow-lg transition-colors hover:bg-[rgb(37,140,244)]/90"
 					>
 						{t('landing.signIn')}
 					</a>

@@ -11,7 +11,7 @@
  */
 
 import { serviceManager } from '$lib/architecture/service-layer';
-import { supabase } from '$lib/supabase';
+import { fluxbase } from '$lib/fluxbase';
 
 import { errorHandler } from './error-handler.service';
 import { LocationCacheService } from './location-cache.service';
@@ -62,7 +62,7 @@ export class ServiceLayerAdapter {
 		this.services.set('logger', logger);
 
 		// Client-safe application services
-		this.services.set('trips', new TripsService(supabase));
+		this.services.set('trips', new TripsService(fluxbase));
 		// Note: StatisticsService removed - now using ClientStatisticsService
 		this.services.set('wantToVisit', new WantToVisitService());
 	}

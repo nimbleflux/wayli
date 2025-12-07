@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { FluxbaseClient } from '@fluxbase/sdk';
 
 export enum LogLevel {
 	DEBUG = 0,
@@ -36,7 +36,7 @@ export interface LogConfig {
 
 class LoggingService {
 	private config: LogConfig;
-	private supabase: SupabaseClient | null = null;
+	private fluxbase: FluxbaseClient | null = null;
 	private isDevelopment = process.env.NODE_ENV === 'development';
 
 	constructor(config: Partial<LogConfig> = {}) {
@@ -53,8 +53,8 @@ class LoggingService {
 		};
 	}
 
-	setSupabaseClient(client: SupabaseClient) {
-		this.supabase = client;
+	setFluxbaseClient(client: FluxbaseClient) {
+		this.fluxbase = client;
 		this.config.enableDatabase = true;
 	}
 
@@ -135,10 +135,10 @@ class LoggingService {
 	}
 
 	private async writeToDatabase(entry: LogEntry): Promise<void> {
-		if (!this.config.enableDatabase || !this.supabase) return;
+		if (!this.config.enableDatabase || !this.fluxbase) return;
 
 		try {
-			await this.supabase.from('application_logs').insert({
+			await this.fluxbase.from('application_logs').insert({
 				timestamp: entry.timestamp,
 				level: LogLevel[entry.level],
 				message: entry.message,

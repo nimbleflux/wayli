@@ -1,48 +1,49 @@
+/**
+ * Job Types
+ * Updated to match Fluxbase Jobs SDK interface
+ */
+
 export interface Job {
 	id: string;
-	type: JobType;
+	namespace: string;
+	job_function_id?: string;
+	job_name: string; // Changed from 'type' to match SDK
 	status: JobStatus;
-	data: Record<string, unknown>;
-	progress: number;
-	result?: Record<string, unknown>;
+	payload?: any; // Changed from 'data' to match SDK
+	result?: any;
 	error?: string;
-	last_error?: string; // Last error before retry
-	retry_count?: number; // Number of retry attempts
+	logs?: string;
+	priority: number; // Changed to number to match SDK
+	max_duration_seconds?: number;
+	progress_timeout_seconds?: number;
+	progress_percent?: number; // Changed from 'progress' to match SDK
+	progress_message?: string;
+	progress_data?: any;
+	max_retries: number;
+	retry_count: number;
 	created_at: string;
-	updated_at: string;
+	updated_at?: string;
 	started_at?: string;
 	completed_at?: string;
 	created_by: string;
-	worker_id?: string;
-	priority: JobPriority;
 }
 
 export type JobType =
-	| 'reverse_geocoding_missing'
-	| 'data_import'
-	| 'trip_generation'
-	| 'data_export'
-	| 'geocoding'
-	| 'image_generation'
-	| 'trip_detection'
-	| 'distance_calculation';
-export type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'aborting';
-export type JobPriority = 'low' | 'normal' | 'high' | 'urgent';
+	| 'reverse-geocoding'
+	| 'data-import-geojson'
+	| 'data-import-gpx'
+	| 'data-import-owntracks'
+	| 'trip-generation'
+	| 'data-export'
+	| 'trip-detection'
+	| 'distance-calculation';
 
-export interface JobConfig {
-	maxWorkers: number;
-	pollInterval: number;
-	jobTimeout: number;
-	retryAttempts: number;
-	retryDelay: number;
-}
+export type JobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
-export interface WorkerInfo {
-	id: string;
-	user_id?: string;
-	status: 'idle' | 'busy' | 'stopped';
-	current_job?: string;
-	last_heartbeat: string;
-	started_at: string;
-	updated_at: string;
-}
+/**
+ * Note: Fluxbase Jobs platform manages job infrastructure
+ * - Jobs are submitted via fluxbase.jobs.submit()
+ * - Job handlers in /fluxbase/jobs/ are executed by Fluxbase
+ * - Progress is reported via Fluxbase.reportProgress() in handlers
+ * - Results are returned by handler functions
+ */

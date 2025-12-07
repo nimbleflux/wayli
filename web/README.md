@@ -69,7 +69,7 @@ graph TB
 
     %% Infrastructure Layer
     subgraph "Infrastructure Layer"
-        subgraph "Supabase Clients"
+        subgraph "Fluxbase Clients"
             BC[Browser Client]
             SC2[Server Client]
             WC[Worker Client]
@@ -82,7 +82,7 @@ graph TB
         end
 
         subgraph "External Services"
-            NS[Nominatim Service]
+            NS[Pelias Service]
             CRGS[Country Reverse Geocoding]
             IUS[Image Upload Service]
             PS[Pexels Service]
@@ -131,7 +131,7 @@ graph TB
 
 - Node.js 18+
 - npm or yarn
-- Supabase account and project
+- Fluxbase account and project
 
 ### Installation
 
@@ -154,18 +154,18 @@ graph TB
    cp .env.example .env
    ```
 
-   Edit `.env` with your Supabase credentials:
+   Edit `.env` with your Fluxbase credentials:
 
    ```env
-   PUBLIC_SUPABASE_URL=your_supabase_url
-   PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-   SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+   PUBLIC_FLUXBASE_BASE_URL=your_FLUXBASE_BASE_URL
+   PUBLIC_FLUXBASE_ANON_KEY=your_fluxbase_anon_key
+   FLUXBASE_SERVICE_ROLE_KEY=your_service_role_key
    ```
 
 4. **Run database migrations**
 
    ```bash
-   npx supabase db reset
+   npx fluxbase db reset
    ```
 
 5. **Start the development server**
@@ -215,7 +215,7 @@ web/
 │   │   ├── components/          # Reusable UI components
 │   │   ├── core/
 │   │   │   ├── config/          # Environment configuration
-│   │   │   └── supabase/        # Supabase clients
+│   │   │   └── fluxbase/        # Fluxbase clients
 │   │   ├── services/           # Business logic services
 │   │   ├── stores/             # Svelte stores
 │   │   ├── types/              # TypeScript types
@@ -240,7 +240,7 @@ web/
 ### Key Technologies
 
 - **Frontend**: SvelteKit, TypeScript, Tailwind CSS
-- **Backend**: Supabase (PostgreSQL, Auth, Storage)
+- **Backend**: Fluxbase (PostgreSQL, Auth, Storage)
 - **Testing**: Vitest, Testing Library
 - **Validation**: Zod
 - **Deployment**: Vercel
@@ -264,7 +264,7 @@ web/
 
 ### Security Features
 
-- **Authentication**: Supabase Auth with 2FA support
+- **Authentication**: Fluxbase Auth with 2FA support
 - **Authorization**: Row-level security policies
 - **Input Validation**: Comprehensive Zod schema validation
 - **Error Handling**: Secure error responses without data leakage
@@ -287,8 +287,8 @@ Wayli uses a secure, layered environment configuration:
 ### Client-Safe Configuration
 
 ```typescript
-// Note: Nominatim configuration is now handled directly in the service
-// No client-side config needed at this time
+// Note: Pelias configuration is now handled directly in the service
+// Client-side can use PUBLIC_PELIAS_ENDPOINT env var (defaults to https://pelias.wayli.app)
 ```
 
 ### Server-Only Configuration
@@ -357,13 +357,13 @@ The Docker container supports multiple modes via the `APP_MODE` environment vari
 docker build -t wayli-web .
 
 # Run web stage (nginx) - serves static files on port 80
-docker run -p 80:80 wayli-web:web
+docker run -p 80:80 wayli-web
 
 # Run worker stage - background processing
-docker run -e APP_MODE=worker wayli-web:worker
+docker run -e APP_MODE=worker wayli
 
 # Run worker manager stage
-docker run -e APP_MODE=workers wayli-web:worker
+docker run -e APP_MODE=workers wayli
 ```
 
 ### Testing
@@ -423,7 +423,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - [SvelteKit](https://kit.svelte.dev/) for the amazing framework
-- [Supabase](https://supabase.com/) for the backend infrastructure
+- [Fluxbase](https://fluxbase.eu/) for the backend infrastructure
 - [Tailwind CSS](https://tailwindcss.com/) for the styling system
 - [Vitest](https://vitest.dev/) for the testing framework
 - [Zod](https://zod.dev/) for runtime validation

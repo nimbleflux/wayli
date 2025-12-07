@@ -78,8 +78,8 @@ describe('Trip Image Suggestion Service - City Dominance Logic', () => {
 				}
 			];
 
-			// Mock the Supabase query to return our test data
-			const mockSupabase = {
+			// Mock the Fluxbase query to return our test data
+			const mockFluxbase = {
 				from: vi.fn().mockReturnValue({
 					select: vi.fn().mockReturnValue({
 						eq: vi.fn().mockReturnValue({
@@ -99,7 +99,7 @@ describe('Trip Image Suggestion Service - City Dominance Logic', () => {
 			};
 
 			// Replace the mock with our test data
-			vi.mocked(service.supabase).from = mockSupabase.from;
+			vi.mocked(service.fluxbase).from = mockFluxbase.from;
 
 			const result = await service.analyzeTripLocations('user123', '2024-01-01', '2024-01-01');
 
@@ -162,7 +162,7 @@ describe('Trip Image Suggestion Service - City Dominance Logic', () => {
 				}
 			];
 
-			const mockSupabase = {
+			const mockFluxbase = {
 				from: vi.fn().mockReturnValue({
 					select: vi.fn().mockReturnValue({
 						eq: vi.fn().mockReturnValue({
@@ -181,7 +181,7 @@ describe('Trip Image Suggestion Service - City Dominance Logic', () => {
 				})
 			};
 
-			vi.mocked(service.supabase).from = mockSupabase.from;
+			vi.mocked(service.fluxbase).from = mockFluxbase.from;
 
 			const result = await service.analyzeTripLocations('user123', '2024-01-01', '2024-01-01');
 
@@ -195,7 +195,7 @@ describe('Trip Image Suggestion Service - City Dominance Logic', () => {
 				{ country_code: 'NL', geocode: null, recorded_at: '2024-01-01T11:00:00Z' }
 			];
 
-			const mockSupabase = {
+			const mockFluxbase = {
 				from: vi.fn().mockReturnValue({
 					select: vi.fn().mockReturnValue({
 						eq: vi.fn().mockReturnValue({
@@ -214,7 +214,7 @@ describe('Trip Image Suggestion Service - City Dominance Logic', () => {
 				})
 			};
 
-			vi.mocked(service.supabase).from = mockSupabase.from;
+			vi.mocked(service.fluxbase).from = mockFluxbase.from;
 
 			const result = await service.analyzeTripLocations('user123', '2024-01-01', '2024-01-01');
 

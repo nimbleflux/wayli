@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 
 	import { userStore } from '$lib/stores/auth';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -14,7 +14,7 @@
 		(async () => {
 			const {
 				data: { user }
-			} = await supabase.auth.getUser();
+			} = await fluxbase.auth.getUser();
 			console.log('🔐 [AUTH] User check:', user ? `Found - ${user.email}` : 'None');
 
 			if (user) {

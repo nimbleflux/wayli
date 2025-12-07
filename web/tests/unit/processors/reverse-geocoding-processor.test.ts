@@ -1,8 +1,8 @@
 // reverse-geocoding-processor.service.spec.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import { supabase } from '../../../src/worker/supabase';
-import { reverseGeocode } from '../../../src/lib/services/external/nominatim.service';
+import { fluxbase } from '../../../src/worker/fluxbase';
+import { reverseGeocode } from '../../../src/lib/services/external/pelias.service';
 import { JobQueueService } from '../../../src/worker/job-queue.service.worker';
 import { processReverseGeocodingMissing } from '../../../src/worker/processors/reverse-geocoding-processor.service';
 
@@ -11,8 +11,8 @@ import type { Job } from '../../../src/lib/types/job-queue.types';
 // Import mocked modules (vi.mock is hoisted)
 
 // ---- Mock dependencies ----
-vi.mock('../../../src/worker/supabase', () => ({
-	supabase: {
+vi.mock('../../../src/worker/fluxbase', () => ({
+	fluxbase: {
 		from: vi.fn(),
 		rpc: vi.fn()
 	}
@@ -35,8 +35,8 @@ vi.mock('../../../src/lib/utils/geocoding-utils', () => ({
 	createRetryableError: vi.fn().mockReturnValue({ error: true, retryable: true })
 }));
 
-vi.mock('../../../src/lib/services/external/nominatim.service', () => ({
-	reverseGeocode: vi.fn().mockResolvedValue({ display_name: 'Test Location' })
+vi.mock('../../../src/lib/services/external/pelias.service', () => ({
+	reverseGeocode: vi.fn().mockResolvedValue({ display_name: 'Test Location', label: 'Test Location' })
 }));
 
 vi.mock('../helpers/concurrency', () => ({
@@ -52,11 +52,11 @@ vi.mock('node:os', () => ({
 describe('processReverseGeocodingMissing', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		supabase.rpc.mockResolvedValue({ error: null });
+		fluxbase.rpc.mockResolvedValue({ error: null });
 
 		// Chainable select/eq/not/range mock with thenable to resolve different scenarios
 		let servedGeocodeBatch = false;
-		supabase.from.mockImplementation(() => {
+		fluxbase.from.mockImplementation(() => {
 			const chain: any = {
 				_sel: undefined as any,
 				_opts: undefined as any,
@@ -140,8 +140,8 @@ describe('processReverseGeocodingMissing', () => {
 		const job: Job = { id: 'job2', created_by: 'user2', result: {} } as unknown as Job;
 
 		// Override to return no points: rewire from().select chain for this test only
-		const originalFrom = supabase.from;
-		supabase.from = vi.fn().mockReturnValue({
+		const originalFrom = fluxbase.from;
+		fluxbase.from = vi.fn().mockReturnValue({
 			select: vi.fn().mockReturnThis(),
 			eq: vi.fn().mockReturnThis(),
 			not: vi.fn().mockReturnThis(),
@@ -169,6 +169,6 @@ describe('processReverseGeocodingMissing', () => {
 		);
 
 		// restore
-		supabase.from = originalFrom;
+		fluxbase.from = originalFrom;
 	});
 });

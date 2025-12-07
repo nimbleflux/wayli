@@ -4,7 +4,7 @@
 
 	import { translate } from '$lib/i18n';
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import Tooltip from '../tooltip/index.svelte';
 
@@ -31,7 +31,7 @@
 
 		isLoadingProfile = true;
 		try {
-			const session = await supabase.auth.getSession();
+			const session = await fluxbase.auth.getSession();
 			if (!session.data.session?.user) {
 				console.error('No session found');
 				return;
@@ -39,7 +39,7 @@
 
 			// Use the Edge Function to get user profile
 			const serviceAdapter = new ServiceAdapter({ session: session.data.session });
-			const profile = (await serviceAdapter.callApi('auth-profile')) as UserProfile;
+			const profile = (await serviceAdapter.getProfile()) as UserProfile;
 
 			// Check if user has a home address
 			hasHomeAddress = !!profile?.home_address;

@@ -27,8 +27,8 @@
 	import { getTripsService } from '$lib/services/service-layer-adapter';
 	import { setDateRange } from '$lib/stores/app-state.svelte';
 	import { sessionStore, sessionStoreReady } from '$lib/stores/auth';
-	import { getActiveJobsMap, subscribe } from '$lib/stores/job-store';
-	import { supabase } from '$lib/supabase';
+	import { tripJobs, type JobStoreJob, addJobToStore, getActiveJobsMap } from '$lib/stores/job-store';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
@@ -145,28 +145,28 @@
 	let imageAttribution = $state<any>(null);
 	let hasAttemptedImageSuggestion = $state(false);
 
-	// Create a reactive subscription to the global store for trip generation jobs
-	let activeJobs = $state(getActiveJobsMap());
+	// Subscribe to pre-filtered trip jobs derived store
+	let activeTripJobs = $state<JobStoreJob[]>([]);
 
 	// Subscribe to store changes
 	onMount(() => {
-		const unsubscribe = subscribe(() => {
-			activeJobs = getActiveJobsMap();
+		const unsubscribe = tripJobs.subscribe((jobs) => {
+			activeTripJobs = jobs;
 		});
 
 		return unsubscribe;
 	});
 
 	$effect(() => {
-		// Find the active trip generation job in the activeJobs map
-		for (const [, job] of activeJobs.entries()) {
-			if (job.type === 'trip_generation' && (job.status === 'queued' || job.status === 'running')) {
+		// Find the active trip generation job in the filtered trip jobs
+		for (const job of activeTripJobs) {
+			if (job.job_name === 'trip-generation' && (job.status === 'pending' || job.status === 'running')) {
 				// Update approval progress if we have an active trip generation job
-				if (job.status === 'running' && job.progress > 0) {
+				if (job.status === 'running' && (job.progress_percent || 0) > 0) {
 					approvalProgress = {
 						step: 'creating-trips',
-						message: `Creating trips... ${job.progress}% complete`,
-						progress: job.progress,
+						message: `Creating trips... ${job.progress_percent || 0}% complete`,
+						progress: job.progress_percent || 0,
 						totalSteps: 2,
 						currentStep: 2,
 						imageProgress: {
@@ -318,7 +318,7 @@
 		}
 
 		try {
-			const session = await supabase.auth.getSession();
+			const session = await fluxbase.auth.getSession();
 			if (!session.data.session) {
 				throw new Error('No session found');
 			}
@@ -417,7 +417,7 @@
 
 	async function loadUserPreferences() {
 		try {
-			const session = await supabase.auth.getSession();
+			const session = await fluxbase.auth.getSession();
 			if (!session.data.session) {
 				throw new Error('No session found');
 			}
@@ -467,9 +467,12 @@
 			!hasAttemptedImageSuggestion
 		) {
 			// Add a small delay to avoid too many requests
-			setTimeout(() => {
+			const timeoutId = setTimeout(() => {
 				suggestTripImage();
 			}, 1000);
+
+			// Cleanup timeout if effect re-runs or component unmounts
+			return () => clearTimeout(timeoutId);
 		}
 	});
 
@@ -651,18 +654,17 @@
 				console.log('🔍 [TRIPS] Job result:', result);
 
 				// Immediately add the job to the store so it appears in the sidebar
-				const { addJobToStore } = await import('$lib/stores/job-store');
-
 				// Use the actual job data from the result if available, otherwise use defaults
-				const jobUpdate = {
+				const jobUpdate: JobStoreJob = {
 					id: result.id,
-					type: 'trip_generation',
-					status: result.status || 'queued',
-					progress: result.progress || 0,
+					job_name: 'trip-generation',
+					status: (result.status as JobStoreJob['status']) || 'pending',
+					progress_percent: result.progress || 0,
 					created_at: result.created_at || new Date().toISOString(),
 					updated_at: result.updated_at || new Date().toISOString(),
-					result: result.result || null,
-					error: result.error || null
+					result: result.result || undefined,
+					error: result.error || undefined,
+					created_by: '' // Will be filled by the store
 				};
 				addJobToStore(jobUpdate);
 				console.log('🔍 [TRIPS] Immediately added job to store:', jobUpdate);
@@ -960,9 +962,17 @@
 			} else {
 				imageError = t('trips.noImageSuggestionAvailable');
 			}
-		} catch {
-			// Error suggesting trip image
-			imageError = t('trips.failedToSuggestImage');
+		} catch (error) {
+			// Check if this is the "No travel data" error
+			const errorMessage = error instanceof Error ? error.message : String(error);
+
+			if (errorMessage.includes('No travel data found')) {
+				// Specific error for no travel data - user-friendly message
+				imageError = t('trips.noTravelDataForDateRange');
+			} else {
+				// Generic error
+				imageError = t('trips.failedToSuggestImage');
+			}
 		} finally {
 			isSuggestingImage = false;
 			hasAttemptedImageSuggestion = true; // Mark that we've attempted for this date range
@@ -1126,20 +1136,31 @@
 							approvalProgress.message = `Generated image for "${singleImageResult.results[0].trip_title}" (${successfulImageCount}/${selectedSuggestedTrips.length} trips)`;
 						}
 					} else {
+						// Check if the result contains a specific error message
+						const resultError = singleImageResult?.results?.[0]?.error || 'Failed to generate image';
+						const isNoTravelDataError = resultError.includes('No travel data found');
+
 						imageResults.push(
 							singleImageResult?.results?.[0] || {
 								suggested_trip_id: tripId,
 								success: false,
-								error: 'Failed to generate image'
+								error: isNoTravelDataError ? 'No travel data found for this date range' : resultError
 							}
 						);
 					}
 				} catch (error) {
 					console.error(`❌ Error generating image for trip ${tripId}:`, error);
+
+					// Check if this is the "No travel data" error
+					const errorMessage = error instanceof Error ? error.message : String(error);
+					const specificError = errorMessage.includes('No travel data found')
+						? 'No travel data found for this date range'
+						: 'Failed to generate image';
+
 					imageResults.push({
 						suggested_trip_id: tripId,
 						success: false,
-						error: 'Failed to generate image'
+						error: specificError
 					});
 				}
 			}

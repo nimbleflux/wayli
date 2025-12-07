@@ -1,7 +1,7 @@
 // src/lib/utils/api/base-handler.ts
 // Base API handler class for standardized API endpoint patterns
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@fluxbase/sdk';
 import { config } from '../../config';
 import { z } from 'zod';
 
@@ -37,7 +37,7 @@ export interface ApiContext {
 		role: string;
 		metadata: Record<string, unknown>;
 	};
-	supabase: ReturnType<typeof createClient>;
+	fluxbase: ReturnType<typeof createClient>;
 	body?: unknown;
 	query?: Record<string, string>;
 	params?: Record<string, string>;
@@ -98,7 +98,7 @@ export abstract class BaseApiHandler {
 	private async validate(event: RequestEvent | AuthenticatedRequest): Promise<ApiContext> {
 		const context: ApiContext = {
 			event,
-			supabase: createClient(config.supabaseUrl, config.supabaseServiceKey)
+			fluxbase: createClient(config.fluxbaseUrl, config.fluxbaseServiceKey)
 		};
 
 		// Add user if authenticated

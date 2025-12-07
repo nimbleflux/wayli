@@ -17,14 +17,16 @@
 	import { toast } from 'svelte-sonner';
 
 	import RoleSelector from '$lib/components/RoleSelector.svelte';
+	import Switch from '$lib/components/ui/Switch.svelte';
 	import UserAvatar from '$lib/components/ui/UserAvatar.svelte';
 	import UserEditModal from '$lib/components/UserEditModal.svelte';
 	import { translate } from '$lib/i18n';
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
 	import { sessionStore } from '$lib/stores/auth';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import type { UserProfile } from '$lib/types/user.types';
+	import type { AdminSettingsResponse } from '$lib/types/settings.types';
 
 	import { browser } from '$app/environment';
 	import { invalidateAll } from '$app/navigation';
@@ -50,6 +52,38 @@
 	let userToDelete = $state<UserProfile | null>(null);
 	let searchTimeout: ReturnType<typeof setTimeout>;
 	let activeTab = $state('settings'); // Add tab state - default to settings tab
+
+	// Authentication Settings
+	let enableSignup = $state(false);
+	let enableMagicLink = $state(false);
+	let passwordMinLength = $state(8);
+	let requireEmailVerification = $state(false);
+	let requireUppercase = $state(false);
+	let requireLowercase = $state(false);
+	let requireNumber = $state(false);
+	let requireSpecial = $state(false);
+	let sessionTimeout = $state(15);
+	let maxSessions = $state(5);
+
+	// Email Settings
+	let emailEnabled = $state(false);
+	let emailProvider = $state('smtp');
+	let smtpHost = $state('');
+	let smtpPort = $state(587);
+	let smtpUsername = $state('');
+	let smtpPassword = $state('');
+	let smtpUseTls = $state(true);
+	let smtpFromAddress = $state('');
+	let smtpFromName = $state('Wayli');
+	let smtpReplyTo = $state('');
+
+	// Feature Toggles
+	let enableRealtime = $state(true);
+	let enableStorage = $state(true);
+	let enableFunctions = $state(true);
+
+	// Security
+	let enableRateLimiting = $state(false);
 
 	// Handle Escape key for modals
 	$effect(() => {
@@ -86,9 +120,6 @@
 
 	// Fetch initial data on mount
 	onMount(async () => {
-		// Set admin flag since this is an admin-only page
-		isAdmin = true;
-
 		// Debug: Show current user info
 		const session = $sessionStore;
 		if (session?.user) {
@@ -143,8 +174,7 @@
 				hasPrev: false
 			};
 
-			// Check if current user is admin (assuming admin users can access this page)
-			isAdmin = true;
+			// Admin check handled by layout - isAdmin initialized to true
 		} catch (error: any) {
 			console.error('Error fetching filtered users:', error);
 			const errorMessage = error?.message || error?.error || 'Failed to fetch users';
@@ -196,30 +226,107 @@
 		);
 	}
 
-	async function saveSettings() {
+	async function saveWayliSettings() {
 		try {
 			const session = $sessionStore;
 			if (!session) throw new Error('No session found');
 
-			const settings: any = {
-				server_name: serverName
-			};
+			const serviceAdapter = new ServiceAdapter({ session });
 
-			// Only include the Pexels API key if it's been provided
+			await serviceAdapter.updateCustomSetting(
+				'wayli.server_name',
+				serverName,
+				'Wayli server name for branding'
+			);
+
 			if (serverPexelsApiKey) {
-				settings.server_pexels_api_key = serverPexelsApiKey;
+				await serviceAdapter.updateCustomSetting(
+					'wayli.server_pexels_api_key',
+					serverPexelsApiKey,
+					'Server-level Pexels API key'
+				);
 			}
 
-			console.log('🔧 [ADMIN] Saving server settings:', { ...settings, server_pexels_api_key: settings.server_pexels_api_key ? '[REDACTED]' : undefined });
+			toast.success(t('serverAdmin.wayliSettingsSaved'));
+		} catch (error: any) {
+			console.error('❌ Failed to save Wayli settings:', error);
+			toast.error(t('serverAdmin.failedToUpdateSettings'), {
+				description: error?.message
+			});
+		}
+	}
+
+	async function saveAuthSettings() {
+		try {
+			const session = $sessionStore;
+			if (!session) throw new Error('No session found');
 
 			const serviceAdapter = new ServiceAdapter({ session });
-			await serviceAdapter.updateServerSettings(settings);
 
-			toast.success('Settings saved successfully');
+			// Update signup
+			await serviceAdapter.updateAppSetting(
+				enableSignup ? 'enableSignup' : 'disableSignup'
+			);
+
+			// Update email verification
+			await serviceAdapter.updateAppSetting('setEmailVerificationRequired', {
+				required: requireEmailVerification
+			});
+
+			// Update password min length
+			await serviceAdapter.updateAppSetting('setPasswordMinLength', {
+				length: passwordMinLength
+			});
+
+			// Update password complexity
+			await serviceAdapter.updateAppSetting('setPasswordComplexity', {
+				require_uppercase: requireUppercase,
+				require_lowercase: requireLowercase,
+				require_number: requireNumber,
+				require_special: requireSpecial
+			});
+
+			toast.success(t('serverAdmin.authSettingsSaved'));
 		} catch (error: any) {
-			console.error('Error saving settings:', error);
-			const errorMessage = error?.message || error?.error || 'An unexpected error occurred.';
-			toast.error('Failed to save settings', { description: errorMessage });
+			console.error('❌ Failed to save auth settings:', error);
+			toast.error(t('serverAdmin.failedToUpdateSettings'), {
+				description: error?.message
+			});
+		}
+	}
+
+	async function saveEmailSettings() {
+		try {
+			const session = $sessionStore;
+			if (!session) throw new Error('No session found');
+
+			const serviceAdapter = new ServiceAdapter({ session });
+
+			// Update email enabled
+			await serviceAdapter.updateAppSetting('setEmailEnabled', {
+				enabled: emailEnabled
+			});
+
+			// Configure SMTP if enabled and provider is smtp
+			if (emailEnabled && emailProvider === 'smtp') {
+				await serviceAdapter.updateAppSetting('configureSMTP', {
+					host: smtpHost,
+					port: smtpPort,
+					username: smtpUsername,
+					password: smtpPassword,
+					use_tls: smtpUseTls,
+					from_address: smtpFromAddress,
+					from_name: smtpFromName,
+					reply_to_address: smtpReplyTo || undefined
+				});
+			}
+
+			toast.success(t('serverAdmin.emailSettingsSaved'));
+		} catch (error: any) {
+			console.error('❌ Failed to save email settings:', error);
+			toast.error(t('serverAdmin.failedToUpdateSettings'), {
+				description: error?.message
+			});
 		}
 	}
 
@@ -303,7 +410,7 @@
 		const updatedUser = event.detail;
 
 		try {
-			const { data, error } = await supabase.functions.invoke('admin-users', {
+			const { data, error } = await fluxbase.functions.invoke('admin-users', {
 				method: 'POST',
 				body: {
 					action: 'updateUser',
@@ -338,36 +445,51 @@
 		}
 	}
 
-	async function loadServerSettings() {
+	async function loadAllSettings() {
 		try {
 			const session = $sessionStore;
 			if (!session) return;
 
 			const serviceAdapter = new ServiceAdapter({ session });
-			const result = (await serviceAdapter.getServerSettings()) as any;
+			const result: AdminSettingsResponse = await serviceAdapter.getAllSettings();
 
-			// Edge Functions return { success: true, data: ... }
-			const settings = result.data || result;
+			// App settings - result is already typed correctly
+			const { app, custom } = result;
 
-			console.log('🔧 [ADMIN] Loaded server settings:', settings);
+			// Authentication
+			enableSignup = app.authentication.enable_signup;
+			enableMagicLink = app.authentication.enable_magic_link;
+			passwordMinLength = app.authentication.password_min_length;
+			requireEmailVerification = app.authentication.require_email_verification;
 
-			serverName = settings.server_name || '';
-			serverPexelsApiKey = settings.server_pexels_api_key || '';
+			// Email
+			emailEnabled = app.email.enabled;
+			emailProvider = app.email.provider;
 
-			console.log('🔧 [ADMIN] Processed settings:', {
-				serverName,
-				hasPexelsKey: !!settings.server_pexels_api_key
-			});
+			// Features
+			enableRealtime = app.features.enable_realtime;
+			enableStorage = app.features.enable_storage;
+			enableFunctions = app.features.enable_functions;
+
+			// Security
+			enableRateLimiting = app.security.enable_global_rate_limit;
+
+			// Custom Wayli settings
+			serverName = custom['wayli.server_name']?.value || '';
+			serverPexelsApiKey = custom['wayli.server_pexels_api_key']?.value || '';
+
+			console.log('✅ Settings loaded successfully');
 		} catch (error: any) {
-			console.error('Error loading server settings:', error);
-			const errorMessage = error?.message || error?.error || 'Failed to load server settings';
-			toast.error('Failed to load server settings', { description: errorMessage });
+			console.error('❌ Failed to load settings:', error);
+			toast.error(t('serverAdmin.failedToLoadSettings'), {
+				description: error?.message || 'Unknown error'
+			});
 		}
 	}
 
 	onMount(() => {
-		// Load server settings when component mounts
-		loadServerSettings();
+		// Load all settings when component mounts
+		loadAllSettings();
 	});
 
 	// Add User Modal State
@@ -378,8 +500,8 @@
 	let newUserConfirmPassword = $state('');
 	let newUserRole = $state<'admin' | 'user'>('user');
 
-	// Admin state
-	let isAdmin = $state(false);
+	// Admin state - initialized to true since layout already protects this route
+	let isAdmin = $state(true);
 
 	function handleCloseAddUserModal() {
 		showAddUserModal = false;
@@ -408,7 +530,7 @@
 		}
 
 		try {
-			const { data, error } = await supabase.functions.invoke('admin-users', {
+			const { data, error } = await fluxbase.functions.invoke('admin-users', {
 				method: 'POST',
 				body: {
 					action: 'addUser',
@@ -948,152 +1070,251 @@
 		<!-- Settings Tab -->
 		{#if activeTab === 'settings'}
 			<div class="space-y-8">
-				<!-- Server Settings -->
-				<div
-					class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]"
-				>
+				<!-- Wayli Settings -->
+				<div class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]">
 					<div class="mb-4">
 						<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
-							{t('serverAdmin.serverSettings')}
+							{t('serverAdmin.wayliSettings')}
 						</h2>
 						<p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
-							{t('serverAdmin.serverSettingsDescription')}
+							{t('serverAdmin.wayliSettingsDescription')}
 						</p>
 					</div>
 
-					<div class="space-y-6">
-						<!-- Server Name -->
+					<div class="space-y-4">
 						<div>
-							<label
-								for="serverName"
-								class="block text-sm font-medium text-gray-700 dark:text-gray-300"
-								>{t('serverAdmin.serverName')}</label
-							>
-							<div class="mt-1">
-								<input
-									type="text"
-									id="serverName"
-									bind:value={serverName}
-									class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-500"
-									placeholder="Enter server name"
-								/>
-							</div>
+							<label for="serverName" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+								{t('serverAdmin.serverName')}
+							</label>
+							<input
+								type="text"
+								id="serverName"
+								bind:value={serverName}
+								class="mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
+								placeholder={t('serverAdmin.enterServerName')}
+							/>
 						</div>
 
-						<!-- Server-level Pexels API Key -->
 						<div>
-							<label
-								for="serverPexelsApiKey"
-								class="block text-sm font-medium text-gray-700 dark:text-gray-300"
-								>Server Pexels API Key</label
-							>
-							<div class="mt-1">
-								<input
-									type="text"
-									id="serverPexelsApiKey"
-									bind:value={serverPexelsApiKey}
-									class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-500"
-									placeholder="Enter Pexels API key (optional)"
-								/>
-							</div>
-							<p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-								Provide a server-level Pexels API key for trip image suggestions. Users without their own API key will fall back to this server key. Free tier: 200 requests/hour. <a href="https://www.pexels.com/api/" target="_blank" rel="noopener noreferrer" class="text-[rgb(37,140,244)] hover:underline">Get an API key</a>
+							<label for="serverPexelsApiKey" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+								{t('serverAdmin.serverPexelsKey')}
+							</label>
+							<input
+								type="text"
+								id="serverPexelsApiKey"
+								bind:value={serverPexelsApiKey}
+								class="mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
+							/>
+							<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+								{t('serverAdmin.serverPexelsKeyDescription')}
 							</p>
 						</div>
-					</div>
 
-					<!-- Supabase Auth Configuration (Read-only) -->
-					<div>
-						<h3 class="mb-3 text-sm font-medium text-gray-900 dark:text-gray-100">
-							{t('serverAdmin.supabaseAuthConfig')}
-						</h3>
-						<p class="mb-4 text-xs text-gray-600 dark:text-gray-400">
-							{t('serverAdmin.supabaseAuthConfigDescription')}
-						</p>
-
-						<div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-							<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-								<thead class="bg-gray-50 dark:bg-gray-800">
-									<tr>
-										<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-											{t('serverAdmin.setting')}
-										</th>
-										<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-											{t('serverAdmin.helmChart')}
-										</th>
-										<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-											{t('serverAdmin.dockerCompose')}
-										</th>
-									</tr>
-								</thead>
-								<tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
-									<!-- Admin Email -->
-									<tr>
-										<td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
-											{t('serverAdmin.adminEmail')}
-										</td>
-										<td class="px-4 py-3 text-xs">
-											<code class="rounded bg-gray-100 px-2 py-1 font-mono text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-												supabase.auth.smtp.adminEmail
-											</code>
-										</td>
-										<td class="px-4 py-3 text-xs">
-											<code class="rounded bg-gray-100 px-2 py-1 font-mono text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-												GOTRUE_SMTP_ADMIN_EMAIL
-											</code>
-										</td>
-									</tr>
-									<!-- User Registration -->
-									<tr>
-										<td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
-											{t('serverAdmin.allowNewUserRegistration')}
-										</td>
-										<td class="px-4 py-3 text-xs">
-											<code class="rounded bg-gray-100 px-2 py-1 font-mono text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-												supabase.auth.enableSignup
-											</code>
-										</td>
-										<td class="px-4 py-3 text-xs">
-											<code class="rounded bg-gray-100 px-2 py-1 font-mono text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-												GOTRUE_DISABLE_SIGNUP
-											</code>
-										</td>
-									</tr>
-									<!-- Email Verification -->
-									<tr>
-										<td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
-											{t('serverAdmin.emailVerification')}
-										</td>
-										<td class="px-4 py-3 text-xs">
-											<code class="rounded bg-gray-100 px-2 py-1 font-mono text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-												supabase.auth.enableEmailAutoconfirm
-											</code>
-										</td>
-										<td class="px-4 py-3 text-xs">
-											<code class="rounded bg-gray-100 px-2 py-1 font-mono text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-												GOTRUE_MAILER_AUTOCONFIRM
-											</code>
-										</td>
-									</tr>
-								</tbody>
-							</table>
+						<div class="flex justify-end">
+							<button
+								onclick={saveWayliSettings}
+								class="rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(37,140,244)]/90"
+							>
+								{t('serverAdmin.saveSettings')}
+							</button>
 						</div>
-						<p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
-							💡 {t('serverAdmin.restartAfterChange')}
+					</div>
+				</div>
+
+				<!-- Authentication Settings -->
+				<div class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]">
+					<div class="mb-4">
+						<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
+							{t('serverAdmin.authenticationSettings')}
+						</h2>
+						<p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
+							{t('serverAdmin.authSettingsDescription')}
 						</p>
 					</div>
 
-				<!-- Save Button -->
-				<div class="mt-6 flex justify-end">
-					<button
-						onclick={saveSettings}
-						class="rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(37,140,244)]/90"
-					>
-						{t('serverAdmin.saveSettings')}
-					</button>
+					<div class="space-y-4">
+						<div class="flex items-center justify-between">
+							<span class="text-sm text-gray-700 dark:text-gray-300">
+								{t('serverAdmin.enableSignup')}
+							</span>
+							<Switch bind:checked={enableSignup} label={t('serverAdmin.enableSignup')} />
+						</div>
+
+						<div class="flex items-center justify-between">
+							<span class="text-sm text-gray-700 dark:text-gray-300">
+								{t('serverAdmin.requireEmailVerification')}
+							</span>
+							<Switch bind:checked={requireEmailVerification} label={t('serverAdmin.requireEmailVerification')} />
+						</div>
+
+						<div>
+							<label for="passwordMinLength" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+								{t('serverAdmin.passwordMinLength')}
+							</label>
+							<input
+								type="number"
+								id="passwordMinLength"
+								bind:value={passwordMinLength}
+								min="8"
+								max="128"
+								class="mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
+							/>
+						</div>
+
+						<div class="flex justify-end">
+							<button
+								onclick={saveAuthSettings}
+								class="rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(37,140,244)]/90"
+							>
+								{t('serverAdmin.saveSettings')}
+							</button>
+						</div>
+					</div>
+				</div>
+
+				<!-- Email & SMTP Settings -->
+				<div class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]">
+					<div class="mb-4">
+						<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
+							{t('serverAdmin.emailSettings')}
+						</h2>
+						<p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
+							{t('serverAdmin.emailSettingsDescription')}
+						</p>
+					</div>
+
+					<div class="space-y-4">
+						<div class="flex items-center justify-between">
+							<span class="text-sm text-gray-700 dark:text-gray-300">
+								{t('serverAdmin.emailEnabled')}
+							</span>
+							<Switch bind:checked={emailEnabled} label={t('serverAdmin.emailEnabled')} />
+						</div>
+
+						{#if emailEnabled}
+							<div>
+								<label for="emailProvider" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+									{t('serverAdmin.emailProvider')}
+								</label>
+								<select
+									id="emailProvider"
+									bind:value={emailProvider}
+									class="mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
+								>
+									<option value="smtp">SMTP</option>
+									<option value="sendgrid">SendGrid</option>
+									<option value="mailgun">Mailgun</option>
+									<option value="ses">AWS SES</option>
+								</select>
+							</div>
+
+							{#if emailProvider === 'smtp'}
+								<div class="space-y-3 rounded border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
+									<h3 class="font-medium text-gray-900 dark:text-gray-100">
+										{t('serverAdmin.smtpConfiguration')}
+									</h3>
+
+									<div class="grid grid-cols-2 gap-4">
+										<div>
+											<label for="smtpHost" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+												{t('serverAdmin.smtpHost')}
+											</label>
+											<input
+												id="smtpHost"
+												type="text"
+												bind:value={smtpHost}
+												class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+												placeholder={t('serverAdmin.smtpHostPlaceholder')}
+											/>
+										</div>
+
+										<div>
+											<label for="smtpPort" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+												{t('serverAdmin.smtpPort')}
+											</label>
+											<input
+												id="smtpPort"
+												type="number"
+												bind:value={smtpPort}
+												class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+												placeholder={t('serverAdmin.smtpPortPlaceholder')}
+											/>
+										</div>
+									</div>
+
+									<div>
+										<label for="smtpUsername" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+											{t('serverAdmin.smtpUsername')}
+										</label>
+										<input
+											id="smtpUsername"
+											type="text"
+											bind:value={smtpUsername}
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											placeholder={t('serverAdmin.smtpUsernamePlaceholder')}
+										/>
+									</div>
+
+									<div>
+										<label for="smtpPassword" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+											{t('serverAdmin.smtpPassword')}
+										</label>
+										<input
+											id="smtpPassword"
+											type="password"
+											bind:value={smtpPassword}
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											placeholder={t('serverAdmin.smtpPasswordPlaceholder')}
+										/>
+									</div>
+
+									<div class="flex items-center justify-between">
+										<span class="text-sm text-gray-700 dark:text-gray-300">
+											{t('serverAdmin.smtpUseTls')}
+										</span>
+										<Switch bind:checked={smtpUseTls} label={t('serverAdmin.smtpUseTls')} />
+									</div>
+
+									<div>
+										<label for="smtpFromAddress" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+											{t('serverAdmin.smtpFromAddress')}
+										</label>
+										<input
+											id="smtpFromAddress"
+											type="email"
+											bind:value={smtpFromAddress}
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											placeholder={t('serverAdmin.smtpFromAddressPlaceholder')}
+										/>
+									</div>
+
+									<div>
+										<label for="smtpFromName" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+											{t('serverAdmin.smtpFromName')}
+										</label>
+										<input
+											id="smtpFromName"
+											type="text"
+											bind:value={smtpFromName}
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											placeholder={t('serverAdmin.smtpFromNamePlaceholder')}
+										/>
+									</div>
+								</div>
+							{/if}
+						{/if}
+
+						<div class="flex justify-end">
+							<button
+								onclick={saveEmailSettings}
+								class="rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(37,140,244)]/90"
+							>
+								{t('serverAdmin.saveSettings')}
+							</button>
+						</div>
+					</div>
 				</div>
 			</div>
-		</div>
 		{/if}
 	</div>
 {:else}

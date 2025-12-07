@@ -1,0 +1,61 @@
+{
+	"name": "Wayli Development",
+	"dockerComposeFile": "docker-compose.yml",
+	"service": "dev",
+	"workspaceFolder": "/workspace",
+	"features": {
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {
+			"version": "latest",
+			"moby": true,
+			"dockerDashComposeVersion": "v2"
+		}
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"anthropic.claude-code",
+				"svelte.svelte-vscode",
+				"dbaeumer.vscode-eslint",
+				"esbenp.prettier-vscode",
+				"bradlc.vscode-tailwindcss",
+				"ms-azuretools.vscode-docker",
+				"eamodio.gitlens"
+			],
+			"settings": {
+				"terminal.integrated.defaultProfile.linux": "bash",
+				"terminal.integrated.profiles.linux": {
+					"bash": {
+						"path": "bash",
+						"icon": "terminal-bash"
+					},
+					"zsh": {
+						"path": "zsh"
+					}
+				},
+				"editor.formatOnSave": true,
+				"editor.defaultFormatter": "esbenp.prettier-vscode",
+				"editor.codeActionsOnSave": {
+					"source.fixAll.eslint": "explicit"
+				}
+			}
+		}
+	},
+	"mounts": [
+		"source=wayli-claude-config-${devcontainerId},target=/home/node/.claude,type=volume"
+	],
+	"containerEnv": {
+		"NODE_OPTIONS": "--max-old-space-size=4096",
+		"CLAUDE_CONFIG_DIR": "/home/node/.claude"
+	},
+	"forwardPorts": [
+		4000
+	],
+	"portsAttributes": {
+		"4000": {
+			"label": "Web App (SvelteKit)",
+			"onAutoForward": "notify"
+		}
+	},
+	"postCreateCommand": "bash -c 'npm config set prefix /home/node/.npm-global && echo \"export PATH=/home/node/.npm-global/bin:\\$PATH\" >> ~/.bashrc && export PATH=/home/node/.npm-global/bin:$PATH && cd /workspace/web && npm install && ([ -d /fluxbase-sdk ] && cd /fluxbase-sdk && npm install && npm link || true) && ([ -d /fluxbase-sdk-react ] && cd /fluxbase-sdk-react && npm install && npm link @fluxbase/sdk && npm link || true) && cd /workspace/web && (npm link @fluxbase/sdk @fluxbase/sdk-react || true)'",
+	"remoteUser": "node"
+}

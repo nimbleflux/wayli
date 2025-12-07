@@ -2,8 +2,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TripDetectionService } from './trip-detection.service';
 
-// Mock Supabase client
-const mockSupabase = {
+// Mock Fluxbase client
+const mockFluxbase = {
 	from: vi.fn(() => ({
 		select: vi.fn(() => ({
 			eq: vi.fn(() => ({
@@ -15,8 +15,8 @@ const mockSupabase = {
 	}))
 };
 
-vi.mock('@supabase/supabase-js', () => ({
-	createClient: () => mockSupabase
+vi.mock('@fluxbase/sdk', () => ({
+	createClient: () => mockFluxbase
 }));
 
 describe('TripDetectionService', () => {
@@ -34,7 +34,7 @@ describe('TripDetectionService', () => {
 				{ start_date: '2024-01-10', end_date: '2024-01-12', status: 'rejected' }
 			];
 
-			// Mock the Supabase response
+			// Mock the Fluxbase response
 			const mockSelect = vi.fn().mockReturnValue({
 				eq: vi.fn().mockReturnValue({
 					in: vi.fn().mockReturnValue({
@@ -43,7 +43,7 @@ describe('TripDetectionService', () => {
 				})
 			});
 
-			mockSupabase.from.mockReturnValue({
+			mockFluxbase.from.mockReturnValue({
 				select: mockSelect
 			});
 
@@ -71,7 +71,7 @@ describe('TripDetectionService', () => {
 				})
 			});
 
-			mockSupabase.from.mockReturnValue({
+			mockFluxbase.from.mockReturnValue({
 				select: mockSelect
 			});
 
@@ -102,7 +102,7 @@ describe('TripDetectionService', () => {
 				]
 			};
 
-			// Mock the Supabase responses
+			// Mock the Fluxbase responses
 			const mockProfileSelect = vi.fn().mockReturnValue({
 				eq: vi.fn().mockReturnValue({
 					single: vi.fn().mockReturnValue({
@@ -119,7 +119,7 @@ describe('TripDetectionService', () => {
 				})
 			});
 
-			mockSupabase.from
+			mockFluxbase.from
 				.mockReturnValueOnce({
 					select: mockProfileSelect
 				})
@@ -153,7 +153,7 @@ describe('TripDetectionService', () => {
 				})
 			});
 
-			mockSupabase.from.mockReturnValue({
+			mockFluxbase.from.mockReturnValue({
 				select: mockSelect
 			});
 

@@ -10,8 +10,8 @@ sessionStore.set({
 } as any);
 
 // Mock the geocoding service to resolve empty arrays to trigger loading and error branches
-vi.mock('$lib/services/external/nominatim.service', () => ({
-	searchAddress: vi.fn().mockResolvedValue([])
+vi.mock('$lib/services/external/pelias.service', () => ({
+	searchAddresses: vi.fn().mockResolvedValue([])
 }));
 
 describe('AddressSearch Component', () => {

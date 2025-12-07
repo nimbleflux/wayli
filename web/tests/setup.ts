@@ -6,17 +6,17 @@ import { beforeEach, afterEach } from 'vitest';
 
 // Mock environment variables
 vi.stubEnv('NODE_ENV', 'test');
-vi.stubEnv('SUPABASE_URL', 'https://test.supabase.co');
-vi.stubEnv('SUPABASE_ANON_KEY', 'test-anon-key');
-vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'test-service-role-key');
-vi.stubEnv('PUBLIC_SUPABASE_ANON_KEY', 'test-anon-key');
+vi.stubEnv('FLUXBASE_BASE_URL', 'https://test.fluxbase.eu');
+vi.stubEnv('FLUXBASE_ANON_KEY', 'test-anon-key');
+vi.stubEnv('FLUXBASE_SERVICE_ROLE_KEY', 'test-service-role-key');
+vi.stubEnv('PUBLIC_FLUXBASE_ANON_KEY', 'test-anon-key');
 vi.stubEnv('SESSION_SECRET', 'test-session-secret');
 vi.stubEnv('COOKIE_SECRET', 'test-cookie-secret');
 vi.stubEnv('JWT_SECRET', 'test-jwt-secret');
 
-// Mock Supabase client
-vi.mock('$lib/supabase', () => ({
-	supabase: {
+// Mock Fluxbase client
+vi.mock('$lib/fluxbase', () => ({
+	fluxbase: {
 		auth: {
 			getUser: vi.fn(),
 			getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
@@ -213,7 +213,7 @@ export const createMockJob = (overrides = {}) => ({
 
 export const createMockRequest = (overrides = {}) => ({
 	method: 'GET',
-	url: 'http://localhost:3000/api/test',
+	url: 'http://localhost:4000/api/test',
 	headers: new Headers({
 		'Content-Type': 'application/json',
 		Authorization: 'Bearer test-token'

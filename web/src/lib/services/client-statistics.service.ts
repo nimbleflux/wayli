@@ -1,7 +1,7 @@
 // src/lib/services/client-statistics.service.ts
 // Client-side statistics calculation service for processing tracker data incrementally
 
-import { supabase } from '$lib/supabase';
+import { fluxbase } from '$lib/fluxbase';
 import {
 	detectEnhancedMode,
 	createEnhancedModeContext,
@@ -17,7 +17,7 @@ import {
 import type { GeocodeGeoJSONFeature } from '$lib/utils/geojson-converter';
 import { TransportDetectionReason } from '$lib/types/transport-mode.types';
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { FluxbaseClient } from '@fluxbase/sdk';
 
 // Type for visit data tracking
 export interface VisitData {
@@ -109,7 +109,7 @@ export type ProgressCallback = (progress: {
 export type ErrorCallback = (error: Error, canRetry: boolean) => void;
 
 export class ClientStatisticsService {
-	private supabase: SupabaseClient;
+	private fluxbase: FluxbaseClient;
 	private statistics: ClientStatistics;
 	private transportContext: EnhancedModeContext;
 	private isProcessing: boolean = false;
@@ -121,8 +121,8 @@ export class ClientStatisticsService {
 	private rawDataPoints: TrackerDataPoint[] = [];
 	private isUsingSampledData: boolean = false;
 
-	constructor(supabaseClient?: SupabaseClient) {
-		this.supabase = supabaseClient || supabase;
+	constructor(fluxbaseClient?: FluxbaseClient) {
+		this.fluxbase = fluxbaseClient || fluxbase;
 		this.statistics = this.initializeStatistics();
 		this.transportContext = this.initializeTransportContext();
 	}
@@ -190,9 +190,9 @@ export class ClientStatisticsService {
 	async getTotalCount(userId: string, startDate?: string, endDate?: string): Promise<number> {
 		console.log('📊 Getting total count for user:', userId);
 
-		let query = this.supabase
+		let query = this.fluxbase
 			.from('tracker_data')
-			.select('*', { count: 'exact', head: true })
+			.count('*')
 			.eq('user_id', userId)
 			.not('location', 'is', null);
 
@@ -451,7 +451,7 @@ export class ClientStatisticsService {
 		startDate?: string,
 		endDate?: string
 	): Promise<TrackerDataPoint[]> {
-		let query = this.supabase
+		let query = this.fluxbase
 			.from('tracker_data')
 			.select(
 				`
@@ -512,13 +512,11 @@ export class ClientStatisticsService {
 	): Promise<{ data: TrackerDataPoint[]; samplingApplied: boolean }> {
 		try {
 			// Get session for authentication
-			const {
-				data: { session },
-				error: sessionError
-			} = await this.supabase.auth.getSession();
-			if (sessionError || !session) {
+			const { data, error: sessionError } = await this.fluxbase.auth.getSession();
+			if (sessionError || !data?.session) {
 				throw new Error('User not authenticated');
 			}
+			const session = data.session;
 
 			// Call the smart sampling Edge Function
 			const response = await fetch(`${this.getFunctionsUrl()}/tracker-data-smart`, {
@@ -559,7 +557,7 @@ export class ClientStatisticsService {
 			});
 
 			// Transform the data to match the expected format
-			const data = (result.data || []).map((point: any) => ({
+			const transformedData = (result.data || []).map((point: any) => ({
 				recorded_at: point.recorded_at,
 				time_spent: point.time_spent,
 				country_code: point.country_code,
@@ -574,7 +572,7 @@ export class ClientStatisticsService {
 				village: point.geocode?.properties?.address?.village
 			}));
 
-			return { data, samplingApplied };
+			return { data: transformedData, samplingApplied };
 		} catch (error) {
 			console.error('❌ Error loading smart sampled data:', error);
 			// Fallback to regular loading if smart sampling fails
@@ -588,8 +586,8 @@ export class ClientStatisticsService {
 	 */
 	private getFunctionsUrl(): string {
 		// Use environment variable or default to local development
-		const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL || 'http://localhost:54321';
-		return `${supabaseUrl}/functions/v1`;
+		const fluxbaseUrl = import.meta.env.PUBLIC_FLUXBASE_BASE_URL || 'http://localhost:8080';
+		return `${fluxbaseUrl}/functions/v1`;
 	}
 
 	/**
@@ -933,8 +931,8 @@ export class ClientStatisticsService {
 		this.statistics.geocodingStats.successRate =
 			this.statistics.geocodingStats.total > 0
 				? Math.round(
-						(this.statistics.geocodingStats.geocoded / this.statistics.geocodingStats.total) * 100
-					)
+					(this.statistics.geocodingStats.geocoded / this.statistics.geocodingStats.total) * 100
+				)
 				: 0;
 
 		// Filter out places and countries with short visits

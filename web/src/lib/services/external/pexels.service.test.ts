@@ -40,8 +40,8 @@ describe('Pexels Service with Country Name Cleaner', () => {
 			json: async () => mockPexelsResponse
 		});
 
-		// Mock Supabase storage upload
-		const mockSupabaseClient = {
+		// Mock Fluxbase storage upload
+		const mockFluxbaseClient = {
 			storage: {
 				from: vi.fn().mockReturnValue({
 					upload: vi.fn().mockResolvedValue({ error: null }),
@@ -53,8 +53,8 @@ describe('Pexels Service with Country Name Cleaner', () => {
 		};
 
 		// Mock the createClient function
-		vi.doMock('@supabase/supabase-js', () => ({
-			createClient: vi.fn(() => mockSupabaseClient)
+		vi.doMock('@fluxbase/sdk', () => ({
+			createClient: vi.fn(() => mockFluxbaseClient)
 		}));
 
 		// Test with city and country
@@ -90,8 +90,8 @@ describe('Pexels Service with Country Name Cleaner', () => {
 			json: async () => mockPexelsResponse
 		});
 
-		// Mock Supabase storage upload
-		const mockSupabaseClient = {
+		// Mock Fluxbase storage upload
+		const mockFluxbaseClient = {
 			storage: {
 				from: vi.fn().mockReturnValue({
 					upload: vi.fn().mockResolvedValue({ error: null }),
@@ -103,8 +103,8 @@ describe('Pexels Service with Country Name Cleaner', () => {
 		};
 
 		// Mock the createClient function
-		vi.doMock('@supabase/supabase-js', () => ({
-			createClient: vi.fn(() => mockSupabaseClient)
+		vi.doMock('@fluxbase/sdk', () => ({
+			createClient: vi.fn(() => mockFluxbaseClient)
 		}));
 
 		// Test with just city name

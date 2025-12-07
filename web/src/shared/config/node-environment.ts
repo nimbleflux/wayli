@@ -7,18 +7,26 @@ import dotenv from 'dotenv';
 
 // Load environment variables from .env file (optional)
 // Look for .env file in the project root (web/ directory)
+// Then load .env.local as override (for local development)
 let result: dotenv.DotenvConfigOutput = { parsed: {} };
 try {
 	const envPath = new URL('../../../.env', import.meta.url).pathname;
 	result = dotenv.config({ path: envPath });
+
+	// Load .env.local as override (local dev can override Docker URLs with localhost)
+	const envLocalPath = new URL('../../../.env.local', import.meta.url).pathname;
+	const localResult = dotenv.config({ path: envLocalPath, override: true });
+	if (localResult.parsed) {
+		result.parsed = { ...result.parsed, ...localResult.parsed };
+	}
 } catch (error) {
 	// .env file is optional - environment variables can be set via Kubernetes, Docker, etc.
 	console.log('ℹ️ No .env file found - using environment variables from system');
 }
 
 export interface NodeEnvironmentConfig {
-	// Supabase Configuration
-	supabase: {
+	// Fluxbase Configuration
+	fluxbase: {
 		url: string;
 		anonKey: string;
 		serviceRoleKey: string;
@@ -34,7 +42,7 @@ export interface NodeEnvironmentConfig {
 	};
 
 	// External Services
-	nominatim: {
+	pelias: {
 		endpoint: string;
 		rateLimit: number;
 	};
@@ -103,15 +111,15 @@ export function validateNodeEnvironmentConfig(
 	const isDev = config.app.nodeEnv === 'development';
 	const errors: string[] = [];
 
-	// Always validate Supabase configuration (required for workers)
-	if (!config.supabase.url) {
-		errors.push('SUPABASE_URL is required');
+	// Always validate Fluxbase configuration (required for workers)
+	if (!config.fluxbase.url) {
+		errors.push('FLUXBASE_BASE_URL is required');
 	}
-	if (!config.supabase.anonKey) {
-		errors.push('SUPABASE_ANON_KEY is required');
+	if (!config.fluxbase.anonKey) {
+		errors.push('FLUXBASE_ANON_KEY is required');
 	}
-	if (!config.supabase.serviceRoleKey) {
-		errors.push('SUPABASE_SERVICE_ROLE_KEY is required');
+	if (!config.fluxbase.serviceRoleKey) {
+		errors.push('FLUXBASE_SERVICE_ROLE_KEY is required');
 	}
 
 	// Only validate other configs if strict mode is enabled
@@ -154,15 +162,15 @@ export function getNodeEnvironmentConfig(): NodeEnvironmentConfig {
 	// Use the merged environment variables (env vars take precedence over .env file)
 	const mergedEnv = { ...result.parsed, ...process.env };
 
-	// Supabase Configuration - prioritize internal URLs for workers
-	const supabaseUrl =
-		mergedEnv.WORKER_SUPABASE_URL ||
-		mergedEnv.INTERNAL_SUPABASE_URL ||
-		mergedEnv.SUPABASE_URL ||
-		mergedEnv.PUBLIC_SUPABASE_URL ||
+	// Fluxbase Configuration - prioritize internal URLs for workers
+	const fluxbaseUrl =
+		mergedEnv.WORKER_FLUXBASE_BASE_URL ||
+		mergedEnv.INTERNAL_FLUXBASE_BASE_URL ||
+		mergedEnv.FLUXBASE_BASE_URL ||
+		mergedEnv.PUBLIC_FLUXBASE_BASE_URL ||
 		'';
-	const supabaseAnonKey = mergedEnv.SUPABASE_ANON_KEY || mergedEnv.PUBLIC_SUPABASE_ANON_KEY || '';
-	const supabaseServiceRoleKey = mergedEnv.SUPABASE_SERVICE_ROLE_KEY || '';
+	const fluxbaseAnonKey = mergedEnv.FLUXBASE_ANON_KEY || mergedEnv.PUBLIC_FLUXBASE_ANON_KEY || '';
+	const fluxbaseServiceRoleKey = mergedEnv.FLUXBASE_SERVICE_ROLE_KEY || '';
 
 	// Worker Configuration
 	const maxWorkers = parseInt(mergedEnv.MAX_WORKERS || '2', 10);
@@ -172,8 +180,8 @@ export function getNodeEnvironmentConfig(): NodeEnvironmentConfig {
 	const retryDelay = parseInt(mergedEnv.RETRY_DELAY || '1000', 10);
 
 	// External Services
-	const nominatimEndpoint = mergedEnv.NOMINATIM_ENDPOINT || 'https://nominatim.wayli.app';
-	const nominatimRateLimit = parseInt(mergedEnv.NOMINATIM_RATE_LIMIT || '1000', 10);
+	const peliasEndpoint = mergedEnv.PELIAS_ENDPOINT || 'https://pelias.wayli.app';
+	const peliasRateLimit = parseInt(mergedEnv.PELIAS_RATE_LIMIT || '1000', 10);
 
 	// Application Configuration
 	const nodeEnv = mergedEnv.NODE_ENV || 'development';
@@ -185,23 +193,23 @@ export function getNodeEnvironmentConfig(): NodeEnvironmentConfig {
 	const rateLimitMax = parseInt(mergedEnv.RATE_LIMIT_MAX || '100', 10);
 
 	// Database Configuration
-	const databaseUrl = mergedEnv.SUPABASE_DB_URL || mergedEnv.DATABASE_URL || '';
-	const poolSize = parseInt(mergedEnv.SUPABASE_DB_POOL_SIZE || mergedEnv.DB_POOL_SIZE || '10', 10);
-	const ssl = mergedEnv.SUPABASE_DB_SSL === 'true' || mergedEnv.DB_SSL === 'true';
+	const databaseUrl = mergedEnv.FLUXBASE_DB_URL || mergedEnv.DATABASE_URL || '';
+	const poolSize = parseInt(mergedEnv.FLUXBASE_DB_POOL_SIZE || mergedEnv.DB_POOL_SIZE || '10', 10);
+	const ssl = mergedEnv.FLUXBASE_DB_SSL === 'true' || mergedEnv.DB_SSL === 'true';
 	const connectionTimeout = parseInt(
-		mergedEnv.SUPABASE_DB_CONNECTION_TIMEOUT || mergedEnv.DB_CONNECTION_TIMEOUT || '30000',
+		mergedEnv.FLUXBASE_DB_CONNECTION_TIMEOUT || mergedEnv.DB_CONNECTION_TIMEOUT || '30000',
 		10
 	);
 	const queryTimeout = parseInt(
-		mergedEnv.SUPABASE_DB_QUERY_TIMEOUT || mergedEnv.DB_QUERY_TIMEOUT || '30000',
+		mergedEnv.FLUXBASE_DB_QUERY_TIMEOUT || mergedEnv.DB_QUERY_TIMEOUT || '30000',
 		10
 	);
 	const dbRetryAttempts = parseInt(
-		mergedEnv.SUPABASE_DB_RETRY_ATTEMPTS || mergedEnv.DB_RETRY_ATTEMPTS || '3',
+		mergedEnv.FLUXBASE_DB_RETRY_ATTEMPTS || mergedEnv.DB_RETRY_ATTEMPTS || '3',
 		10
 	);
 	const dbRetryDelay = parseInt(
-		mergedEnv.SUPABASE_DB_RETRY_DELAY || mergedEnv.DB_RETRY_DELAY || '1000',
+		mergedEnv.FLUXBASE_DB_RETRY_DELAY || mergedEnv.DB_RETRY_DELAY || '1000',
 		10
 	);
 
@@ -232,10 +240,10 @@ export function getNodeEnvironmentConfig(): NodeEnvironmentConfig {
 	const monitoringApiKey = mergedEnv.MONITORING_API_KEY || '';
 
 	const config: NodeEnvironmentConfig = {
-		supabase: {
-			url: supabaseUrl,
-			anonKey: supabaseAnonKey,
-			serviceRoleKey: supabaseServiceRoleKey
+		fluxbase: {
+			url: fluxbaseUrl,
+			anonKey: fluxbaseAnonKey,
+			serviceRoleKey: fluxbaseServiceRoleKey
 		},
 		workers: {
 			maxWorkers,
@@ -244,9 +252,9 @@ export function getNodeEnvironmentConfig(): NodeEnvironmentConfig {
 			retryAttempts,
 			retryDelay
 		},
-		nominatim: {
-			endpoint: nominatimEndpoint,
-			rateLimit: nominatimRateLimit
+		pelias: {
+			endpoint: peliasEndpoint,
+			rateLimit: peliasRateLimit
 		},
 		app: {
 			nodeEnv,
@@ -293,11 +301,11 @@ export function getNodeEnvironmentConfig(): NodeEnvironmentConfig {
 }
 
 /**
- * Gets the Supabase configuration
- * @returns The Supabase configuration
+ * Gets the Fluxbase configuration
+ * @returns The Fluxbase configuration
  */
-export function getSupabaseConfig() {
-	return getNodeEnvironmentConfig().supabase;
+export function getFluxbaseConfig() {
+	return getNodeEnvironmentConfig().fluxbase;
 }
 
 /**
@@ -309,60 +317,60 @@ export function getWorkerConfig() {
 }
 
 /**
- * Gets the Supabase configuration with minimal validation (for workers)
- * Only validates Supabase connection details, ignores other configs
- * @returns The Supabase configuration
+ * Gets the Fluxbase configuration with minimal validation (for workers)
+ * Only validates Fluxbase connection details, ignores other configs
+ * @returns The Fluxbase configuration
  */
-export function getWorkerSupabaseConfig() {
+export function getWorkerFluxbaseConfig() {
 	// Environment variables should take precedence over .env file
 	const mergedEnv = { ...result.parsed, ...process.env };
 
 	// For workers, prioritize internal URLs over public URLs
 	// This ensures workers use cluster-internal communication in Kubernetes
-	const supabaseUrl =
-		mergedEnv.WORKER_SUPABASE_URL ||
-		mergedEnv.INTERNAL_SUPABASE_URL ||
-		mergedEnv.SUPABASE_URL ||
-		mergedEnv.PUBLIC_SUPABASE_URL ||
+	const fluxbaseUrl =
+		mergedEnv.WORKER_FLUXBASE_BASE_URL ||
+		mergedEnv.INTERNAL_FLUXBASE_BASE_URL ||
+		mergedEnv.FLUXBASE_BASE_URL ||
+		mergedEnv.PUBLIC_FLUXBASE_BASE_URL ||
 		'';
 
-	const supabaseAnonKey = mergedEnv.SUPABASE_ANON_KEY || mergedEnv.PUBLIC_SUPABASE_ANON_KEY || '';
-	const supabaseServiceRoleKey = mergedEnv.SUPABASE_SERVICE_ROLE_KEY || '';
+	const fluxbaseAnonKey = mergedEnv.FLUXBASE_ANON_KEY || mergedEnv.PUBLIC_FLUXBASE_ANON_KEY || '';
+	const fluxbaseServiceRoleKey = mergedEnv.FLUXBASE_SERVICE_ROLE_KEY || '';
 
 	// Log which URL is being used for debugging
-	const urlSource = mergedEnv.WORKER_SUPABASE_URL
-		? 'WORKER_SUPABASE_URL'
-		: mergedEnv.INTERNAL_SUPABASE_URL
-			? 'INTERNAL_SUPABASE_URL'
-			: mergedEnv.SUPABASE_URL
-				? 'SUPABASE_URL'
-				: mergedEnv.PUBLIC_SUPABASE_URL
-					? 'PUBLIC_SUPABASE_URL'
+	const urlSource = mergedEnv.WORKER_FLUXBASE_BASE_URL
+		? 'WORKER_FLUXBASE_BASE_URL'
+		: mergedEnv.INTERNAL_FLUXBASE_BASE_URL
+			? 'INTERNAL_FLUXBASE_BASE_URL'
+			: mergedEnv.FLUXBASE_BASE_URL
+				? 'FLUXBASE_BASE_URL'
+				: mergedEnv.PUBLIC_FLUXBASE_BASE_URL
+					? 'PUBLIC_FLUXBASE_BASE_URL'
 					: 'none';
-	console.log(`🔧 Worker Supabase URL source: ${urlSource}`);
-	console.log(`🔧 Worker Supabase URL: ${supabaseUrl}`);
+	console.log(`🔧 Worker Fluxbase URL source: ${urlSource}`);
+	console.log(`🔧 Worker Fluxbase URL: ${fluxbaseUrl}`);
 
-	// Only validate Supabase config for workers
-	if (!supabaseUrl) {
-		throw new Error('SUPABASE_URL is required for worker');
+	// Only validate Fluxbase config for workers
+	if (!fluxbaseUrl) {
+		throw new Error('FLUXBASE_BASE_URL is required for worker');
 	}
-	if (!supabaseServiceRoleKey) {
-		throw new Error('SUPABASE_SERVICE_ROLE_KEY is required for worker');
+	if (!fluxbaseServiceRoleKey) {
+		throw new Error('FLUXBASE_SERVICE_ROLE_KEY is required for worker');
 	}
 
 	return {
-		url: supabaseUrl,
-		anonKey: supabaseAnonKey,
-		serviceRoleKey: supabaseServiceRoleKey
+		url: fluxbaseUrl,
+		anonKey: fluxbaseAnonKey,
+		serviceRoleKey: fluxbaseServiceRoleKey
 	};
 }
 
 /**
- * Gets the Nominatim configuration
- * @returns The Nominatim configuration
+ * Gets the Pelias configuration
+ * @returns The Pelias configuration
  */
-export function getNominatimConfig() {
-	return getNodeEnvironmentConfig().nominatim;
+export function getPeliasConfig() {
+	return getNodeEnvironmentConfig().pelias;
 }
 
 /**

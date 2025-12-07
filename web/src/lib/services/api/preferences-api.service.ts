@@ -3,10 +3,10 @@
 
 import { errorHandler, ErrorCode } from '../error-handler.service';
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { FluxbaseClient } from '@fluxbase/sdk';
 
 export interface PreferencesApiServiceConfig {
-	supabase: SupabaseClient;
+	fluxbase: FluxbaseClient;
 }
 
 export interface UserPreferences {
@@ -39,10 +39,10 @@ export interface UpdatePreferencesResult {
 }
 
 export class PreferencesApiService {
-	private supabase: SupabaseClient;
+	private fluxbase: FluxbaseClient;
 
 	constructor(config: PreferencesApiServiceConfig) {
-		this.supabase = config.supabase;
+		this.fluxbase = config.fluxbase;
 	}
 
 	/**
@@ -51,7 +51,7 @@ export class PreferencesApiService {
 	async getUserPreferences(userId: string): Promise<GetPreferencesResult> {
 		try {
 			// Get user preferences from user_preferences table
-			const { data: preferences, error: prefError } = await this.supabase
+			const { data: preferences, error: prefError } = await this.fluxbase
 				.from('user_preferences')
 				.select('*')
 				.eq('id', userId)
@@ -71,7 +71,7 @@ export class PreferencesApiService {
 
 			// If preferences don't exist, create them with defaults
 			if (!preferences) {
-				const { data: newPreferences, error: createError } = await this.supabase
+				const { data: newPreferences, error: createError } = await this.fluxbase
 					.from('user_preferences')
 					.insert({
 						id: userId,
@@ -125,7 +125,7 @@ export class PreferencesApiService {
 			const { language, notifications_enabled, timezone, pexels_api_key } = request;
 
 			// Check if preferences exist
-			const { data: existingPreferences } = await this.supabase
+			const { data: existingPreferences } = await this.fluxbase
 				.from('user_preferences')
 				.select('id')
 				.eq('id', userId)
@@ -133,7 +133,7 @@ export class PreferencesApiService {
 
 			if (existingPreferences) {
 				// Update existing preferences
-				const { data: updatedPreferences, error: updateError } = await this.supabase
+				const { data: updatedPreferences, error: updateError } = await this.fluxbase
 					.from('user_preferences')
 					.update({
 						language,
@@ -163,7 +163,7 @@ export class PreferencesApiService {
 				};
 			} else {
 				// Create new preferences
-				const { data: newPreferences, error: createError } = await this.supabase
+				const { data: newPreferences, error: createError } = await this.fluxbase
 					.from('user_preferences')
 					.insert({
 						id: userId,

@@ -1,4 +1,4 @@
-{{- if .Values.worker.podDisruptionBudget.enabled }}
+{{- if and .Values.worker.podDisruptionBudget.enabled (eq .Values.deploymentMode "split") }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:

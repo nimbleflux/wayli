@@ -24,7 +24,7 @@
 	import DateRangePicker from '$lib/components/ui/date-range-picker.svelte';
 	import { getCountryNameReactive, translate } from '$lib/i18n';
 	import { state as appState } from '$lib/stores/app-state.svelte';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 	import { ClientStatisticsService } from '$lib/services/client-statistics.service';
 	import {
 		getTransportDetectionReasonLabel,
@@ -117,6 +117,11 @@
 	// Service instance
 	let statisticsService = $state<ClientStatisticsService | null>(null);
 
+	// Cleanup tracking for memory leak prevention
+	let themeObserver: MutationObserver | null = null;
+	let mapInitTimeout: NodeJS.Timeout | null = null;
+	let mapInvalidateTimeout: NodeJS.Timeout | null = null;
+
 	// Helper to ensure a value is a Date object
 	function getDateObject(val: any) {
 		if (!val) return null;
@@ -159,9 +164,52 @@
 
 	// Clean up animation on component unmount
 	onDestroy(() => {
+		console.log('🧹 Cleaning up statistics page resources...');
+
+		// Clear animation timeout
 		if (progressAnimationId) {
 			clearTimeout(progressAnimationId);
+			progressAnimationId = null;
 		}
+
+		// Clear map initialization timeouts
+		if (mapInitTimeout) {
+			clearTimeout(mapInitTimeout);
+			mapInitTimeout = null;
+		}
+		if (mapInvalidateTimeout) {
+			clearTimeout(mapInvalidateTimeout);
+			mapInvalidateTimeout = null;
+		}
+
+		// Disconnect theme observer
+		if (themeObserver) {
+			themeObserver.disconnect();
+			themeObserver = null;
+		}
+
+		// Clear map markers and their event listeners
+		if (map && L) {
+			clearMapMarkers();
+
+			// Remove tile layer
+			if (currentTileLayer) {
+				map.removeLayer(currentTileLayer);
+				currentTileLayer = null;
+			}
+
+			// Destroy map instance
+			map.remove();
+			map = null as any;
+		}
+
+		// Reset service to free accumulated data
+		if (statisticsService) {
+			statisticsService.reset();
+			statisticsService = null;
+		}
+
+		console.log('✅ Statistics page cleanup complete');
 	});
 
 	// Initialize the statistics service
@@ -180,15 +228,12 @@
 			const startDate = formatLocalDate(appState.filtersStartDate);
 			const endDate = formatLocalDate(appState.filtersEndDate);
 
-			const {
-				data: { session },
-				error: sessionError
-			} = await supabase.auth.getSession();
-			if (sessionError || !session) {
+			const { data, error: sessionError } = await fluxbase.auth.getSession();
+			if (sessionError || !data?.session) {
 				throw new Error('User not authenticated');
 			}
 
-			totalPointsCount = await statisticsService.getTotalCount(session.user.id, startDate, endDate);
+			totalPointsCount = await statisticsService.getTotalCount(data.session.user.id, startDate, endDate);
 
 			if (totalPointsCount > 100000) {
 				showLargeDatasetWarning = true;
@@ -234,11 +279,8 @@
 				return;
 			}
 
-			const {
-				data: { session },
-				error: sessionError
-			} = await supabase.auth.getSession();
-			if (sessionError || !session) {
+			const { data, error: sessionError } = await fluxbase.auth.getSession();
+			if (sessionError || !data?.session) {
 				throw new Error('User not authenticated');
 			}
 
@@ -246,7 +288,7 @@
 
 			// Load and process data with progress tracking
 			const statistics = await statisticsService!.loadAndProcessData(
-				session.user.id,
+				data.session.user.id,
 				startDate,
 				endDate,
 				// Progress callback
@@ -508,9 +550,14 @@
 	function clearMapMarkers() {
 		if (!map || !L) return;
 		for (const marker of mapMarkers) {
+			// Remove all event listeners before removing from map
+			if (marker.off) {
+				marker.off();
+			}
 			map.removeLayer(marker);
 		}
 		mapMarkers.length = 0;
+		mapMarkers = [];
 	}
 
 	// Draw data points on map
@@ -716,6 +763,7 @@
 			if (map) return;
 
 			// Small delay to ensure container is ready
+			mapInitTimeout = setTimeout(() => {}, 100);
 			await new Promise((resolve) => setTimeout(resolve, 100));
 
 			map = L.map(mapContainer, {
@@ -726,7 +774,7 @@
 			});
 
 			// Invalidate map size to ensure proper rendering
-			setTimeout(() => {
+			mapInvalidateTimeout = setTimeout(() => {
 				if (map) {
 					map.invalidateSize();
 				}
@@ -761,8 +809,8 @@
 					currentTileLayer = L.tileLayer(newUrl, { attribution: newAttribution }).addTo(map) as any;
 				}
 			};
-			const observer = new MutationObserver(updateMapTheme);
-			observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+			themeObserver = new MutationObserver(updateMapTheme);
+			themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
 			// Initial theme sync
 			updateMapTheme();
@@ -904,7 +952,7 @@
 
 <div class="space-y-6">
 	<!-- Map -->
-	<div class="relative z-0 h-96 w-full rounded-lg bg-gray-100 md:h-[600px] dark:bg-gray-900">
+	<div class="relative h-96 w-full rounded-lg bg-gray-100 md:h-[600px] dark:bg-gray-900">
 		<div
 			bind:this={mapContainer}
 			class="h-full w-full rounded-lg"
@@ -912,7 +960,7 @@
 		></div>
 
 		<!-- Map Legend -->
-		<div class="absolute top-24 left-4 z-10 rounded-lg bg-white p-3 shadow-lg dark:bg-gray-800">
+		<div class="absolute bottom-4 left-4 z-[1001] rounded-lg bg-white p-3 shadow-lg dark:bg-gray-800">
 			<h4 class="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
 				{t('statistics.modeColors')}
 			</h4>
@@ -931,7 +979,7 @@
 		<!-- Point Details Popup -->
 		{#if selectedPoint}
 			<div
-				class="absolute top-4 right-4 z-10 w-80 max-w-sm rounded-lg bg-white p-4 shadow-lg dark:bg-gray-800"
+				class="absolute top-4 right-4 z-[1001] w-80 max-w-sm rounded-lg bg-white p-4 shadow-lg dark:bg-gray-800"
 			>
 				<div class="mb-3 flex items-start justify-between">
 					<h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">

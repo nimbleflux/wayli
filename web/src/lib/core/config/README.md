@@ -92,8 +92,8 @@ import { getNodeEnvironmentConfig } from '../../shared/config/node-environment';
 
 ```typescript
 // src/routes/+page.svelte
-// Note: Nominatim configuration is now handled directly in the service
-// No client-side config needed at this time
+// Note: Pelias configuration is now handled directly in the service
+// Client-side can use PUBLIC_PELIAS_ENDPOINT env var (defaults to https://pelias.wayli.app)
 ```
 
 ### Server-Side Configuration
@@ -103,8 +103,8 @@ import { getNodeEnvironmentConfig } from '../../shared/config/node-environment';
 import { validateServerEnvironmentConfig } from '$lib/core/config/server-environment';
 
 const config = validateServerEnvironmentConfig(true);
-// config.supabase.url = 'https://your-project.supabase.co'
-// config.supabase.serviceRoleKey = 'your-service-role-key'
+// config.fluxbase.url = 'https://your-project.fluxbase.eu'
+// config.fluxbase.serviceRoleKey = 'your-service-role-key'
 ```
 
 ### Worker Configuration
@@ -114,8 +114,8 @@ const config = validateServerEnvironmentConfig(true);
 import { validateWorkerEnvironmentConfig } from '$lib/core/config/worker-environment';
 
 const config = validateWorkerEnvironmentConfig();
-// config.supabase.url = 'https://your-project.supabase.co'
-// config.supabase.serviceRoleKey = 'your-service-role-key'
+// config.fluxbase.url = 'https://your-project.fluxbase.eu'
+// config.fluxbase.serviceRoleKey = 'your-service-role-key'
 ```
 
 ### Node.js Configuration
@@ -133,15 +133,15 @@ const config = getNodeEnvironmentConfig();
 ### Public Variables (Client-Safe)
 
 ```env
-PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+PUBLIC_FLUXBASE_BASE_URL=https://your-project.fluxbase.eu
+PUBLIC_FLUXBASE_ANON_KEY=your-anon-key
 NODE_ENV=development
 ```
 
 ### Private Variables (Server-Only)
 
 ```env
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+FLUXBASE_SERVICE_ROLE_KEY=your-service-role-key
 JWT_SECRET=your-jwt-secret
 SESSION_SECRET=your-session-secret
 COOKIE_SECRET=your-cookie-secret

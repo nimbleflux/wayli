@@ -311,7 +311,6 @@ export class ServiceManager {
 		await serviceContainer.initialize();
 
 		this.initialized = true;
-		console.log('🚀 Service layer initialized');
 	}
 
 	async destroy(): Promise<void> {

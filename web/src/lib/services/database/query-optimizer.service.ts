@@ -1,6 +1,6 @@
 import { errorHandler } from '../error-handler.service';
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { FluxbaseClient } from '@fluxbase/sdk';
 
 interface QueryCacheEntry<T> {
 	data: T;
@@ -19,15 +19,15 @@ class QueryOptimizerService {
 	private cache = new Map<string, QueryCacheEntry<unknown>>();
 	private batchQueries = new Map<string, BatchQuery<unknown>[]>();
 	private batchTimeouts = new Map<string, NodeJS.Timeout>();
-	private supabase: SupabaseClient | null = null;
+	private fluxbase: FluxbaseClient | null = null;
 
 	// Cache configuration
 	private readonly DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
 	private readonly MAX_CACHE_SIZE = 1000;
 	private readonly BATCH_DELAY = 10; // 10ms batch window
 
-	setSupabaseClient(client: SupabaseClient) {
-		this.supabase = client;
+	setFluxbaseClient(client: FluxbaseClient) {
+		this.fluxbase = client;
 	}
 
 	// Cached query execution
@@ -84,9 +84,9 @@ class QueryOptimizerService {
 		return this.cachedQuery(
 			cacheKey,
 			async () => {
-				if (!this.supabase) throw new Error('Supabase client not initialized');
+				if (!this.fluxbase) throw new Error('Fluxbase client not initialized');
 
-				const { data, error } = await this.supabase
+				const { data, error } = await this.fluxbase
 					.from('user_profiles')
 					.select(
 						`
@@ -115,9 +115,9 @@ class QueryOptimizerService {
 		return this.cachedQuery(
 			cacheKey,
 			async () => {
-				if (!this.supabase) throw new Error('Supabase client not initialized');
+				if (!this.fluxbase) throw new Error('Fluxbase client not initialized');
 
-				let query = this.supabase
+				let query = this.fluxbase
 					.from('trips')
 					.select('*', { count: 'exact' })
 					.eq('user_id', userId)
@@ -162,7 +162,7 @@ class QueryOptimizerService {
 		return this.cachedQuery(
 			cacheKey,
 			async () => {
-				if (!this.supabase) throw new Error('Supabase client not initialized');
+				if (!this.fluxbase) throw new Error('Fluxbase client not initialized');
 
 				// Build date filter
 				let dateFilter = '';
@@ -176,15 +176,15 @@ class QueryOptimizerService {
 
 				// Execute optimized statistics queries
 				const [tripsResult, locationsResult, poiResult] = await Promise.all([
-					this.supabase.rpc('get_user_trip_stats', {
+					this.fluxbase.rpc('get_user_trip_stats', {
 						user_id: userId,
 						date_filter: dateFilter
 					}),
-					this.supabase.rpc('get_user_location_stats', {
+					this.fluxbase.rpc('get_user_location_stats', {
 						user_id: userId,
 						date_filter: dateFilter
 					}),
-					this.supabase.rpc('get_user_poi_stats', {
+					this.fluxbase.rpc('get_user_poi_stats', {
 						user_id: userId,
 						date_filter: dateFilter
 					})
@@ -210,9 +210,9 @@ class QueryOptimizerService {
 		return this.cachedQuery(
 			cacheKey,
 			async () => {
-				if (!this.supabase) throw new Error('Supabase client not initialized');
+				if (!this.fluxbase) throw new Error('Fluxbase client not initialized');
 
-				let query = this.supabase
+				let query = this.fluxbase
 					.from('jobs')
 					.select('*')
 					.eq('created_by', userId)

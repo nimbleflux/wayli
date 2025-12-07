@@ -3,5 +3,5 @@
 
 export * from './pexels.service';
 export * from './image-upload.service';
-export * from './nominatim.service';
+export * from './pelias.service';
 export * from './country-reverse-geocoding.service';

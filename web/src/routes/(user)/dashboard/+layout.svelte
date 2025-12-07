@@ -1,14 +1,14 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import type { Snippet } from 'svelte';
 
 	import AppNav from '$lib/components/AppNav.svelte';
-	import JobTracker from '$lib/components/JobTracker.svelte';
 	import { changeLocale, type SupportedLocale } from '$lib/i18n';
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
 	import { sessionManager } from '$lib/services/session';
 	import { userStore, sessionStore } from '$lib/stores/auth';
-	import { supabase } from '$lib/supabase';
+	import { connectionStatusStore } from '$lib/stores/job-store';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
 
@@ -21,14 +21,14 @@
 	let isAdmin = $state(false);
 	let isCheckingAdmin = $state(true);
 
-	let globalJobTracker: JobTracker;
 	let isInitializing = true;
-	let realtimeConnectionStatus = $state<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected');
+	// Get realtime connection status from job store
+	let realtimeConnectionStatus = $derived($connectionStatusStore);
 
 	async function handleSignout() {
 		try {
 			// Clear client session first to avoid stale UI
-			await supabase.auth.signOut();
+			await fluxbase.auth.signOut();
 			userStore.set(null);
 			sessionStore.set(null);
 			// Redirect via full reload to ensure all components re-mount without auth state
@@ -42,15 +42,13 @@
 	// Check if the current user is an admin
 	async function checkAdminRole() {
 		try {
-			console.log('🔐 [Dashboard] Starting admin role check, userStore:', !!$userStore);
 			if (!$userStore) {
-				console.log('🔐 [Dashboard] No userStore, skipping admin check');
 				isAdmin = false;
 				isCheckingAdmin = false;
 				return;
 			}
 
-			const { data: userProfile, error } = await supabase
+			const { data: userProfile, error } = await fluxbase
 				.from('user_profiles')
 				.select('role')
 				.eq('id', $userStore.id)
@@ -61,7 +59,6 @@
 				isAdmin = false;
 			} else {
 				isAdmin = userProfile?.role === 'admin';
-				console.log('🔐 [Dashboard] Admin role check:', { role: userProfile?.role, isAdmin });
 			}
 		} catch (error) {
 			console.error('❌ [Dashboard] Error checking admin role:', error);
@@ -74,8 +71,8 @@
 	// Load user preferences and apply language
 	async function loadUserPreferences() {
 		try {
-			const session = await supabase.auth.getSession();
-			if (!session.data.session) return;
+			const session = await fluxbase.auth.getSession();
+			if (!session.data?.session) return;
 
 			const serviceAdapter = new ServiceAdapter({ session: session.data.session });
 			const preferencesResult = await serviceAdapter.getPreferences();
@@ -86,7 +83,6 @@
 
 				if (userLanguage && ['en', 'nl', 'es'].includes(userLanguage)) {
 					await changeLocale(userLanguage as SupportedLocale);
-					console.log('🌍 [Dashboard] Applied user language preference:', userLanguage);
 				}
 			}
 		} catch (error) {
@@ -96,18 +92,14 @@
 
 	onMount(async () => {
 		try {
-			console.log('🚀 [Dashboard] Initializing dashboard...');
-
 			// Session manager is already initialized in root layout
 			// Wait a bit for any pending auth state changes to settle
 			await new Promise((resolve) => setTimeout(resolve, 100));
 
 			// Check if user is authenticated using session manager
 			const isAuthenticated = await sessionManager.isAuthenticated();
-			console.log('🔐 [Dashboard] Authentication check result:', isAuthenticated);
 
 			if (!isAuthenticated) {
-				console.log('🚪 [Dashboard] User not authenticated, redirecting to signin');
 				goto('/auth/signin');
 				return;
 			}
@@ -130,7 +122,6 @@
 
 			// Mark initialization as complete
 			isInitializing = false;
-			console.log('✅ [Dashboard] Dashboard initialization complete');
 		} catch (error) {
 			console.error('❌ [Dashboard] Error initializing dashboard:', error);
 			goto('/auth/signin');
@@ -143,7 +134,6 @@
 
 		// Check authentication status and redirect if needed
 		if (!$userStore && !$sessionStore) {
-			console.log('🚪 [Dashboard] No user or session found, redirecting to signin');
 			goto('/auth/signin');
 		}
 	});
@@ -155,16 +145,7 @@
 		}
 	});
 
-	// Update connection status from JobTracker periodically
-	$effect(() => {
-		const interval = setInterval(() => {
-			if (globalJobTracker) {
-				realtimeConnectionStatus = globalJobTracker.getConnectionStatus() as 'connecting' | 'connected' | 'disconnected' | 'error';
-			}
-		}, 500); // Check every 500ms
-
-		return () => clearInterval(interval);
-	});
+	// Cleanup is handled by Fluxbase SDK
 </script>
 
 <AppNav {isAdmin} onSignout={handleSignout} {realtimeConnectionStatus}>
@@ -183,13 +164,3 @@
 		{/if}
 	</div>
 </AppNav>
-
-<!-- Global JobTracker for all dashboard pages -->
-<JobTracker
-	bind:this={globalJobTracker}
-	jobType={null}
-	autoStart={true}
-	showToasts={true}
-	onJobUpdate={() => {}}
-	onJobCompleted={() => {}}
-/>

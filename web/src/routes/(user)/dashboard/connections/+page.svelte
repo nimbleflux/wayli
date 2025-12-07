@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
+	import { config } from '$lib/config';
 	import { toast } from 'svelte-sonner';
 	import { translate } from '$lib/i18n';
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import { Database, Link, Copy, Check, RefreshCw } from 'lucide-svelte';
-	import { getEdgeFunctionUrl } from '$lib/utils/url-utils';
 
 	// Use the reactive translation function
 	let t = $derived($translate);
@@ -18,20 +18,34 @@
 	let owntracksEndpoint = $state<string | null>(null);
 
 	async function refreshApiKeyData() {
-		const {
-			data: { user },
-			error
-		} = await supabase.auth.getUser();
+		const { data, error } = await fluxbase.auth.getUser();
 
-		if (user && !error) {
-			owntracksApiKey = user.user_metadata?.owntracks_api_key || null;
+		if (data?.user && !error) {
+			const user = data.user;
 
-			// Construct the endpoint URL using the proper utility function
+			// Get the API key from user_preferences table
+			const { data: preferences, error: prefsError } = await fluxbase
+				.from('user_preferences')
+				.select('owntracks_api_key')
+				.eq('id', user.id)
+				.single();
+
+			if (prefsError) {
+				console.error('Error fetching user preferences:', prefsError);
+				owntracksApiKey = null;
+				owntracksEndpoint = null;
+				return;
+			}
+
+			owntracksApiKey = preferences?.owntracks_api_key || null;
+
+			// Construct the endpoint URL for OwnTracks integration
 			if (owntracksApiKey) {
-				owntracksEndpoint = getEdgeFunctionUrl('owntracks-points', {
-					api_key: owntracksApiKey,
-					user_id: user.id
-				});
+				const baseUrl = config.fluxbaseUrl;
+				const url = new URL(`${baseUrl}/functions/v1/owntracks-points`);
+				url.searchParams.append('api_key', owntracksApiKey);
+				url.searchParams.append('user_id', user.id);
+				owntracksEndpoint = url.toString();
 			} else {
 				owntracksEndpoint = null;
 			}
@@ -40,31 +54,47 @@
 
 	async function generateApiKey() {
 		try {
-			const {
-				data: { user }
-			} = await supabase.auth.getUser();
-			if (!user) {
+			const { data } = await fluxbase.auth.getUser();
+			if (!data?.user) {
 				toast.error(t('connections.userNotAuthenticated'));
 				return;
 			}
 
-			const { data, error } = await supabase.functions.invoke('connections-api-key', {
-				body: { action: 'generate' }
-			});
+			// Generate a secure random API key (16 bytes = 32 hex characters)
+			const array = new Uint8Array(16);
+			crypto.getRandomValues(array);
+			const newApiKey = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+
+			console.log('🔑 Generating new API key for user:', data.user.id);
+
+			// Store the API key in user_preferences table (upsert in case row doesn't exist)
+			const { error } = await fluxbase
+				.from('user_preferences')
+				.upsert({
+					id: data.user.id,
+					owntracks_api_key: newApiKey,
+					updated_at: new Date().toISOString()
+				});
 
 			if (error) {
-				console.error('❌ Error generating API key:', error);
+				console.error('❌ Error storing API key in user preferences:', error);
 				toast.error(t('connections.failedToGenerateApiKey'));
 				return;
 			}
 
-			if (data?.success) {
-				toast.success(t('connections.apiKeyGeneratedSuccess'));
-				// Refresh the data to show the new API key
-				await refreshApiKeyData();
-			} else {
-				toast.error(t('connections.failedToGenerateApiKey'));
-			}
+			console.log('✅ API key stored successfully in user_preferences');
+
+			// Immediately update the UI with the new API key
+			owntracksApiKey = newApiKey;
+
+			// Construct the endpoint URL with the new API key
+			const baseUrl = config.fluxbaseUrl;
+			const url = new URL(`${baseUrl}/functions/v1/owntracks-points`);
+			url.searchParams.append('api_key', newApiKey);
+			url.searchParams.append('user_id', data.user.id);
+			owntracksEndpoint = url.toString();
+
+			toast.success(t('connections.apiKeyGeneratedSuccess'));
 		} catch (error) {
 			console.error('❌ Error generating API key:', error);
 			toast.error(t('connections.failedToGenerateApiKey'));

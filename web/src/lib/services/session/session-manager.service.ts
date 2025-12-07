@@ -1,16 +1,30 @@
 // web/src/lib/services/session/session-manager.service.ts
-// Global session management service with automatic token refresh and auth state sync
+// Global session management service with Remember Me and re-authentication support
+// Token refresh is handled by Fluxbase SDK's autoRefresh feature
 
-import { supabase } from '$lib/supabase';
+import { fluxbase } from '$lib/fluxbase';
 import { userStore, sessionStore } from '$lib/stores/auth';
 import { goto } from '$app/navigation';
+import { cleanup as cleanupJobStore, initializeJobStore } from '$lib/stores/job-store';
+import { writable, get } from 'svelte/store';
+
+// LocalStorage keys
+const REMEMBER_ME_KEY = 'wayli.rememberMe';
+const SESSION_START_KEY = 'wayli.sessionStart';
+const REAUTH_TIME_KEY = 'wayli.lastReauthTime';
+
+// Session duration for non-remembered sessions (24 hours)
+const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+// Re-authentication validity window (5 minutes)
+const REAUTH_VALIDITY_MS = 5 * 60 * 1000;
+
+// Store to control re-auth modal visibility
+export const showReauthModal = writable(false);
+export const reauthResolver = writable<((success: boolean) => void) | null>(null);
 
 export class SessionManagerService {
 	private static instance: SessionManagerService;
-	private refreshInterval: ReturnType<typeof setInterval> | null = null;
-	private lastActivityTime: number = Date.now();
-	private readonly REFRESH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
-	private readonly ACTIVITY_TIMEOUT_MS = 3.5 * 60 * 60 * 1000; // 3.5 hours (less than server timeout)
 	private isInitialized = false;
 	private authListenerSet = false;
 
@@ -30,98 +44,207 @@ export class SessionManagerService {
 	 */
 	async initialize(): Promise<void> {
 		if (this.isInitialized) {
-			console.log('🔄 [SessionManager] Already initialized, skipping...');
 			return;
 		}
-
-		console.log('🔐 [SessionManager] Initializing session management...');
 
 		// Set the initialized flag early to prevent concurrent initialization
 		this.isInitialized = true;
 
 		// Set up auth state change listener (only once)
 		if (!this.authListenerSet) {
-			supabase.auth.onAuthStateChange((event: string, session: any) => {
-				console.log(
-					`🔐 [SessionManager] Auth state changed: ${event}`,
-					session ? 'session present' : 'no session'
-				);
+			fluxbase.auth.onAuthStateChange(async (event: string, session: any) => {
+				// Debug logging for token refresh verification
+				console.log('🔑 [SessionManager] Auth state change:', {
+					event,
+					hasSession: !!session,
+					userId: session?.user?.id,
+					expiresAt: session?.expires_at
+						? new Date(session.expires_at).toISOString()
+						: null,
+					expiresIn: session?.expires_at
+						? `${Math.round((session.expires_at - Date.now()) / 1000 / 60)} minutes`
+						: null
+				});
 
-				// Always update stores first
-				this.updateAuthStores(session);
+				// Always update stores first (await to ensure admin token is set)
+				await this.updateAuthStores(session);
 
-				if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
-					if (event === 'INITIAL_SESSION') {
-						console.log('🔄 [SessionManager] Initial session restored from storage');
-					}
-					this.startSessionManagement();
-				} else if (event === 'SIGNED_OUT' || !session) {
-					console.log(
-						'🚪 [SessionManager] User signed out or no session, clearing stores and stopping management'
-					);
+				if (event === 'SIGNED_OUT' || !session) {
 					// Ensure stores are cleared
-					this.updateAuthStores(null);
-					this.stopSessionManagement();
-				} else if (event === 'TOKEN_REFRESHED' && session) {
-					console.log('✅ [SessionManager] Token refreshed successfully');
-					this.updateLastActivity();
+					await this.updateAuthStores(null);
+					cleanupJobStore();
+				} else if (session?.user?.id) {
+					// Initialize job store when user signs in
+					initializeJobStore(session.user.id);
 				}
 			});
 			this.authListenerSet = true;
-			console.log('🔐 [SessionManager] Auth state change listener set up');
 		} else {
-			console.log('🔄 [SessionManager] Auth listener already set up, skipping...');
 			return;
 		}
 
-		// Initialize with current session - let auth state change events handle session management
+		// Initialize with current session - validate token with retry logic
 		try {
-			const {
-				data: { session },
-				error
-			} = await supabase.auth.getSession();
-			if (error) {
-				console.error('❌ [SessionManager] Error getting initial session:', error);
-				// Don't clear stores on error - let auth state change events handle it
-			} else if (session) {
-				console.log('✅ [SessionManager] Initial session found during setup');
-				// Don't manually start session management - auth state change events will handle it
-				// But do update the stores with the found session
-				this.updateAuthStores(session);
-			} else {
-				console.log(
-					'ℹ️ [SessionManager] No initial session found - waiting for auth state changes'
-				);
-				// Don't clear stores if no session exists - let auth state change events handle it
+			const { data } = await fluxbase.auth.getSession();
+			if (data && data.session) {
+				// Check Remember Me expiry first
+				if (this.isSessionExpiredByRememberMe()) {
+					console.info('ℹ️ [SessionManager] Session expired (Remember Me disabled, >24h)');
+					await this.handleSessionExpiry();
+					return;
+				}
+
+				// Validate token with retry logic
+				const isValid = await this.validateTokenWithRetry();
+				if (!isValid) {
+					return; // handleSessionExpiry already called in validateTokenWithRetry
+				}
+
+				// Token is valid - update stores and initialize job store
+				await this.updateAuthStores(data.session);
+				if (data.session?.user?.id) {
+					initializeJobStore(data.session.user.id);
+				}
 			}
 		} catch (error) {
 			console.error('❌ [SessionManager] Error during session initialization:', error);
-			// Don't clear stores on error - let auth state change events handle it
+			// Clear invalid session state to prevent broken auth
+			this.forceClearStores();
+		}
+	}
+
+	/**
+	 * Validate token with retry logic - tries refresh before giving up
+	 */
+	private async validateTokenWithRetry(): Promise<boolean> {
+		// First attempt: validate with getUser()
+		const { error: userError } = await fluxbase.auth.getUser();
+
+		if (!userError) {
+			console.log('✅ [SessionManager] Token validation successful');
+			return true; // Token is valid
 		}
 
-		// Set up activity tracking
-		this.setupActivityTracking();
+		console.warn('⚠️ [SessionManager] Token validation failed, attempting refresh:', userError.message);
 
-		console.log('✅ [SessionManager] Session management initialized');
+		// Second attempt: try to refresh the token
+		try {
+			console.log('🔄 [SessionManager] Attempting token refresh in validateTokenWithRetry...');
+			const { data, error: refreshError } = await fluxbase.auth.refreshSession();
+			if (refreshError) {
+				console.error('❌ [SessionManager] Token refresh failed:', refreshError.message);
+				await this.handleSessionExpiry();
+				return false;
+			}
+
+			// Log the new token expiry
+			if (data?.session?.expires_at) {
+				console.log('✅ [SessionManager] Token refreshed, new expiry:', {
+					expiresAt: new Date(data.session.expires_at).toISOString(),
+					expiresIn: `${Math.round((data.session.expires_at - Date.now()) / 1000 / 60)} minutes`
+				});
+			}
+
+			// Refresh succeeded, validate again
+			const { error: retryError } = await fluxbase.auth.getUser();
+			if (retryError) {
+				console.error('❌ [SessionManager] Token still invalid after refresh:', retryError.message);
+				await this.handleSessionExpiry();
+				return false;
+			}
+
+			console.info('✅ [SessionManager] Token refreshed and validated successfully');
+			return true;
+		} catch (error) {
+			console.error('❌ [SessionManager] Error during token refresh:', error);
+			await this.handleSessionExpiry();
+			return false;
+		}
+	}
+
+	/**
+	 * Check if session has expired based on Remember Me setting
+	 * Returns true if session should be expired
+	 */
+	private isSessionExpiredByRememberMe(): boolean {
+		if (typeof window === 'undefined') return false;
+
+		const rememberMe = localStorage.getItem(REMEMBER_ME_KEY);
+
+		// If Remember Me is true or not set (default to remembered), use token expiry
+		if (rememberMe === null || rememberMe === 'true') {
+			return false;
+		}
+
+		// Remember Me is false - check if > 24 hours since login
+		const sessionStart = localStorage.getItem(SESSION_START_KEY);
+		if (!sessionStart) {
+			return false; // No start time recorded, allow session
+		}
+
+		const elapsed = Date.now() - parseInt(sessionStart, 10);
+		return elapsed > SESSION_MAX_AGE_MS;
+	}
+
+	/**
+	 * Record login timestamp and Remember Me preference
+	 */
+	recordLogin(rememberMe: boolean): void {
+		if (typeof window === 'undefined') return;
+
+		localStorage.setItem(REMEMBER_ME_KEY, String(rememberMe));
+		localStorage.setItem(SESSION_START_KEY, String(Date.now()));
 	}
 
 	/**
 	 * Update auth stores with current session
 	 */
-	private updateAuthStores(session: any): void {
-		console.log(
-			'🔄 [SessionManager] Updating auth stores:',
-			session ? 'with session' : 'clearing stores'
-		);
-
+	private async updateAuthStores(session: any): Promise<void> {
 		sessionStore.set(session);
 
 		if (session?.user) {
 			userStore.set(session.user);
-			console.log('✅ [SessionManager] User store updated with:', session.user.email);
+
+			// Set admin token if user has admin role
+			await this.setAdminTokenIfNeeded(session);
 		} else {
 			userStore.set(null);
-			console.log('🧹 [SessionManager] User store cleared');
+
+			// Clear admin token when session is cleared
+			try {
+				fluxbase.admin.clearToken();
+			} catch (error) {
+				// Ignore errors if clearToken doesn't exist
+			}
+		}
+	}
+
+	/**
+	 * Set admin token for admin users
+	 */
+	private async setAdminTokenIfNeeded(session: any): Promise<void> {
+		try {
+			// Check if setToken method exists
+			if (typeof fluxbase.admin?.setToken !== 'function') {
+				return;
+			}
+
+			// Check if user has admin role from user_profiles
+			const { data: profile, error } = await fluxbase
+				.from('user_profiles')
+				.select('role')
+				.eq('id', session.user.id)
+				.single();
+
+			if (error) {
+				return;
+			}
+
+			if (profile?.role === 'admin') {
+				fluxbase.admin.setToken(session.access_token);
+			}
+		} catch (error) {
+			console.error('❌ [SessionManager] Error setting admin token:', error);
 		}
 	}
 
@@ -129,152 +252,53 @@ export class SessionManagerService {
 	 * Force clear all auth stores (for emergency cleanup)
 	 */
 	public forceClearStores(): void {
-		console.log('🧹 [SessionManager] Force clearing all auth stores');
 		sessionStore.set(null);
 		userStore.set(null);
-	}
-
-	/**
-	 * Start automatic session management
-	 */
-	private startSessionManagement(): void {
-		// Only start if not already running
-		if (this.refreshInterval) {
-			console.log('🔄 [SessionManager] Token refresh already running, skipping...');
-			this.updateLastActivity();
-			return;
-		}
-
-		console.log('🔄 [SessionManager] Starting automatic token refresh...');
-
-		this.updateLastActivity();
-
-		// Set up automatic token refresh
-		this.refreshInterval = setInterval(async () => {
-			await this.checkAndRefreshSession();
-		}, this.REFRESH_INTERVAL_MS);
-	}
-
-	/**
-	 * Stop session management
-	 */
-	private stopSessionManagement(): void {
-		console.log('🛑 [SessionManager] Stopping session management...');
-
-		if (this.refreshInterval) {
-			clearInterval(this.refreshInterval);
-			this.refreshInterval = null;
-		}
-	}
-
-	/**
-	 * Check session validity and refresh if needed
-	 */
-	private async checkAndRefreshSession(): Promise<void> {
+		// Clear admin token if set
 		try {
-			// Check for inactivity timeout
-			const timeSinceLastActivity = Date.now() - this.lastActivityTime;
-			if (timeSinceLastActivity > this.ACTIVITY_TIMEOUT_MS) {
-				console.log('⏰ [SessionManager] Session expired due to inactivity');
-				await this.handleSessionExpiry();
-				return;
-			}
-
-			// Get current session
-			const {
-				data: { session },
-				error
-			} = await supabase.auth.getSession();
-
-			if (error) {
-				console.error('❌ [SessionManager] Error checking session:', error);
-				return;
-			}
-
-			if (!session) {
-				console.log('🚪 [SessionManager] No session found, user may have been logged out');
-				await this.handleSessionExpiry();
-				return;
-			}
-
-			// Check if token is close to expiry (refresh 10 minutes before expiry)
-			const expiresAt = session.expires_at;
-			const now = Math.floor(Date.now() / 1000);
-			const timeUntilExpiry = expiresAt ? expiresAt - now : 0;
-
-			if (timeUntilExpiry < 600) {
-				// 10 minutes
-				console.log('🔄 [SessionManager] Token expires soon, refreshing...');
-
-				const { data, error: refreshError } = await supabase.auth.refreshSession();
-
-				if (refreshError) {
-					console.error('❌ [SessionManager] Failed to refresh token:', refreshError);
-					await this.handleSessionExpiry();
-				} else if (data.session) {
-					console.log('✅ [SessionManager] Token refreshed successfully');
-					this.updateAuthStores(data.session);
-				}
-			}
+			fluxbase.admin.clearToken();
 		} catch (error) {
-			console.error('❌ [SessionManager] Error in session check:', error);
+			// Ignore errors if clearToken doesn't exist
 		}
 	}
 
 	/**
-	 * Handle session expiry
+	 * Handle session expiry - clear everything and redirect
 	 */
 	private async handleSessionExpiry(): Promise<void> {
-		console.log('🚪 [SessionManager] Handling session expiry...');
-
 		try {
 			// Clear client-side session
-			await supabase.auth.signOut();
+			await fluxbase.auth.signOut();
 		} catch (error) {
 			console.warn('⚠️ [SessionManager] Error during signout:', error);
 		}
 
 		// Update stores
-		this.updateAuthStores(null);
+		await this.updateAuthStores(null);
 
-		// Stop session management
-		this.stopSessionManagement();
+		// Clean up session-related localStorage
+		this.clearSessionData();
+
+		// Cleanup realtime job monitoring
+		cleanupJobStore();
 
 		// Redirect to login if not already on auth pages
 		if (typeof window !== 'undefined') {
 			const currentPath = window.location.pathname;
 			if (!currentPath.startsWith('/auth') && currentPath !== '/') {
-				console.log('🔀 [SessionManager] Redirecting to signin...');
 				goto('/auth/signin');
 			}
 		}
 	}
 
 	/**
-	 * Set up activity tracking
+	 * Clear session-related localStorage data
 	 */
-	private setupActivityTracking(): void {
+	private clearSessionData(): void {
 		if (typeof window === 'undefined') return;
-
-		const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
-
-		const updateActivity = () => {
-			this.updateLastActivity();
-		};
-
-		activityEvents.forEach((event) => {
-			document.addEventListener(event, updateActivity, { passive: true });
-		});
-
-		// Also track focus events
-		window.addEventListener('focus', updateActivity);
-	}
-
-	/**
-	 * Update last activity timestamp
-	 */
-	private updateLastActivity(): void {
-		this.lastActivityTime = Date.now();
+		localStorage.removeItem(REMEMBER_ME_KEY);
+		localStorage.removeItem(SESSION_START_KEY);
+		localStorage.removeItem(REAUTH_TIME_KEY);
 	}
 
 	/**
@@ -282,26 +306,32 @@ export class SessionManagerService {
 	 */
 	async forceRefreshSession(): Promise<boolean> {
 		try {
-			console.log('🔄 [SessionManager] Force refreshing session...');
-
-			const { data, error } = await supabase.auth.refreshSession();
+			console.log('🔄 [SessionManager] Attempting token refresh...');
+			const { data, error } = await fluxbase.auth.refreshSession();
 
 			if (error) {
-				console.error('❌ [SessionManager] Force refresh failed:', error);
+				console.error('❌ [SessionManager] Force refresh error:', error);
 				await this.handleSessionExpiry();
 				return false;
 			}
 
-			if (data.session) {
-				console.log('✅ [SessionManager] Force refresh successful');
-				this.updateAuthStores(data.session);
-				this.updateLastActivity();
+			if (data?.session) {
+				console.log('✅ [SessionManager] Token refreshed successfully:', {
+					expiresAt: data.session.expires_at
+						? new Date(data.session.expires_at).toISOString()
+						: null,
+					expiresIn: data.session.expires_at
+						? `${Math.round((data.session.expires_at - Date.now()) / 1000 / 60)} minutes`
+						: null
+				});
+				await this.updateAuthStores(data.session);
 				return true;
 			}
 
 			return false;
 		} catch (error) {
 			console.error('❌ [SessionManager] Force refresh error:', error);
+			await this.handleSessionExpiry();
 			return false;
 		}
 	}
@@ -318,24 +348,21 @@ export class SessionManagerService {
 	 */
 	async isAuthenticated(): Promise<boolean> {
 		try {
-			// Check Supabase session directly
-			const {
-				data: { session },
-				error
-			} = await supabase.auth.getSession();
-			if (error) {
-				console.error('❌ [SessionManager] Error checking Supabase session:', error);
+			// Check Remember Me expiry first
+			if (this.isSessionExpiredByRememberMe()) {
+				await this.handleSessionExpiry();
 				return false;
 			}
 
-			if (session && session.user) {
-				console.log('🔐 [SessionManager] Authentication confirmed via Supabase');
+			// Check Fluxbase session directly
+			const { data } = await fluxbase.auth.getSession();
+
+			if (data && data.session && data.session.user) {
 				// Update stores with the found session if they're empty
-				this.updateAuthStores(session);
+				await this.updateAuthStores(data.session);
 				return true;
 			}
 
-			console.log('🚪 [SessionManager] No valid session found');
 			return false;
 		} catch (error) {
 			console.error('❌ [SessionManager] Error in isAuthenticated:', error);
@@ -348,22 +375,113 @@ export class SessionManagerService {
 	 */
 	async getCurrentSession() {
 		try {
-			const {
-				data: { session },
-				error
-			} = await supabase.auth.getSession();
-			return error ? null : session;
+			return fluxbase.auth.getSession();
 		} catch {
 			return null;
 		}
+	}
+
+	// ==========================================
+	// Re-authentication for sensitive actions
+	// ==========================================
+
+	/**
+	 * Check if user has recently re-authenticated (within 5 minutes)
+	 */
+	isRecentlyReauthenticated(): boolean {
+		if (typeof window === 'undefined') return false;
+
+		const lastReauth = localStorage.getItem(REAUTH_TIME_KEY);
+		if (!lastReauth) return false;
+
+		const elapsed = Date.now() - parseInt(lastReauth, 10);
+		return elapsed < REAUTH_VALIDITY_MS;
+	}
+
+	/**
+	 * Record successful re-authentication timestamp
+	 */
+	recordReauth(): void {
+		if (typeof window === 'undefined') return;
+		localStorage.setItem(REAUTH_TIME_KEY, String(Date.now()));
+	}
+
+	/**
+	 * Verify password for re-authentication
+	 * Returns true if password is correct
+	 */
+	async verifyPassword(password: string): Promise<{ success: boolean; error?: string }> {
+		try {
+			// Get current user's email
+			const { data: sessionData } = await fluxbase.auth.getSession();
+			const email = sessionData?.session?.user?.email;
+
+			if (!email) {
+				return { success: false, error: 'No active session' };
+			}
+
+			// Attempt to sign in with the password to verify it
+			// Note: This creates a new session, but we'll keep the existing one
+			const { error } = await fluxbase.auth.signInWithPassword({
+				email,
+				password
+			});
+
+			if (error) {
+				return { success: false, error: error.message };
+			}
+
+			// Password is correct, record re-auth time
+			this.recordReauth();
+			return { success: true };
+		} catch (error) {
+			console.error('❌ [SessionManager] Re-auth verification error:', error);
+			return { success: false, error: 'Verification failed' };
+		}
+	}
+
+	/**
+	 * Require re-authentication before a sensitive action
+	 * Shows the re-auth modal if needed, returns true if authenticated
+	 */
+	async requireReauth(): Promise<boolean> {
+		// Check if recently re-authenticated
+		if (this.isRecentlyReauthenticated()) {
+			return true;
+		}
+
+		// Show the re-auth modal and wait for result
+		return new Promise((resolve) => {
+			reauthResolver.set(resolve);
+			showReauthModal.set(true);
+		});
+	}
+
+	/**
+	 * Complete the re-auth flow (called by the modal)
+	 */
+	completeReauth(success: boolean): void {
+		const resolver = get(reauthResolver);
+		if (resolver) {
+			resolver(success);
+		}
+		reauthResolver.set(null);
+		showReauthModal.set(false);
 	}
 
 	/**
 	 * Clean up session manager
 	 */
 	destroy(): void {
-		this.stopSessionManagement();
+		cleanupJobStore();
 		this.isInitialized = false;
+	}
+
+	/**
+	 * Sign out the user completely
+	 */
+	async signOut(): Promise<void> {
+		await this.handleSessionExpiry();
 	}
 }
 

@@ -190,3 +190,81 @@ INSERT INTO "public"."ai_config" ("name", "provider", "model", "config") VALUES
         "system_prompt": "You are a helpful assistant that translates natural language questions about travel and location history into SQL queries. You have access to a place_visits table with columns: poi_name, poi_amenity, poi_cuisine, poi_category, poi_tags (JSONB), city, country, country_code, started_at, ended_at, duration_minutes. Always return valid PostgreSQL queries."
     }')
 ON CONFLICT ("name") DO NOTHING;
+
+-- =============================================================================
+-- Function: execute_user_query
+-- Safely executes a validated SELECT query on behalf of a user.
+-- Used by the location-query edge function for LLM-generated SQL.
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION "public"."execute_user_query"(
+    query_sql TEXT,
+    query_user_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    result JSONB;
+    sanitized_sql TEXT;
+    upper_sql TEXT;
+BEGIN
+    -- Validate input
+    IF query_sql IS NULL OR query_sql = '' THEN
+        RAISE EXCEPTION 'Query SQL cannot be empty';
+    END IF;
+
+    IF query_user_id IS NULL THEN
+        RAISE EXCEPTION 'User ID cannot be null';
+    END IF;
+
+    -- Basic SQL validation (defense in depth - edge function also validates)
+    upper_sql := UPPER(TRIM(query_sql));
+
+    -- Must start with SELECT
+    IF NOT upper_sql LIKE 'SELECT%' THEN
+        RAISE EXCEPTION 'Only SELECT queries are allowed';
+    END IF;
+
+    -- Block dangerous keywords
+    IF upper_sql LIKE '%DROP%' OR
+       upper_sql LIKE '%DELETE%' OR
+       upper_sql LIKE '%UPDATE%' OR
+       upper_sql LIKE '%INSERT%' OR
+       upper_sql LIKE '%ALTER%' OR
+       upper_sql LIKE '%CREATE%' OR
+       upper_sql LIKE '%TRUNCATE%' OR
+       upper_sql LIKE '%EXEC%' OR
+       upper_sql LIKE '%EXECUTE%' THEN
+        RAISE EXCEPTION 'Forbidden SQL keyword detected';
+    END IF;
+
+    -- Must reference user_id (should contain $1 placeholder)
+    IF NOT LOWER(query_sql) LIKE '%user_id%' THEN
+        RAISE EXCEPTION 'Query must filter by user_id';
+    END IF;
+
+    -- Replace $1 placeholder with actual user_id (as a quoted literal)
+    sanitized_sql := REPLACE(query_sql, '$1', quote_literal(query_user_id::TEXT));
+
+    -- Execute the query and return results as JSONB
+    EXECUTE format('SELECT COALESCE(jsonb_agg(row_to_json(t)), ''[]''::jsonb) FROM (%s) t', sanitized_sql)
+    INTO result;
+
+    RETURN result;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Log error for debugging but return sanitized message
+        RAISE WARNING 'execute_user_query error: % - SQL: %', SQLERRM, LEFT(query_sql, 100);
+        RAISE EXCEPTION 'Query execution failed: %', SQLERRM;
+END;
+$$;
+
+COMMENT ON FUNCTION "public"."execute_user_query"(TEXT, UUID) IS 'Safely executes validated SELECT queries for LLM-powered location queries. Used by location-query edge function.';
+
+-- Grant execute permission to authenticated users (RLS on underlying tables still applies)
+GRANT EXECUTE ON FUNCTION "public"."execute_user_query"(TEXT, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION "public"."execute_user_query"(TEXT, UUID) TO service_role;

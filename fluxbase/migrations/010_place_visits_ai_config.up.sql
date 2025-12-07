@@ -215,17 +215,90 @@ BEGIN
 END;
 $$;
 
+COMMENT ON FUNCTION "public"."strip_sql_comments"(TEXT) IS 'Strips SQL comments to prevent keyword-hiding attacks in user queries.';
+
+-- =============================================================================
+-- SECURE VIEWS FOR LLM QUERIES
+-- =============================================================================
+-- These views enforce user_id filtering at the VIEW level, not relying on
+-- string matching. Even if a malicious LLM/Ollama returns a query without
+-- user_id filtering, the view itself only returns the current user's data.
+--
+-- CRITICAL: LLM queries MUST use these views, not the base tables.
+-- =============================================================================
+
+-- Secure view for place_visits - ALWAYS filtered to current user
+CREATE OR REPLACE VIEW "public"."my_place_visits"
+WITH (security_barrier = true, security_invoker = true)
+AS
+SELECT
+    id,
+    started_at,
+    ended_at,
+    duration_minutes,
+    ST_X(location::geometry) as longitude,
+    ST_Y(location::geometry) as latitude,
+    poi_name,
+    poi_layer,
+    poi_amenity,
+    poi_cuisine,
+    poi_category,
+    poi_tags,
+    city,
+    country,
+    country_code,
+    confidence_score,
+    gps_points_count,
+    avg_accuracy_meters,
+    detection_method,
+    candidates,
+    created_at
+FROM "public"."place_visits"
+WHERE user_id = auth.uid();  -- HARDCODED - cannot be bypassed by LLM
+
+COMMENT ON VIEW "public"."my_place_visits" IS 'Secure view of place_visits filtered to current user. Use this for LLM queries.';
+
+-- Secure view for tracker_data - ALWAYS filtered to current user
+CREATE OR REPLACE VIEW "public"."my_tracker_data"
+WITH (security_barrier = true, security_invoker = true)
+AS
+SELECT
+    id,
+    recorded_at,
+    ST_X(location::geometry) as longitude,
+    ST_Y(location::geometry) as latitude,
+    country_code,
+    geocode,
+    accuracy,
+    created_at
+FROM "public"."tracker_data"
+WHERE user_id = auth.uid();  -- HARDCODED - cannot be bypassed by LLM
+
+COMMENT ON VIEW "public"."my_tracker_data" IS 'Secure view of tracker_data filtered to current user. Use this for LLM queries.';
+
+-- Grant SELECT on views to authenticated users
+GRANT SELECT ON "public"."my_place_visits" TO authenticated;
+GRANT SELECT ON "public"."my_tracker_data" TO authenticated;
+
 -- =============================================================================
 -- Function: execute_user_query
 -- Safely executes a validated SELECT query on behalf of a user.
 -- Used by the location-query edge function for LLM-generated SQL.
 --
--- Security measures:
--- 1. Strips comments to prevent keyword hiding
--- 2. Validates with word-boundary regex patterns
--- 3. Whitelists allowed tables
--- 4. Limits result size
--- 5. Adds execution timeout
+-- SECURITY MODEL (Defense in Depth):
+-- =============================================================================
+-- Layer 1: String validation (comment stripping, keyword blocking)
+-- Layer 2: Table whitelist (ONLY my_place_visits, my_tracker_data views)
+-- Layer 3: Views have hardcoded user_id = auth.uid() filter
+-- Layer 4: Read-only transaction mode
+-- Layer 5: RLS policies on underlying tables
+-- Layer 6: User identity verification (auth.uid() must match claimed user)
+-- Layer 7: Statement timeout to prevent DoS
+--
+-- Even if a malicious Ollama model returns:
+--   "SELECT * FROM my_place_visits" (no user_id filter)
+-- The view definition enforces: WHERE user_id = auth.uid()
+-- So the query ONLY returns the authenticated user's data.
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION "public"."execute_user_query"(
@@ -236,113 +309,168 @@ CREATE OR REPLACE FUNCTION "public"."execute_user_query"(
 )
 RETURNS JSONB
 LANGUAGE plpgsql
-SECURITY DEFINER
+-- NOT using SECURITY DEFINER - query runs with caller's permissions
+-- RLS and view security_invoker apply
 SET search_path = public
 AS $$
 DECLARE
     result JSONB;
-    sanitized_sql TEXT;
+    safe_sql TEXT;
     stripped_sql TEXT;
+    lower_sql TEXT;
     row_count INTEGER;
 BEGIN
-    -- Set statement timeout for this query
-    EXECUTE format('SET LOCAL statement_timeout = %L', timeout_ms);
-
-    -- Validate input
-    IF query_sql IS NULL OR LENGTH(TRIM(query_sql)) < 10 THEN
-        RAISE EXCEPTION 'Query SQL is too short or empty';
+    -- ==========================================================
+    -- LAYER 6: User identity verification
+    -- ==========================================================
+    IF auth.uid() IS NULL THEN
+        RAISE EXCEPTION 'Authentication required';
     END IF;
 
-    IF query_user_id IS NULL THEN
-        RAISE EXCEPTION 'User ID cannot be null';
+    -- The caller must be the user they claim to be
+    IF auth.uid() != query_user_id THEN
+        RAISE EXCEPTION 'User identity mismatch';
+    END IF;
+
+    -- ==========================================================
+    -- LAYER 7: Resource limits
+    -- ==========================================================
+    EXECUTE format('SET LOCAL statement_timeout = %L', timeout_ms);
+
+    -- ==========================================================
+    -- LAYER 4: Force read-only mode
+    -- ==========================================================
+    SET LOCAL transaction_read_only = ON;
+
+    -- ==========================================================
+    -- Input validation
+    -- ==========================================================
+    IF query_sql IS NULL OR LENGTH(TRIM(query_sql)) < 10 THEN
+        RAISE EXCEPTION 'Query SQL is too short or empty';
     END IF;
 
     IF max_rows < 1 OR max_rows > 1000 THEN
         RAISE EXCEPTION 'max_rows must be between 1 and 1000';
     END IF;
 
-    -- Strip comments to prevent attacks like SELECT/*DELETE*/...
+    -- ==========================================================
+    -- LAYER 1: String validation - strip comments
+    -- ==========================================================
     stripped_sql := strip_sql_comments(query_sql);
+    lower_sql := LOWER(stripped_sql);
 
-    -- Convert to uppercase for keyword checking
-    DECLARE upper_sql TEXT := UPPER(stripped_sql);
-    BEGIN
-        -- Must start with SELECT (word boundary)
-        IF NOT (upper_sql ~ '^\s*SELECT\b') THEN
-            RAISE EXCEPTION 'Only SELECT queries are allowed';
-        END IF;
-
-        -- Block dangerous keywords with word boundaries
-        -- Using regex \m and \M for word boundaries (PostgreSQL specific)
-        IF upper_sql ~ '\m(DROP|DELETE|UPDATE|INSERT|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|COPY)\M' THEN
-            RAISE EXCEPTION 'Forbidden SQL command detected';
-        END IF;
-
-        -- Block dangerous functions
-        IF upper_sql ~ '\m(PG_SLEEP|PG_READ_FILE|PG_WRITE_FILE|LO_IMPORT|LO_EXPORT)\M' THEN
-            RAISE EXCEPTION 'Forbidden SQL function detected';
-        END IF;
-
-        -- Block SET commands
-        IF upper_sql ~ '\mSET\s+(ROLE|SESSION|LOCAL\s+ROLE)' THEN
-            RAISE EXCEPTION 'SET ROLE commands are not allowed';
-        END IF;
-
-        -- Block subqueries that could access other tables without user_id check
-        -- Allow only specific tables in FROM clause
-        IF upper_sql ~ '\mFROM\s+(?!place_visits|tracker_data|trips)\w+' THEN
-            -- Check if it's a subquery or CTE (allowed if properly filtered)
-            IF NOT (upper_sql ~ '\mWITH\b' OR upper_sql ~ '\(\s*SELECT') THEN
-                RAISE EXCEPTION 'Query references unauthorized table';
-            END IF;
-        END IF;
-    END;
-
-    -- Must reference user_id filter
-    IF NOT stripped_sql ~* 'user_id\s*=' THEN
-        RAISE EXCEPTION 'Query must filter by user_id';
+    -- Must start with SELECT
+    IF NOT (UPPER(stripped_sql) ~ '^\s*SELECT\b') THEN
+        RAISE EXCEPTION 'Only SELECT queries are allowed';
     END IF;
 
-    -- Replace $1 placeholder with actual user_id (as a quoted literal)
-    sanitized_sql := REPLACE(stripped_sql, '$1', quote_literal(query_user_id::TEXT));
+    -- Block ALL write operations
+    IF UPPER(stripped_sql) ~ '\m(DROP|DELETE|UPDATE|INSERT|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|COPY|VACUUM|ANALYZE|CLUSTER|REINDEX|LOCK|REFRESH|NOTIFY|LISTEN|UNLISTEN|PREPARE|EXECUTE|DEALLOCATE)\M' THEN
+        RAISE EXCEPTION 'Write operations are not allowed';
+    END IF;
+
+    -- Block dangerous functions
+    IF UPPER(stripped_sql) ~ '\m(PG_SLEEP|PG_READ_FILE|PG_WRITE_FILE|PG_READ_BINARY_FILE|LO_IMPORT|LO_EXPORT|LO_CREATE|LO_UNLINK|DBLINK|DBLINK_CONNECT|DBLINK_EXEC|CURRENT_SETTING|SET_CONFIG|PG_TERMINATE_BACKEND|PG_CANCEL_BACKEND|PG_RELOAD_CONF|PG_ROTATE_LOGFILE|PG_SWITCH_WAL)\M' THEN
+        RAISE EXCEPTION 'Forbidden SQL function detected';
+    END IF;
+
+    -- Block ALL SET commands
+    IF UPPER(stripped_sql) ~ '\mSET\s+' THEN
+        RAISE EXCEPTION 'SET commands are not allowed';
+    END IF;
+
+    -- Block system catalog access
+    IF lower_sql ~ '\m(pg_catalog|information_schema|pg_class|pg_proc|pg_roles|pg_user|pg_shadow|pg_authid|pg_auth_members)\M' THEN
+        RAISE EXCEPTION 'System catalog access is not allowed';
+    END IF;
+
+    -- Block auth schema access
+    IF lower_sql ~ '\mauth\.' THEN
+        RAISE EXCEPTION 'Auth schema access is not allowed';
+    END IF;
+
+    -- ==========================================================
+    -- LAYER 2: Table whitelist - ONLY secure views allowed
+    -- ==========================================================
+
+    -- Block direct access to base tables
+    IF lower_sql ~ '\mplace_visits\M' AND lower_sql !~ '\mmy_place_visits\M' THEN
+        RAISE EXCEPTION 'Direct table access not allowed. Use my_place_visits view instead.';
+    END IF;
+
+    IF lower_sql ~ '\mtracker_data\M' AND lower_sql !~ '\mmy_tracker_data\M' THEN
+        RAISE EXCEPTION 'Direct table access not allowed. Use my_tracker_data view instead.';
+    END IF;
+
+    -- Block access to sensitive tables
+    IF lower_sql ~ '\m(ai_config|user_preferences|rate_limits|query_feedback|users|auth_users|sessions)\M' THEN
+        RAISE EXCEPTION 'Access to this table is not allowed';
+    END IF;
+
+    -- Verify query uses ONLY allowed views
+    IF NOT (lower_sql ~ '\mmy_place_visits\M' OR lower_sql ~ '\mmy_tracker_data\M') THEN
+        RAISE EXCEPTION 'Query must use my_place_visits or my_tracker_data views';
+    END IF;
+
+    -- ==========================================================
+    -- Query rewriting
+    -- ==========================================================
+    safe_sql := stripped_sql;
+
+    -- Remove any user_id references (views handle this automatically)
+    -- This prevents confusion but isn't security-critical since views enforce it
+    safe_sql := regexp_replace(safe_sql, 'WHERE\s+user_id\s*=\s*\$1\s*(AND\s+)?', 'WHERE ', 'gi');
+    safe_sql := regexp_replace(safe_sql, '\s+AND\s+user_id\s*=\s*\$1', '', 'gi');
+    safe_sql := regexp_replace(safe_sql, 'user_id\s*=\s*\$1\s*(AND\s+)?', '', 'gi');
+
+    -- Clean up orphaned WHERE clauses
+    safe_sql := regexp_replace(safe_sql, 'WHERE\s+(ORDER|GROUP|LIMIT|$)', '\1', 'gi');
+    safe_sql := regexp_replace(safe_sql, 'WHERE\s*$', '', 'gi');
 
     -- Add LIMIT if not present
-    IF NOT (UPPER(sanitized_sql) ~ '\mLIMIT\s+\d+') THEN
-        sanitized_sql := sanitized_sql || ' LIMIT ' || max_rows;
+    IF NOT (UPPER(safe_sql) ~ '\mLIMIT\s+\d+') THEN
+        safe_sql := safe_sql || ' LIMIT ' || max_rows;
     END IF;
 
-    -- Execute the query and return results as JSONB
-    EXECUTE format('SELECT COALESCE(jsonb_agg(row_to_json(t)), ''[]''::jsonb) FROM (%s) t', sanitized_sql)
-    INTO result;
+    -- Clean up whitespace
+    safe_sql := regexp_replace(safe_sql, '\s+', ' ', 'g');
+    safe_sql := TRIM(safe_sql);
 
-    -- Get result count for logging
+    -- ==========================================================
+    -- Execute query (views + RLS provide final security)
+    -- ==========================================================
+    BEGIN
+        EXECUTE format('SELECT COALESCE(jsonb_agg(row_to_json(t)), ''[]''::jsonb) FROM (%s) t', safe_sql)
+        INTO result;
+    EXCEPTION
+        WHEN insufficient_privilege THEN
+            RAISE EXCEPTION 'Permission denied';
+        WHEN undefined_table THEN
+            RAISE EXCEPTION 'Table or view does not exist';
+        WHEN undefined_column THEN
+            RAISE EXCEPTION 'Column does not exist';
+    END;
+
+    -- Logging (no sensitive data)
     SELECT jsonb_array_length(result) INTO row_count;
-
-    -- Log query execution (without full SQL for security)
-    RAISE NOTICE 'execute_user_query: user=%, rows=%, table=%',
-        query_user_id, row_count,
-        CASE
-            WHEN sanitized_sql ~* 'place_visits' THEN 'place_visits'
-            WHEN sanitized_sql ~* 'tracker_data' THEN 'tracker_data'
-            ELSE 'other'
-        END;
+    RAISE NOTICE 'execute_user_query: user=%, rows=%', query_user_id, row_count;
 
     RETURN result;
 
 EXCEPTION
     WHEN query_canceled THEN
         RAISE EXCEPTION 'Query execution timed out';
+    WHEN read_only_sql_transaction THEN
+        RAISE EXCEPTION 'Write operations are not allowed';
     WHEN OTHERS THEN
-        -- Log error for debugging but return sanitized message
-        RAISE WARNING 'execute_user_query error: % - SQL prefix: %', SQLERRM, LEFT(query_sql, 50);
+        RAISE WARNING 'execute_user_query error: %', SQLERRM;
         RAISE EXCEPTION 'Query execution failed: %', SQLERRM;
 END;
 $$;
 
-COMMENT ON FUNCTION "public"."execute_user_query"(TEXT, UUID, INTEGER, INTEGER) IS 'Safely executes validated SELECT queries for LLM-powered location queries. Used by location-query edge function.';
-COMMENT ON FUNCTION "public"."strip_sql_comments"(TEXT) IS 'Strips SQL comments to prevent keyword-hiding attacks in user queries.';
+COMMENT ON FUNCTION "public"."execute_user_query"(TEXT, UUID, INTEGER, INTEGER) IS 'Safely executes LLM-generated queries using secure views. Multiple security layers prevent unauthorized data access.';
 
--- Grant execute permission to authenticated users (RLS on underlying tables still applies)
+-- Grant execute permission to authenticated users
 GRANT EXECUTE ON FUNCTION "public"."execute_user_query"(TEXT, UUID, INTEGER, INTEGER) TO authenticated;
 GRANT EXECUTE ON FUNCTION "public"."execute_user_query"(TEXT, UUID, INTEGER, INTEGER) TO service_role;
 

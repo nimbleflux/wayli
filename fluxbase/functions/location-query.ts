@@ -88,15 +88,16 @@ const ERROR_MESSAGES: Record<string, { title: string; suggestion: string }> = {
 // =============================================================================
 
 const SCHEMA_CONTEXT = `
-You have access to these tables for answering location questions:
+You have access to these VIEWS for answering location questions.
+IMPORTANT: You MUST use my_place_visits and my_tracker_data views.
+These views are automatically filtered to the current user's data - do NOT add user_id filters.
 
-1. place_visits table - Detected venue/POI visits (optimized for questions about specific venues)
+1. my_place_visits view - Detected venue/POI visits (use for questions about specific venues)
    Columns:
    - id: UUID
-   - user_id: UUID
    - started_at, ended_at: TIMESTAMPTZ
-   - duration_minutes: INTEGER (generated)
-   - location: GEOMETRY(Point, 4326)
+   - duration_minutes: INTEGER
+   - longitude, latitude: FLOAT (coordinates)
    - poi_name: TEXT (place name)
    - poi_amenity: TEXT (restaurant, cafe, museum, etc.)
    - poi_cuisine: TEXT (vietnamese, italian, vegan, etc.)
@@ -106,33 +107,33 @@ You have access to these tables for answering location questions:
    - country_code: VARCHAR(2)
    - confidence_score: NUMERIC(3,2)
 
-2. tracker_data table - Raw GPS points with geocoding
-   Key columns:
-   - user_id: UUID
+2. my_tracker_data view - Raw GPS points with geocoding
+   Columns:
+   - id: UUID
    - recorded_at: TIMESTAMPTZ
-   - location: GEOMETRY(Point, 4326)
+   - longitude, latitude: FLOAT (coordinates)
    - country_code: VARCHAR(2)
    - geocode: JSONB (contains address, nearby_pois, addendum with OSM tags)
    - accuracy: NUMERIC (GPS accuracy in meters)
 
-Query patterns:
-- Restaurants in a country: WHERE poi_amenity = 'restaurant' AND country_code = 'vn'
-- Vegan places: WHERE poi_tags->>'diet:vegan' = 'yes' OR poi_cuisine ILIKE '%vegan%'
-- Date ranges: WHERE started_at >= '2024-05-01' AND started_at < '2024-06-01'
-- High confidence: WHERE confidence_score >= 0.8
-- Last month: WHERE started_at >= NOW() - INTERVAL '1 month'
+Query examples:
+- Restaurants in Vietnam: SELECT * FROM my_place_visits WHERE poi_amenity = 'restaurant' AND country_code = 'vn'
+- Vegan places: SELECT * FROM my_place_visits WHERE poi_tags->>'diet:vegan' = 'yes' OR poi_cuisine ILIKE '%vegan%'
+- Date ranges: SELECT * FROM my_place_visits WHERE started_at >= '2024-05-01' AND started_at < '2024-06-01'
+- High confidence: SELECT * FROM my_place_visits WHERE confidence_score >= 0.8
+- Last month: SELECT * FROM my_place_visits WHERE started_at >= NOW() - INTERVAL '1 month'
 `;
 
 const SYSTEM_PROMPT = `You are a SQL query generator for a travel tracking application. Your job is to translate natural language questions about a user's travel history into valid PostgreSQL queries.
 
 ${SCHEMA_CONTEXT}
 
-IMPORTANT RULES:
-1. Always generate valid PostgreSQL syntax
-2. Always include "WHERE user_id = $1" to filter by user
-3. Use parameterized queries ($1 for user_id)
-4. Prefer place_visits for questions about specific venues
-5. Use tracker_data for general location history
+CRITICAL RULES:
+1. ALWAYS use my_place_visits or my_tracker_data views (NEVER use place_visits or tracker_data directly)
+2. Do NOT include user_id in queries - the views automatically filter by the current user
+3. Always generate valid PostgreSQL syntax
+4. Prefer my_place_visits for questions about specific venues (restaurants, cafes, museums)
+5. Use my_tracker_data for general location history and GPS tracks
 6. For dates, use >= and < (not BETWEEN)
 7. Use ILIKE for case-insensitive text matching
 8. Limit to 100 rows unless asked otherwise
@@ -141,9 +142,9 @@ IMPORTANT RULES:
 
 OUTPUT FORMAT (JSON only):
 {
-  "sql": "SELECT ... FROM ... WHERE user_id = $1 ...",
+  "sql": "SELECT ... FROM my_place_visits WHERE ...",
   "explanation": "Brief explanation of what this query finds",
-  "table": "place_visits or tracker_data"
+  "table": "my_place_visits or my_tracker_data"
 }
 
 If you cannot generate a valid query:

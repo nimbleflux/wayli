@@ -12,6 +12,13 @@ SET standard_conforming_strings = on;
 SELECT pg_catalog.set_config('search_path', '', false);
 
 -- =============================================================================
+-- Drop Secure Views (for LLM queries)
+-- =============================================================================
+
+DROP VIEW IF EXISTS "public"."my_place_visits";
+DROP VIEW IF EXISTS "public"."my_tracker_data";
+
+-- =============================================================================
 -- Drop Functions (in dependency order)
 -- =============================================================================
 

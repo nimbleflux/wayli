@@ -5,6 +5,22 @@ import type { PeliasResponse, PeliasFeature, NormalizedAddress } from '../../typ
 import { convertCountryCode3to2 } from '../../types/geocoding.types';
 
 /**
+ * Nearby POI extracted from Pelias response
+ */
+export interface NearbyPOI {
+	name: string;
+	layer: string;
+	distance_meters?: number;
+	category?: string[];
+	osm_id?: string;
+	confidence?: number;
+	addendum?: {
+		osm?: Record<string, unknown>;
+		[key: string]: unknown;
+	};
+}
+
+/**
  * Pelias reverse geocode response (normalized for internal use)
  */
 export interface PeliasReverseResponse {
@@ -29,6 +45,8 @@ export interface PeliasReverseResponse {
 	borough?: string;
 	// OSM addendum data (merged from all features, first value wins)
 	addendum?: Record<string, unknown>;
+	// Nearby POIs (venues only, max 5, sorted by distance)
+	nearby_pois?: NearbyPOI[];
 	[key: string]: unknown;
 }
 
@@ -60,6 +78,77 @@ const MIN_INTERVAL = config.rateLimit > 0 ? 1000 / config.rateLimit : 0;
 const RATE_LIMIT_ENABLED = config.rateLimit > 0;
 
 let lastRequestTime = 0;
+
+/**
+ * Maximum radius in meters to consider a POI as "nearby"
+ */
+const NEARBY_POI_RADIUS_METERS = 100;
+
+/**
+ * Maximum number of nearby POIs to store
+ */
+const MAX_NEARBY_POIS = 5;
+
+/**
+ * Layers that represent venues/POIs (not addresses or administrative boundaries)
+ */
+const VENUE_LAYERS = ['venue', 'address'];
+
+/**
+ * Extracts nearby POIs from Pelias features.
+ * Only includes venues (not streets, cities, etc.) within the radius.
+ * Returns max 5 POIs sorted by distance.
+ */
+function extractNearbyPOIs(features: PeliasFeature[]): NearbyPOI[] {
+	const pois: NearbyPOI[] = [];
+
+	for (const feature of features) {
+		const props = feature.properties;
+
+		// Only include venue layers with a name
+		if (!props.name || !VENUE_LAYERS.includes(props.layer || '')) {
+			continue;
+		}
+
+		// Check distance if available (Pelias provides this in reverse geocoding)
+		const distanceMeters = props.distance ? props.distance * 1000 : undefined;
+		if (distanceMeters !== undefined && distanceMeters > NEARBY_POI_RADIUS_METERS) {
+			continue;
+		}
+
+		// Extract OSM ID from gid (format: "openstreetmap:venue:way/123456")
+		let osmId: string | undefined;
+		if (props.gid) {
+			const match = props.gid.match(/(node|way|relation)\/(\d+)/);
+			if (match) {
+				osmId = `${match[1]}/${match[2]}`;
+			}
+		}
+
+		pois.push({
+			name: props.name,
+			layer: props.layer || 'unknown',
+			distance_meters: distanceMeters,
+			category: props.category,
+			osm_id: osmId,
+			confidence: props.confidence,
+			addendum: props.addendum
+		});
+
+		// Limit to max POIs
+		if (pois.length >= MAX_NEARBY_POIS) {
+			break;
+		}
+	}
+
+	// Sort by distance (closest first), undefined distances go last
+	return pois.sort((a, b) => {
+		if (a.distance_meters === undefined && b.distance_meters === undefined) return 0;
+		if (a.distance_meters === undefined) return 1;
+		if (b.distance_meters === undefined) return -1;
+		return a.distance_meters - b.distance_meters;
+	});
+}
 
 /**
  * Merges addendum data from all Pelias features into a single object.
@@ -99,7 +188,8 @@ function mergeAddendumFromFeatures(features: PeliasFeature[]): Record<string, un
  */
 function transformPeliasFeature(
 	feature: PeliasFeature,
-	mergedAddendum?: Record<string, unknown>
+	mergedAddendum?: Record<string, unknown>,
+	nearbyPois?: NearbyPOI[]
 ): PeliasReverseResponse {
 	const props = feature.properties;
 
@@ -139,7 +229,9 @@ function transformPeliasFeature(
 		neighbourhood: props.neighbourhood,
 		borough: props.borough,
 		// Include merged addendum data (or from single feature if not merged)
-		addendum: mergedAddendum ?? props.addendum
+		addendum: mergedAddendum ?? props.addendum,
+		// Include nearby POIs for visit detection
+		nearby_pois: nearbyPois
 	};
 }
 
@@ -214,7 +306,9 @@ export async function reverseGeocode(lat: number, lon: number): Promise<PeliasRe
 
 			// Merge addendum from all features (first value wins)
 			const mergedAddendum = mergeAddendumFromFeatures(data.features);
-			return transformPeliasFeature(data.features[0], mergedAddendum);
+			// Extract nearby POIs (venues only, max 5)
+			const nearbyPois = extractNearbyPOIs(data.features);
+			return transformPeliasFeature(data.features[0], mergedAddendum, nearbyPois);
 		} catch (error) {
 			// If this is the first endpoint and it failed, try the next one
 			if (endpoint === config.endpoint && endpoints.length > 1) {

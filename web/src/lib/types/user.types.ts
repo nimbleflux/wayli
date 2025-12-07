@@ -26,6 +26,18 @@ export interface UserPreferences {
 	notifications_enabled: boolean;
 	timezone?: string;
 	pexels_api_key?: string;
+	owntracks_api_key?: string;
+	trip_exclusions?: unknown[];
+	preferences?: Record<string, unknown>;
+	ai_config?: {
+		provider?: 'openai' | 'anthropic' | 'ollama' | 'openrouter' | 'azure' | 'custom';
+		model?: string;
+		api_key?: string;
+		api_endpoint?: string;
+		enabled?: boolean;
+		max_tokens?: number;
+		temperature?: number;
+	};
 	created_at: string;
 	updated_at: string;
 }
@@ -48,6 +60,15 @@ export interface UpdatePreferencesRequest {
 	notifications_enabled?: boolean;
 	timezone?: string;
 	pexels_api_key?: string;
+	ai_config?: {
+		provider?: 'openai' | 'anthropic' | 'ollama' | 'openrouter' | 'azure' | 'custom';
+		model?: string;
+		api_key?: string;
+		api_endpoint?: string;
+		enabled?: boolean;
+		max_tokens?: number;
+		temperature?: number;
+	};
 }
 
 export interface UpdatePasswordRequest {

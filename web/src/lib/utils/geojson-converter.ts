@@ -1,7 +1,7 @@
 // web/src/lib/utils/geojson-converter.ts
 
 import type { Feature, Point } from 'geojson';
-import type { PeliasReverseResponse } from '../services/external/pelias.service';
+import type { PeliasReverseResponse, NearbyPOI } from '../services/external/pelias.service';
 
 /**
  * GeoJSON Feature type for geocoded data
@@ -25,6 +25,8 @@ export interface GeocodeGeoJSONFeature extends Feature<Point> {
 		neighbourhood?: string;
 		// OSM addendum data (merged from all features, contains venue type, amenity info, etc.)
 		addendum?: Record<string, unknown>;
+		// Nearby POIs for visit detection (venues only, max 5, sorted by distance)
+		nearby_pois?: NearbyPOI[];
 		// Metadata fields
 		geocoded_at: string;
 		geocoding_provider: string;
@@ -78,6 +80,8 @@ export function convertPeliasToGeoJSON(
 			neighbourhood: peliasResponse.neighbourhood,
 			// OSM addendum data (merged from all features)
 			addendum: peliasResponse.addendum,
+			// Nearby POIs for visit detection
+			nearby_pois: peliasResponse.nearby_pois,
 			// Add extracted city and country directly to properties
 			city: extractedCity,
 			country: extractedCountry,
@@ -221,6 +225,17 @@ export function getAddendumFromGeoJSON(geocode: unknown): Record<string, unknown
 }
 
 /**
+ * Extracts nearby POIs from a GeoJSON geocode feature (Pelias-specific)
+ */
+export function getNearbyPOIsFromGeoJSON(geocode: unknown): NearbyPOI[] | null {
+	if (!isGeoJSONGeocode(geocode)) {
+		return null;
+	}
+
+	return geocode.properties.nearby_pois || null;
+}
+
+/**
  * Merges new geocoding data with existing geocode properties
  * This prevents overwriting existing import data when adding geocoding information
  */
@@ -294,7 +309,8 @@ export function mergeGeocodingWithExisting(
 			import_source: existingProperties.import_source,
 			geocoded_at: newGeocodeGeoJSON.properties.geocoded_at,
 			geocoding_provider: newGeocodeGeoJSON.properties.geocoding_provider,
-			addendum: newGeocodeGeoJSON.properties.addendum
+			addendum: newGeocodeGeoJSON.properties.addendum,
+			nearby_pois: newGeocodeGeoJSON.properties.nearby_pois
 		};
 	} else {
 		// Replace entirely, only preserve import metadata

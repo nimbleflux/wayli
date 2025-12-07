@@ -500,7 +500,8 @@ export class ClientStatisticsService {
 	}
 
 	/**
-	 * Load data using smart sampling for large datasets
+	 * Load data using smart sampling for large datasets.
+	 * Uses the sample_tracker_data_if_needed database function for efficient server-side sampling.
 	 */
 	private async loadSmartSampledData(
 		userId: string,
@@ -511,83 +512,96 @@ export class ClientStatisticsService {
 		totalCount?: number
 	): Promise<{ data: TrackerDataPoint[]; samplingApplied: boolean }> {
 		try {
-			// Get session for authentication
-			const { data, error: sessionError } = await this.fluxbase.auth.getSession();
-			if (sessionError || !data?.session) {
-				throw new Error('User not authenticated');
-			}
-			const session = data.session;
+			// Determine sampling parameters based on total count
+			// For larger datasets, use more aggressive sampling
+			const effectiveTotalCount = totalCount || this.totalCount;
+			let maxPointsThreshold = 2000;
+			let minDistanceMeters = 500;
+			let minTimeMinutes = 5;
+			let maxPointsPerHour = 30;
 
-			// Call the smart sampling Edge Function
-			const response = await fetch(`${this.getFunctionsUrl()}/tracker-data-smart`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${session.access_token}`
-				},
-				body: JSON.stringify({
-					userId,
-					startDate,
-					endDate,
-					maxPointsThreshold: 1000, // More aggressive threshold
-					offset,
-					limit,
-					totalCount // Pass the already calculated total count
-				})
+			// Adaptive sampling parameters based on dataset size
+			if (effectiveTotalCount > 50000) {
+				// Very large dataset - aggressive sampling
+				maxPointsThreshold = 3000;
+				minDistanceMeters = 1000;
+				minTimeMinutes = 10;
+				maxPointsPerHour = 15;
+			} else if (effectiveTotalCount > 20000) {
+				// Large dataset - moderate sampling
+				maxPointsThreshold = 2500;
+				minDistanceMeters = 750;
+				minTimeMinutes = 7;
+				maxPointsPerHour = 20;
+			}
+
+			console.log(`🧠 Calling sample_tracker_data_if_needed RPC with params:`, {
+				userId,
+				startDate,
+				endDate,
+				maxPointsThreshold,
+				minDistanceMeters,
+				minTimeMinutes,
+				maxPointsPerHour,
+				offset,
+				limit
 			});
 
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
+			// Call the database function for smart sampling
+			const { data, error } = await this.fluxbase.rpc('sample_tracker_data_if_needed', {
+				p_target_user_id: userId,
+				p_start_date: startDate ? `${startDate}T00:00:00Z` : null,
+				p_end_date: endDate ? `${endDate}T23:59:59Z` : null,
+				p_max_points_threshold: maxPointsThreshold,
+				p_min_distance_meters: minDistanceMeters,
+				p_min_time_minutes: minTimeMinutes,
+				p_max_points_per_hour: maxPointsPerHour,
+				p_offset: offset,
+				p_limit: limit
+			});
+
+			if (error) {
+				console.error('❌ RPC error:', error);
+				throw new Error(`RPC failed: ${error.message}`);
 			}
 
-			const result = await response.json();
-
-			if (result.error) {
-				throw new Error(result.error);
+			if (!data || data.length === 0) {
+				return { data: [], samplingApplied: false };
 			}
 
-			const samplingApplied = result.metadata?.samplingApplied || false;
+			// Check if sampling was applied (from result_is_sampled field)
+			const samplingApplied = data[0]?.result_is_sampled || false;
+			const resultTotalCount = data[0]?.result_total_count || 0;
 
 			console.log(`🧠 Smart sampling result:`, {
-				returnedCount: result.metadata?.returnedCount || 0,
-				totalCount: result.metadata?.totalCount || 0,
+				returnedCount: data.length,
+				totalCount: resultTotalCount,
 				samplingApplied,
-				samplingLevel: result.metadata?.samplingLevel || 'unknown',
-				samplingParams: result.metadata?.samplingParams || {}
+				offset,
+				limit
 			});
 
-			// Transform the data to match the expected format
-			const transformedData = (result.data || []).map((point: any) => ({
-				recorded_at: point.recorded_at,
-				time_spent: point.time_spent,
-				country_code: point.country_code,
-				location: point.location,
-				speed: point.speed,
-				distance: point.distance,
-				tz_diff: point.tz_diff,
-				type: point.geocode?.properties?.type,
-				class: point.geocode?.properties?.class,
-				addresstype: point.geocode?.properties?.addresstype,
-				city: point.geocode?.properties?.city || point.geocode?.properties?.address?.city,
-				village: point.geocode?.properties?.address?.village
+			// Transform the data to match the expected TrackerDataPoint format
+			const transformedData: TrackerDataPoint[] = data.map((point: any) => ({
+				recorded_at: point.result_recorded_at,
+				time_spent: point.result_time_spent,
+				country_code: point.result_country_code,
+				location: point.result_location,
+				speed: point.result_speed,
+				distance: point.result_distance,
+				tz_diff: point.result_tz_diff,
+				type: point.result_geocode?.properties?.type,
+				class: point.result_geocode?.properties?.class,
+				addresstype: point.result_geocode?.properties?.addresstype,
+				city: point.result_geocode?.properties?.city || point.result_geocode?.properties?.address?.city,
+				village: point.result_geocode?.properties?.address?.village
 			}));
 
 			return { data: transformedData, samplingApplied };
 		} catch (error) {
 			console.error('❌ Error loading smart sampled data:', error);
-			// Fallback to regular loading if smart sampling fails
-			console.log('🔄 Falling back to regular batch loading...');
 			throw error; // Let the calling method handle the fallback
 		}
-	}
-
-	/**
-	 * Get the functions URL for Edge Function calls
-	 */
-	private getFunctionsUrl(): string {
-		// Use environment variable or default to local development
-		const fluxbaseUrl = import.meta.env.PUBLIC_FLUXBASE_BASE_URL || 'http://localhost:8080';
-		return `${fluxbaseUrl}/functions/v1`;
 	}
 
 	/**

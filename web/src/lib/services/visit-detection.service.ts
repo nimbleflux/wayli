@@ -466,6 +466,23 @@ export function detectVisits(
 }
 
 /**
+ * Options for chunked processing
+ */
+export interface ChunkedProcessingOptions {
+	/** Number of points per chunk (default: 10000) */
+	chunkSize: number;
+	/** Overlap between chunks in hours to avoid missing visits at boundaries (default: 2) */
+	overlapHours: number;
+	/** Optional callback for progress updates */
+	onProgress?: (processed: number, total: number, chunksCompleted: number) => void;
+}
+
+const DEFAULT_CHUNKED_OPTIONS: ChunkedProcessingOptions = {
+	chunkSize: 10000,
+	overlapHours: 2
+};
+
+/**
  * Visit Detection Service class for dependency injection
  */
 export class VisitDetectionService {
@@ -480,6 +497,177 @@ export class VisitDetectionService {
 	 */
 	detectVisits(points: TrackerPointForVisit[], userId: string): PlaceVisit[] {
 		return detectVisits(points, userId, this.config);
+	}
+
+	/**
+	 * Detect place visits with chunked processing for large datasets.
+	 * This method processes data in time-based chunks to avoid memory issues.
+	 *
+	 * @param points Array of tracker points (can be very large)
+	 * @param userId User ID for the visits
+	 * @param options Chunking options
+	 * @returns Array of detected place visits (deduplicated)
+	 */
+	detectVisitsChunked(
+		points: TrackerPointForVisit[],
+		userId: string,
+		options: Partial<ChunkedProcessingOptions> = {}
+	): PlaceVisit[] {
+		const opts = { ...DEFAULT_CHUNKED_OPTIONS, ...options };
+
+		if (points.length <= opts.chunkSize) {
+			// Small dataset, process directly
+			return this.detectVisits(points, userId);
+		}
+
+		// Sort by time
+		const sortedPoints = [...points].sort(
+			(a, b) => a.recorded_at.getTime() - b.recorded_at.getTime()
+		);
+
+		const allVisits: PlaceVisit[] = [];
+		const visitKeys = new Set<string>();
+		const overlapMs = opts.overlapHours * 60 * 60 * 1000;
+		let processedCount = 0;
+		let chunkIndex = 0;
+
+		// Process in chunks
+		for (let start = 0; start < sortedPoints.length; start += opts.chunkSize) {
+			// Get chunk with overlap (look back for overlap points)
+			let chunkStart = start;
+			if (start > 0) {
+				// Find overlap start point
+				const overlapTime = sortedPoints[start].recorded_at.getTime() - overlapMs;
+				while (chunkStart > 0 && sortedPoints[chunkStart - 1].recorded_at.getTime() >= overlapTime) {
+					chunkStart--;
+				}
+			}
+
+			const chunkEnd = Math.min(start + opts.chunkSize, sortedPoints.length);
+			const chunk = sortedPoints.slice(chunkStart, chunkEnd);
+
+			// Detect visits in chunk
+			const chunkVisits = this.detectVisits(chunk, userId);
+
+			// Deduplicate based on start time and POI name
+			for (const visit of chunkVisits) {
+				const key = `${visit.started_at.toISOString()}-${visit.poi_name}`;
+				if (!visitKeys.has(key)) {
+					visitKeys.add(key);
+					allVisits.push(visit);
+				}
+			}
+
+			processedCount = chunkEnd;
+			chunkIndex++;
+
+			if (opts.onProgress) {
+				opts.onProgress(processedCount, sortedPoints.length, chunkIndex);
+			}
+		}
+
+		// Sort final results by start time
+		allVisits.sort((a, b) => a.started_at.getTime() - b.started_at.getTime());
+
+		return allVisits;
+	}
+
+	/**
+	 * Detect visits in date ranges (useful for incremental processing)
+	 *
+	 * @param points All points for the user
+	 * @param userId User ID
+	 * @param startDate Start of the date range
+	 * @param endDate End of the date range
+	 * @returns Visits within the date range
+	 */
+	detectVisitsInRange(
+		points: TrackerPointForVisit[],
+		userId: string,
+		startDate: Date,
+		endDate: Date
+	): PlaceVisit[] {
+		// Add buffer time to catch visits that span boundaries
+		const bufferMs = 2 * 60 * 60 * 1000; // 2 hours buffer
+		const startWithBuffer = new Date(startDate.getTime() - bufferMs);
+		const endWithBuffer = new Date(endDate.getTime() + bufferMs);
+
+		// Filter points to the range
+		const rangePoints = points.filter((p) => {
+			const time = p.recorded_at.getTime();
+			return time >= startWithBuffer.getTime() && time <= endWithBuffer.getTime();
+		});
+
+		// Detect visits
+		const visits = this.detectVisits(rangePoints, userId);
+
+		// Filter visits to those that overlap with the original range
+		return visits.filter((v) => {
+			// Visit overlaps if it starts before end AND ends after start
+			return v.started_at <= endDate && v.ended_at >= startDate;
+		});
+	}
+
+	/**
+	 * Process visits in a streaming manner using an async generator.
+	 * Useful for processing very large datasets without holding all in memory.
+	 *
+	 * @param pointsIterator Async iterator of points
+	 * @param userId User ID
+	 * @param batchSize Number of points to accumulate before processing
+	 */
+	async *detectVisitsStreaming(
+		pointsIterator: AsyncIterable<TrackerPointForVisit>,
+		userId: string,
+		batchSize = 5000
+	): AsyncGenerator<PlaceVisit, void, unknown> {
+		const buffer: TrackerPointForVisit[] = [];
+		const overlapMs = 2 * 60 * 60 * 1000; // 2 hours
+		const processedVisitKeys = new Set<string>();
+
+		for await (const point of pointsIterator) {
+			buffer.push(point);
+
+			if (buffer.length >= batchSize) {
+				// Sort buffer
+				buffer.sort((a, b) => a.recorded_at.getTime() - b.recorded_at.getTime());
+
+				// Process all but the overlap portion
+				const overlapTime = buffer[buffer.length - 1].recorded_at.getTime() - overlapMs;
+				const splitIndex = buffer.findIndex((p) => p.recorded_at.getTime() >= overlapTime);
+				const toProcess = buffer.slice(0, splitIndex);
+				const toKeep = buffer.slice(splitIndex);
+
+				// Detect visits
+				const visits = this.detectVisits(toProcess, userId);
+
+				// Yield new visits
+				for (const visit of visits) {
+					const key = `${visit.started_at.toISOString()}-${visit.poi_name}`;
+					if (!processedVisitKeys.has(key)) {
+						processedVisitKeys.add(key);
+						yield visit;
+					}
+				}
+
+				// Keep overlap for next batch
+				buffer.length = 0;
+				buffer.push(...toKeep);
+			}
+		}
+
+		// Process remaining buffer
+		if (buffer.length >= 3) {
+			// minPoints
+			const visits = this.detectVisits(buffer, userId);
+			for (const visit of visits) {
+				const key = `${visit.started_at.toISOString()}-${visit.poi_name}`;
+				if (!processedVisitKeys.has(key)) {
+					processedVisitKeys.add(key);
+					yield visit;
+				}
+			}
+		}
 	}
 
 	/**

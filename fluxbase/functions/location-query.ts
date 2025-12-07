@@ -4,7 +4,12 @@
  * Translates natural language questions about travel history into SQL queries
  * using an LLM provider. Executes the query and returns results.
  *
- * Example: "Which vegan restaurant did I visit in Vietnam in May?"
+ * Features:
+ * - Natural language to SQL translation
+ * - Rate limiting (10 queries/minute)
+ * - Query examples for guidance
+ * - Feedback collection for improving accuracy
+ * - Retry logic for transient failures
  *
  * @fluxbase:require-role authenticated
  * @fluxbase:allow-net
@@ -13,7 +18,75 @@
 
 import { createClient } from '@fluxbase/sdk';
 
-// Schema information for the LLM
+// =============================================================================
+// Query Examples (shown to users and used for LLM context)
+// =============================================================================
+
+const QUERY_EXAMPLES = [
+	{
+		question: 'Which restaurants did I visit in Vietnam?',
+		description: 'Find all restaurant visits in a specific country'
+	},
+	{
+		question: 'What vegan places did I go to last month?',
+		description: 'Filter by cuisine type and date range'
+	},
+	{
+		question: 'Show me cafes I visited in Tokyo',
+		description: 'Find cafes in a specific city'
+	},
+	{
+		question: 'Where did I spend the most time eating?',
+		description: 'Find longest restaurant visits'
+	},
+	{
+		question: 'List all museums I visited in 2024',
+		description: 'Find cultural venues by year'
+	},
+	{
+		question: 'Which bars did I visit in Barcelona in summer?',
+		description: 'Combine location, venue type, and season'
+	}
+];
+
+// =============================================================================
+// User-Friendly Error Messages
+// =============================================================================
+
+const ERROR_MESSAGES: Record<string, { title: string; suggestion: string }> = {
+	RATE_LIMITED: {
+		title: 'Too many requests',
+		suggestion: 'Please wait a moment before trying again. You can make up to 10 queries per minute.'
+	},
+	AI_NOT_CONFIGURED: {
+		title: 'AI not set up',
+		suggestion:
+			'To use natural language queries, please configure an AI provider in your settings, or ask the administrator to enable it.'
+	},
+	INVALID_SQL: {
+		title: 'Query generation failed',
+		suggestion:
+			"The AI couldn't create a valid query. Try rephrasing your question or use simpler terms."
+	},
+	QUERY_TIMEOUT: {
+		title: 'Query took too long',
+		suggestion:
+			'The query was too complex. Try narrowing down your search with specific dates or locations.'
+	},
+	UNAUTHORIZED: {
+		title: 'Not logged in',
+		suggestion: 'Please log in to access your travel history.'
+	},
+	INTERNAL_ERROR: {
+		title: 'Something went wrong',
+		suggestion: "We're having technical difficulties. Please try again later."
+	}
+};
+
+// =============================================================================
+// Schema Context for LLM
+// =============================================================================
+
 const SCHEMA_CONTEXT = `
 You have access to these tables for answering location questions:
 
@@ -47,6 +120,7 @@ Query patterns:
 - Vegan places: WHERE poi_tags->>'diet:vegan' = 'yes' OR poi_cuisine ILIKE '%vegan%'
 - Date ranges: WHERE started_at >= '2024-05-01' AND started_at < '2024-06-01'
 - High confidence: WHERE confidence_score >= 0.8
+- Last month: WHERE started_at >= NOW() - INTERVAL '1 month'
 `;
 
 const SYSTEM_PROMPT = `You are a SQL query generator for a travel tracking application. Your job is to translate natural language questions about a user's travel history into valid PostgreSQL queries.
@@ -79,12 +153,62 @@ If you cannot generate a valid query:
   "table": null
 }`;
 
+// =============================================================================
+// Types
+// =============================================================================
+
 interface QueryResult {
 	sql: string | null;
 	explanation: string;
 	table: string | null;
 	results?: unknown[];
 	error?: string;
+	errorCode?: string;
+	errorSuggestion?: string;
+}
+
+interface FeedbackRequest {
+	question: string;
+	generated_sql: string | null;
+	was_helpful: boolean;
+	feedback_type?: 'wrong_results' | 'syntax_error' | 'missing_data' | 'perfect' | 'other';
+	feedback_text?: string;
+}
+
+// =============================================================================
+// LLM Call with Retry
+// =============================================================================
+
+async function callLLMWithRetry(
+	question: string,
+	config: { provider: string; model: string; api_key: string; api_endpoint?: string },
+	maxRetries = 3
+): Promise<{ sql: string | null; explanation: string; table: string | null }> {
+	let lastError: Error | null = null;
+
+	for (let attempt = 0; attempt < maxRetries; attempt++) {
+		try {
+			return await callLLM(question, config);
+		} catch (error) {
+			lastError = error as Error;
+			const isRetryable =
+				error instanceof Error &&
+				(error.message.includes('rate limit') ||
+					error.message.includes('timeout') ||
+					error.message.includes('503') ||
+					error.message.includes('502'));
+
+			if (!isRetryable || attempt === maxRetries - 1) {
+				throw error;
+			}
+
+			// Exponential backoff: 1s, 2s, 4s
+			const delay = 1000 * Math.pow(2, attempt);
+			await new Promise((resolve) => setTimeout(resolve, delay));
+		}
+	}
+
+	throw lastError;
 }
 
 async function callLLM(
@@ -97,7 +221,7 @@ async function callLLM(
 	];
 
 	let response: Response;
-	let data: any;
+	let data: unknown;
 
 	switch (config.provider) {
 		case 'openai':
@@ -115,7 +239,7 @@ async function callLLM(
 				})
 			});
 			data = await response.json();
-			return JSON.parse(data.choices?.[0]?.message?.content || '{}');
+			return JSON.parse((data as { choices?: Array<{ message?: { content?: string } }> }).choices?.[0]?.message?.content || '{}');
 
 		case 'anthropic':
 			response = await fetch(config.api_endpoint || 'https://api.anthropic.com/v1/messages', {
@@ -134,7 +258,7 @@ async function callLLM(
 				})
 			});
 			data = await response.json();
-			return JSON.parse(data.content?.[0]?.text || '{}');
+			return JSON.parse((data as { content?: Array<{ text?: string }> }).content?.[0]?.text || '{}');
 
 		case 'ollama':
 			response = await fetch(`${config.api_endpoint}/api/chat`, {
@@ -148,7 +272,7 @@ async function callLLM(
 				})
 			});
 			data = await response.json();
-			return JSON.parse(data.message?.content || '{}');
+			return JSON.parse((data as { message?: { content?: string } }).message?.content || '{}');
 
 		default:
 			// Generic OpenAI-compatible endpoint
@@ -166,54 +290,276 @@ async function callLLM(
 				})
 			});
 			data = await response.json();
-			return JSON.parse(data.choices?.[0]?.message?.content || '{}');
+			return JSON.parse((data as { choices?: Array<{ message?: { content?: string } }> }).choices?.[0]?.message?.content || '{}');
 	}
 }
 
-function validateSQL(sql: string): { valid: boolean; error?: string } {
-	const upper = sql.trim().toUpperCase();
+// =============================================================================
+// SQL Validation (improved)
+// =============================================================================
+
+function validateSQL(sql: string): { valid: boolean; error?: string; errorCode?: string } {
+	// Strip comments first
+	const stripped = sql
+		.replace(/\/\*[\s\S]*?\*\//g, ' ')
+		.replace(/--[^\n\r]*/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+
+	const upper = stripped.toUpperCase();
 
 	// Must be SELECT
-	if (!upper.startsWith('SELECT')) {
-		return { valid: false, error: 'Only SELECT queries are allowed' };
+	if (!/^\s*SELECT\b/.test(upper)) {
+		return { valid: false, error: 'Only SELECT queries are allowed', errorCode: 'INVALID_SQL' };
 	}
 
-	// Check for dangerous keywords
-	const dangerous = ['DROP', 'DELETE', 'UPDATE', 'INSERT', 'ALTER', 'CREATE', 'TRUNCATE', 'EXEC'];
+	// Check for dangerous keywords with word boundaries
+	const dangerous = [
+		'DROP',
+		'DELETE',
+		'UPDATE',
+		'INSERT',
+		'ALTER',
+		'CREATE',
+		'TRUNCATE',
+		'EXEC',
+		'GRANT',
+		'REVOKE'
+	];
 	for (const keyword of dangerous) {
-		if (upper.includes(keyword)) {
-			return { valid: false, error: `Forbidden keyword: ${keyword}` };
+		const regex = new RegExp(`\\b${keyword}\\b`, 'i');
+		if (regex.test(stripped)) {
+			return { valid: false, error: `Forbidden keyword: ${keyword}`, errorCode: 'INVALID_SQL' };
 		}
 	}
 
 	// Must have user_id filter
-	if (!sql.toLowerCase().includes('user_id')) {
-		return { valid: false, error: 'Missing user_id filter' };
+	if (!/user_id\s*=/i.test(stripped)) {
+		return { valid: false, error: 'Missing user_id filter', errorCode: 'INVALID_SQL' };
 	}
 
 	return { valid: true };
 }
 
+// =============================================================================
+// Request Handlers
+// =============================================================================
+
+async function handleQuery(req: Request, fluxbase: ReturnType<typeof createClient>, userId: string): Promise<Response> {
+	const body = await req.json();
+	const { question, execute = false } = body;
+
+	if (!question || typeof question !== 'string' || question.trim().length < 5) {
+		return errorResponse('Please enter a question with at least 5 characters.', 'INVALID_INPUT', 400);
+	}
+
+	// Check rate limit
+	const { data: withinLimit } = await fluxbase.rpc('check_rate_limit', {
+		p_user_id: userId,
+		p_action: 'location_query',
+		p_max_requests: 10,
+		p_window_minutes: 1
+	});
+
+	if (withinLimit === false) {
+		return errorResponse('RATE_LIMITED', 'RATE_LIMITED', 429);
+	}
+
+	// Get AI config
+	const aiConfig = await getAIConfig(fluxbase, userId);
+	if (!aiConfig) {
+		return errorResponse('AI_NOT_CONFIGURED', 'AI_NOT_CONFIGURED', 400);
+	}
+
+	// Generate SQL using LLM
+	console.log(`🤖 Generating SQL for question: "${question.substring(0, 50)}..."`);
+
+	let llmResult: { sql: string | null; explanation: string; table: string | null };
+	try {
+		llmResult = await callLLMWithRetry(question, aiConfig);
+	} catch (error) {
+		console.error('LLM call failed:', error);
+		return errorResponse('INTERNAL_ERROR', 'INTERNAL_ERROR', 500);
+	}
+
+	if (!llmResult.sql) {
+		return new Response(
+			JSON.stringify({
+				sql: null,
+				explanation: llmResult.explanation || "I couldn't understand that question. Try rephrasing it.",
+				table: null,
+				results: [],
+				examples: QUERY_EXAMPLES.slice(0, 3)
+			}),
+			{ status: 200, headers: { 'Content-Type': 'application/json' } }
+		);
+	}
+
+	// Validate SQL
+	const validation = validateSQL(llmResult.sql);
+	if (!validation.valid) {
+		const errorInfo = ERROR_MESSAGES[validation.errorCode || 'INVALID_SQL'];
+		return new Response(
+			JSON.stringify({
+				error: errorInfo.title,
+				errorCode: validation.errorCode,
+				errorSuggestion: errorInfo.suggestion,
+				sql: llmResult.sql,
+				examples: QUERY_EXAMPLES.slice(0, 3)
+			}),
+			{ status: 400, headers: { 'Content-Type': 'application/json' } }
+		);
+	}
+
+	const result: QueryResult = {
+		sql: llmResult.sql,
+		explanation: llmResult.explanation,
+		table: llmResult.table
+	};
+
+	// Execute query if requested
+	if (execute) {
+		console.log(`🔍 Executing query: ${llmResult.sql.substring(0, 100)}...`);
+		try {
+			const { data: queryResults, error: queryError } = await fluxbase.rpc('execute_user_query', {
+				query_sql: llmResult.sql,
+				query_user_id: userId,
+				max_rows: 100,
+				timeout_ms: 5000
+			});
+
+			if (queryError) {
+				if (queryError.message.includes('timed out')) {
+					result.errorCode = 'QUERY_TIMEOUT';
+					result.error = ERROR_MESSAGES.QUERY_TIMEOUT.title;
+					result.errorSuggestion = ERROR_MESSAGES.QUERY_TIMEOUT.suggestion;
+				} else {
+					result.error = queryError.message;
+				}
+			} else {
+				result.results = queryResults || [];
+			}
+		} catch (execError) {
+			result.error = (execError as Error).message;
+		}
+	}
+
+	return new Response(JSON.stringify(result), {
+		status: 200,
+		headers: { 'Content-Type': 'application/json' }
+	});
+}
+
+async function handleFeedback(req: Request, fluxbase: ReturnType<typeof createClient>, userId: string): Promise<Response> {
+	const body: FeedbackRequest = await req.json();
+
+	if (!body.question) {
+		return errorResponse('Question is required', 'INVALID_INPUT', 400);
+	}
+
+	const { error } = await fluxbase.from('query_feedback').insert({
+		user_id: userId,
+		question: body.question,
+		generated_sql: body.generated_sql,
+		was_helpful: body.was_helpful,
+		feedback_type: body.feedback_type,
+		feedback_text: body.feedback_text
+	});
+
+	if (error) {
+		console.error('Failed to save feedback:', error);
+		return errorResponse('Failed to save feedback', 'INTERNAL_ERROR', 500);
+	}
+
+	return new Response(
+		JSON.stringify({ success: true, message: 'Thank you for your feedback!' }),
+		{ status: 200, headers: { 'Content-Type': 'application/json' } }
+	);
+}
+
+async function handleExamples(): Promise<Response> {
+	return new Response(JSON.stringify({ examples: QUERY_EXAMPLES }), {
+		status: 200,
+		headers: { 'Content-Type': 'application/json' }
+	});
+}
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+async function getAIConfig(
+	fluxbase: ReturnType<typeof createClient>,
+	userId: string
+): Promise<{ provider: string; model: string; api_key: string; api_endpoint?: string } | null> {
+	let aiConfig: { provider: string; model: string; api_key: string; api_endpoint?: string } | null = null;
+
+	// Try server config first
+	const { data: serverConfig } = await fluxbase
+		.from('ai_config')
+		.select('*')
+		.eq('name', 'location_query')
+		.eq('enabled', true)
+		.single();
+
+	if (serverConfig) {
+		aiConfig = {
+			provider: serverConfig.provider,
+			model: serverConfig.model,
+			api_key: serverConfig.api_key_encrypted || '',
+			api_endpoint: serverConfig.api_endpoint
+		};
+	}
+
+	// Check for user override
+	const { data: userPrefs } = await fluxbase
+		.from('user_preferences')
+		.select('ai_config')
+		.eq('id', userId)
+		.single();
+
+	if (userPrefs?.ai_config?.enabled && userPrefs?.ai_config?.api_key) {
+		aiConfig = {
+			provider: userPrefs.ai_config.provider || aiConfig?.provider || 'openai',
+			model: userPrefs.ai_config.model || aiConfig?.model || 'gpt-4o-mini',
+			api_key: userPrefs.ai_config.api_key,
+			api_endpoint: userPrefs.ai_config.api_endpoint || aiConfig?.api_endpoint
+		};
+	}
+
+	if (!aiConfig || !aiConfig.api_key) {
+		return null;
+	}
+
+	return aiConfig;
+}
+
+function errorResponse(messageKey: string, code: string, status: number): Response {
+	const errorInfo = ERROR_MESSAGES[messageKey] || {
+		title: messageKey,
+		suggestion: 'Please try again.'
+	};
+
+	return new Response(
+		JSON.stringify({
+			error: errorInfo.title,
+			errorCode: code,
+			errorSuggestion: errorInfo.suggestion
+		}),
+		{ status, headers: { 'Content-Type': 'application/json' } }
+	);
+}
+
+// =============================================================================
+// Main Handler
+// =============================================================================
+
 async function handler(req: Request): Promise<Response> {
 	try {
-		// Parse request
-		const body = await req.json();
-		const { question, execute = false } = body;
-
-		if (!question || typeof question !== 'string' || question.trim().length < 5) {
-			return new Response(
-				JSON.stringify({ error: 'Invalid question', code: 'INVALID_INPUT' }),
-				{ status: 400, headers: { 'Content-Type': 'application/json' } }
-			);
-		}
-
 		// Get user from request (set by Fluxbase auth middleware)
-		const userId = (req as any).user?.id;
+		const userId = (req as unknown as { user?: { id?: string } }).user?.id;
 		if (!userId) {
-			return new Response(
-				JSON.stringify({ error: 'Unauthorized', code: 'UNAUTHORIZED' }),
-				{ status: 401, headers: { 'Content-Type': 'application/json' } }
-			);
+			return errorResponse('UNAUTHORIZED', 'UNAUTHORIZED', 401);
 		}
 
 		// Get Fluxbase client
@@ -221,117 +567,29 @@ async function handler(req: Request): Promise<Response> {
 		const fluxbaseKey = Deno.env.get('FLUXBASE_SERVICE_ROLE_KEY') ?? '';
 		const fluxbase = createClient(fluxbaseUrl, fluxbaseKey);
 
-		// Get AI config (server-level, then user override)
-		let aiConfig: { provider: string; model: string; api_key: string; api_endpoint?: string } | null = null;
+		// Route based on method and path
+		const url = new URL(req.url);
+		const path = url.pathname.split('/').pop();
 
-		// Try server config first
-		const { data: serverConfig } = await fluxbase
-			.from('ai_config')
-			.select('*')
-			.eq('name', 'location_query')
-			.eq('enabled', true)
-			.single();
-
-		if (serverConfig) {
-			aiConfig = {
-				provider: serverConfig.provider,
-				model: serverConfig.model,
-				api_key: serverConfig.api_key_encrypted || '', // Would need decryption in production
-				api_endpoint: serverConfig.api_endpoint
-			};
+		if (req.method === 'GET' && path === 'examples') {
+			return handleExamples();
 		}
 
-		// Check for user override
-		const { data: userPrefs } = await fluxbase
-			.from('user_preferences')
-			.select('ai_config')
-			.eq('id', userId)
-			.single();
-
-		if (userPrefs?.ai_config?.enabled && userPrefs?.ai_config?.api_key) {
-			aiConfig = {
-				provider: userPrefs.ai_config.provider || aiConfig?.provider || 'openai',
-				model: userPrefs.ai_config.model || aiConfig?.model || 'gpt-4o-mini',
-				api_key: userPrefs.ai_config.api_key,
-				api_endpoint: userPrefs.ai_config.api_endpoint || aiConfig?.api_endpoint
-			};
+		if (req.method === 'POST' && path === 'feedback') {
+			return handleFeedback(req, fluxbase, userId);
 		}
 
-		if (!aiConfig || !aiConfig.api_key) {
-			return new Response(
-				JSON.stringify({
-					error: 'AI not configured. Please configure an AI provider in settings.',
-					code: 'AI_NOT_CONFIGURED'
-				}),
-				{ status: 400, headers: { 'Content-Type': 'application/json' } }
-			);
+		if (req.method === 'POST') {
+			return handleQuery(req, fluxbase, userId);
 		}
 
-		// Generate SQL using LLM
-		console.log(`🤖 Generating SQL for question: "${question.substring(0, 50)}..."`);
-		const llmResult = await callLLM(question, aiConfig);
-
-		if (!llmResult.sql) {
-			return new Response(
-				JSON.stringify({
-					sql: null,
-					explanation: llmResult.explanation || 'Could not generate query',
-					table: null,
-					results: []
-				}),
-				{ status: 200, headers: { 'Content-Type': 'application/json' } }
-			);
-		}
-
-		// Validate SQL
-		const validation = validateSQL(llmResult.sql);
-		if (!validation.valid) {
-			return new Response(
-				JSON.stringify({
-					error: validation.error,
-					code: 'INVALID_SQL',
-					sql: llmResult.sql
-				}),
-				{ status: 400, headers: { 'Content-Type': 'application/json' } }
-			);
-		}
-
-		const result: QueryResult = {
-			sql: llmResult.sql,
-			explanation: llmResult.explanation,
-			table: llmResult.table
-		};
-
-		// Execute query if requested
-		if (execute) {
-			console.log(`🔍 Executing query: ${llmResult.sql.substring(0, 100)}...`);
-			try {
-				// Use raw SQL execution
-				const { data: queryResults, error: queryError } = await fluxbase.rpc('execute_user_query', {
-					query_sql: llmResult.sql,
-					query_user_id: userId
-				});
-
-				if (queryError) {
-					result.error = queryError.message;
-				} else {
-					result.results = queryResults || [];
-				}
-			} catch (execError: any) {
-				result.error = execError.message;
-			}
-		}
-
-		return new Response(JSON.stringify(result), {
-			status: 200,
+		return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+			status: 405,
 			headers: { 'Content-Type': 'application/json' }
 		});
-	} catch (error: any) {
+	} catch (error) {
 		console.error('Location query error:', error);
-		return new Response(
-			JSON.stringify({ error: error.message, code: 'INTERNAL_ERROR' }),
-			{ status: 500, headers: { 'Content-Type': 'application/json' } }
-		);
+		return errorResponse('INTERNAL_ERROR', 'INTERNAL_ERROR', 500);
 	}
 }
 

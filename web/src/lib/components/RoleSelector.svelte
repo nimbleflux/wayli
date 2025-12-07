@@ -24,14 +24,14 @@
 		<button
 			type="button"
 			class="rounded-lg border-2 p-4 text-left transition-all {role === roleOption.id
-				? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
+				? 'border-[rgb(34,51,95)] bg-[rgb(34,51,95)]/5 dark:bg-[rgb(34,51,95)]/30'
 				: 'border-gray-300 hover:border-gray-400 dark:border-gray-600 dark:hover:border-gray-500'}"
 			onclick={() => (role = roleOption.id as 'admin' | 'user')}
 		>
 			<div class="mb-2 flex items-center">
 				<roleOption.icon
 					class="mr-3 h-5 w-5 {role === roleOption.id
-						? 'text-blue-600 dark:text-blue-400'
+						? 'text-[rgb(34,51,95)] dark:text-gray-300'
 						: 'text-gray-500 dark:text-gray-400'}"
 				/>
 				<span class="font-semibold text-gray-900 dark:text-gray-100">{roleOption.label}</span>

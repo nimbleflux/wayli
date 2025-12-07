@@ -351,7 +351,7 @@
 
 	{#if loading}
 		<div class="flex items-center justify-center py-8">
-			<div class="h-6 w-6 animate-spin rounded-full border-b-2 border-blue-600"></div>
+			<div class="h-6 w-6 animate-spin rounded-full border-b-2 border-[rgb(34,51,95)]"></div>
 		</div>
 	{:else if filteredExportJobs.length === 0}
 		<div class="py-8 text-center text-gray-500 dark:text-gray-400">
@@ -375,9 +375,9 @@
 						<div class="flex items-center gap-3">
 							<!-- Status icon -->
 							<div
-								class="flex h-8 w-8 items-center justify-center rounded-full {job.status === 'completed' ? 'bg-green-100 dark:bg-green-900/20' : job.status === 'failed' ? 'bg-red-100 dark:bg-red-900/20' : 'bg-blue-100 dark:bg-blue-900/20'}"
+								class="flex h-8 w-8 items-center justify-center rounded-full {job.status === 'completed' ? 'bg-green-100 dark:bg-green-900/20' : job.status === 'failed' ? 'bg-red-100 dark:bg-red-900/20' : 'bg-[rgb(34,51,95)]/10 dark:bg-[rgb(34,51,95)]/20'}"
 							>
-								<Check class="h-4 w-4 {job.status === 'completed' ? 'text-green-600 dark:text-green-400' : job.status === 'failed' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}" />
+								<Check class="h-4 w-4 {job.status === 'completed' ? 'text-green-600 dark:text-green-400' : job.status === 'failed' ? 'text-red-600 dark:text-red-400' : 'text-[rgb(34,51,95)] dark:text-gray-300'}" />
 							</div>
 
 							<!-- Job info -->
@@ -411,7 +411,7 @@
 						{#if job.status === 'completed' && new Date(new Date(job.created_at).getTime() + 7 * 24 * 60 * 60 * 1000) > new Date()}
 							<button
 								onclick={() => downloadExport(job.id)}
-								class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+								class="inline-flex items-center gap-2 rounded-md bg-[rgb(34,51,95)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90"
 							>
 								<Download class="h-4 w-4" />
 								{t('exportJobs.download')}
@@ -428,7 +428,7 @@
 							</div>
 							<div class="h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700">
 								<div
-									class="h-2 rounded-full bg-blue-600 transition-all duration-300"
+									class="h-2 rounded-full bg-[rgb(34,51,95)] transition-all duration-300"
 									style="width: {job.progress}%"
 								></div>
 							</div>
@@ -441,7 +441,7 @@
 							<div class="flex flex-wrap gap-2">
 								{#if job.data.includeLocationData}
 									<span
-										class="inline-flex items-center rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+										class="inline-flex items-center rounded-full bg-[rgb(34,51,95)]/10 px-2 py-1 text-xs text-[rgb(34,51,95)] dark:bg-[rgb(34,51,95)]/20 dark:text-gray-300"
 									>
 										{t('exportJobs.locationData')}
 									</span>

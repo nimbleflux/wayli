@@ -134,7 +134,7 @@
 									type="text"
 									id="firstName"
 									bind:value={localUser.first_name}
-									class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-500"
+									class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-[rgb(34,51,95)] focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-[rgb(34,51,95)] dark:focus:ring-[rgb(34,51,95)]"
 									placeholder="e.g. Jane"
 								/>
 							</div>
@@ -152,7 +152,7 @@
 									type="text"
 									id="lastName"
 									bind:value={localUser.last_name}
-									class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-500"
+									class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-[rgb(34,51,95)] focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-[rgb(34,51,95)] dark:focus:ring-[rgb(34,51,95)]"
 									placeholder="e.g. Doe"
 								/>
 							</div>
@@ -171,7 +171,7 @@
 								type="email"
 								id="email"
 								bind:value={localUser.email}
-								class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-500"
+								class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-[rgb(34,51,95)] focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-[rgb(34,51,95)] dark:focus:ring-[rgb(34,51,95)]"
 								placeholder="e.g. jane.doe@example.com"
 							/>
 						</div>
@@ -195,7 +195,7 @@
 				</button>
 				<button
 					onclick={saveUser}
-					class="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+					class="rounded-lg bg-[rgb(34,51,95)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[rgb(34,51,95)]/90"
 				>
 					Save Changes
 				</button>

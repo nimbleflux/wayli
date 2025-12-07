@@ -63,6 +63,10 @@ const RECONNECT_BASE_DELAY_MS = 1000; // Start with 1 second, exponential backof
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 const connectionStatusStore = writable<ConnectionStatus>('disconnected');
 
+// Store to signal when a reconnection has occurred (one-time event)
+// Components can subscribe and show a toast, then reset it
+export const reconnectedStore = writable<boolean>(false);
+
 /**
  * Get the current connection status store (reactive)
  */
@@ -600,9 +604,16 @@ async function initializeRealtimeSubscription(_userId: string) {
 		}, handlePostgresChange)
 		.subscribe((status) => {
 			if (status === 'SUBSCRIBED') {
+				// Check if this was a reconnection (reconnectAttempts > 0 means we had failed before)
+				const wasReconnection = reconnectAttempts > 0;
 				connectionStatusStore.set('connected');
 				// Reset reconnection state on successful connection
 				resetReconnectState();
+				// Signal reconnection to UI components
+				if (wasReconnection) {
+					console.log('✅ [JobStore] Realtime reconnected successfully');
+					reconnectedStore.set(true);
+				}
 			} else if (status === 'CHANNEL_ERROR') {
 				connectionStatusStore.set('error');
 				// Attempt to reconnect

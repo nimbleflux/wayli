@@ -63,8 +63,8 @@
 	disabled={disabled}
 	onclick={toggle}
 	onkeydown={handleKeydown}
-	class="relative inline-flex {classes.container} flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[rgb(37,140,244)] focus:ring-offset-2 dark:focus:ring-offset-gray-900 {checked
-		? 'bg-[rgb(37,140,244)]'
+	class="relative inline-flex {classes.container} flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[rgb(34,51,95)] focus:ring-offset-2 dark:focus:ring-offset-gray-900 {checked
+		? 'bg-[rgb(34,51,95)]'
 		: 'bg-gray-200 dark:bg-gray-700'} {disabled ? 'cursor-not-allowed opacity-50' : ''}"
 >
 	<span class="sr-only">{label || 'Toggle'}</span>

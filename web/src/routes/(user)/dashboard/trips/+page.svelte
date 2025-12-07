@@ -1328,7 +1328,7 @@
 	<!-- Header -->
 	<div class="flex flex-col justify-between gap-4 md:flex-row md:items-center">
 		<div class="flex items-center gap-3">
-			<Route class="h-8 w-8 text-blue-600 dark:text-gray-400" />
+			<Route class="h-8 w-8 text-[rgb(34,51,95)] dark:text-gray-400" />
 			<h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">{t('common.navigation.trips')}</h1>
 		</div>
 		<div class="flex gap-2">
@@ -1340,7 +1340,7 @@
 				{t('trips.reviewSuggestedTrips')}
 			</button>
 			<button
-				class="flex cursor-pointer items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-600"
+				class="flex cursor-pointer items-center gap-2 rounded-lg bg-[rgb(34,51,95)] px-4 py-2 font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90"
 				onclick={openAddTripModal}
 			>
 				<Plus class="h-4 w-4" />
@@ -1358,7 +1358,7 @@
 				placeholder={t('trips.searchTrips')}
 				bind:value={searchQuery}
 				oninput={handleSearchChange}
-				class="w-full rounded-lg border border-gray-300 bg-white py-2 pr-4 pl-10 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+				class="w-full rounded-lg border border-gray-300 bg-white py-2 pr-4 pl-10 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
 			/>
 		</div>
 		<div class="flex gap-2">
@@ -1374,7 +1374,7 @@
 					}}
 					class="rounded-lg px-4 py-2 text-sm font-medium transition-colors {selectedFilter ===
 					filter.value
-						? 'bg-blue-500 text-white'
+						? 'bg-[rgb(34,51,95)] text-white'
 						: 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'}"
 				>
 					{filter.label}
@@ -1420,7 +1420,7 @@
 								type="text"
 								id="title"
 								bind:value={tripForm.title}
-								class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+								class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-[rgb(34,51,95)] dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
 								placeholder={t('trips.tripTitle')}
 								required
 								disabled={isSubmitting}
@@ -1436,7 +1436,7 @@
 									type="date"
 									id="start_date"
 									bind:value={tripForm.start_date}
-									class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+									class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-[rgb(34,51,95)] dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
 									required
 									disabled={isSubmitting}
 								/>
@@ -1450,7 +1450,7 @@
 									type="date"
 									id="end_date"
 									bind:value={tripForm.end_date}
-									class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+									class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-[rgb(34,51,95)] dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
 									required
 									disabled={isSubmitting}
 								/>
@@ -1465,7 +1465,7 @@
 								id="description"
 								bind:value={tripForm.description}
 								rows="3"
-								class="w-full resize-none rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+								class="w-full resize-none rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-[rgb(34,51,95)] dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
 								placeholder={t('trips.describeTripPlaceholder')}
 								disabled={isSubmitting}
 							></textarea>
@@ -1487,12 +1487,12 @@
 										bind:value={newLabel}
 										onkeydown={(e) => e?.key === 'Enter' && (e.preventDefault(), addLabel())}
 										placeholder={t('trips.addLabelPlaceholder')}
-										class="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+										class="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-transparent focus:ring-2 focus:ring-[rgb(34,51,95)] dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
 									/>
 									<button
 										type="button"
 										onclick={addLabel}
-										class="rounded-lg bg-blue-500 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-600"
+										class="rounded-lg bg-[rgb(34,51,95)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90"
 									>
 										{t('common.actions.add')}
 									</button>
@@ -1503,13 +1503,13 @@
 									<div class="flex flex-wrap gap-2">
 										{#each tripForm.labels as label (label)}
 											<div
-												class="flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+												class="flex items-center gap-1 rounded-full bg-[rgb(34,51,95)]/10 px-3 py-1 text-sm text-[rgb(34,51,95)] dark:bg-[rgb(34,51,95)]/30 dark:text-gray-300"
 											>
 												<span>{label}</span>
 												<button
 													type="button"
 													onclick={() => removeLabel(label)}
-													class="ml-1 hover:text-blue-900 dark:hover:text-blue-100"
+													class="ml-1 hover:text-[rgb(34,51,95)] dark:hover:text-gray-100"
 												>
 													<X class="h-3 w-3" />
 												</button>
@@ -1530,19 +1530,19 @@
 							<!-- Image suggestion section - only show when no image is available -->
 							{#if !uploadedImageUrl && !imageFile && !suggestedImageUrl && !imagePreview && tripForm.start_date && tripForm.end_date}
 								<div
-									class="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20"
+									class="mb-3 rounded-lg border border-[rgb(34,51,95)]/20 bg-[rgb(34,51,95)]/5 p-3 dark:border-[rgb(34,51,95)]/30 dark:bg-[rgb(34,51,95)]/20"
 								>
 									<div class="mb-2 flex items-center justify-between">
-										<span class="text-sm font-medium text-blue-700 dark:text-blue-300"
+										<span class="text-sm font-medium text-[rgb(34,51,95)] dark:text-gray-300"
 											>{t('trips.autoSuggestedImage')}</span
 										>
 										{#if isSuggestingImage}
-											<Loader2 class="h-4 w-4 animate-spin text-blue-600" />
+											<Loader2 class="h-4 w-4 animate-spin text-[rgb(34,51,95)]" />
 										{/if}
 									</div>
 
 									{#if tripAnalysis && tripAnalysis.primaryCountry}
-										<div class="mb-2 text-xs text-blue-600 dark:text-blue-400">
+										<div class="mb-2 text-xs text-[rgb(34,51,95)] dark:text-gray-400">
 											Based on your travel to: <strong
 												>{tripAnalysis.primaryCity || tripAnalysis.primaryCountry}</strong
 											>
@@ -1566,7 +1566,7 @@
 									{#if serverPexelsApiKeyAvailable || userPreferences?.pexels_api_key}
 										<button
 											type="button"
-											class="text-sm font-medium text-blue-600 underline hover:text-blue-700"
+											class="text-sm font-medium text-[rgb(34,51,95)] underline hover:text-[rgb(34,51,95)]/80"
 											onclick={suggestTripImage}
 											disabled={isSuggestingImage}
 										>
@@ -1581,7 +1581,7 @@
 										<div class="flex items-center gap-2">
 											<button
 												type="button"
-												class="text-sm font-medium text-blue-600 underline hover:text-blue-700"
+												class="text-sm font-medium text-[rgb(34,51,95)] underline hover:text-[rgb(34,51,95)]/80"
 												onclick={suggestTripImage}
 												disabled={isSuggestingImage}
 											>
@@ -1605,7 +1605,7 @@
 									type="file"
 									accept="image/*"
 									onchange={handleImageChange}
-									class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
+									class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-lg file:border-0 file:bg-[rgb(34,51,95)]/5 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[rgb(34,51,95)] hover:file:bg-[rgb(34,51,95)]/10"
 									disabled={isUploadingImage}
 								/>
 
@@ -1615,7 +1615,7 @@
 											{t('trips.orText')}
 											<button
 												type="button"
-												class="text-blue-600 underline hover:text-blue-700"
+												class="text-[rgb(34,51,95)] underline hover:text-[rgb(34,51,95)]/80"
 												onclick={suggestTripImage}
 												disabled={isSuggestingImage}
 											>
@@ -1625,7 +1625,7 @@
 										{:else if suggestedImageUrl}
 											<button
 												type="button"
-												class="text-blue-600 underline hover:text-blue-700"
+												class="text-[rgb(34,51,95)] underline hover:text-[rgb(34,51,95)]/80"
 												onclick={suggestTripImage}
 												disabled={isSuggestingImage}
 											>
@@ -1640,7 +1640,7 @@
 							</div>
 
 							{#if isUploadingImage}
-								<div class="mt-2 flex items-center gap-2 text-blue-600 dark:text-blue-400">
+								<div class="mt-2 flex items-center gap-2 text-[rgb(34,51,95)] dark:text-gray-400">
 									<Loader2 class="h-4 w-4 animate-spin" />
 									<span class="text-sm">Uploading image...</span>
 								</div>
@@ -1657,7 +1657,7 @@
 								class="relative mt-2 flex h-40 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800"
 							>
 								{#if isSuggestingImage}
-									<Loader2 class="h-10 w-10 animate-spin text-blue-500" />
+									<Loader2 class="h-10 w-10 animate-spin text-[rgb(34,51,95)]" />
 								{:else if imagePreview}
 									<img
 										src={imagePreview}
@@ -1675,7 +1675,7 @@
 								{/if}
 								{#if suggestedImageUrl && !isSuggestingImage}
 									<div
-										class="absolute top-2 right-2 rounded bg-blue-500 px-2 py-1 text-xs font-medium text-white"
+										class="absolute top-2 right-2 rounded bg-[rgb(34,51,95)] px-2 py-1 text-xs font-medium text-white"
 									>
 										Suggested
 									</div>
@@ -1685,7 +1685,7 @@
 									<div class="absolute top-2 left-2">
 										<button
 											type="button"
-											class="rounded bg-white/95 px-3 py-1.5 text-xs font-medium text-blue-600 shadow-lg transition-all duration-200 hover:bg-white hover:text-blue-700 dark:bg-gray-800/95 dark:text-blue-400 dark:hover:bg-gray-800"
+											class="rounded bg-white/95 px-3 py-1.5 text-xs font-medium text-[rgb(34,51,95)] shadow-lg transition-all duration-200 hover:bg-white hover:text-[rgb(34,51,95)]/80 dark:bg-gray-800/95 dark:text-gray-300 dark:hover:bg-gray-800"
 											onclick={suggestTripImage}
 											disabled={isSuggestingImage}
 											title="Get a new suggested image based on your travel data"
@@ -1705,7 +1705,7 @@
 											href={imageAttribution.photographerUrl}
 											target="_blank"
 											rel="noopener noreferrer"
-											class="text-blue-600 underline hover:text-blue-700"
+											class="text-[rgb(34,51,95)] underline hover:text-[rgb(34,51,95)]/80"
 										>
 											{imageAttribution.photographer}
 										</a>
@@ -1717,7 +1717,7 @@
 										href="https://www.pexels.com"
 										target="_blank"
 										rel="noopener noreferrer"
-										class="text-blue-600 underline hover:text-blue-700"
+										class="text-[rgb(34,51,95)] underline hover:text-[rgb(34,51,95)]/80"
 									>
 										Pexels
 									</a>
@@ -1736,7 +1736,7 @@
 							>
 							<button
 								type="submit"
-								class="flex cursor-pointer items-center gap-2 rounded-lg bg-blue-500 px-5 py-2 font-medium text-white transition-colors hover:bg-blue-600"
+								class="flex cursor-pointer items-center gap-2 rounded-lg bg-[rgb(34,51,95)] px-5 py-2 font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90"
 								disabled={isSubmitting}
 							>
 								{#if isSubmitting}
@@ -1755,7 +1755,7 @@
 	{#if isLoading || isInitialLoad}
 		<div class="flex items-center justify-center py-12">
 			<div class="text-center">
-				<Loader2 class="mx-auto mb-4 h-8 w-8 animate-spin text-blue-500" />
+				<Loader2 class="mx-auto mb-4 h-8 w-8 animate-spin text-[rgb(34,51,95)]" />
 				<p class="text-gray-600 dark:text-gray-400">Loading trips...</p>
 			</div>
 		</div>
@@ -1771,7 +1771,7 @@
 					: t('trips.startCreatingFirstTrip')}
 			</p>
 			<button
-				class="cursor-pointer rounded-lg bg-blue-500 px-6 py-2 font-medium text-white transition-colors hover:bg-blue-600"
+				class="cursor-pointer rounded-lg bg-[rgb(34,51,95)] px-6 py-2 font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90"
 				onclick={openAddTripModal}
 			>
 				<Plus class="mr-2 inline h-4 w-4" />
@@ -1788,14 +1788,14 @@
 					<!-- Action Buttons -->
 					<div class="absolute top-3 right-3 z-10 flex gap-2">
 						<button
-							class="cursor-pointer rounded-full bg-gray-100 p-2 text-gray-400 transition-colors hover:bg-blue-100 hover:text-blue-500 dark:bg-gray-700 dark:hover:bg-blue-900/30"
+							class="cursor-pointer rounded-full bg-gray-100 p-2 text-gray-400 transition-colors hover:bg-[rgb(34,51,95)]/10 hover:text-[rgb(34,51,95)] dark:bg-gray-700 dark:hover:bg-[rgb(34,51,95)]/30"
 							onclick={() => refreshTripMetadata(trip)}
 							aria-label="Refresh trip metadata"
 						>
 							<RefreshCw class="h-5 w-5" />
 						</button>
 						<button
-							class="cursor-pointer rounded-full bg-gray-100 p-2 text-gray-400 transition-colors hover:bg-blue-100 hover:text-blue-500 dark:bg-gray-700 dark:hover:bg-blue-900/30"
+							class="cursor-pointer rounded-full bg-gray-100 p-2 text-gray-400 transition-colors hover:bg-[rgb(34,51,95)]/10 hover:text-[rgb(34,51,95)] dark:bg-gray-700 dark:hover:bg-[rgb(34,51,95)]/30"
 							onclick={() => openEditTripModal(trip)}
 							aria-label="Edit trip"
 						>
@@ -1816,7 +1816,7 @@
 								<!-- Loading placeholder -->
 								<div class="flex h-full w-full items-center justify-center">
 									<div class="text-center">
-										<Loader2 class="mx-auto h-12 w-12 animate-spin text-blue-500" />
+										<Loader2 class="mx-auto h-12 w-12 animate-spin text-[rgb(34,51,95)]" />
 										<p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading image...</p>
 									</div>
 								</div>
@@ -1846,13 +1846,13 @@
 						<div
 							class="absolute right-3 bottom-3 flex items-center gap-1 rounded bg-black/60 px-3 py-1 text-xs font-medium text-white shadow"
 						>
-							<Route class="h-4 w-4 text-blue-400" />
+							<Route class="h-4 w-4 text-[rgb(34,51,95)]" />
 							{formatDistance(trip.metadata?.distanceTraveled ?? 0)}
 						</div>
 						<!-- Autogenerated label at top left -->
 						{#if trip.labels?.includes('auto-generated')}
 							<div
-								class="absolute top-3 left-3 rounded bg-blue-500 px-2 py-1 text-xs font-medium text-white shadow"
+								class="absolute top-3 left-3 rounded bg-[rgb(34,51,95)] px-2 py-1 text-xs font-medium text-white shadow"
 							>
 								{t('trips.autoGeneratedLabel')}
 							</div>
@@ -1878,7 +1878,7 @@
 								{/if}
 								{#if trip.metadata?.isMultiCityTrip}
 									<span
-										class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+										class="rounded-full bg-[rgb(34,51,95)]/10 px-2 py-0.5 text-xs font-medium text-[rgb(34,51,95)] dark:bg-[rgb(34,51,95)]/30 dark:text-gray-300"
 									>
 										Multi-City
 									</span>
@@ -1921,7 +1921,7 @@
 												href={trip.metadata.image_attribution.photographerUrl}
 												target="_blank"
 												rel="noopener noreferrer"
-												class="text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+												class="text-[rgb(34,51,95)] underline hover:text-[rgb(34,51,95)]/80 dark:text-[rgb(34,51,95)] dark:hover:text-gray-300"
 											>
 												{trip.metadata.image_attribution.photographer}
 											</a>
@@ -1933,7 +1933,7 @@
 											href="https://www.pexels.com"
 											target="_blank"
 											rel="noopener noreferrer"
-											class="text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+											class="text-[rgb(34,51,95)] underline hover:text-[rgb(34,51,95)]/80 dark:text-[rgb(34,51,95)] dark:hover:text-gray-300"
 										>
 											Pexels
 										</a>
@@ -1947,7 +1947,7 @@
 										<span
 											class="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium
 											{label === 'auto-generated'
-												? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+												? 'bg-[rgb(34,51,95)]/10 text-[rgb(34,51,95)] dark:bg-[rgb(34,51,95)]/30 dark:text-gray-300'
 												: label === 'suggested'
 													? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
 													: label === 'vacation'
@@ -1973,7 +1973,7 @@
 								{getRelativeTime(trip.updated_at)}
 							</span>
 							<button
-								class="flex cursor-pointer items-center gap-1 text-sm font-medium text-blue-500 transition-colors hover:text-blue-600"
+								class="flex cursor-pointer items-center gap-1 text-sm font-medium text-[rgb(34,51,95)] transition-colors hover:text-[rgb(34,51,95)]/80"
 								onclick={() => showTripStatistics(trip)}
 							>
 								<BarChart class="h-4 w-4" />
@@ -2039,7 +2039,7 @@
 
 				{#if isLoadingSuggestedTrips && suggestedTrips.length === 0}
 					<div class="flex items-center justify-center py-12">
-						<Loader2 class="h-8 w-8 animate-spin text-blue-500" />
+						<Loader2 class="h-8 w-8 animate-spin text-[rgb(34,51,95)]" />
 						<span class="ml-2 text-gray-600 dark:text-gray-400"
 							>{t('trips.loadingSuggestedTrips')}</span
 						>
@@ -2092,13 +2092,13 @@
 													);
 												}
 											}}
-											class="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+											class="mt-1 h-4 w-4 rounded border-gray-300 text-[rgb(34,51,95)] focus:ring-[rgb(34,51,95)]"
 										/>
 										<div class="flex-1">
 											<div class="mb-2 flex items-center justify-between">
 												<label
 													for={`trip-${trip.id}`}
-													class="cursor-pointer text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-gray-100"
+													class="cursor-pointer text-lg font-semibold text-gray-900 hover:text-[rgb(34,51,95)] dark:text-gray-100"
 												>
 													{trip.title}
 												</label>
@@ -2113,7 +2113,7 @@
 													{/if}
 													{#if trip.metadata?.isMultiCityTrip}
 														<span
-															class="rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+															class="rounded-full bg-[rgb(34,51,95)]/10 px-2 py-1 text-xs font-medium text-[rgb(34,51,95)] dark:bg-[rgb(34,51,95)]/30 dark:text-gray-300"
 														>
 															Multi-City
 														</span>
@@ -2200,7 +2200,7 @@
 						{#if isLoadingMoreSuggestedTrips}
 							<div class="flex items-center justify-center py-4">
 								<div
-									class="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"
+									class="h-6 w-6 animate-spin rounded-full border-2 border-[rgb(34,51,95)] border-t-transparent"
 								></div>
 								<span class="ml-3 text-sm text-gray-600 dark:text-gray-400"
 									>Loading more trips...</span
@@ -2224,7 +2224,7 @@
 			<div class="mt-4 flex gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
 				<button
 					onclick={() => (showSuggestedTripsModal = false)}
-					class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+					class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:ring-2 focus:ring-[rgb(34,51,95)] focus:ring-offset-2 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
 				>
 					{t('common.actions.cancel')}
 				</button>
@@ -2246,7 +2246,7 @@
 						handleApproveTrips();
 					}}
 					disabled={selectedSuggestedTrips.length === 0}
-					class="flex flex-1 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-700"
+					class="flex flex-1 items-center justify-center rounded-lg bg-[rgb(34,51,95)] px-4 py-2 font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90 focus:ring-2 focus:ring-[rgb(34,51,95)] focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[rgb(34,51,95)] dark:hover:bg-[rgb(34,51,95)]/90"
 				>
 					<Plus class="mr-2 h-4 w-4 flex-shrink-0" />
 					<span class="truncate">
@@ -2355,7 +2355,7 @@
 					<!-- Progress Bar -->
 					<div class="h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700">
 						<div
-							class="h-2 rounded-full bg-blue-600 transition-all duration-300 ease-out"
+							class="h-2 rounded-full bg-[rgb(34,51,95)] transition-all duration-300 ease-out"
 							style="width: {approvalProgress.progress}%"
 						></div>
 					</div>
@@ -2366,7 +2366,7 @@
 					<div class="flex items-center">
 						<div class="flex-shrink-0">
 							{#if approvalProgress.step === 'generating-images' || approvalProgress.step === 'creating-trips' || approvalProgress.step === 'complete'}
-								<div class="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600">
+								<div class="flex h-6 w-6 items-center justify-center rounded-full bg-[rgb(34,51,95)]">
 									<Check class="h-4 w-4 text-white" />
 								</div>
 							{:else}
@@ -2388,7 +2388,7 @@
 					<div class="flex items-center">
 						<div class="flex-shrink-0">
 							{#if approvalProgress.step === 'creating-trips' || approvalProgress.step === 'complete'}
-								<div class="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600">
+								<div class="flex h-6 w-6 items-center justify-center rounded-full bg-[rgb(34,51,95)]">
 									<Check class="h-4 w-4 text-white" />
 								</div>
 							{:else}
@@ -2409,20 +2409,20 @@
 				</div>
 
 				<!-- Current Status Message -->
-				<div class="mb-6 rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20">
+				<div class="mb-6 rounded-lg bg-[rgb(34,51,95)]/5 p-4 dark:bg-[rgb(34,51,95)]/20">
 					<div class="flex items-center">
 						{#if approvalProgress.step === 'generating-images'}
-							<Loader2 class="mr-3 h-5 w-5 animate-spin text-blue-600" />
+							<Loader2 class="mr-3 h-5 w-5 animate-spin text-[rgb(34,51,95)]" />
 						{:else if approvalProgress.step === 'creating-trips'}
-							<Loader2 class="mr-3 h-5 w-5 animate-spin text-blue-600" />
+							<Loader2 class="mr-3 h-5 w-5 animate-spin text-[rgb(34,51,95)]" />
 						{:else if approvalProgress.step === 'complete'}
 							<Check class="mr-3 h-5 w-5 text-green-600" />
 						{/if}
-						<p class="text-sm text-blue-800 dark:text-blue-200">{approvalProgress.message}</p>
+						<p class="text-sm text-[rgb(34,51,95)] dark:text-gray-200">{approvalProgress.message}</p>
 					</div>
 
 					{#if approvalProgress.imageProgress.currentTrip}
-						<p class="mt-1 text-xs text-blue-600 dark:text-blue-400">
+						<p class="mt-1 text-xs text-[rgb(34,51,95)] dark:text-gray-400">
 							{t('trips.lastProcessed', { title: approvalProgress.imageProgress.currentTrip })}
 						</p>
 					{/if}
@@ -2432,7 +2432,7 @@
 				{#if approvalProgress.step === 'complete'}
 					<div class="flex justify-end">
 						<button
-							class="cursor-pointer rounded-lg bg-blue-600 px-5 py-2 font-medium text-white transition-colors hover:bg-blue-700"
+							class="cursor-pointer rounded-lg bg-[rgb(34,51,95)] px-5 py-2 font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90"
 							onclick={() => (isApprovalInProgress = false)}
 						>
 							{t('common.actions.close')}

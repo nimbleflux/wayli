@@ -26,9 +26,9 @@
 			buttonClass: 'bg-yellow-600 hover:bg-yellow-700 text-white'
 		},
 		info: {
-			iconClass: 'text-blue-600 dark:text-blue-400',
-			bgClass: 'bg-blue-100 dark:bg-blue-900/20',
-			buttonClass: 'bg-blue-600 hover:bg-blue-700 text-white'
+			iconClass: 'text-[rgb(34,51,95)] dark:text-gray-300',
+			bgClass: 'bg-[rgb(34,51,95)]/10 dark:bg-[rgb(34,51,95)]/20',
+			buttonClass: 'bg-[rgb(34,51,95)] hover:bg-[rgb(34,51,95)]/90 text-white'
 		}
 	};
 

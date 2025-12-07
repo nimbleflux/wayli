@@ -70,7 +70,7 @@
 <div class="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
 	<div class="text-center">
 		{#if loading}
-			<Loader2 class="mx-auto mb-4 h-8 w-8 animate-spin text-[rgb(37,140,244)]" />
+			<Loader2 class="mx-auto mb-4 h-8 w-8 animate-spin text-[rgb(34,51,95)]" />
 			<h2 class="mb-2 text-xl font-semibold text-gray-900 dark:text-gray-100">
 				Completing authentication...
 			</h2>

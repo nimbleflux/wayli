@@ -161,6 +161,35 @@ sync_jobs() {
     fi
 }
 
+# Sync Fluxbase AI chatbots
+sync_chatbots() {
+    echo "Syncing Fluxbase AI chatbots..."
+
+    # Check if sync should be skipped (useful for testing/dev)
+    if [ "$SKIP_CHATBOT_SYNC" = "true" ]; then
+        echo "⚠️  SKIP_CHATBOT_SYNC is set, skipping chatbot sync"
+        return 0
+    fi
+
+    # Verify environment variables are set
+    if [ -z "$FLUXBASE_BASE_URL" ] || [ -z "$FLUXBASE_SERVICE_ROLE_KEY" ]; then
+        echo "⚠️  Warning: FLUXBASE_BASE_URL or FLUXBASE_SERVICE_ROLE_KEY not set"
+        echo "⚠️  Skipping chatbot sync - chatbots will need to be deployed manually"
+        return 0
+    fi
+
+    cd /app
+
+    # Run chatbot sync script
+    if npm run sync-chatbots; then
+        echo "✅ Chatbot sync completed successfully"
+    else
+        echo "⚠️  Warning: Chatbot sync failed (exit code: $?)"
+        echo "⚠️  Continuing startup - chatbots may not be available"
+        # Don't exit - allow the app to start even if chatbot sync fails
+    fi
+}
+
 # Start nginx in foreground (web-only mode)
 start_nginx_foreground() {
     echo "Starting nginx..."
@@ -182,6 +211,7 @@ case "${APP_MODE:-web}" in
         sync_migrations
         sync_functions
         sync_jobs
+        sync_chatbots
         start_nginx_foreground
         ;;
     *)

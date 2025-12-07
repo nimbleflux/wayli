@@ -1,4 +1,8 @@
+<div align="center">
+<img src="logo-icon.svg" alt="Wayli Logo" width="128" height="128">
+
 # Wayli 🗺️
+</div>
 
 > ⚠️ **Pre-Release Software**: Wayli is currently in pre-release development (v0.x.x). The API and database schema may change between versions. Not recommended for production use until v1.0.0 release.
 

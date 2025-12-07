@@ -107,9 +107,9 @@
 			<!-- Header -->
 			<div class="mb-6 flex items-center gap-3">
 				<div
-					class="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30"
+					class="flex h-12 w-12 items-center justify-center rounded-full bg-[rgb(34,51,95)]/10 dark:bg-[rgb(34,51,95)]/30"
 				>
-					<Shield class="h-6 w-6 text-blue-600 dark:text-blue-400" />
+					<Shield class="h-6 w-6 text-[rgb(34,51,95)] dark:text-gray-300" />
 				</div>
 				<div>
 					<h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
@@ -146,7 +146,7 @@
 					bind:value={code}
 					placeholder={useBackupCode ? 'XXXXXXXX' : '000000'}
 					maxlength={useBackupCode ? 8 : 6}
-					class="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-center text-2xl font-mono tracking-widest text-gray-900 placeholder-gray-400 transition-colors focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+					class="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-center text-2xl font-mono tracking-widest text-gray-900 placeholder-gray-400 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
 					disabled={isLoading}
 					onkeydown={(e) => {
 						if (e.key === 'Enter' && !isLoading) {
@@ -190,7 +190,7 @@
 				</button>
 				<button
 					onclick={handleVerify}
-					class="flex-1 rounded-lg bg-blue-600 px-4 py-3 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+					class="flex-1 rounded-lg bg-[rgb(34,51,95)] px-4 py-3 font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90 disabled:cursor-not-allowed disabled:opacity-50"
 					disabled={isLoading || !code}
 				>
 					{#if isLoading}

@@ -11,7 +11,8 @@
 		ChevronRight,
 		X,
 		Mail,
-		Lock
+		Lock,
+		Bot
 	} from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
@@ -84,6 +85,16 @@
 
 	// Security
 	let enableRateLimiting = $state(false);
+
+	// AI Settings
+	let aiEnabled = $state(false);
+	let aiAllowUserOverride = $state(false);
+	let aiProvider = $state('openai');
+	let aiModel = $state('gpt-4o-mini');
+	let aiApiKey = $state('');
+	let aiApiEndpoint = $state('');
+	let aiMaxTokens = $state(4096);
+	let aiTemperature = $state(0.7);
 
 	// Handle Escape key for modals
 	$effect(() => {
@@ -330,6 +341,33 @@
 		}
 	}
 
+	async function saveAISettings() {
+		try {
+			const session = $sessionStore;
+			if (!session) throw new Error('No session found');
+
+			const serviceAdapter = new ServiceAdapter({ session });
+
+			await serviceAdapter.updateAppSetting('setAIConfig', {
+				enabled: aiEnabled,
+				allow_user_provider_override: aiAllowUserOverride,
+				provider: aiProvider,
+				model: aiModel,
+				api_key: aiApiKey || undefined,
+				api_endpoint: aiApiEndpoint || undefined,
+				max_tokens: aiMaxTokens,
+				temperature: aiTemperature
+			});
+
+			toast.success(t('serverAdmin.aiSettingsSaved'));
+		} catch (error: any) {
+			console.error('❌ Failed to save AI settings:', error);
+			toast.error(t('serverAdmin.failedToUpdateSettings'), {
+				description: error?.message
+			});
+		}
+	}
+
 	function handleEditUser(user: UserProfile) {
 		selectedUser = user;
 		isModalOpen = true;
@@ -473,6 +511,18 @@
 
 			// Security
 			enableRateLimiting = app.security.enable_global_rate_limit;
+
+			// AI Settings
+			if (app.ai) {
+				aiEnabled = app.ai.enabled ?? false;
+				aiAllowUserOverride = app.ai.allow_user_provider_override ?? false;
+				aiProvider = app.ai.provider ?? 'openai';
+				aiModel = app.ai.model ?? 'gpt-4o-mini';
+				aiApiKey = app.ai.api_key ?? '';
+				aiApiEndpoint = app.ai.api_endpoint ?? '';
+				aiMaxTokens = app.ai.max_tokens ?? 4096;
+				aiTemperature = app.ai.temperature ?? 0.7;
+			}
 
 			// Custom Wayli settings
 			serverName = custom['wayli.server_name']?.value || '';
@@ -631,7 +681,7 @@
 								type="text"
 								id="newUserFirstName"
 								bind:value={newUserFirstName}
-								class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-500"
+								class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-[rgb(34,51,95)] focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-[rgb(34,51,95)] dark:focus:ring-[rgb(34,51,95)]"
 								placeholder="e.g. Jane"
 								required
 							/>
@@ -650,7 +700,7 @@
 								type="text"
 								id="newUserLastName"
 								bind:value={newUserLastName}
-								class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-500"
+								class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-[rgb(34,51,95)] focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-[rgb(34,51,95)] dark:focus:ring-[rgb(34,51,95)]"
 								placeholder="e.g. Doe"
 								required
 							/>
@@ -670,7 +720,7 @@
 							type="email"
 							id="newUserEmail"
 							bind:value={newUserEmail}
-							class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-500"
+							class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-[rgb(34,51,95)] focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-[rgb(34,51,95)] dark:focus:ring-[rgb(34,51,95)]"
 							placeholder="e.g. jane.doe@example.com"
 							required
 						/>
@@ -690,7 +740,7 @@
 								type="password"
 								id="newUserPassword"
 								bind:value={newUserPassword}
-								class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-500"
+								class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-[rgb(34,51,95)] focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-[rgb(34,51,95)] dark:focus:ring-[rgb(34,51,95)]"
 								placeholder="Min. 6 characters"
 								required
 							/>
@@ -709,7 +759,7 @@
 								type="password"
 								id="newUserConfirmPassword"
 								bind:value={newUserConfirmPassword}
-								class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-500"
+								class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-[rgb(34,51,95)] focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-[rgb(34,51,95)] dark:focus:ring-[rgb(34,51,95)]"
 								placeholder="Confirm password"
 								required
 							/>
@@ -733,7 +783,7 @@
 				</button>
 				<button
 					onclick={handleAddUser}
-					class="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+					class="rounded-lg bg-[rgb(34,51,95)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[rgb(34,51,95)]/90"
 				>
 					Add User
 				</button>
@@ -821,7 +871,7 @@
 		<!-- Header -->
 		<div class="mb-8">
 			<div class="flex items-center gap-3">
-				<Settings class="h-7 w-7 text-[rgb(37,140,244)]" />
+				<Settings class="h-7 w-7 text-[rgb(34,51,95)]" />
 				<h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
 					{t('serverAdmin.title')}
 				</h1>
@@ -833,7 +883,7 @@
 			<nav class="-mb-px flex space-x-8">
 				<button
 					class="cursor-pointer border-b-2 px-1 py-2 text-sm font-medium {activeTab === 'settings'
-						? 'border-[rgb(37,140,244)] text-[rgb(37,140,244)]'
+						? 'border-[rgb(34,51,95)] text-[rgb(34,51,95)]'
 						: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
 					onclick={() => (activeTab = 'settings')}
 				>
@@ -844,7 +894,7 @@
 				</button>
 				<button
 					class="cursor-pointer border-b-2 px-1 py-2 text-sm font-medium {activeTab === 'users'
-						? 'border-[rgb(37,140,244)] text-[rgb(37,140,244)]'
+						? 'border-[rgb(34,51,95)] text-[rgb(34,51,95)]'
 						: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
 					onclick={() => (activeTab = 'users')}
 				>
@@ -879,7 +929,7 @@
 								type="text"
 								bind:value={searchQuery}
 								placeholder="Search users..."
-								class="w-64 rounded-md border border-[rgb(218,218,221)] bg-white py-2 pr-4 pl-9 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-500"
+								class="w-64 rounded-md border border-[rgb(218,218,221)] bg-white py-2 pr-4 pl-9 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-500"
 								oninput={handleSearchInput}
 							/>
 						</div>
@@ -887,7 +937,7 @@
 						<select
 							bind:value={itemsPerPage}
 							onchange={handleItemsPerPageChange}
-							class="rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
+							class="rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
 						>
 							<option value={5}>5 per page</option>
 							<option value={10}>10 per page</option>
@@ -896,7 +946,7 @@
 						</select>
 					</div>
 					<button
-						class="flex cursor-pointer items-center gap-2 rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(37,140,244)]/90"
+						class="flex cursor-pointer items-center gap-2 rounded-md bg-[rgb(34,51,95)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(34,51,95)]/90"
 						onclick={() => (showAddUserModal = true)}
 					>
 						<UserPlus class="h-4 w-4" />
@@ -1042,7 +1092,7 @@
 												onclick={() => goToPage(pageNum)}
 												class="relative inline-flex items-center rounded-md px-3 py-2 text-sm font-medium {pageNum ===
 												currentPage
-													? 'bg-[rgb(37,140,244)] text-white'
+													? 'bg-[rgb(34,51,95)] text-white'
 													: 'text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700'}"
 											>
 												{pageNum}
@@ -1090,7 +1140,7 @@
 								type="text"
 								id="serverName"
 								bind:value={serverName}
-								class="mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
+								class="mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
 								placeholder={t('serverAdmin.enterServerName')}
 							/>
 						</div>
@@ -1103,7 +1153,7 @@
 								type="text"
 								id="serverPexelsApiKey"
 								bind:value={serverPexelsApiKey}
-								class="mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
+								class="mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
 							/>
 							<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
 								{t('serverAdmin.serverPexelsKeyDescription')}
@@ -1113,7 +1163,7 @@
 						<div class="flex justify-end">
 							<button
 								onclick={saveWayliSettings}
-								class="rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(37,140,244)]/90"
+								class="rounded-md bg-[rgb(34,51,95)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(34,51,95)]/90"
 							>
 								{t('serverAdmin.saveSettings')}
 							</button>
@@ -1157,14 +1207,14 @@
 								bind:value={passwordMinLength}
 								min="8"
 								max="128"
-								class="mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
+								class="mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
 							/>
 						</div>
 
 						<div class="flex justify-end">
 							<button
 								onclick={saveAuthSettings}
-								class="rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(37,140,244)]/90"
+								class="rounded-md bg-[rgb(34,51,95)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(34,51,95)]/90"
 							>
 								{t('serverAdmin.saveSettings')}
 							</button>
@@ -1199,7 +1249,7 @@
 								<select
 									id="emailProvider"
 									bind:value={emailProvider}
-									class="mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
+									class="mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
 								>
 									<option value="smtp">SMTP</option>
 									<option value="sendgrid">SendGrid</option>
@@ -1223,7 +1273,7 @@
 												id="smtpHost"
 												type="text"
 												bind:value={smtpHost}
-												class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+												class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
 												placeholder={t('serverAdmin.smtpHostPlaceholder')}
 											/>
 										</div>
@@ -1236,7 +1286,7 @@
 												id="smtpPort"
 												type="number"
 												bind:value={smtpPort}
-												class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+												class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
 												placeholder={t('serverAdmin.smtpPortPlaceholder')}
 											/>
 										</div>
@@ -1250,7 +1300,7 @@
 											id="smtpUsername"
 											type="text"
 											bind:value={smtpUsername}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
 											placeholder={t('serverAdmin.smtpUsernamePlaceholder')}
 										/>
 									</div>
@@ -1263,7 +1313,7 @@
 											id="smtpPassword"
 											type="password"
 											bind:value={smtpPassword}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
 											placeholder={t('serverAdmin.smtpPasswordPlaceholder')}
 										/>
 									</div>
@@ -1283,7 +1333,7 @@
 											id="smtpFromAddress"
 											type="email"
 											bind:value={smtpFromAddress}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
 											placeholder={t('serverAdmin.smtpFromAddressPlaceholder')}
 										/>
 									</div>
@@ -1296,7 +1346,7 @@
 											id="smtpFromName"
 											type="text"
 											bind:value={smtpFromName}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
 											placeholder={t('serverAdmin.smtpFromNamePlaceholder')}
 										/>
 									</div>
@@ -1307,7 +1357,157 @@
 						<div class="flex justify-end">
 							<button
 								onclick={saveEmailSettings}
-								class="rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(37,140,244)]/90"
+								class="rounded-md bg-[rgb(34,51,95)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(34,51,95)]/90"
+							>
+								{t('serverAdmin.saveSettings')}
+							</button>
+						</div>
+					</div>
+				</div>
+
+				<!-- AI Settings -->
+				<div class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]">
+					<div class="mb-4 flex items-center gap-3">
+						<Bot class="h-6 w-6 text-purple-500" />
+						<div>
+							<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
+								{t('serverAdmin.aiSettings')}
+							</h2>
+							<p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
+								{t('serverAdmin.aiSettingsDescription')}
+							</p>
+						</div>
+					</div>
+
+					<div class="space-y-4">
+						<div class="flex items-center justify-between">
+							<div>
+								<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+									{t('serverAdmin.aiEnabled')}
+								</span>
+								<p class="text-xs text-gray-500 dark:text-gray-400">
+									{t('serverAdmin.aiEnabledDescription')}
+								</p>
+							</div>
+							<Switch bind:checked={aiEnabled} label={t('serverAdmin.aiEnabled')} />
+						</div>
+
+						{#if aiEnabled}
+							<div class="flex items-center justify-between">
+								<div>
+									<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+										{t('serverAdmin.allowUserOverride')}
+									</span>
+									<p class="text-xs text-gray-500 dark:text-gray-400">
+										{t('serverAdmin.allowUserOverrideDescription')}
+									</p>
+								</div>
+								<Switch bind:checked={aiAllowUserOverride} label={t('serverAdmin.allowUserOverride')} />
+							</div>
+
+							<div class="space-y-3 rounded border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
+								<div>
+									<label for="aiProvider" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										{t('serverAdmin.aiProvider')}
+									</label>
+									<select
+										id="aiProvider"
+										bind:value={aiProvider}
+										class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+									>
+										<option value="openai">{t('serverAdmin.aiProviders.openai')}</option>
+										<option value="anthropic">{t('serverAdmin.aiProviders.anthropic')}</option>
+										<option value="ollama">{t('serverAdmin.aiProviders.ollama')}</option>
+										<option value="openrouter">{t('serverAdmin.aiProviders.openrouter')}</option>
+										<option value="azure">{t('serverAdmin.aiProviders.azure')}</option>
+										<option value="custom">{t('serverAdmin.aiProviders.custom')}</option>
+									</select>
+								</div>
+
+								<div>
+									<label for="aiModel" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										{t('serverAdmin.aiModel')}
+									</label>
+									<input
+										id="aiModel"
+										type="text"
+										bind:value={aiModel}
+										class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+										placeholder="gpt-4o-mini"
+									/>
+									<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+										{t('serverAdmin.aiModelDescription')}
+									</p>
+								</div>
+
+								<div>
+									<label for="aiApiKey" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										{t('serverAdmin.aiApiKey')}
+									</label>
+									<input
+										id="aiApiKey"
+										type="password"
+										bind:value={aiApiKey}
+										class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+										placeholder={t('serverAdmin.aiApiKeyPlaceholder')}
+									/>
+								</div>
+
+								{#if aiProvider === 'ollama' || aiProvider === 'azure' || aiProvider === 'custom'}
+									<div>
+										<label for="aiApiEndpoint" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+											{t('serverAdmin.aiApiEndpoint')}
+										</label>
+										<input
+											id="aiApiEndpoint"
+											type="text"
+											bind:value={aiApiEndpoint}
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											placeholder={t('serverAdmin.aiApiEndpointPlaceholder')}
+										/>
+										<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+											{t('serverAdmin.aiApiEndpointDescription')}
+										</p>
+									</div>
+								{/if}
+
+								<div class="grid grid-cols-2 gap-4">
+									<div>
+										<label for="aiMaxTokens" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+											{t('serverAdmin.aiMaxTokens')}
+										</label>
+										<input
+											id="aiMaxTokens"
+											type="number"
+											bind:value={aiMaxTokens}
+											min="256"
+											max="128000"
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+										/>
+									</div>
+
+									<div>
+										<label for="aiTemperature" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+											{t('serverAdmin.aiTemperature')}
+										</label>
+										<input
+											id="aiTemperature"
+											type="number"
+											bind:value={aiTemperature}
+											min="0"
+											max="2"
+											step="0.1"
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+										/>
+									</div>
+								</div>
+							</div>
+						{/if}
+
+						<div class="flex justify-end">
+							<button
+								onclick={saveAISettings}
+								class="rounded-md bg-[rgb(34,51,95)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(34,51,95)]/90"
 							>
 								{t('serverAdmin.saveSettings')}
 							</button>

@@ -128,7 +128,7 @@
 						type="password"
 						bind:value={password}
 						placeholder={t('auth.enterPasswordPlaceholder')}
-						class="w-full rounded-lg border border-gray-300 bg-white py-3 pl-10 pr-4 text-gray-900 placeholder-gray-400 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(37,140,244)] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+						class="w-full rounded-lg border border-gray-300 bg-white py-3 pl-10 pr-4 text-gray-900 placeholder-gray-400 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
 						disabled={isLoading}
 						onkeydown={(e) => {
 							if (e.key === 'Enter' && !isLoading && password) {
@@ -150,7 +150,7 @@
 				</button>
 				<button
 					onclick={handleVerify}
-					class="flex-1 rounded-lg bg-[rgb(37,140,244)] px-4 py-3 font-medium text-white transition-colors hover:bg-[rgb(37,140,244)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+					class="flex-1 rounded-lg bg-[rgb(34,51,95)] px-4 py-3 font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90 disabled:cursor-not-allowed disabled:opacity-50"
 					disabled={isLoading || !password}
 				>
 					{#if isLoading}

@@ -75,6 +75,7 @@
 			"wantToVisit": "Want to visit",
 			"pointsOfInterest": "Points of interest",
 			"ask": "Ask AI",
+			"askAI": "Ask AI",
 			"jobs": "Jobs",
 			"admin": "Admin",
 			"serverAdminSettings": "Server admin settings",
@@ -864,7 +865,12 @@
 		"noApiKeyConfigured": "No API key configured - trip image suggestions will use fallback services",
 		"personalPexelsApiKey": "Personal Pexels API Key",
 		"personalPexelsApiKeyOptional": "Personal Pexels API Key (Optional)",
-		"leaveEmptyToUseServerKey": "Leave empty to use server key"
+		"leaveEmptyToUseServerKey": "Leave empty to use server key",
+		"aiSettings": "AI Settings",
+		"aiSettingsDescription": "Configure your personal AI provider to use your own API key",
+		"usePersonalProvider": "Use Personal AI Provider",
+		"usePersonalProviderDescription": "Use your own API key instead of the server's default configuration",
+		"failedToSaveSettings": "Failed to save settings"
 	},
 	"serverAdmin": {
 		"title": "Server admin settings",
@@ -990,7 +996,36 @@
 		"failedToUpdateSettings": "Failed to update settings",
 		"authSettingsSaved": "Authentication settings saved",
 		"emailSettingsSaved": "Email settings saved",
-		"wayliSettingsSaved": "Wayli settings saved"
+		"wayliSettingsSaved": "Wayli settings saved",
+		"aiSettings": "AI Settings",
+		"aiSettingsDescription": "Configure AI assistant and LLM provider settings",
+		"aiEnabled": "Enable AI Features",
+		"aiEnabledDescription": "Allow users to use the AI assistant",
+		"allowUserOverride": "Allow User Provider Override",
+		"allowUserOverrideDescription": "Let users configure their own AI provider and API key",
+		"aiProvider": "AI Provider",
+		"aiProviderDescription": "Select the AI provider to use",
+		"aiModel": "Model",
+		"aiModelDescription": "The model ID to use (e.g., gpt-4o-mini, claude-3-sonnet)",
+		"aiApiKey": "API Key",
+		"aiApiKeyDescription": "API key for the selected provider",
+		"aiApiKeyPlaceholder": "Enter API key...",
+		"aiApiEndpoint": "API Endpoint",
+		"aiApiEndpointDescription": "Custom API endpoint (for Ollama, Azure, or custom providers)",
+		"aiApiEndpointPlaceholder": "https://api.example.com/v1",
+		"aiMaxTokens": "Max Tokens",
+		"aiMaxTokensDescription": "Maximum tokens per response (default: 4096)",
+		"aiTemperature": "Temperature",
+		"aiTemperatureDescription": "Response creativity (0.0 = precise, 1.0 = creative)",
+		"aiSettingsSaved": "AI settings saved",
+		"aiProviders": {
+			"openai": "OpenAI (GPT-4, GPT-3.5)",
+			"anthropic": "Anthropic (Claude)",
+			"ollama": "Ollama (Local)",
+			"openrouter": "OpenRouter",
+			"azure": "Azure OpenAI",
+			"custom": "Custom Endpoint"
+		}
 	},
 	"wantToVisit": {
 		"addNewPlace": "Add new place",
@@ -1055,6 +1090,26 @@
 		"connected": "Live updates active",
 		"connecting": "Connecting...",
 		"disconnected": "Disconnected",
-		"error": "Connection error"
+		"error": "Connection error",
+		"reconnected": "Realtime connection re-established"
+	},
+	"ask": {
+		"title": "Ask About Your Travels",
+		"subtitle": "Use natural language to explore your travel history",
+		"notConfigured": "AI Assistant Not Configured",
+		"notConfiguredDescription": "The AI assistant is not available. This may be because:",
+		"notConfiguredReasons": {
+			"disabled": "AI features are disabled on this server",
+			"notSynced": "The chatbot hasn't been synced yet",
+			"configError": "There's a configuration issue with the AI provider"
+		},
+		"configureAsAdmin": "Configure AI Settings",
+		"configureAsUser": "Set Up Your AI Provider",
+		"contactAdmin": "Please contact your administrator to enable AI features.",
+		"startConversation": "Start a conversation",
+		"askAnything": "Ask me anything about your travel history",
+		"connectingToChat": "Connecting to chat service...",
+		"failedToConnect": "Failed to connect to chat service",
+		"failedToSendMessage": "Failed to send message"
 	}
 }

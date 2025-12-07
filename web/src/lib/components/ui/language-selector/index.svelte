@@ -88,7 +88,7 @@
 		default:
 			'bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700',
 		minimal: 'bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800',
-		button: 'bg-blue-500 hover:bg-blue-600 text-white border-0'
+		button: 'bg-[rgb(34,51,95)] hover:bg-[rgb(34,51,95)]/90 text-white border-0'
 	};
 
 	// Position classes for dropdown
@@ -107,7 +107,7 @@
 	<button
 		type="button"
 		onclick={() => (isOpen = !isOpen)}
-		class="flex items-center gap-2 rounded-lg font-medium transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:outline-none {sizeClasses[
+		class="flex items-center gap-2 rounded-lg font-medium transition-all duration-200 focus:ring-2 focus:ring-[rgb(34,51,95)] focus:ring-offset-1 focus:outline-none {sizeClasses[
 			size
 		]} {variantClasses[variant]} {variant === 'button'
 			? 'text-white'
@@ -149,7 +149,7 @@
 						onclick={() => handleLanguageChange(language.code)}
 						class="flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 {language.code ===
 						$currentLocale
-							? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'
+							? 'bg-[rgb(34,51,95)]/5 text-[rgb(34,51,95)] dark:bg-[rgb(34,51,95)]/20 dark:text-gray-300'
 							: 'text-gray-700 dark:text-gray-200'}"
 						role="option"
 						aria-selected={language.code === $currentLocale}
@@ -162,7 +162,7 @@
 
 						<!-- Check mark for current language -->
 						{#if language.code === $currentLocale}
-							<span class="text-blue-600 dark:text-blue-400">✓</span>
+							<span class="text-[rgb(34,51,95)] dark:text-gray-300">✓</span>
 						{/if}
 					</button>
 				{/each}

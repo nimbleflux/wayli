@@ -77,6 +77,20 @@ export interface SecuritySettings {
 }
 
 /**
+ * AI settings from Fluxbase AppSettingsManager
+ */
+export interface AISettings {
+	enabled: boolean;
+	allow_user_provider_override: boolean;
+	provider: 'openai' | 'anthropic' | 'ollama' | 'openrouter' | 'azure' | 'custom';
+	model: string;
+	api_key?: string;
+	api_endpoint?: string;
+	max_tokens: number;
+	temperature: number;
+}
+
+/**
  * Complete app settings from Fluxbase AppSettingsManager
  */
 export interface AppSettings {
@@ -84,6 +98,7 @@ export interface AppSettings {
 	email: EmailSettings;
 	features: FeatureSettings;
 	security: SecuritySettings;
+	ai?: AISettings;
 }
 
 /**

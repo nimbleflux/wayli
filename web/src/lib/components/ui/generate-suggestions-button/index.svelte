@@ -78,7 +78,7 @@
 >
 	<button
 		class="flex items-center gap-2 rounded-lg px-4 py-2 font-medium transition-colors {!isDisabled
-			? 'cursor-pointer bg-blue-500 text-white hover:bg-blue-600'
+			? 'cursor-pointer bg-[rgb(34,51,95)] text-white hover:bg-[rgb(34,51,95)]/90'
 			: 'cursor-not-allowed bg-gray-300 text-gray-500 dark:bg-gray-600 dark:text-gray-400'}"
 		onclick={handleClick}
 		disabled={isDisabled}

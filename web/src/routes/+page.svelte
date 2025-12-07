@@ -1,7 +1,6 @@
 <script lang="ts">
 	import {
 		MapPin,
-		Globe,
 		BarChart,
 		ArrowRight,
 		LogIn,
@@ -10,8 +9,7 @@
 		User,
 		LogOut,
 		Shield,
-		Users,
-		Navigation
+		Users
 	} from 'lucide-svelte';
 	import { onMount } from 'svelte';
 
@@ -127,11 +125,11 @@
 <!-- Loading State -->
 {#if !messagesLoaded || checkingUserCount}
 	<div
-		class="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900"
+		class="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900"
 	>
 		<div class="text-center">
 			<div
-				class="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"
+				class="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-[rgb(34,51,95)]"
 			></div>
 			<p class="text-gray-600 dark:text-gray-300">
 				{checkingUserCount ? 'Checking system status...' : 'Loading translations...'}
@@ -149,7 +147,7 @@
 			<button
 				onclick={() => handleThemeChange('light')}
 				class="cursor-pointer rounded-lg p-2 font-medium transition-colors {currentTheme === 'light'
-					? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400'
+					? 'bg-[rgb(34,51,95)]/10 text-[rgb(34,51,95)] dark:bg-[rgb(34,51,95)]/40 dark:text-white'
 					: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}"
 				title={t('landing.lightMode')}
 			>
@@ -158,7 +156,7 @@
 			<button
 				onclick={() => handleThemeChange('dark')}
 				class="cursor-pointer rounded-lg p-2 font-medium transition-colors {currentTheme === 'dark'
-					? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400'
+					? 'bg-[rgb(34,51,95)]/10 text-[rgb(34,51,95)] dark:bg-[rgb(34,51,95)]/40 dark:text-white'
 					: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}"
 				title={t('landing.darkMode')}
 			>
@@ -210,7 +208,7 @@
 			<!-- Login Button -->
 			<button
 				onclick={handleLogin}
-				class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[rgb(37,140,244)] px-4 py-2 font-medium text-white shadow-lg transition-colors hover:bg-[rgb(37,140,244)]/90"
+				class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[rgb(34,51,95)] px-4 py-2 font-medium text-white shadow-lg transition-colors hover:bg-[rgb(34,51,95)]/90"
 			>
 				<LogIn class="h-4 w-4" />
 				{t('landing.login')}
@@ -220,20 +218,15 @@
 
 	<!-- Hero Section -->
 	<div
-		class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 transition-colors duration-300 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900"
+		class="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 transition-colors duration-300 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900"
 	>
 		<div class="container mx-auto px-4 py-16">
 			<!-- Hero Content -->
 			<div class="mx-auto mb-16 max-w-4xl text-center">
-				<!-- Logo Icon -->
+				<!-- Logo with text -->
 				<div class="mx-auto mb-6 flex justify-center">
-					<Navigation class="h-24 w-24 text-[rgb(37,140,244)] md:h-32 md:w-32" />
+					<img src="/logo.svg" alt="Wayli logo" class="h-32 w-auto md:h-40" />
 				</div>
-				<h1
-					class="mb-6 text-5xl font-bold text-gray-900 transition-colors duration-300 md:text-7xl dark:text-gray-100"
-				>
-					<span class="text-[rgb(37,140,244)]">Wayli</span>
-				</h1>
 				<p
 					class="mb-4 text-2xl font-semibold text-gray-800 transition-colors duration-300 md:text-3xl dark:text-gray-200"
 				>
@@ -254,7 +247,7 @@
 					</a>
 					<a
 						href="/auth/signin"
-						class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[rgb(37,140,244)] px-8 py-4 font-semibold text-white shadow-lg transition-colors hover:bg-[rgb(37,140,244)]/90"
+						class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[rgb(34,51,95)] px-8 py-4 font-semibold text-white shadow-lg transition-colors hover:bg-[rgb(34,51,95)]/90"
 					>
 						{t('landing.signIn')}
 					</a>
@@ -268,9 +261,9 @@
 					class="rounded-xl border border-gray-200/50 bg-white/50 p-6 text-center backdrop-blur-sm transition-all duration-300 hover:scale-105 hover:shadow-lg dark:border-gray-700/50 dark:bg-gray-800/50"
 				>
 					<div
-						class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 transition-colors duration-300 dark:bg-blue-900/20"
+						class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[rgb(34,51,95)]/10 transition-colors duration-300 dark:bg-[rgb(34,51,95)]/20"
 					>
-						<Shield class="h-8 w-8 text-blue-600 dark:text-blue-400" />
+						<Shield class="h-8 w-8 text-[rgb(34,51,95)] dark:text-gray-300" />
 					</div>
 					<h3
 						class="mb-2 text-xl font-semibold text-gray-900 transition-colors duration-300 dark:text-gray-100"

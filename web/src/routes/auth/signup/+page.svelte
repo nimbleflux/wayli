@@ -299,21 +299,21 @@
 		{#if isFirstUser && !isLoadingSettings}
 			<div class="mb-8">
 				<div
-					class="rounded-xl border-2 border-blue-200 bg-blue-50 p-6 dark:border-blue-800 dark:bg-blue-900/20"
+					class="rounded-xl border-2 border-[rgb(34,51,95)]/20 bg-[rgb(34,51,95)]/5 p-6 dark:border-[rgb(34,51,95)]/30 dark:bg-[rgb(34,51,95)]/20"
 				>
 					<div class="flex items-start gap-3">
 						<div class="flex-shrink-0">
 							<div
-								class="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-2xl dark:bg-blue-900/40"
+								class="flex h-12 w-12 items-center justify-center rounded-full bg-[rgb(34,51,95)]/10 text-2xl dark:bg-[rgb(34,51,95)]/40"
 							>
 								🎉
 							</div>
 						</div>
 						<div class="flex-1">
-							<h3 class="mb-2 text-lg font-semibold text-blue-900 dark:text-blue-100">
+							<h3 class="mb-2 text-lg font-semibold text-[rgb(34,51,95)] dark:text-gray-100">
 								{t('signup.firstUserWelcome')}
 							</h3>
-							<p class="text-sm text-blue-700 dark:text-blue-300">
+							<p class="text-sm text-[rgb(34,51,95)] dark:text-gray-300">
 								{t('signup.firstUserAdminInfo')}
 							</p>
 						</div>
@@ -335,17 +335,17 @@
 
 			{#if isLoadingSettings}
 				<div
-					class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20"
+					class="mb-6 rounded-lg border border-[rgb(34,51,95)]/20 bg-[rgb(34,51,95)]/5 p-4 dark:border-[rgb(34,51,95)]/30 dark:bg-[rgb(34,51,95)]/20"
 				>
 					<div class="flex items-center">
 						<div
-							class="mr-2 h-5 w-5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"
+							class="mr-2 h-5 w-5 animate-spin rounded-full border-2 border-[rgb(34,51,95)] border-t-transparent"
 						></div>
 						<div>
-							<h3 class="text-sm font-medium text-blue-800 dark:text-blue-200">
+							<h3 class="text-sm font-medium text-[rgb(34,51,95)] dark:text-gray-200">
 								{t('auth.loadingSettings')}
 							</h3>
-							<p class="mt-1 text-sm text-blue-700 dark:text-blue-300">
+							<p class="mt-1 text-sm text-[rgb(34,51,95)] dark:text-gray-300">
 								{t('auth.checkingRegistrationStatus')}
 							</p>
 						</div>
@@ -400,7 +400,7 @@
 									bind:value={firstName}
 									required
 									disabled={registrationDisabled}
-									class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-4 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(37,140,244)] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+									class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-4 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(34,51,95)] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 									placeholder={t('auth.firstName')}
 								/>
 							</div>
@@ -418,7 +418,7 @@
 								bind:value={lastName}
 								required
 								disabled={registrationDisabled}
-								class="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(37,140,244)] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+								class="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(34,51,95)] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 								placeholder={t('auth.lastName')}
 							/>
 						</div>
@@ -442,7 +442,7 @@
 								bind:value={email}
 								required
 								disabled={registrationDisabled}
-								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-4 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(37,140,244)] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-4 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(34,51,95)] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 								placeholder={t('auth.enterYourEmail')}
 							/>
 						</div>
@@ -466,7 +466,7 @@
 								bind:value={password}
 								required
 								disabled={registrationDisabled}
-								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-12 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(37,140,244)] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-12 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(34,51,95)] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 								placeholder={t('auth.createPassword')}
 							/>
 							<button
@@ -591,7 +591,7 @@
 								bind:value={confirmPassword}
 								required
 								disabled={registrationDisabled}
-								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-12 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(37,140,244)] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-400 {!doPasswordsMatch &&
+								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-12 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(34,51,95)] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-400 {!doPasswordsMatch &&
 								confirmPassword.length > 0
 									? 'border-red-500'
 									: ''}"
@@ -621,7 +621,7 @@
 					<button
 						type="submit"
 						disabled={loading || !isPasswordValid || !doPasswordsMatch || registrationDisabled}
-						class="w-full cursor-pointer rounded-lg bg-[rgb(37,140,244)] px-4 py-3 font-medium text-white transition-colors hover:bg-[rgb(37,140,244)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+						class="w-full cursor-pointer rounded-lg bg-[rgb(34,51,95)] px-4 py-3 font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90 disabled:cursor-not-allowed disabled:opacity-50"
 					>
 						{loading
 							? t('auth.creatingAccount')
@@ -636,7 +636,7 @@
 						{t('auth.alreadyHaveAccount')}
 						<a
 							href="/auth/signin"
-							class="cursor-pointer font-medium text-[rgb(37,140,244)] transition-colors hover:text-[rgb(37,140,244)]/80"
+							class="cursor-pointer font-medium text-[rgb(34,51,95)] transition-colors hover:text-[rgb(34,51,95)]/80"
 						>
 							{t('auth.signIn')}
 						</a>

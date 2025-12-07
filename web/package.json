@@ -27,7 +27,9 @@
 		"test:jobs": "tsx src/scripts/test-job-invocation.ts",
 		"sync:migrations": "tsx src/scripts/sync-migrations.ts",
 		"sync:migrations:dev": "tsx src/scripts/sync-migrations.ts",
-		"sync:all": "npm run sync:functions && npm run sync:jobs && npm run sync:migrations",
+		"sync:chatbots": "tsx src/scripts/sync-chatbots.ts",
+		"sync:chatbots:dev": "tsx src/scripts/sync-chatbots.ts",
+		"sync:all": "npm run sync:functions && npm run sync:jobs && npm run sync:chatbots && npm run sync:migrations",
 		"check:separation": "node scripts/check-environment-separation.js"
 	},
 	"devDependencies": {

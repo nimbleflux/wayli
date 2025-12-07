@@ -173,7 +173,7 @@
 				{#each Array(2) as _, i (i)}
 					<div
 						class="h-2 w-8 rounded-full transition-colors {i === currentStep
-							? 'bg-blue-600'
+							? 'bg-[rgb(34,51,95)]'
 							: 'bg-gray-300 dark:bg-gray-600'}"
 					></div>
 				{/each}
@@ -183,7 +183,7 @@
 				<!-- Step 1: Welcome -->
 				<div class="text-center">
 					<div
-						class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 text-4xl dark:bg-blue-900/20"
+						class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[rgb(34,51,95)]/10 text-4xl dark:bg-[rgb(34,51,95)]/20"
 					>
 						👋
 					</div>
@@ -198,7 +198,7 @@
 					</p>
 					<button
 						onclick={handleContinue}
-						class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-8 py-3 font-semibold text-white transition-all hover:scale-105 hover:bg-blue-700"
+						class="inline-flex items-center gap-2 rounded-lg bg-[rgb(34,51,95)] px-8 py-3 font-semibold text-white transition-all hover:scale-105 hover:bg-[rgb(34,51,95)]/90"
 					>
 						{t('onboarding.continue')}
 						<ArrowRight class="h-5 w-5" />
@@ -240,12 +240,12 @@
 								oninput={handleAddressInput}
 								onkeydown={handleAddressKeydown}
 								placeholder={t('onboarding.homeAddressPlaceholder')}
-								class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+								class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
 							/>
 							{#if isSearching}
 								<div class="absolute top-1/2 right-3 -translate-y-1/2">
 									<div
-										class="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"
+										class="h-4 w-4 animate-spin rounded-full border-2 border-[rgb(34,51,95)] border-t-transparent"
 									></div>
 								</div>
 							{/if}
@@ -261,7 +261,7 @@
 										type="button"
 										class="w-full px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:text-gray-100 dark:hover:bg-gray-700 dark:focus:bg-gray-700 {selectedAddressIndex ===
 										index
-											? 'bg-blue-500/10 dark:bg-blue-500/20'
+											? 'bg-[rgb(34,51,95)]/10 dark:bg-[rgb(34,51,95)]/20'
 											: ''}"
 										onclick={() => selectAddress(suggestion)}
 									>
@@ -301,7 +301,7 @@
 						<button
 							onclick={handleContinue}
 							disabled={!selectedHomeAddress}
-							class="flex-1 rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white transition-all hover:scale-105 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+							class="flex-1 rounded-lg bg-[rgb(34,51,95)] px-6 py-3 font-semibold text-white transition-all hover:scale-105 hover:bg-[rgb(34,51,95)]/90 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
 						>
 							{t('onboarding.continue')}
 						</button>

@@ -6,7 +6,6 @@
 		Link,
 		Settings,
 		User,
-		Navigation,
 		Map,
 		X,
 		Sun,
@@ -162,7 +161,7 @@
 			class="flex flex-shrink-0 items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700"
 		>
 			<a href="/dashboard/statistics" class="flex cursor-pointer items-center">
-				<Navigation class="mr-2 h-8 w-8 text-[rgb(37,140,244)]" />
+				<img src="/logo-icon.svg" alt="Wayli" class="mr-2 h-8 w-8" />
 				<span class="text-xl font-bold text-gray-900 dark:text-gray-100">Wayli</span>
 			</a>
 			<button
@@ -181,7 +180,7 @@
 						href={item.href}
 						class="flex cursor-pointer items-center rounded-md px-3 py-2 text-sm font-medium transition-colors {$page
 							.url.pathname === item.href
-							? 'bg-[rgb(37,140,244)] text-white'
+							? 'bg-[rgb(34,51,95)] text-white'
 							: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}"
 						onclick={handleCloseSidebar}
 					>
@@ -200,7 +199,7 @@
 					onclick={() => handleThemeChange('light')}
 					class="cursor-pointer rounded-lg p-2 font-medium transition-colors {currentTheme ===
 					'light'
-						? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400'
+						? 'bg-[rgb(34,51,95)]/10 text-[rgb(34,51,95)] dark:bg-[rgb(34,51,95)]/40 dark:text-white'
 						: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}"
 					title={t('common.navigation.lightMode')}
 				>
@@ -209,7 +208,7 @@
 				<button
 					onclick={() => handleThemeChange('dark')}
 					class="cursor-pointer rounded-lg p-2 font-medium transition-colors {currentTheme === 'dark'
-						? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400'
+						? 'bg-[rgb(34,51,95)]/10 text-[rgb(34,51,95)] dark:bg-[rgb(34,51,95)]/40 dark:text-white'
 						: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}"
 					title={t('common.navigation.darkMode')}
 				>
@@ -233,7 +232,7 @@
 							href={item.href}
 							class="relative flex cursor-pointer items-center rounded-md px-3 py-2 text-sm font-medium transition-colors {$page
 								.url.pathname === item.href
-								? 'bg-[rgb(37,140,244)] text-white'
+								? 'bg-[rgb(34,51,95)] text-white'
 								: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}"
 							onclick={handleCloseSidebar}
 						>
@@ -288,7 +287,7 @@
 					<Menu class="h-6 w-6" />
 				</button>
 				<a href="/dashboard/trips" class="flex cursor-pointer items-center">
-					<Navigation class="mr-2 h-6 w-6 text-[rgb(37,140,244)]" />
+					<img src="/logo-icon.svg" alt="Wayli" class="mr-2 h-6 w-6" />
 					<span class="text-lg font-bold text-gray-900 dark:text-gray-100">Wayli</span>
 				</a>
 				<div class="w-6"></div>

@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { Snippet } from 'svelte';
+	import { toast } from 'svelte-sonner';
 
 	import AppNav from '$lib/components/AppNav.svelte';
-	import { changeLocale, type SupportedLocale } from '$lib/i18n';
+	import { t, changeLocale, type SupportedLocale } from '$lib/i18n';
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
 	import { sessionManager } from '$lib/services/session';
 	import { userStore, sessionStore } from '$lib/stores/auth';
-	import { connectionStatusStore } from '$lib/stores/job-store';
+	import { connectionStatusStore, reconnectedStore } from '$lib/stores/job-store';
 	import { fluxbase } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
@@ -145,6 +146,14 @@
 		}
 	});
 
+	// Show toast when realtime connection is re-established
+	$effect(() => {
+		if ($reconnectedStore) {
+			toast.success(t('realtime.reconnected'));
+			reconnectedStore.set(false);
+		}
+	});
+
 	// Cleanup is handled by Fluxbase SDK
 </script>
 
@@ -155,7 +164,7 @@
 			<div class="flex h-64 items-center justify-center">
 				<div class="text-center">
 					<div
-						class="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"
+						class="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-b-2 border-[rgb(34,51,95)]"
 					></div>
 				</div>
 			</div>

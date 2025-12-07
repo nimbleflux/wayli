@@ -11,7 +11,7 @@ SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
+SELECT pg_catalog.set_config('search_path', 'public', false);
 SET check_function_bodies = false;
 SET xmloption = content;
 SET client_min_messages = warning;
@@ -263,7 +263,6 @@ CREATE OR REPLACE VIEW "public"."my_tracker_data"
 WITH (security_barrier = true, security_invoker = true)
 AS
 SELECT
-    id,
     recorded_at,
     ST_X(location::geometry) as longitude,
     ST_Y(location::geometry) as latitude,

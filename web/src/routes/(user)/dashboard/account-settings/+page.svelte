@@ -9,7 +9,8 @@
 		MapPin,
 		Plus,
 		Pencil,
-		Image
+		Image,
+		Bot
 	} from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
@@ -105,6 +106,15 @@
 	let editExclusionAddressSearchTimeout: ReturnType<typeof setTimeout> | null = null;
 	let editExclusionAddressSearchError: string | null = $state(null);
 
+	// AI Settings state (only shown if user override is allowed)
+	let aiAllowUserOverride = $state(false);
+	let userAIEnabled = $state(false);
+	let userAIProvider = $state('openai');
+	let userAIModel = $state('');
+	let userAIApiKey = $state('');
+	let userAIApiEndpoint = $state('');
+	let isUpdatingAISettings = $state(false);
+
 	// Handle Escape key for modals
 	$effect(() => {
 		if (showAddExclusionModal || showEditExclusionModal) {
@@ -195,10 +205,71 @@
 		}
 	}
 
+	async function loadAISettings() {
+		try {
+			const session = await fluxbase.auth.getSession();
+			if (!session.data.session) return;
+
+			const serviceAdapter = new ServiceAdapter({ session: session.data.session });
+
+			// Load app-level AI settings to check if user override is allowed
+			const result = await serviceAdapter.getAllSettings();
+			if (result?.app?.ai) {
+				aiAllowUserOverride = result.app.ai.allow_user_provider_override ?? false;
+			}
+
+			// Load user's personal AI config from preferences
+			if (aiAllowUserOverride && preferences?.ai_config) {
+				const aiConfig = preferences.ai_config as any;
+				userAIEnabled = aiConfig.enabled ?? false;
+				userAIProvider = aiConfig.provider ?? 'openai';
+				userAIModel = aiConfig.model ?? '';
+				userAIApiKey = aiConfig.api_key ?? '';
+				userAIApiEndpoint = aiConfig.api_endpoint ?? '';
+			}
+		} catch (error) {
+			console.error('❌ [AccountSettings] Error loading AI settings:', error);
+		}
+	}
+
+	async function handleSaveAISettings() {
+		isUpdatingAISettings = true;
+		try {
+			const session = await fluxbase.auth.getSession();
+			if (!session.data.session) throw new Error('No session found');
+
+			const serviceAdapter = new ServiceAdapter({ session: session.data.session });
+
+			// Update user's AI config in preferences
+			const aiConfig = {
+				enabled: userAIEnabled,
+				provider: userAIProvider,
+				model: userAIModel,
+				api_key: userAIApiKey || undefined,
+				api_endpoint: userAIApiEndpoint || undefined
+			};
+
+			await serviceAdapter.updatePreferences({
+				...(preferences || {}),
+				ai_config: aiConfig
+			});
+
+			toast.success(t('serverAdmin.aiSettingsSaved'));
+		} catch (error: any) {
+			console.error('❌ [AccountSettings] Error saving AI settings:', error);
+			toast.error(t('accountSettings.failedToSaveSettings'), {
+				description: error?.message
+			});
+		} finally {
+			isUpdatingAISettings = false;
+		}
+	}
+
 	onMount(async () => {
 		await loadUserData();
 		await loadTripExclusions();
 		await check2FAStatus();
+		await loadAISettings();
 
 		// Show onboarding modal if this is first login
 		if (isOnboarding) {
@@ -891,7 +962,7 @@
 	<!-- Header -->
 	<div class="mb-8">
 		<div class="flex items-center gap-3">
-			<User class="h-8 w-8 text-blue-600 dark:text-gray-400" />
+			<User class="h-8 w-8 text-[rgb(34,51,95)] dark:text-gray-400" />
 			<h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
 				Account Settings
 			</h1>
@@ -939,7 +1010,7 @@
 						type="email"
 						value={profile?.email}
 						disabled
-						class="w-full rounded-md border border-[rgb(218,218,221)] bg-gray-50 px-3 py-2 text-sm text-gray-500 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:outline-none focus:ring-1 focus:ring-[rgb(37,140,244)] dark:bg-gray-700 dark:text-gray-400 dark:placeholder:text-gray-400"
+						class="w-full rounded-md border border-[rgb(218,218,221)] bg-gray-50 px-3 py-2 text-sm text-gray-500 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-[rgb(34,51,95)] dark:bg-gray-700 dark:text-gray-400 dark:placeholder:text-gray-400"
 					/>
 					<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
 						{t('accountSettings.emailCannotChange')}
@@ -955,7 +1026,7 @@
 						{t('accountSettings.homeLocationOptional')}
 						{#if !homeAddressInput && !profile?.home_address_skipped}
 							<span
-								class="ml-2 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+								class="ml-2 inline-flex items-center rounded-full bg-[rgb(34,51,95)]/10 px-2 py-0.5 text-xs font-medium text-[rgb(34,51,95)] dark:bg-[rgb(34,51,95)]/30 dark:text-gray-300"
 							>
 								{t('accountSettings.recommended')}
 							</span>
@@ -976,12 +1047,12 @@
 							oninput={handleHomeAddressInput}
 							onkeydown={handleHomeAddressKeydown}
 							placeholder={t('accountSettings.startTypingHomeAddress')}
-							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:outline-none focus:ring-1 focus:ring-[rgb(37,140,244)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-[rgb(34,51,95)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 						/>
 						{#if isHomeAddressSearching}
 							<div class="absolute right-3 top-1/2 -translate-y-1/2">
 								<div
-									class="h-4 w-4 animate-spin rounded-full border-2 border-[rgb(37,140,244)] border-t-transparent"
+									class="h-4 w-4 animate-spin rounded-full border-2 border-[rgb(34,51,95)] border-t-transparent"
 								></div>
 							</div>
 						{/if}
@@ -995,7 +1066,7 @@
 									type="button"
 									class="w-full px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:text-gray-100 dark:hover:bg-[#2d2d35] dark:focus:bg-[#2d2d35] {selectedHomeAddressIndex ===
 									index
-										? 'bg-[rgb(37,140,244)]/10 dark:bg-[rgb(37,140,244)]/20'
+										? 'bg-[rgb(34,51,95)]/10 dark:bg-[rgb(34,51,95)]/20'
 										: ''}"
 									onclick={() => selectHomeAddress(suggestion)}
 								>
@@ -1071,7 +1142,7 @@
 							type="text"
 							bind:value={firstNameInput}
 							placeholder={t('accountSettings.enterFirstName')}
-							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:outline-none focus:ring-1 focus:ring-[rgb(37,140,244)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-[rgb(34,51,95)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 						/>
 					</div>
 
@@ -1086,14 +1157,14 @@
 							type="text"
 							bind:value={lastNameInput}
 							placeholder={t('accountSettings.enterLastName')}
-							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:outline-none focus:ring-1 focus:ring-[rgb(37,140,244)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-[rgb(34,51,95)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 						/>
 					</div>
 				</div>
 			</div>
 
 			<button
-				class="mt-6 cursor-pointer rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(37,140,244)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+				class="mt-6 cursor-pointer rounded-md bg-[rgb(34,51,95)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(34,51,95)]/90 disabled:cursor-not-allowed disabled:opacity-50"
 				onclick={handleSaveProfile}
 				disabled={isUpdatingProfile}
 			>
@@ -1128,7 +1199,7 @@
 						id="currentPassword"
 						type="password"
 						bind:value={currentPassword}
-						class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:outline-none focus:ring-1 focus:ring-[rgb(37,140,244)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+						class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-[rgb(34,51,95)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 					/>
 				</div>
 
@@ -1143,7 +1214,7 @@
 							id="newPassword"
 							type="password"
 							bind:value={newPassword}
-							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:outline-none focus:ring-1 focus:ring-[rgb(37,140,244)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-[rgb(34,51,95)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 						/>
 					</div>
 
@@ -1157,13 +1228,13 @@
 							id="confirmPassword"
 							type="password"
 							bind:value={confirmPassword}
-							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:outline-none focus:ring-1 focus:ring-[rgb(37,140,244)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-[rgb(34,51,95)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 						/>
 					</div>
 				</div>
 
 				<button
-					class="cursor-pointer rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(37,140,244)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+					class="cursor-pointer rounded-md bg-[rgb(34,51,95)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(34,51,95)]/90 disabled:cursor-not-allowed disabled:opacity-50"
 					onclick={handleUpdatePassword}
 					disabled={isUpdatingPassword}
 				>
@@ -1193,7 +1264,7 @@
 			{#if isCheckingTwoFactor}
 				<div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
 					<div
-						class="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"
+						class="h-4 w-4 animate-spin rounded-full border-2 border-[rgb(34,51,95)] border-t-transparent"
 					></div>
 					<span>{t('auth.checking2FAStatus')}</span>
 				</div>
@@ -1238,7 +1309,7 @@
 						{:else}
 							<button
 								onclick={handleEnable2FA}
-								class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+								class="rounded-lg bg-[rgb(34,51,95)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90"
 							>
 								{t('accountSettings.enable2FA')}
 							</button>
@@ -1247,10 +1318,10 @@
 
 					<!-- Info Message -->
 					<div
-						class="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20"
+						class="flex items-start gap-3 rounded-lg border border-[rgb(34,51,95)]/20 bg-[rgb(34,51,95)]/5 p-3 dark:border-[rgb(34,51,95)]/30 dark:bg-[rgb(34,51,95)]/20"
 					>
-						<Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
-						<p class="text-xs text-blue-700 dark:text-blue-300">
+						<Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-[rgb(34,51,95)] dark:text-gray-400" />
+						<p class="text-xs text-[rgb(34,51,95)] dark:text-gray-300">
 							{t('accountSettings.2faInfoMessage')}
 						</p>
 					</div>
@@ -1293,7 +1364,7 @@
 			</div>
 
 			<button
-				class="mt-6 cursor-pointer rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(37,140,244)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+				class="mt-6 cursor-pointer rounded-md bg-[rgb(34,51,95)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(34,51,95)]/90 disabled:cursor-not-allowed disabled:opacity-50"
 				onclick={handleSavePreferences}
 				disabled={isUpdatingPreferences}
 			>
@@ -1302,6 +1373,120 @@
 					: t('accountSettings.savePreferences')}
 			</button>
 		</div>
+
+		<!-- AI Settings (only shown if user override is allowed) -->
+		{#if aiAllowUserOverride}
+			<div
+				class="mt-8 rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]"
+			>
+				<div class="mb-6 flex items-center gap-3">
+					<Bot class="h-6 w-6 text-purple-500" />
+					<div>
+						<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
+							{t('accountSettings.aiSettings')}
+						</h2>
+						<p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
+							{t('accountSettings.aiSettingsDescription')}
+						</p>
+					</div>
+				</div>
+
+				<div class="space-y-4">
+					<div class="flex items-center justify-between">
+						<div>
+							<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+								{t('accountSettings.usePersonalProvider')}
+							</span>
+							<p class="text-xs text-gray-500 dark:text-gray-400">
+								{t('accountSettings.usePersonalProviderDescription')}
+							</p>
+						</div>
+						<input
+							type="checkbox"
+							bind:checked={userAIEnabled}
+							class="h-4 w-4 rounded border-gray-300 text-[rgb(34,51,95)] focus:ring-[rgb(34,51,95)]"
+						/>
+					</div>
+
+					{#if userAIEnabled}
+						<div class="space-y-3 rounded border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
+							<div>
+								<label for="userAiProvider" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+									{t('serverAdmin.aiProvider')}
+								</label>
+								<select
+									id="userAiProvider"
+									bind:value={userAIProvider}
+									class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+								>
+									<option value="openai">{t('serverAdmin.aiProviders.openai')}</option>
+									<option value="anthropic">{t('serverAdmin.aiProviders.anthropic')}</option>
+									<option value="ollama">{t('serverAdmin.aiProviders.ollama')}</option>
+									<option value="openrouter">{t('serverAdmin.aiProviders.openrouter')}</option>
+									<option value="azure">{t('serverAdmin.aiProviders.azure')}</option>
+									<option value="custom">{t('serverAdmin.aiProviders.custom')}</option>
+								</select>
+							</div>
+
+							<div>
+								<label for="userAiModel" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+									{t('serverAdmin.aiModel')}
+								</label>
+								<input
+									id="userAiModel"
+									type="text"
+									bind:value={userAIModel}
+									class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+									placeholder="gpt-4o-mini"
+								/>
+								<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+									{t('serverAdmin.aiModelDescription')}
+								</p>
+							</div>
+
+							<div>
+								<label for="userAiApiKey" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+									{t('serverAdmin.aiApiKey')}
+								</label>
+								<input
+									id="userAiApiKey"
+									type="password"
+									bind:value={userAIApiKey}
+									class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+									placeholder={t('serverAdmin.aiApiKeyPlaceholder')}
+								/>
+							</div>
+
+							{#if userAIProvider === 'ollama' || userAIProvider === 'azure' || userAIProvider === 'custom'}
+								<div>
+									<label for="userAiApiEndpoint" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										{t('serverAdmin.aiApiEndpoint')}
+									</label>
+									<input
+										id="userAiApiEndpoint"
+										type="text"
+										bind:value={userAIApiEndpoint}
+										class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+										placeholder={t('serverAdmin.aiApiEndpointPlaceholder')}
+									/>
+									<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+										{t('serverAdmin.aiApiEndpointDescription')}
+									</p>
+								</div>
+							{/if}
+						</div>
+					{/if}
+
+					<button
+						class="mt-4 cursor-pointer rounded-md bg-[rgb(34,51,95)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(34,51,95)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+						onclick={handleSaveAISettings}
+						disabled={isUpdatingAISettings}
+					>
+						{isUpdatingAISettings ? t('accountSettings.savingChanges') : t('common.actions.saveChanges')}
+					</button>
+				</div>
+			</div>
+		{/if}
 
 		<!-- Trips Settings -->
 		<div
@@ -1361,7 +1546,7 @@
 						placeholder={serverPexelsApiKeyAvailable
 							? t('accountSettings.leaveEmptyToUseServerKey')
 							: t('accountSettings.enterPexelsApiKey')}
-						class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:outline-none focus:ring-1 focus:ring-[rgb(37,140,244)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+						class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-[rgb(34,51,95)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 					/>
 					<p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
 						{#if pexelsApiKeyInput}
@@ -1376,16 +1561,16 @@
 
 				<!-- Info notification -->
 				<div
-					class="mt-4 flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20"
+					class="mt-4 flex items-start gap-3 rounded-lg border border-[rgb(34,51,95)]/20 bg-[rgb(34,51,95)]/5 p-3 dark:border-[rgb(34,51,95)]/30 dark:bg-[rgb(34,51,95)]/20"
 				>
-					<Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
-					<p class="text-xs text-blue-700 dark:text-blue-300">
+					<Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-[rgb(34,51,95)] dark:text-gray-400" />
+					<p class="text-xs text-[rgb(34,51,95)] dark:text-gray-300">
 						{t('accountSettings.dontHavePexelsApiKey')}
 						<a
 							href="https://www.pexels.com/api/"
 							target="_blank"
 							rel="noopener noreferrer"
-							class="font-medium underline hover:text-blue-800 dark:hover:text-blue-200"
+							class="font-medium underline hover:text-[rgb(34,51,95)]/80 dark:hover:text-gray-200"
 							>{t('accountSettings.getApiKey')}</a
 						>.
 					</p>
@@ -1428,7 +1613,7 @@
 								<div class="flex items-center gap-2">
 									<button
 										onclick={() => handleEditExclusion(exclusion)}
-										class="rounded-lg p-2 text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-900/20"
+										class="rounded-lg p-2 text-[rgb(34,51,95)] transition-colors hover:bg-[rgb(34,51,95)]/5 hover:text-[rgb(34,51,95)]/80 dark:hover:bg-[rgb(34,51,95)]/20"
 									>
 										<Pencil class="h-4 w-4" />
 									</button>
@@ -1470,7 +1655,7 @@
 
 			<!-- Save Button for Trips Section -->
 			<button
-				class="mt-6 cursor-pointer rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(37,140,244)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+				class="mt-6 cursor-pointer rounded-md bg-[rgb(34,51,95)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(34,51,95)]/90 disabled:cursor-not-allowed disabled:opacity-50"
 				onclick={handleSavePreferences}
 				disabled={isUpdatingPreferences}
 			>
@@ -1520,7 +1705,7 @@
 						type="text"
 						bind:value={newExclusion.name}
 						placeholder={t('accountSettings.exclusionExampleLabel')}
-						class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+						class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
 					/>
 				</div>
 				<div>
@@ -1537,12 +1722,12 @@
 							oninput={handleExclusionAddressInput}
 							onkeydown={handleExclusionAddressKeydown}
 							placeholder={t('accountSettings.startTypingAddress')}
-							class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+							class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
 						/>
 						{#if isExclusionAddressSearching}
 							<div class="absolute right-3 top-1/2 -translate-y-1/2">
 								<div
-									class="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"
+									class="h-4 w-4 animate-spin rounded-full border-2 border-[rgb(34,51,95)] border-t-transparent"
 								></div>
 							</div>
 						{/if}
@@ -1556,7 +1741,7 @@
 									type="button"
 									class="w-full px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:text-gray-100 dark:hover:bg-gray-700 dark:focus:bg-gray-700 {selectedExclusionAddressIndex ===
 									index
-										? 'bg-blue-500/10 dark:bg-blue-500/20'
+										? 'bg-[rgb(34,51,95)]/10 dark:bg-[rgb(34,51,95)]/20'
 										: ''}"
 									onclick={() => selectExclusionAddress(suggestion)}
 								>
@@ -1608,7 +1793,7 @@
 					<button
 						onclick={handleAddExclusion}
 						disabled={isAddingExclusion || !newExclusion.name || !newExclusion.location}
-						class="flex-1 cursor-pointer rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+						class="flex-1 cursor-pointer rounded-lg bg-[rgb(34,51,95)] px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-[rgb(34,51,95)]/90 disabled:cursor-not-allowed disabled:opacity-50"
 					>
 						{isAddingExclusion ? 'Adding...' : 'Add Exclusion'}
 					</button>
@@ -1662,7 +1847,7 @@
 						type="text"
 						bind:value={editingExclusion.name}
 						placeholder={t('accountSettings.exclusionExampleLabel')}
-						class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+						class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
 					/>
 				</div>
 				<div>
@@ -1679,12 +1864,12 @@
 							oninput={handleEditExclusionAddressInput}
 							onkeydown={handleEditExclusionAddressKeydown}
 							placeholder={t('accountSettings.startTypingAddress')}
-							class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+							class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
 						/>
 						{#if isEditExclusionAddressSearching}
 							<div class="absolute right-3 top-1/2 -translate-y-1/2">
 								<div
-									class="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"
+									class="h-4 w-4 animate-spin rounded-full border-2 border-[rgb(34,51,95)] border-t-transparent"
 								></div>
 							</div>
 						{/if}
@@ -1698,7 +1883,7 @@
 									type="button"
 									class="w-full px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:text-gray-100 dark:hover:bg-gray-700 dark:focus:bg-gray-700 {selectedEditExclusionAddressIndex ===
 									index
-										? 'bg-blue-500/10 dark:bg-blue-500/20'
+										? 'bg-[rgb(34,51,95)]/10 dark:bg-[rgb(34,51,95)]/20'
 										: ''}"
 									onclick={() => selectEditExclusionAddress(suggestion)}
 								>
@@ -1750,7 +1935,7 @@
 					<button
 						onclick={handleUpdateExclusion}
 						disabled={isEditingExclusion || !editingExclusion.name || !editingExclusion.location}
-						class="flex-1 cursor-pointer rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+						class="flex-1 cursor-pointer rounded-lg bg-[rgb(34,51,95)] px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-[rgb(34,51,95)]/90 disabled:cursor-not-allowed disabled:opacity-50"
 					>
 						{isEditingExclusion ? 'Updating...' : 'Update Exclusion'}
 					</button>

@@ -1,242 +1,213 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import {
 		Search,
 		Loader2,
 		Sparkles,
-		History,
-		Star,
-		StarOff,
-		Trash2,
-		ChevronRight,
 		MapPin,
 		Clock,
 		AlertCircle,
-		ThumbsUp,
-		ThumbsDown,
-		MessageSquare,
-		X,
-		Check,
-		Edit3,
+		Send,
+		Bot,
+		User,
 		Coffee,
-		Utensils
+		Utensils,
+		StopCircle,
+		Settings,
+		ExternalLink
 	} from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
 	import { format } from 'date-fns';
 
 	import { translate } from '$lib/i18n';
 	import {
-		locationQueryService,
-		type QuerySuggestion,
-		type QueryHistoryEntry,
-		type QueryResult,
-		type PlaceVisitResult
-	} from '$lib/services/location-query.service';
+		chatService,
+		type ChatMessage,
+		type QueryResultData
+	} from '$lib/services/chat.service';
+	import { sessionStore } from '$lib/stores/auth';
+	import { ServiceAdapter } from '$lib/services/api/service-adapter';
 
 	let t = $derived($translate);
 
 	// State
 	let question = $state('');
+	let isConnected = $state(false);
 	let isLoading = $state(false);
-	let result = $state<QueryResult | null>(null);
-	let suggestions = $state<QuerySuggestion[]>([]);
-	let stats = $state<{
-		recent_countries: string[];
-		recent_cities: string[];
-		top_amenities: string[];
-		top_cuisines: string[];
-	} | null>(null);
-	let history = $state<QueryHistoryEntry[]>([]);
-	let showHistory = $state(false);
-	let showFeedbackModal = $state(false);
-	let feedbackType = $state<'perfect' | 'wrong_results' | 'missing_data' | 'other'>('perfect');
-	let feedbackText = $state('');
+	let messages = $state<ChatMessage[]>([]);
+	let currentStreamingContent = $state('');
+	let currentQueryResult = $state<QueryResultData | null>(null);
+	let error = $state<string | null>(null);
 
-	// Visit correction state
-	let selectedVisit = $state<PlaceVisitResult | null>(null);
-	let showCorrectionModal = $state(false);
-	let correctedName = $state('');
-	let correctedAmenity = $state('');
-	let correctedCuisine = $state('');
+	// Configuration error state
+	let configurationError = $state(false);
+	let isAdmin = $state(false);
+	let allowUserOverride = $state(false);
+	let isCheckingConfig = $state(true);
 
-	// Load suggestions and history on mount
-	onMount(async () => {
-		try {
-			const [suggestionsData, historyData] = await Promise.all([
-				locationQueryService.getSuggestions(),
-				locationQueryService.getHistory({ limit: 10 })
-			]);
-
-			suggestions = suggestionsData.suggestions;
-			stats = suggestionsData.stats;
-			history = historyData.history;
-		} catch (error) {
-			console.error('Failed to load initial data:', error);
+	// Example suggestions
+	const suggestions = [
+		{
+			question: 'Which restaurants did I visit in Vietnam?',
+			description: 'Find all restaurant visits in a specific country'
+		},
+		{
+			question: 'What vegan places did I go to last month?',
+			description: 'Filter by cuisine type and date range'
+		},
+		{
+			question: 'Show me cafes I visited in Tokyo',
+			description: 'Find cafes in a specific city'
+		},
+		{
+			question: 'Where did I spend the most time eating?',
+			description: 'Find longest restaurant visits'
+		},
+		{
+			question: 'List all museums I visited in 2024',
+			description: 'Find cultural venues by year'
+		},
+		{
+			question: 'Which bars did I visit in Barcelona in summer?',
+			description: 'Combine location, venue type, and season'
 		}
+	];
+
+	// Connect to chat on mount
+	onMount(async () => {
+		await checkConfigAndConnect();
 	});
 
-	// Execute query
-	async function executeQuery() {
-		if (!question.trim() || isLoading) return;
+	// Disconnect on destroy
+	onDestroy(() => {
+		chatService.disconnect();
+	});
 
-		isLoading = true;
-		result = null;
+	// Check configuration and connect to chat service
+	async function checkConfigAndConnect() {
+		isCheckingConfig = true;
 
 		try {
-			result = await locationQueryService.query(question);
+			const session = $sessionStore;
+			if (session) {
+				// Check user role
+				isAdmin = session.user?.app_metadata?.role === 'admin';
 
-			// Refresh history after query
-			const historyData = await locationQueryService.getHistory({ limit: 10 });
-			history = historyData.history;
-		} catch (error) {
-			toast.error((error as Error).message || 'Query failed');
-		} finally {
-			isLoading = false;
+				// Check if user override is allowed
+				const serviceAdapter = new ServiceAdapter({ session });
+				const result = await serviceAdapter.getAllSettings();
+				if (result?.app?.ai) {
+					allowUserOverride = result.app.ai.allow_user_provider_override ?? false;
+				}
+			}
+		} catch (err) {
+			console.warn('Failed to load AI settings:', err);
 		}
+
+		isCheckingConfig = false;
+
+		// Now try to connect
+		await connectToChat();
+	}
+
+	// Connect to chat service
+	async function connectToChat() {
+		try {
+			await chatService.connect({
+				onContent: (delta, fullContent) => {
+					currentStreamingContent = fullContent;
+				},
+				onProgress: (step, message) => {
+					// Could show progress indicators here
+					console.log(`[${step}] ${message}`);
+				},
+				onQueryResult: (result) => {
+					currentQueryResult = result;
+				},
+				onDone: (usage) => {
+					// Add the completed assistant message
+					if (currentStreamingContent || currentQueryResult) {
+						const assistantMessage: ChatMessage = {
+							id: chatService.generateMessageId(),
+							role: 'assistant',
+							content: currentStreamingContent,
+							timestamp: new Date(),
+							queryResult: currentQueryResult ?? undefined
+						};
+						messages = [...messages, assistantMessage];
+					}
+					currentStreamingContent = '';
+					currentQueryResult = null;
+					isLoading = false;
+				},
+				onError: (errorMsg, code) => {
+					error = errorMsg;
+					isLoading = false;
+					toast.error(errorMsg);
+				}
+			});
+
+			// Start a chat session
+			await chatService.startChat('location-assistant', 'wayli');
+			isConnected = true;
+			configurationError = false;
+		} catch (err) {
+			console.error('Failed to connect to chat:', err);
+			const errorMessage = (err as Error).message;
+
+			// Check if this is a configuration error
+			if (
+				errorMessage.includes('Chatbot not found') ||
+				errorMessage.includes('disabled') ||
+				errorMessage.includes('not configured')
+			) {
+				configurationError = true;
+				error = null; // Don't show as runtime error
+			} else {
+				error = errorMessage;
+			}
+		}
+	}
+
+	// Send a message
+	async function sendMessage() {
+		if (!question.trim() || isLoading || !isConnected) return;
+
+		const userQuestion = question.trim();
+		question = '';
+		error = null;
+		isLoading = true;
+		currentStreamingContent = '';
+		currentQueryResult = null;
+
+		// Add user message
+		const userMessage: ChatMessage = {
+			id: chatService.generateMessageId(),
+			role: 'user',
+			content: userQuestion,
+			timestamp: new Date()
+		};
+		messages = [...messages, userMessage];
+
+		try {
+			await chatService.sendMessage(userQuestion);
+		} catch (err) {
+			error = (err as Error).message;
+			isLoading = false;
+			toast.error('Failed to send message');
+		}
+	}
+
+	// Cancel current message
+	function cancelMessage() {
+		chatService.cancel();
+		isLoading = false;
 	}
 
 	// Use a suggestion
-	function useSuggestion(suggestion: QuerySuggestion) {
+	function useSuggestion(suggestion: { question: string }) {
 		question = suggestion.question;
-		executeQuery();
-	}
-
-	// Rerun a history query
-	function rerunQuery(entry: QueryHistoryEntry) {
-		question = entry.question;
-		showHistory = false;
-		executeQuery();
-	}
-
-	// Toggle favorite
-	async function toggleFavorite(entry: QueryHistoryEntry) {
-		try {
-			const newFavorite = await locationQueryService.toggleFavorite(entry.id, !entry.is_favorite);
-			entry.is_favorite = newFavorite;
-			history = [...history];
-		} catch (error) {
-			toast.error('Failed to update favorite');
-		}
-	}
-
-	// Delete history entry
-	async function deleteHistoryEntry(entry: QueryHistoryEntry) {
-		try {
-			await locationQueryService.deleteHistory(entry.id);
-			history = history.filter((h) => h.id !== entry.id);
-			toast.success('History entry deleted');
-		} catch (error) {
-			toast.error('Failed to delete history entry');
-		}
-	}
-
-	// Submit feedback
-	async function submitFeedback(wasHelpful: boolean) {
-		if (!result?.sql) return;
-
-		try {
-			await locationQueryService.submitFeedback({
-				question,
-				generated_sql: result.sql,
-				was_helpful: wasHelpful,
-				feedback_type: wasHelpful ? 'perfect' : feedbackType,
-				feedback_text: wasHelpful ? undefined : feedbackText
-			});
-
-			toast.success('Thanks for your feedback!');
-			showFeedbackModal = false;
-			feedbackText = '';
-		} catch (error) {
-			toast.error('Failed to submit feedback');
-		}
-	}
-
-	// Open visit correction modal
-	function openCorrectionModal(visit: PlaceVisitResult) {
-		selectedVisit = visit;
-		correctedName = visit.poi_name || '';
-		correctedAmenity = visit.poi_amenity || '';
-		correctedCuisine = visit.poi_cuisine || '';
-		showCorrectionModal = true;
-	}
-
-	// Confirm visit
-	async function confirmVisit(visit: PlaceVisitResult) {
-		try {
-			await locationQueryService.updateVisit(visit.id, 'confirm');
-			toast.success('Visit confirmed');
-			// Refresh results
-			if (result?.results) {
-				const idx = result.results.findIndex((r) => r.id === visit.id);
-				if (idx >= 0) {
-					result.results[idx].confidence_score = 1.0;
-					result = { ...result };
-				}
-			}
-		} catch (error) {
-			toast.error('Failed to confirm visit');
-		}
-	}
-
-	// Reject visit
-	async function rejectVisit(visit: PlaceVisitResult) {
-		try {
-			await locationQueryService.updateVisit(visit.id, 'reject');
-			toast.success('Visit removed');
-			// Remove from results
-			if (result?.results) {
-				result.results = result.results.filter((r) => r.id !== visit.id);
-				result = { ...result };
-			}
-		} catch (error) {
-			toast.error('Failed to remove visit');
-		}
-	}
-
-	// Submit visit correction
-	async function submitCorrection() {
-		if (!selectedVisit) return;
-
-		try {
-			await locationQueryService.updateVisit(selectedVisit.id, 'correct', {
-				poi_name: correctedName || undefined,
-				poi_amenity: correctedAmenity || undefined,
-				poi_cuisine: correctedCuisine || undefined
-			});
-
-			toast.success('Visit corrected');
-			showCorrectionModal = false;
-
-			// Update in results
-			if (result?.results) {
-				const idx = result.results.findIndex((r) => r.id === selectedVisit!.id);
-				if (idx >= 0) {
-					result.results[idx].poi_name = correctedName;
-					result.results[idx].poi_amenity = correctedAmenity;
-					result.results[idx].poi_cuisine = correctedCuisine;
-					result.results[idx].confidence_score = 1.0;
-					result = { ...result };
-				}
-			}
-		} catch (error) {
-			toast.error('Failed to correct visit');
-		}
-	}
-
-	// Get category icon
-	function getCategoryIcon(category: string) {
-		switch (category) {
-			case 'location':
-				return MapPin;
-			case 'venue_type':
-				return Utensils;
-			case 'cuisine':
-				return Coffee;
-			case 'time':
-				return Clock;
-			default:
-				return Sparkles;
-		}
+		sendMessage();
 	}
 
 	// Format date for display
@@ -249,7 +220,7 @@
 	}
 
 	// Get amenity display name
-	function getAmenityLabel(amenity: string | null): string {
+	function getAmenityLabel(amenity: string | null | undefined): string {
 		if (!amenity) return 'Place';
 		return amenity.charAt(0).toUpperCase() + amenity.slice(1);
 	}
@@ -259,467 +230,273 @@
 	<title>Ask About Your Travels | Wayli</title>
 </svelte:head>
 
-<div class="mx-auto max-w-4xl px-4 py-8">
+<div class="mx-auto flex h-[calc(100vh-4rem)] max-w-4xl flex-col px-4 py-4">
 	<!-- Header -->
-	<div class="mb-8 text-center">
-		<div class="mb-4 flex items-center justify-center gap-2">
-			<Sparkles class="h-8 w-8 text-purple-500" />
-			<h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">
+	<div class="mb-4 text-center">
+		<div class="mb-2 flex items-center justify-center gap-2">
+			<Sparkles class="h-6 w-6 text-purple-500" />
+			<h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
 				Ask About Your Travels
 			</h1>
 		</div>
-		<p class="text-gray-600 dark:text-gray-400">
-			Use natural language to explore your travel history and discover insights
+		<p class="text-sm text-gray-600 dark:text-gray-400">
+			Use natural language to explore your travel history
 		</p>
 	</div>
 
-	<!-- Search Input -->
-	<div class="mb-6">
-		<div class="relative">
+	<!-- Messages Area -->
+	<div class="flex-1 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
+		{#if isCheckingConfig}
+			<!-- Loading configuration -->
+			<div class="flex h-full flex-col items-center justify-center p-6">
+				<Loader2 class="mb-4 h-12 w-12 animate-spin text-gray-400" />
+				<p class="text-sm text-gray-500 dark:text-gray-400">
+					{t('ask.connectingToChat')}
+				</p>
+			</div>
+		{:else if configurationError}
+			<!-- Configuration Error State -->
+			<div class="flex h-full flex-col items-center justify-center p-6">
+				<div class="max-w-md text-center">
+					<div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
+						<AlertCircle class="h-8 w-8 text-orange-600 dark:text-orange-400" />
+					</div>
+					<h3 class="mb-2 text-xl font-semibold text-gray-900 dark:text-gray-100">
+						{t('ask.notConfigured')}
+					</h3>
+					<p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
+						{t('ask.notConfiguredDescription')}
+					</p>
+					<ul class="mb-6 text-left text-sm text-gray-500 dark:text-gray-400">
+						<li class="flex items-start gap-2 py-1">
+							<span class="text-gray-400">•</span>
+							<span>{t('ask.notConfiguredReasons.disabled')}</span>
+						</li>
+						<li class="flex items-start gap-2 py-1">
+							<span class="text-gray-400">•</span>
+							<span>{t('ask.notConfiguredReasons.notSynced')}</span>
+						</li>
+						<li class="flex items-start gap-2 py-1">
+							<span class="text-gray-400">•</span>
+							<span>{t('ask.notConfiguredReasons.configError')}</span>
+						</li>
+					</ul>
+
+					{#if isAdmin}
+						<!-- Admin can configure settings -->
+						<a
+							href="/dashboard/server-admin-settings"
+							class="inline-flex items-center gap-2 rounded-lg bg-[rgb(34,51,95)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90"
+						>
+							<Settings class="h-4 w-4" />
+							{t('ask.configureAsAdmin')}
+						</a>
+					{:else if allowUserOverride}
+						<!-- User can configure their own provider -->
+						<a
+							href="/dashboard/account-settings"
+							class="inline-flex items-center gap-2 rounded-lg bg-[rgb(34,51,95)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90"
+						>
+							<Settings class="h-4 w-4" />
+							{t('ask.configureAsUser')}
+						</a>
+					{:else}
+						<!-- User cannot configure, contact admin -->
+						<p class="text-sm text-gray-500 dark:text-gray-400">
+							{t('ask.contactAdmin')}
+						</p>
+					{/if}
+				</div>
+			</div>
+		{:else if messages.length === 0 && !isLoading}
+			<!-- Empty State with Suggestions -->
+			<div class="flex h-full flex-col items-center justify-center p-6">
+				<Bot class="mb-4 h-12 w-12 text-gray-400" />
+				<h3 class="mb-2 text-lg font-medium text-gray-700 dark:text-gray-300">
+					{t('ask.startConversation')}
+				</h3>
+				<p class="mb-6 text-center text-sm text-gray-500 dark:text-gray-400">
+					{t('ask.askAnything')}
+				</p>
+				<div class="grid w-full max-w-2xl gap-2 sm:grid-cols-2">
+					{#each suggestions.slice(0, 4) as suggestion (suggestion.question)}
+						<button
+							onclick={() => useSuggestion(suggestion)}
+							class="rounded-lg border border-gray-200 bg-white p-3 text-left text-sm transition-all hover:border-purple-300 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:hover:border-purple-600"
+						>
+							<div class="font-medium text-gray-700 dark:text-gray-300">
+								{suggestion.question}
+							</div>
+						</button>
+					{/each}
+				</div>
+			</div>
+		{:else}
+			<!-- Messages -->
+			<div class="space-y-4 p-4">
+				{#each messages as message (message.id)}
+					<div class="flex gap-3 {message.role === 'user' ? 'justify-end' : ''}">
+						{#if message.role === 'assistant'}
+							<div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30">
+								<Bot class="h-5 w-5 text-purple-600 dark:text-purple-400" />
+							</div>
+						{/if}
+						<div
+							class="max-w-[80%] rounded-xl px-4 py-3 {message.role === 'user'
+								? 'bg-purple-500 text-white'
+								: 'bg-white dark:bg-gray-800'}"
+						>
+							{#if message.role === 'assistant'}
+								<div class="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+									{message.content}
+								</div>
+
+								<!-- Query Results -->
+								{#if message.queryResult}
+									<div class="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900">
+										<div class="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+											Query Results ({message.queryResult.rowCount} rows)
+										</div>
+										{#if message.queryResult.summary}
+											<div class="text-sm text-gray-700 dark:text-gray-300">
+												{message.queryResult.summary}
+											</div>
+										{/if}
+										{#if message.queryResult.data && message.queryResult.data.length > 0}
+											<div class="mt-2 max-h-48 overflow-y-auto">
+												{#each message.queryResult.data.slice(0, 5) as row, idx (idx)}
+													<div class="border-t border-gray-200 py-2 first:border-t-0 dark:border-gray-700">
+														<div class="flex items-center gap-2">
+															<span class="font-medium text-gray-900 dark:text-gray-100">
+																{row.poi_name || 'Unknown Place'}
+															</span>
+															{#if row.poi_amenity}
+																<span class="text-xs text-gray-500">
+																	({getAmenityLabel(row.poi_amenity as string)})
+																</span>
+															{/if}
+														</div>
+														{#if row.city || row.country}
+															<div class="flex items-center gap-1 text-xs text-gray-500">
+																<MapPin class="h-3 w-3" />
+																{row.city}{row.country ? `, ${row.country}` : ''}
+															</div>
+														{/if}
+														{#if row.started_at}
+															<div class="flex items-center gap-1 text-xs text-gray-400">
+																<Clock class="h-3 w-3" />
+																{formatDate(row.started_at as string)}
+															</div>
+														{/if}
+													</div>
+												{/each}
+												{#if message.queryResult.data.length > 5}
+													<div class="mt-2 text-center text-xs text-gray-400">
+														... and {message.queryResult.data.length - 5} more results
+													</div>
+												{/if}
+											</div>
+										{/if}
+									</div>
+								{/if}
+							{:else}
+								<div>{message.content}</div>
+							{/if}
+						</div>
+						{#if message.role === 'user'}
+							<div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700">
+								<User class="h-5 w-5 text-gray-600 dark:text-gray-400" />
+							</div>
+						{/if}
+					</div>
+				{/each}
+
+				<!-- Streaming Response -->
+				{#if isLoading && (currentStreamingContent || currentQueryResult)}
+					<div class="flex gap-3">
+						<div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30">
+							<Bot class="h-5 w-5 text-purple-600 dark:text-purple-400" />
+						</div>
+						<div class="max-w-[80%] rounded-xl bg-white px-4 py-3 dark:bg-gray-800">
+							{#if currentStreamingContent}
+								<div class="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+									{currentStreamingContent}
+									<span class="inline-block h-4 w-2 animate-pulse bg-gray-400"></span>
+								</div>
+							{/if}
+
+							{#if currentQueryResult}
+								<div class="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900">
+									<div class="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+										Query Results ({currentQueryResult.rowCount} rows)
+									</div>
+									{#if currentQueryResult.summary}
+										<div class="text-sm text-gray-700 dark:text-gray-300">
+											{currentQueryResult.summary}
+										</div>
+									{/if}
+								</div>
+							{/if}
+						</div>
+					</div>
+				{:else if isLoading}
+					<div class="flex gap-3">
+						<div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30">
+							<Bot class="h-5 w-5 text-purple-600 dark:text-purple-400" />
+						</div>
+						<div class="rounded-xl bg-white px-4 py-3 dark:bg-gray-800">
+							<Loader2 class="h-5 w-5 animate-spin text-gray-400" />
+						</div>
+					</div>
+				{/if}
+
+				<!-- Error -->
+				{#if error}
+					<div class="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
+						<AlertCircle class="h-4 w-4 flex-shrink-0" />
+						{error}
+					</div>
+				{/if}
+			</div>
+		{/if}
+	</div>
+
+	<!-- Input Area -->
+	<div class="mt-4">
+		<div class="relative flex items-center gap-2">
 			<input
 				type="text"
 				bind:value={question}
-				onkeydown={(e) => e.key === 'Enter' && executeQuery()}
-				placeholder="e.g., What restaurants did I visit in Vietnam last year?"
-				disabled={isLoading}
-				class="w-full rounded-xl border border-gray-300 bg-white py-4 pl-5 pr-14 text-lg shadow-sm transition-all focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-purple-400"
+				onkeydown={(e) => e.key === 'Enter' && sendMessage()}
+				placeholder={isConnected ? "Ask about your travels..." : "Connecting..."}
+				disabled={isLoading || !isConnected}
+				class="flex-1 rounded-xl border border-gray-300 bg-white py-3 pl-4 pr-12 shadow-sm transition-all focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-purple-400"
 			/>
-			<button
-				onclick={executeQuery}
-				disabled={!question.trim() || isLoading}
-				class="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg bg-purple-500 p-2.5 text-white transition-colors hover:bg-purple-600 disabled:cursor-not-allowed disabled:opacity-50"
-			>
-				{#if isLoading}
-					<Loader2 class="h-5 w-5 animate-spin" />
-				{:else}
-					<Search class="h-5 w-5" />
-				{/if}
-			</button>
-		</div>
-
-		<!-- Quick Actions -->
-		<div class="mt-3 flex items-center justify-between">
-			<button
-				onclick={() => (showHistory = !showHistory)}
-				class="flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-			>
-				<History class="h-4 w-4" />
-				Recent queries
-			</button>
-
-			{#if stats}
-				<div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-					{#if stats.recent_countries.length > 0}
-						<span>Recent: {stats.recent_countries.slice(0, 3).join(', ')}</span>
-					{/if}
-				</div>
+			{#if isLoading}
+				<button
+					onclick={cancelMessage}
+					class="absolute right-3 rounded-lg bg-red-500 p-2 text-white transition-colors hover:bg-red-600"
+					title="Cancel"
+				>
+					<StopCircle class="h-5 w-5" />
+				</button>
+			{:else}
+				<button
+					onclick={sendMessage}
+					disabled={!question.trim() || !isConnected}
+					class="absolute right-3 rounded-lg bg-purple-500 p-2 text-white transition-colors hover:bg-purple-600 disabled:cursor-not-allowed disabled:opacity-50"
+				>
+					<Send class="h-5 w-5" />
+				</button>
 			{/if}
 		</div>
+
+		<!-- Connection Status -->
+		{#if !isConnected && !configurationError && !isCheckingConfig}
+			<div class="mt-2 flex items-center justify-center gap-2 text-sm text-gray-500">
+				<Loader2 class="h-4 w-4 animate-spin" />
+				{t('ask.connectingToChat')}
+			</div>
+		{/if}
 	</div>
-
-	<!-- History Dropdown -->
-	{#if showHistory && history.length > 0}
-		<div class="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-			<div class="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-				<h3 class="font-medium text-gray-900 dark:text-gray-100">Recent Queries</h3>
-			</div>
-			<div class="max-h-64 overflow-y-auto">
-				{#each history as entry (entry.id)}
-					<div
-						class="flex items-center justify-between border-b border-gray-100 px-4 py-3 last:border-b-0 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-750"
-					>
-						<button
-							onclick={() => rerunQuery(entry)}
-							class="flex-1 text-left text-sm text-gray-700 dark:text-gray-300"
-						>
-							{entry.question}
-						</button>
-						<div class="flex items-center gap-2">
-							{#if entry.result_count !== null}
-								<span class="text-xs text-gray-400">{entry.result_count} results</span>
-							{/if}
-							<button
-								onclick={() => toggleFavorite(entry)}
-								class="p-1 text-gray-400 hover:text-yellow-500"
-							>
-								{#if entry.is_favorite}
-									<Star class="h-4 w-4 fill-yellow-500 text-yellow-500" />
-								{:else}
-									<StarOff class="h-4 w-4" />
-								{/if}
-							</button>
-							<button
-								onclick={() => deleteHistoryEntry(entry)}
-								class="p-1 text-gray-400 hover:text-red-500"
-							>
-								<Trash2 class="h-4 w-4" />
-							</button>
-						</div>
-					</div>
-				{/each}
-			</div>
-		</div>
-	{/if}
-
-	<!-- Suggestions -->
-	{#if !result && suggestions.length > 0}
-		<div class="mb-8">
-			<h3 class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">
-				Try asking...
-			</h3>
-			<div class="grid gap-3 sm:grid-cols-2">
-				{#each suggestions as suggestion (suggestion.question)}
-					{@const Icon = getCategoryIcon(suggestion.category)}
-					<button
-						onclick={() => useSuggestion(suggestion)}
-						class="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-4 text-left transition-all hover:border-purple-300 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 dark:hover:border-purple-600"
-					>
-						<div class="mt-0.5 rounded-lg bg-purple-100 p-2 dark:bg-purple-900/30">
-							<Icon class="h-4 w-4 text-purple-600 dark:text-purple-400" />
-						</div>
-						<div>
-							<div class="font-medium text-gray-900 dark:text-gray-100">
-								{suggestion.question}
-							</div>
-							<div class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-								{suggestion.description}
-							</div>
-						</div>
-						<ChevronRight class="ml-auto h-5 w-5 flex-shrink-0 text-gray-400" />
-					</button>
-				{/each}
-			</div>
-		</div>
-	{/if}
-
-	<!-- Results -->
-	{#if result}
-		<div class="space-y-4">
-			<!-- Explanation -->
-			{#if result.explanation}
-				<div class="rounded-xl border border-purple-200 bg-purple-50 p-4 dark:border-purple-800 dark:bg-purple-900/20">
-					<div class="flex items-start gap-3">
-						<Sparkles class="mt-0.5 h-5 w-5 flex-shrink-0 text-purple-600 dark:text-purple-400" />
-						<div>
-							<div class="font-medium text-purple-900 dark:text-purple-100">
-								{result.explanation}
-							</div>
-							{#if result.sql}
-								<div class="mt-2 text-xs text-purple-700 dark:text-purple-300">
-									Found {result.results?.length ?? 0} results
-								</div>
-							{/if}
-						</div>
-					</div>
-				</div>
-			{/if}
-
-			<!-- Error -->
-			{#if result.error}
-				<div class="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
-					<div class="flex items-start gap-3">
-						<AlertCircle class="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600 dark:text-red-400" />
-						<div>
-							<div class="font-medium text-red-900 dark:text-red-100">
-								{result.error}
-							</div>
-							{#if result.errorSuggestion}
-								<div class="mt-1 text-sm text-red-700 dark:text-red-300">
-									{result.errorSuggestion}
-								</div>
-							{/if}
-						</div>
-					</div>
-				</div>
-			{/if}
-
-			<!-- Results List -->
-			{#if result.results && result.results.length > 0}
-				<div class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-					<div class="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-						<div class="flex items-center justify-between">
-							<h3 class="font-medium text-gray-900 dark:text-gray-100">
-								Places Found
-							</h3>
-							<span class="text-sm text-gray-500">{result.results.length} results</span>
-						</div>
-					</div>
-					<div class="divide-y divide-gray-100 dark:divide-gray-700">
-						{#each result.results as visit (visit.id)}
-							<div class="p-4">
-								<div class="flex items-start justify-between">
-									<div class="flex-1">
-										<div class="flex items-center gap-2">
-											<span class="font-medium text-gray-900 dark:text-gray-100">
-												{visit.poi_name || 'Unknown Place'}
-											</span>
-											{#if visit.confidence_score !== null && visit.confidence_score < 0.8}
-												<span
-													class="rounded-full bg-yellow-100 px-2 py-0.5 text-xs text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-												>
-													Low confidence
-												</span>
-											{/if}
-										</div>
-										<div class="mt-1 flex flex-wrap items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
-											{#if visit.poi_amenity}
-												<span class="flex items-center gap-1">
-													<Utensils class="h-3.5 w-3.5" />
-													{getAmenityLabel(visit.poi_amenity)}
-												</span>
-											{/if}
-											{#if visit.poi_cuisine}
-												<span class="flex items-center gap-1">
-													<Coffee class="h-3.5 w-3.5" />
-													{visit.poi_cuisine}
-												</span>
-											{/if}
-											{#if visit.city}
-												<span class="flex items-center gap-1">
-													<MapPin class="h-3.5 w-3.5" />
-													{visit.city}{visit.country ? `, ${visit.country}` : ''}
-												</span>
-											{/if}
-										</div>
-										<div class="mt-2 flex items-center gap-4 text-xs text-gray-400">
-											<span>{formatDate(visit.started_at)}</span>
-											{#if visit.duration_minutes}
-												<span>{visit.duration_minutes} min visit</span>
-											{/if}
-										</div>
-									</div>
-
-									<!-- Visit Actions -->
-									<div class="ml-4 flex items-center gap-1">
-										<button
-											onclick={() => confirmVisit(visit)}
-											title="Confirm this visit"
-											class="rounded-lg p-2 text-gray-400 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20"
-										>
-											<Check class="h-4 w-4" />
-										</button>
-										<button
-											onclick={() => openCorrectionModal(visit)}
-											title="Correct this visit"
-											class="rounded-lg p-2 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20"
-										>
-											<Edit3 class="h-4 w-4" />
-										</button>
-										<button
-											onclick={() => rejectVisit(visit)}
-											title="This wasn't a real visit"
-											class="rounded-lg p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
-										>
-											<X class="h-4 w-4" />
-										</button>
-									</div>
-								</div>
-							</div>
-						{/each}
-					</div>
-				</div>
-
-				<!-- Feedback Section -->
-				<div class="flex items-center justify-center gap-4 py-4">
-					<span class="text-sm text-gray-500 dark:text-gray-400">Were these results helpful?</span>
-					<button
-						onclick={() => submitFeedback(true)}
-						class="flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5 text-sm font-medium text-green-700 transition-colors hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50"
-					>
-						<ThumbsUp class="h-4 w-4" />
-						Yes
-					</button>
-					<button
-						onclick={() => (showFeedbackModal = true)}
-						class="flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-					>
-						<ThumbsDown class="h-4 w-4" />
-						No
-					</button>
-				</div>
-			{/if}
-
-			<!-- Examples when no SQL generated -->
-			{#if result.examples && result.examples.length > 0 && !result.sql}
-				<div class="mt-4">
-					<h4 class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-						Try one of these instead:
-					</h4>
-					<div class="space-y-2">
-						{#each result.examples as example (example.question)}
-							<button
-								onclick={() => {
-									question = example.question;
-									executeQuery();
-								}}
-								class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:border-purple-300 hover:bg-purple-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-purple-600"
-							>
-								{example.question}
-							</button>
-						{/each}
-					</div>
-				</div>
-			{/if}
-		</div>
-	{/if}
 </div>
-
-<!-- Feedback Modal -->
-{#if showFeedbackModal}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-		<div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800">
-			<div class="mb-4 flex items-center justify-between">
-				<h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-					What went wrong?
-				</h3>
-				<button
-					onclick={() => (showFeedbackModal = false)}
-					class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-				>
-					<X class="h-5 w-5" />
-				</button>
-			</div>
-
-			<div class="space-y-3">
-				{#each [
-					{ value: 'wrong_results', label: 'Wrong results returned' },
-					{ value: 'missing_data', label: 'Missing data I expected' },
-					{ value: 'other', label: 'Something else' }
-				] as option (option.value)}
-					<label
-						class="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 p-3 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-750"
-					>
-						<input
-							type="radio"
-							name="feedback_type"
-							value={option.value}
-							checked={feedbackType === option.value}
-							onchange={() => (feedbackType = option.value as typeof feedbackType)}
-							class="h-4 w-4 text-purple-600"
-						/>
-						<span class="text-gray-700 dark:text-gray-300">{option.label}</span>
-					</label>
-				{/each}
-			</div>
-
-			<div class="mt-4">
-				<textarea
-					bind:value={feedbackText}
-					placeholder="Tell us more (optional)..."
-					rows="3"
-					class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-				></textarea>
-			</div>
-
-			<div class="mt-4 flex justify-end gap-3">
-				<button
-					onclick={() => (showFeedbackModal = false)}
-					class="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-				>
-					Cancel
-				</button>
-				<button
-					onclick={() => submitFeedback(false)}
-					class="rounded-lg bg-purple-500 px-4 py-2 text-sm font-medium text-white hover:bg-purple-600"
-				>
-					Submit Feedback
-				</button>
-			</div>
-		</div>
-	</div>
-{/if}
-
-<!-- Visit Correction Modal -->
-{#if showCorrectionModal && selectedVisit}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-		<div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800">
-			<div class="mb-4 flex items-center justify-between">
-				<h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-					Correct Visit Details
-				</h3>
-				<button
-					onclick={() => (showCorrectionModal = false)}
-					class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-				>
-					<X class="h-5 w-5" />
-				</button>
-			</div>
-
-			<div class="space-y-4">
-				<div>
-					<label
-						for="poi_name"
-						class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
-					>
-						Place Name
-					</label>
-					<input
-						id="poi_name"
-						type="text"
-						bind:value={correctedName}
-						placeholder="e.g., Pho 24"
-						class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-					/>
-				</div>
-
-				<div>
-					<label
-						for="poi_amenity"
-						class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
-					>
-						Type
-					</label>
-					<select
-						id="poi_amenity"
-						bind:value={correctedAmenity}
-						class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-					>
-						<option value="">Select type...</option>
-						<option value="restaurant">Restaurant</option>
-						<option value="cafe">Cafe</option>
-						<option value="bar">Bar</option>
-						<option value="fast_food">Fast Food</option>
-						<option value="pub">Pub</option>
-						<option value="museum">Museum</option>
-						<option value="cinema">Cinema</option>
-						<option value="theatre">Theatre</option>
-						<option value="hotel">Hotel</option>
-						<option value="shop">Shop</option>
-						<option value="other">Other</option>
-					</select>
-				</div>
-
-				<div>
-					<label
-						for="poi_cuisine"
-						class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
-					>
-						Cuisine (if applicable)
-					</label>
-					<input
-						id="poi_cuisine"
-						type="text"
-						bind:value={correctedCuisine}
-						placeholder="e.g., vietnamese, italian, vegan"
-						class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-					/>
-				</div>
-			</div>
-
-			<div class="mt-6 flex justify-end gap-3">
-				<button
-					onclick={() => (showCorrectionModal = false)}
-					class="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-				>
-					Cancel
-				</button>
-				<button
-					onclick={submitCorrection}
-					class="rounded-lg bg-purple-500 px-4 py-2 text-sm font-medium text-white hover:bg-purple-600"
-				>
-					Save Changes
-				</button>
-			</div>
-		</div>
-	</div>
-{/if}

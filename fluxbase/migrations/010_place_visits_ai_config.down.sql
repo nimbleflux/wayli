@@ -22,12 +22,26 @@ DROP VIEW IF EXISTS "public"."my_tracker_data";
 -- Drop Functions (in dependency order)
 -- =============================================================================
 
+DROP FUNCTION IF EXISTS "public"."update_visit_confirmation"(UUID, TEXT, JSONB);
+DROP FUNCTION IF EXISTS "public"."get_personalized_suggestions"(UUID);
 DROP FUNCTION IF EXISTS "public"."execute_user_query"(TEXT, UUID, INTEGER, INTEGER);
 DROP FUNCTION IF EXISTS "public"."strip_sql_comments"(TEXT);
 DROP FUNCTION IF EXISTS "public"."check_rate_limit"(UUID, TEXT, INTEGER, INTEGER);
 DROP FUNCTION IF EXISTS "public"."cleanup_rate_limits"();
 DROP FUNCTION IF EXISTS "public"."encrypt_api_key"(TEXT, TEXT);
 DROP FUNCTION IF EXISTS "public"."decrypt_api_key"(TEXT, TEXT);
+
+-- =============================================================================
+-- Drop Query History Table
+-- =============================================================================
+
+DROP POLICY IF EXISTS "query_history_delete_own" ON "public"."query_history";
+DROP POLICY IF EXISTS "query_history_update_own" ON "public"."query_history";
+DROP POLICY IF EXISTS "query_history_insert_own" ON "public"."query_history";
+DROP POLICY IF EXISTS "query_history_select_own" ON "public"."query_history";
+DROP INDEX IF EXISTS "public"."idx_query_history_favorites";
+DROP INDEX IF EXISTS "public"."idx_query_history_user_created";
+DROP TABLE IF EXISTS "public"."query_history";
 
 -- =============================================================================
 -- Drop Query Feedback Table

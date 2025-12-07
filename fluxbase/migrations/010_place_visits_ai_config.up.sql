@@ -611,3 +611,264 @@ CREATE POLICY "query_feedback_select_own" ON "public"."query_feedback"
     FOR SELECT USING (auth.uid() = user_id);
 
 COMMENT ON TABLE "public"."query_feedback" IS 'User feedback on LLM-generated queries to improve accuracy over time.';
+
+-- =============================================================================
+-- Query History Table (for UX - show past queries and favorites)
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS "public"."query_history" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL PRIMARY KEY,
+    "user_id" "uuid" NOT NULL,
+    "question" "text" NOT NULL,
+    "generated_sql" "text",
+    "explanation" "text",
+    "result_count" integer,
+    "execution_time_ms" integer,
+    "is_favorite" boolean DEFAULT false,
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    CONSTRAINT "query_history_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE
+);
+
+ALTER TABLE "public"."query_history" ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "query_history_select_own" ON "public"."query_history"
+    FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "query_history_insert_own" ON "public"."query_history"
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "query_history_update_own" ON "public"."query_history"
+    FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "query_history_delete_own" ON "public"."query_history"
+    FOR DELETE USING (auth.uid() = user_id);
+
+CREATE INDEX "idx_query_history_user_created" ON "public"."query_history" ("user_id", "created_at" DESC);
+CREATE INDEX "idx_query_history_favorites" ON "public"."query_history" ("user_id", "is_favorite") WHERE is_favorite = true;
+
+COMMENT ON TABLE "public"."query_history" IS 'User query history for quick re-execution and favorites.';
+
+-- =============================================================================
+-- Function: get_personalized_suggestions
+-- Returns query suggestions based on user's actual travel data
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION "public"."get_personalized_suggestions"(p_user_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $$
+DECLARE
+    result JSONB;
+    recent_countries TEXT[];
+    recent_cities TEXT[];
+    top_amenities TEXT[];
+    top_cuisines TEXT[];
+BEGIN
+    -- Get user's recent countries (last 6 months)
+    SELECT array_agg(DISTINCT country ORDER BY country)
+    INTO recent_countries
+    FROM (
+        SELECT country FROM place_visits
+        WHERE user_id = p_user_id
+          AND country IS NOT NULL
+          AND started_at >= NOW() - INTERVAL '6 months'
+        LIMIT 10
+    ) c;
+
+    -- Get user's recent cities
+    SELECT array_agg(DISTINCT city ORDER BY city)
+    INTO recent_cities
+    FROM (
+        SELECT city FROM place_visits
+        WHERE user_id = p_user_id
+          AND city IS NOT NULL
+          AND started_at >= NOW() - INTERVAL '6 months'
+        LIMIT 10
+    ) c;
+
+    -- Get user's top amenity types
+    SELECT array_agg(poi_amenity ORDER BY cnt DESC)
+    INTO top_amenities
+    FROM (
+        SELECT poi_amenity, COUNT(*) as cnt
+        FROM place_visits
+        WHERE user_id = p_user_id
+          AND poi_amenity IS NOT NULL
+        GROUP BY poi_amenity
+        ORDER BY cnt DESC
+        LIMIT 5
+    ) a;
+
+    -- Get user's top cuisines
+    SELECT array_agg(poi_cuisine ORDER BY cnt DESC)
+    INTO top_cuisines
+    FROM (
+        SELECT poi_cuisine, COUNT(*) as cnt
+        FROM place_visits
+        WHERE user_id = p_user_id
+          AND poi_cuisine IS NOT NULL
+        GROUP BY poi_cuisine
+        ORDER BY cnt DESC
+        LIMIT 5
+    ) c;
+
+    -- Build personalized suggestions
+    result := jsonb_build_object(
+        'suggestions', jsonb_build_array(),
+        'stats', jsonb_build_object(
+            'recent_countries', COALESCE(recent_countries, ARRAY[]::TEXT[]),
+            'recent_cities', COALESCE(recent_cities, ARRAY[]::TEXT[]),
+            'top_amenities', COALESCE(top_amenities, ARRAY[]::TEXT[]),
+            'top_cuisines', COALESCE(top_cuisines, ARRAY[]::TEXT[])
+        )
+    );
+
+    -- Generate personalized question suggestions
+    IF recent_countries IS NOT NULL AND array_length(recent_countries, 1) > 0 THEN
+        result := jsonb_set(result, '{suggestions}',
+            result->'suggestions' || jsonb_build_array(
+                jsonb_build_object(
+                    'question', 'What restaurants did I visit in ' || recent_countries[1] || '?',
+                    'description', 'Based on your recent travels to ' || recent_countries[1],
+                    'category', 'location'
+                )
+            )
+        );
+    END IF;
+
+    IF recent_cities IS NOT NULL AND array_length(recent_cities, 1) > 0 THEN
+        result := jsonb_set(result, '{suggestions}',
+            result->'suggestions' || jsonb_build_array(
+                jsonb_build_object(
+                    'question', 'Show me all places I visited in ' || recent_cities[1],
+                    'description', 'Explore your visits in ' || recent_cities[1],
+                    'category', 'location'
+                )
+            )
+        );
+    END IF;
+
+    IF top_amenities IS NOT NULL AND array_length(top_amenities, 1) > 0 THEN
+        result := jsonb_set(result, '{suggestions}',
+            result->'suggestions' || jsonb_build_array(
+                jsonb_build_object(
+                    'question', 'Which ' || top_amenities[1] || 's have I visited most often?',
+                    'description', 'You seem to enjoy visiting ' || top_amenities[1] || 's',
+                    'category', 'venue_type'
+                )
+            )
+        );
+    END IF;
+
+    IF top_cuisines IS NOT NULL AND array_length(top_cuisines, 1) > 0 THEN
+        result := jsonb_set(result, '{suggestions}',
+            result->'suggestions' || jsonb_build_array(
+                jsonb_build_object(
+                    'question', 'Show me all ' || top_cuisines[1] || ' restaurants I visited',
+                    'description', 'You enjoy ' || top_cuisines[1] || ' cuisine',
+                    'category', 'cuisine'
+                )
+            )
+        );
+    END IF;
+
+    -- Add time-based suggestions
+    result := jsonb_set(result, '{suggestions}',
+        result->'suggestions' || jsonb_build_array(
+            jsonb_build_object(
+                'question', 'Where did I spend the most time eating last month?',
+                'description', 'Find your longest restaurant visits',
+                'category', 'time'
+            ),
+            jsonb_build_object(
+                'question', 'What new places did I discover this year?',
+                'description', 'See all your 2024/2025 discoveries',
+                'category', 'discovery'
+            )
+        )
+    );
+
+    RETURN result;
+END;
+$$;
+
+COMMENT ON FUNCTION "public"."get_personalized_suggestions"(UUID) IS 'Returns personalized query suggestions based on user travel patterns.';
+GRANT EXECUTE ON FUNCTION "public"."get_personalized_suggestions"(UUID) TO authenticated;
+
+-- =============================================================================
+-- Function: update_visit_confirmation
+-- Allows users to confirm or correct place visit detection
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION "public"."update_visit_confirmation"(
+    p_visit_id UUID,
+    p_action TEXT,  -- 'confirm', 'reject', 'correct'
+    p_corrected_poi JSONB DEFAULT NULL  -- For 'correct': {poi_name, poi_amenity, poi_cuisine, poi_category}
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $$
+DECLARE
+    v_user_id UUID;
+    v_result JSONB;
+BEGIN
+    -- Verify ownership
+    SELECT user_id INTO v_user_id
+    FROM place_visits
+    WHERE id = p_visit_id;
+
+    IF v_user_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Visit not found');
+    END IF;
+
+    IF v_user_id != auth.uid() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Not authorized');
+    END IF;
+
+    CASE p_action
+        WHEN 'confirm' THEN
+            UPDATE place_visits
+            SET detection_method = 'user_confirmed',
+                confidence_score = 1.0,
+                updated_at = NOW()
+            WHERE id = p_visit_id;
+
+            v_result := jsonb_build_object('success', true, 'message', 'Visit confirmed');
+
+        WHEN 'reject' THEN
+            DELETE FROM place_visits
+            WHERE id = p_visit_id;
+
+            v_result := jsonb_build_object('success', true, 'message', 'Visit removed');
+
+        WHEN 'correct' THEN
+            IF p_corrected_poi IS NULL THEN
+                RETURN jsonb_build_object('success', false, 'error', 'Corrected POI data required');
+            END IF;
+
+            UPDATE place_visits
+            SET poi_name = COALESCE(p_corrected_poi->>'poi_name', poi_name),
+                poi_amenity = COALESCE(p_corrected_poi->>'poi_amenity', poi_amenity),
+                poi_cuisine = COALESCE(p_corrected_poi->>'poi_cuisine', poi_cuisine),
+                poi_category = COALESCE(p_corrected_poi->>'poi_category', poi_category),
+                detection_method = 'user_corrected',
+                confidence_score = 1.0,
+                updated_at = NOW()
+            WHERE id = p_visit_id;
+
+            v_result := jsonb_build_object('success', true, 'message', 'Visit corrected');
+
+        ELSE
+            RETURN jsonb_build_object('success', false, 'error', 'Invalid action. Use confirm, reject, or correct.');
+    END CASE;
+
+    RETURN v_result;
+END;
+$$;
+
+COMMENT ON FUNCTION "public"."update_visit_confirmation"(UUID, TEXT, JSONB) IS 'Allows users to confirm, reject, or correct detected place visits.';
+GRANT EXECUTE ON FUNCTION "public"."update_visit_confirmation"(UUID, TEXT, JSONB) TO authenticated;

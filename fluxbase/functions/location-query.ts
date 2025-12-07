@@ -176,6 +176,17 @@ interface FeedbackRequest {
 	feedback_text?: string;
 }
 
+interface HistoryEntry {
+	id: string;
+	question: string;
+	generated_sql: string | null;
+	explanation: string | null;
+	result_count: number | null;
+	execution_time_ms: number | null;
+	is_favorite: boolean;
+	created_at: string;
+}
+
 // =============================================================================
 // LLM Call with Retry
 // =============================================================================
@@ -348,7 +359,7 @@ function validateSQL(sql: string): { valid: boolean; error?: string; errorCode?:
 
 async function handleQuery(req: Request, fluxbase: ReturnType<typeof createClient>, userId: string): Promise<Response> {
 	const body = await req.json();
-	const { question, execute = false } = body;
+	const { question, execute = false, save_to_history = true } = body;
 
 	if (!question || typeof question !== 'string' || question.trim().length < 5) {
 		return errorResponse('Please enter a question with at least 5 characters.', 'INVALID_INPUT', 400);
@@ -374,6 +385,7 @@ async function handleQuery(req: Request, fluxbase: ReturnType<typeof createClien
 
 	// Generate SQL using LLM
 	console.log(`🤖 Generating SQL for question: "${question.substring(0, 50)}..."`);
+	const startTime = Date.now();
 
 	let llmResult: { sql: string | null; explanation: string; table: string | null };
 	try {
@@ -418,6 +430,8 @@ async function handleQuery(req: Request, fluxbase: ReturnType<typeof createClien
 		table: llmResult.table
 	};
 
+	let resultCount = 0;
+
 	// Execute query if requested
 	if (execute) {
 		console.log(`🔍 Executing query: ${llmResult.sql.substring(0, 100)}...`);
@@ -439,10 +453,27 @@ async function handleQuery(req: Request, fluxbase: ReturnType<typeof createClien
 				}
 			} else {
 				result.results = queryResults || [];
+				resultCount = result.results.length;
 			}
 		} catch (execError) {
 			result.error = (execError as Error).message;
 		}
+	}
+
+	const executionTime = Date.now() - startTime;
+
+	// Save to query history (non-blocking)
+	if (save_to_history && !result.error) {
+		fluxbase.from('query_history').insert({
+			user_id: userId,
+			question: question.trim(),
+			generated_sql: llmResult.sql,
+			explanation: llmResult.explanation,
+			result_count: execute ? resultCount : null,
+			execution_time_ms: executionTime
+		}).then(({ error }) => {
+			if (error) console.error('Failed to save query history:', error);
+		});
 	}
 
 	return new Response(JSON.stringify(result), {
@@ -480,6 +511,175 @@ async function handleFeedback(req: Request, fluxbase: ReturnType<typeof createCl
 
 async function handleExamples(): Promise<Response> {
 	return new Response(JSON.stringify({ examples: QUERY_EXAMPLES }), {
+		status: 200,
+		headers: { 'Content-Type': 'application/json' }
+	});
+}
+
+async function handleHistory(req: Request, fluxbase: ReturnType<typeof createClient>, userId: string): Promise<Response> {
+	const url = new URL(req.url);
+	const limit = Math.min(parseInt(url.searchParams.get('limit') || '20'), 100);
+	const offset = parseInt(url.searchParams.get('offset') || '0');
+	const favoritesOnly = url.searchParams.get('favorites') === 'true';
+
+	let query = fluxbase
+		.from('query_history')
+		.select('*')
+		.eq('user_id', userId)
+		.order('created_at', { ascending: false })
+		.range(offset, offset + limit - 1);
+
+	if (favoritesOnly) {
+		query = query.eq('is_favorite', true);
+	}
+
+	const { data, error, count } = await query;
+
+	if (error) {
+		console.error('Failed to fetch history:', error);
+		return errorResponse('Failed to fetch history', 'INTERNAL_ERROR', 500);
+	}
+
+	return new Response(
+		JSON.stringify({
+			history: data || [],
+			total: count,
+			limit,
+			offset
+		}),
+		{ status: 200, headers: { 'Content-Type': 'application/json' } }
+	);
+}
+
+async function handleToggleFavorite(req: Request, fluxbase: ReturnType<typeof createClient>, userId: string): Promise<Response> {
+	const body = await req.json();
+	const { history_id, is_favorite } = body;
+
+	if (!history_id) {
+		return errorResponse('history_id is required', 'INVALID_INPUT', 400);
+	}
+
+	const { error } = await fluxbase
+		.from('query_history')
+		.update({ is_favorite: is_favorite ?? true })
+		.eq('id', history_id)
+		.eq('user_id', userId);
+
+	if (error) {
+		console.error('Failed to update favorite:', error);
+		return errorResponse('Failed to update favorite', 'INTERNAL_ERROR', 500);
+	}
+
+	return new Response(
+		JSON.stringify({ success: true, is_favorite: is_favorite ?? true }),
+		{ status: 200, headers: { 'Content-Type': 'application/json' } }
+	);
+}
+
+async function handleDeleteHistory(req: Request, fluxbase: ReturnType<typeof createClient>, userId: string): Promise<Response> {
+	const body = await req.json();
+	const { history_id, clear_all = false } = body;
+
+	if (clear_all) {
+		const { error } = await fluxbase
+			.from('query_history')
+			.delete()
+			.eq('user_id', userId);
+
+		if (error) {
+			console.error('Failed to clear history:', error);
+			return errorResponse('Failed to clear history', 'INTERNAL_ERROR', 500);
+		}
+
+		return new Response(
+			JSON.stringify({ success: true, message: 'History cleared' }),
+			{ status: 200, headers: { 'Content-Type': 'application/json' } }
+		);
+	}
+
+	if (!history_id) {
+		return errorResponse('history_id is required', 'INVALID_INPUT', 400);
+	}
+
+	const { error } = await fluxbase
+		.from('query_history')
+		.delete()
+		.eq('id', history_id)
+		.eq('user_id', userId);
+
+	if (error) {
+		console.error('Failed to delete history entry:', error);
+		return errorResponse('Failed to delete history entry', 'INTERNAL_ERROR', 500);
+	}
+
+	return new Response(
+		JSON.stringify({ success: true }),
+		{ status: 200, headers: { 'Content-Type': 'application/json' } }
+	);
+}
+
+async function handleSuggestions(fluxbase: ReturnType<typeof createClient>, userId: string): Promise<Response> {
+	const { data, error } = await fluxbase.rpc('get_personalized_suggestions', {
+		p_user_id: userId
+	});
+
+	if (error) {
+		console.error('Failed to get suggestions:', error);
+		// Return default examples on error
+		return new Response(
+			JSON.stringify({
+				suggestions: QUERY_EXAMPLES.map(e => ({
+					question: e.question,
+					description: e.description,
+					category: 'example'
+				})),
+				stats: null
+			}),
+			{ status: 200, headers: { 'Content-Type': 'application/json' } }
+		);
+	}
+
+	// Merge personalized suggestions with static examples
+	const personalized = data?.suggestions || [];
+	const staticExamples = QUERY_EXAMPLES.slice(0, Math.max(0, 6 - personalized.length)).map(e => ({
+		question: e.question,
+		description: e.description,
+		category: 'example'
+	}));
+
+	return new Response(
+		JSON.stringify({
+			suggestions: [...personalized, ...staticExamples],
+			stats: data?.stats || null
+		}),
+		{ status: 200, headers: { 'Content-Type': 'application/json' } }
+	);
+}
+
+async function handleVisitConfirmation(req: Request, fluxbase: ReturnType<typeof createClient>, userId: string): Promise<Response> {
+	const body = await req.json();
+	const { visit_id, action, corrected_poi } = body;
+
+	if (!visit_id || !action) {
+		return errorResponse('visit_id and action are required', 'INVALID_INPUT', 400);
+	}
+
+	if (!['confirm', 'reject', 'correct'].includes(action)) {
+		return errorResponse('action must be confirm, reject, or correct', 'INVALID_INPUT', 400);
+	}
+
+	const { data, error } = await fluxbase.rpc('update_visit_confirmation', {
+		p_visit_id: visit_id,
+		p_action: action,
+		p_corrected_poi: corrected_poi || null
+	});
+
+	if (error) {
+		console.error('Failed to update visit:', error);
+		return errorResponse('Failed to update visit', 'INTERNAL_ERROR', 500);
+	}
+
+	return new Response(JSON.stringify(data), {
 		status: 200,
 		headers: { 'Content-Type': 'application/json' }
 	});
@@ -570,18 +770,41 @@ async function handler(req: Request): Promise<Response> {
 
 		// Route based on method and path
 		const url = new URL(req.url);
-		const path = url.pathname.split('/').pop();
+		const pathParts = url.pathname.split('/').filter(Boolean);
+		const path = pathParts[pathParts.length - 1];
 
-		if (req.method === 'GET' && path === 'examples') {
-			return handleExamples();
+		// GET endpoints
+		if (req.method === 'GET') {
+			switch (path) {
+				case 'examples':
+					return handleExamples();
+				case 'history':
+					return handleHistory(req, fluxbase, userId);
+				case 'suggestions':
+					return handleSuggestions(fluxbase, userId);
+				default:
+					break;
+			}
 		}
 
-		if (req.method === 'POST' && path === 'feedback') {
-			return handleFeedback(req, fluxbase, userId);
-		}
-
+		// POST endpoints
 		if (req.method === 'POST') {
-			return handleQuery(req, fluxbase, userId);
+			switch (path) {
+				case 'feedback':
+					return handleFeedback(req, fluxbase, userId);
+				case 'favorite':
+					return handleToggleFavorite(req, fluxbase, userId);
+				case 'visit':
+					return handleVisitConfirmation(req, fluxbase, userId);
+				default:
+					// Default POST is the query endpoint
+					return handleQuery(req, fluxbase, userId);
+			}
+		}
+
+		// DELETE endpoints
+		if (req.method === 'DELETE' && path === 'history') {
+			return handleDeleteHistory(req, fluxbase, userId);
 		}
 
 		return new Response(JSON.stringify({ error: 'Method not allowed' }), {

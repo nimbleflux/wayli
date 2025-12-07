@@ -36,7 +36,8 @@ export type JobType =
 	| 'trip-generation'
 	| 'data-export'
 	| 'trip-detection'
-	| 'distance-calculation';
+	| 'distance-calculation'
+	| 'visit-detection';
 
 export type JobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 

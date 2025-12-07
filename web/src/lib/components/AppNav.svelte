@@ -13,7 +13,8 @@
 		Moon,
 		Crown,
 		LogOut,
-		Menu
+		Menu,
+		Sparkles
 	} from 'lucide-svelte';
 
 	import { translate } from '$lib/i18n';
@@ -57,6 +58,7 @@
 	let navMain = $derived([
 		{ href: '/dashboard/statistics', label: t('common.navigation.statistics'), icon: BarChart },
 		{ href: '/dashboard/trips', label: t('common.navigation.trips'), icon: Map },
+		{ href: '/dashboard/ask', label: t('common.navigation.ask') || 'Ask AI', icon: Sparkles },
 		{ href: '/dashboard/import-export', label: t('common.navigation.importExport'), icon: Import },
 		// { href: '/dashboard/point-editor', label: 'GPS Point Editor', icon: Edit },
 		// { href: '/dashboard/points-of-interest', label: 'Visited POIs', icon: Landmark },

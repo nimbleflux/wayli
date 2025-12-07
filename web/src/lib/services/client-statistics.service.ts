@@ -116,10 +116,12 @@ export class ClientStatisticsService {
 	private currentOffset: number = 0;
 	private totalCount: number = 0;
 	private batchSize: number = 1000;
-	private maxRetries: number = 3;
-	private retryDelay: number = 1000; // 1 second
 	private rawDataPoints: TrackerDataPoint[] = [];
 	private isUsingSampledData: boolean = false;
+
+	// Sampling configuration
+	private readonly MAX_POINTS_TARGET = 3000; // Target max points to process
+	private readonly SAMPLING_THRESHOLD = 2000; // Start sampling above this count
 
 	constructor(fluxbaseClient?: FluxbaseClient) {
 		this.fluxbase = fluxbaseClient || fluxbase;
@@ -216,7 +218,31 @@ export class ClientStatisticsService {
 	}
 
 	/**
-	 * Load and process tracker data in batches
+	 * Calculate sampling strategy based on total count.
+	 * Returns the sample rate (1 = no sampling, N = keep every Nth point).
+	 */
+	private calculateSamplingStrategy(totalCount: number): { sampleRate: number; effectiveBatches: number } {
+		if (totalCount <= this.SAMPLING_THRESHOLD) {
+			// No sampling needed
+			return {
+				sampleRate: 1,
+				effectiveBatches: Math.ceil(totalCount / this.batchSize)
+			};
+		}
+
+		// Calculate sample rate to get close to MAX_POINTS_TARGET
+		const sampleRate = Math.ceil(totalCount / this.MAX_POINTS_TARGET);
+		const expectedPoints = Math.ceil(totalCount / sampleRate);
+		const effectiveBatches = Math.ceil(expectedPoints / this.batchSize);
+
+		console.log(`🧮 Sampling strategy: ${totalCount} points → sample every ${sampleRate}th point → ~${expectedPoints} points`);
+
+		return { sampleRate, effectiveBatches };
+	}
+
+	/**
+	 * Load and process tracker data in batches with client-side sampling.
+	 * Uses simple pagination and samples every Nth point when dataset is large.
 	 */
 	async loadAndProcessData(
 		userId: string,
@@ -234,6 +260,7 @@ export class ClientStatisticsService {
 		this.transportContext = this.initializeTransportContext();
 		this.currentOffset = 0;
 		this.isUsingSampledData = false;
+		this.rawDataPoints = [];
 
 		try {
 			// Get total count first
@@ -261,173 +288,95 @@ export class ClientStatisticsService {
 				return this.statistics;
 			}
 
+			// Calculate sampling strategy
+			const { sampleRate, effectiveBatches } = this.calculateSamplingStrategy(this.totalCount);
+			this.isUsingSampledData = sampleRate > 1;
+
 			const totalBatches = Math.ceil(this.totalCount / this.batchSize);
 			let pointsLoaded = 0;
+			let pointsProcessed = 0;
 			let batchesCompleted = 0;
+			let globalPointIndex = 0; // Track position across all batches for sampling
+
+			const stageName = this.isUsingSampledData
+				? `Found ${this.totalCount.toLocaleString()} records. Sampling every ${sampleRate}th point...`
+				: `Found ${this.totalCount.toLocaleString()} records. Loading data...`;
 
 			onProgress?.({
 				percentage: 0,
-				stage: `Found ${this.totalCount.toLocaleString()} records. Loading data...`,
+				stage: stageName,
 				pointsLoaded: 0,
 				totalPoints: this.totalCount,
 				currentBatch: 0,
 				totalBatches
 			});
 
-			// Check if we should use smart sampling for large datasets
-			if (this.totalCount > 2000) {
-				console.log(`🧠 Using smart sampling for large dataset (${this.totalCount} points)`);
+			// Load data in batches with pagination
+			while (this.currentOffset < this.totalCount) {
+				const currentBatch = Math.floor(this.currentOffset / this.batchSize) + 1;
 
 				onProgress?.({
-					percentage: 50,
-					stage: 'Loading sampled data...',
-					pointsLoaded: 0,
+					percentage: Math.round((this.currentOffset / this.totalCount) * 90),
+					stage: this.isUsingSampledData
+						? `Loading batch ${currentBatch} of ${totalBatches} (sampling)...`
+						: `Loading batch ${currentBatch} of ${totalBatches}...`,
+					pointsLoaded: pointsProcessed,
 					totalPoints: this.totalCount,
-					currentBatch: 1,
-					totalBatches: 1
+					currentBatch,
+					totalBatches
 				});
 
-				try {
-					// Load sampled data in chunks for better performance
-					const allSampledData: TrackerDataPoint[] = [];
-					const chunkSize = 1000;
-					let currentOffset = 0;
-					let hasMore = true;
-					let samplingWasApplied = false;
+				// Fetch batch using standard pagination
+				const batchData = await this.loadBatch(userId, startDate, endDate);
+				if (batchData.length === 0) break;
 
-					while (hasMore) {
-						const { data: chunkData, samplingApplied } = await this.loadSmartSampledData(
-							userId,
-							startDate,
-							endDate,
-							currentOffset,
-							chunkSize,
-							this.totalCount
-						);
-						allSampledData.push(...chunkData);
+				pointsLoaded += batchData.length;
 
-						// Track if sampling was applied in any chunk
-						if (samplingApplied) {
-							samplingWasApplied = true;
-						}
-
-						onProgress?.({
-							percentage: 50 + (currentOffset / this.totalCount) * 25,
-							stage: 'Loading sampled data...',
-							pointsLoaded: allSampledData.length,
-							totalPoints: this.totalCount,
-							currentBatch: Math.floor(currentOffset / chunkSize) + 1,
-							totalBatches: Math.ceil(this.totalCount / chunkSize)
-						});
-
-						// Check if we have more data to load
-						hasMore = chunkData.length === chunkSize;
-						currentOffset += chunkSize;
-
-						// Safety check to prevent infinite loops
-						if (currentOffset > this.totalCount) {
-							hasMore = false;
-						}
-					}
-
-					// Set the flag for use in processBatch
-					this.isUsingSampledData = samplingWasApplied;
-
-					onProgress?.({
-						percentage: 75,
-						stage: 'Processing sampled data...',
-						pointsLoaded: allSampledData.length,
-						totalPoints: this.totalCount,
-						currentBatch: 1,
-						totalBatches: 1
+				// Apply client-side sampling if needed
+				let dataToProcess: TrackerDataPoint[];
+				if (sampleRate > 1) {
+					// Sample every Nth point, maintaining global index across batches
+					dataToProcess = batchData.filter((_, index) => {
+						const globalIndex = globalPointIndex + index;
+						return globalIndex % sampleRate === 0;
 					});
-
-					console.log(`📊 Sampling applied: ${this.isUsingSampledData}`);
-
-					// Process the sampled data
-					this.processBatch(allSampledData);
-					pointsLoaded = allSampledData.length;
-					batchesCompleted = 1;
-				} catch (samplingError) {
-					console.error(
-						'❌ Smart sampling failed, falling back to regular batch loading:',
-						samplingError
-					);
-
-					// Fallback to regular batch loading
-					onProgress?.({
-						percentage: 0,
-						stage: 'Falling back to regular loading...',
-						pointsLoaded: 0,
-						totalPoints: this.totalCount,
-						currentBatch: 0,
-						totalBatches
-					});
-
-					// Reset offset for regular loading
-					this.currentOffset = 0;
-
-					// Load data in batches
-					while (this.currentOffset < this.totalCount) {
-						const currentBatch = Math.floor(this.currentOffset / this.batchSize) + 1;
-
-						onProgress?.({
-							percentage: Math.round((batchesCompleted / totalBatches) * 100),
-							stage: `Loading batch ${currentBatch} of ${totalBatches}...`,
-							pointsLoaded,
-							totalPoints: this.totalCount,
-							currentBatch,
-							totalBatches
-						});
-
-						const batchData = await this.loadBatch(userId, startDate, endDate);
-						if (batchData.length === 0) break;
-
-						// Process the batch
-						this.processBatch(batchData);
-						pointsLoaded += batchData.length;
-						this.currentOffset += this.batchSize;
-						batchesCompleted++;
-
-						// Small delay to prevent overwhelming the browser
-						await new Promise((resolve) => setTimeout(resolve, 10));
-					}
+				} else {
+					dataToProcess = batchData;
 				}
-			} else {
-				// Load data in batches for smaller datasets
-				while (this.currentOffset < this.totalCount) {
-					const currentBatch = Math.floor(this.currentOffset / this.batchSize) + 1;
 
-					onProgress?.({
-						percentage: Math.round((batchesCompleted / totalBatches) * 100),
-						stage: `Loading batch ${currentBatch} of ${totalBatches}...`,
-						pointsLoaded,
-						totalPoints: this.totalCount,
-						currentBatch,
-						totalBatches
-					});
+				globalPointIndex += batchData.length;
 
-					const batchData = await this.loadBatch(userId, startDate, endDate);
-					if (batchData.length === 0) break;
-
-					// Process the batch
-					this.processBatch(batchData);
-					pointsLoaded += batchData.length;
-					this.currentOffset += this.batchSize;
-					batchesCompleted++;
-
-					// Small delay to prevent overwhelming the browser
-					await new Promise((resolve) => setTimeout(resolve, 10));
+				// Process the (possibly sampled) batch
+				if (dataToProcess.length > 0) {
+					this.processBatch(dataToProcess);
+					pointsProcessed += dataToProcess.length;
 				}
+
+				this.currentOffset += this.batchSize;
+				batchesCompleted++;
+
+				// Small delay to prevent overwhelming the browser
+				await new Promise((resolve) => setTimeout(resolve, 10));
 			}
 
 			// Finalize statistics
+			onProgress?.({
+				percentage: 95,
+				stage: 'Finalizing statistics...',
+				pointsLoaded: pointsProcessed,
+				totalPoints: this.totalCount,
+				currentBatch: totalBatches,
+				totalBatches
+			});
+
 			this.finalizeStatistics();
 
 			onProgress?.({
 				percentage: 100,
-				stage: 'Processing complete!',
-				pointsLoaded,
+				stage: this.isUsingSampledData
+					? `Complete! Processed ${pointsProcessed.toLocaleString()} of ${this.totalCount.toLocaleString()} points`
+					: 'Processing complete!',
+				pointsLoaded: pointsProcessed,
 				totalPoints: this.totalCount,
 				currentBatch: totalBatches,
 				totalBatches
@@ -497,97 +446,6 @@ export class ClientStatisticsService {
 			})) || [];
 
 		return processedData;
-	}
-
-	/**
-	 * Load data using smart sampling for large datasets
-	 */
-	private async loadSmartSampledData(
-		userId: string,
-		startDate?: string,
-		endDate?: string,
-		offset: number = 0,
-		limit: number = 1000,
-		totalCount?: number
-	): Promise<{ data: TrackerDataPoint[]; samplingApplied: boolean }> {
-		try {
-			// Get session for authentication
-			const { data, error: sessionError } = await this.fluxbase.auth.getSession();
-			if (sessionError || !data?.session) {
-				throw new Error('User not authenticated');
-			}
-			const session = data.session;
-
-			// Call the smart sampling Edge Function
-			const response = await fetch(`${this.getFunctionsUrl()}/tracker-data-smart`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${session.access_token}`
-				},
-				body: JSON.stringify({
-					userId,
-					startDate,
-					endDate,
-					maxPointsThreshold: 1000, // More aggressive threshold
-					offset,
-					limit,
-					totalCount // Pass the already calculated total count
-				})
-			});
-
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
-			}
-
-			const result = await response.json();
-
-			if (result.error) {
-				throw new Error(result.error);
-			}
-
-			const samplingApplied = result.metadata?.samplingApplied || false;
-
-			console.log(`🧠 Smart sampling result:`, {
-				returnedCount: result.metadata?.returnedCount || 0,
-				totalCount: result.metadata?.totalCount || 0,
-				samplingApplied,
-				samplingLevel: result.metadata?.samplingLevel || 'unknown',
-				samplingParams: result.metadata?.samplingParams || {}
-			});
-
-			// Transform the data to match the expected format
-			const transformedData = (result.data || []).map((point: any) => ({
-				recorded_at: point.recorded_at,
-				time_spent: point.time_spent,
-				country_code: point.country_code,
-				location: point.location,
-				speed: point.speed,
-				distance: point.distance,
-				tz_diff: point.tz_diff,
-				type: point.geocode?.properties?.type,
-				class: point.geocode?.properties?.class,
-				addresstype: point.geocode?.properties?.addresstype,
-				city: point.geocode?.properties?.city || point.geocode?.properties?.address?.city,
-				village: point.geocode?.properties?.address?.village
-			}));
-
-			return { data: transformedData, samplingApplied };
-		} catch (error) {
-			console.error('❌ Error loading smart sampled data:', error);
-			// Fallback to regular loading if smart sampling fails
-			console.log('🔄 Falling back to regular batch loading...');
-			throw error; // Let the calling method handle the fallback
-		}
-	}
-
-	/**
-	 * Get the functions URL for Edge Function calls
-	 */
-	private getFunctionsUrl(): string {
-		// Use environment variable or default to local development
-		const fluxbaseUrl = import.meta.env.PUBLIC_FLUXBASE_BASE_URL || 'http://localhost:8080';
-		return `${fluxbaseUrl}/functions/v1`;
 	}
 
 	/**

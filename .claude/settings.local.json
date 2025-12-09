@@ -17,7 +17,8 @@
       "Bash(xargs:*)",
       "Bash(npm test:*)",
       "Bash(npx vitest:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(PGPASSWORD=postgres psql:*)"
     ],
     "deny": [],
     "ask": []

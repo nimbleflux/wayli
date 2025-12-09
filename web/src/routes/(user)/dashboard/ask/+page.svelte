@@ -781,7 +781,7 @@
 							<!-- Streaming content (with live Markdown rendering) -->
 							{#if currentStreamingContent}
 								<div class="prose prose-sm dark:prose-invert max-w-none text-gray-800 dark:text-gray-200">
-									{@html renderMarkdown(currentStreamingContent)}
+									{@html renderMarkdown(currentStreamingContent, currentQueryResults.length > 0)}
 								</div>
 								<span class="inline-block h-4 w-2 animate-pulse bg-gray-400 mt-1"></span>
 							{/if}

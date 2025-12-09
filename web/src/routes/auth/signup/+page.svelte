@@ -280,7 +280,7 @@
 	<title>{t('auth.signUp')} - Wayli</title>
 </svelte:head>
 
-<div class="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-gray-900">
+<div class="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100 px-4 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
 	<div class="w-full max-w-md">
 		<!-- Back to home (hidden during initial setup) -->
 		{#if !isFirstUser}
@@ -636,7 +636,7 @@
 						{t('auth.alreadyHaveAccount')}
 						<a
 							href="/auth/signin"
-							class="cursor-pointer font-medium text-[rgb(34,51,95)] transition-colors hover:text-[rgb(34,51,95)]/80"
+							class="cursor-pointer font-medium text-[rgb(34,51,95)] transition-colors hover:text-[rgb(34,51,95)]/80 dark:text-blue-400 dark:hover:text-blue-300"
 						>
 							{t('auth.signIn')}
 						</a>

@@ -6,39 +6,42 @@
  * @fluxbase:allow-env
  */
 
-async function handler(req) {
+import type { FluxbaseClient } from '../jobs/types';
 
+interface FluxbaseRequest {
+	method: string;
+	url: string;
+	headers: Record<string, string>;
+	body: string;
+	params: Record<string, string>;
+}
+
+async function handler(
+	_req: FluxbaseRequest,
+	_fluxbase: FluxbaseClient,
+	fluxbaseService: FluxbaseClient
+): Promise<Response> {
 	const checks: Record<string, { status: string; message?: string; duration?: number }> = {};
 	let overallStatus = 'healthy';
 
 	// Check 1: Database connectivity
 	try {
 		const start = performance.now();
-		const fluxbaseUrl = Deno.env.get('FLUXBASE_BASE_URL') ?? '';
-		const fluxbaseKey = Deno.env.get('FLUXBASE_SERVICE_ROLE_KEY') ?? '';
 
-		if (!fluxbaseUrl || !fluxbaseKey) {
-			throw new Error('Missing Fluxbase credentials');
-		}
-
-		// Simple query to check database connectivity using REST API
-		const response = await fetch(`${fluxbaseUrl}/rest/v1/user_profiles?select=count`, {
-			method: 'HEAD',
-			headers: {
-				'apikey': fluxbaseKey,
-				'Authorization': `Bearer ${fluxbaseKey}`
-			}
-		});
+		// Simple query to check database connectivity using SDK
+		const { error } = await fluxbaseService
+			.from('user_profiles')
+			.select('id', { count: 'exact', head: true });
 
 		const duration = performance.now() - start;
 
-		if (!response.ok) {
-			checks.database = { status: 'unhealthy', message: `HTTP ${response.status}`, duration };
+		if (error) {
+			checks.database = { status: 'unhealthy', message: error.message, duration };
 			overallStatus = 'unhealthy';
 		} else {
 			checks.database = { status: 'healthy', duration };
 		}
-	} catch (error) {
+	} catch (error: any) {
 		checks.database = { status: 'unhealthy', message: error.message };
 		overallStatus = 'unhealthy';
 	}
@@ -59,33 +62,23 @@ async function handler(req) {
 
 	// Check 3: Worker health (check if there's a heartbeat in the last 5 minutes)
 	try {
-		const fluxbaseUrl = Deno.env.get('FLUXBASE_BASE_URL') ?? '';
-		const fluxbaseKey = Deno.env.get('FLUXBASE_SERVICE_ROLE_KEY') ?? '';
-
 		const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
-		const response = await fetch(
-			`${fluxbaseUrl}/rest/v1/workers?select=last_heartbeat&last_heartbeat=gte.${fiveMinutesAgo}&limit=1`,
-			{
-				headers: {
-					'apikey': fluxbaseKey,
-					'Authorization': `Bearer ${fluxbaseKey}`
-				}
-			}
-		);
+		const { data, error } = await fluxbaseService
+			.from('workers')
+			.select('last_heartbeat')
+			.gte('last_heartbeat', fiveMinutesAgo)
+			.limit(1);
 
-		if (!response.ok) {
+		if (error) {
 			checks.workers = { status: 'degraded', message: 'Unable to check worker status' };
+		} else if (!data || data.length === 0) {
+			checks.workers = { status: 'degraded', message: 'No active workers detected' };
+			overallStatus = overallStatus === 'unhealthy' ? 'unhealthy' : 'degraded';
 		} else {
-			const data = await response.json();
-			if (!data || data.length === 0) {
-				checks.workers = { status: 'degraded', message: 'No active workers detected' };
-				overallStatus = overallStatus === 'unhealthy' ? 'unhealthy' : 'degraded';
-			} else {
-				checks.workers = { status: 'healthy' };
-			}
+			checks.workers = { status: 'healthy' };
 		}
-	} catch (error) {
+	} catch (error: any) {
 		checks.workers = { status: 'degraded', message: error.message };
 	}
 

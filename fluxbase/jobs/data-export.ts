@@ -6,6 +6,7 @@
  *
  * @fluxbase:require-role authenticated
  * @fluxbase:timeout 900
+ * @fluxbase:progress-timeout 900
  * @fluxbase:allow-read true
  * @fluxbase:allow-write true
  */
@@ -18,6 +19,7 @@ declare const Deno: {
 	): Promise<{ write(data: Uint8Array): Promise<number>; close(): void }>;
 	readFile(path: string): Promise<Uint8Array>;
 	remove(path: string): Promise<void>;
+	stat(path: string): Promise<{ size: number }>;
 };
 
 import JSZip from 'jszip';
@@ -168,6 +170,7 @@ export async function handler(
 		const zip = new JSZip();
 		let totalFiles = 0;
 		let processedRecords = 0;
+		const tempFiles: string[] = []; // Track temp files for cleanup
 
 		// Helper to calculate and report progress based on records processed
 		const reportProgress = (currentProcessed: number, message: string) => {
@@ -179,7 +182,7 @@ export async function handler(
 		// Export location data if requested
 		if (payload.includeLocationData && counts.locations > 0) {
 			console.log(`📍 Starting location data export (${counts.locations.toLocaleString()} records)...`);
-			const locationData = await exportLocationData(
+			const locationTempPath = await exportLocationDataToFile(
 				fluxbase,
 				userId,
 				payload.startDate,
@@ -190,13 +193,16 @@ export async function handler(
 					reportProgress(processed, `📍 Exporting locations: ${processed.toLocaleString()} / ${total.toLocaleString()}`);
 				}
 			);
-			if (locationData) {
-				console.log(`✅ Location data exported successfully, size: ${(locationData.length / 1024 / 1024).toFixed(2)} MB`);
-				zip.file('locations.geojson', locationData);
+			if (locationTempPath) {
+				const fileSize = (await Deno.stat(locationTempPath)).size;
+				console.log(`✅ Location data exported to temp file, size: ${(fileSize / 1024 / 1024).toFixed(2)} MB`);
+				// Use lazy loading - content is only read when zip is generated
+				zip.file('locations.geojson', Deno.readFile(locationTempPath), { binary: true });
+				tempFiles.push(locationTempPath);
 				totalFiles++;
 				processedRecords = counts.locations;
 				reportProgress(processedRecords, `📍 Exported ${counts.locations.toLocaleString()} locations`);
-				console.log('📦 Added locations.geojson to ZIP file');
+				console.log('📦 Added locations.geojson to ZIP (lazy loaded)');
 			}
 		} else if (payload.includeLocationData) {
 			console.log(`⏭️ No location data found for user ${userId}`);
@@ -207,19 +213,21 @@ export async function handler(
 		// Export want-to-visit data if requested
 		if (payload.includeWantToVisit && counts.wantToVisit > 0) {
 			console.log(`📌 Starting want-to-visit export (${counts.wantToVisit.toLocaleString()} records)...`);
-			const wantToVisitData = await exportWantToVisit(
+			const wantToVisitTempPath = await exportWantToVisitToFile(
 				fluxbase,
 				userId,
 				payload.startDate,
 				payload.endDate
 			);
-			if (wantToVisitData) {
-				console.log(`✅ Want-to-visit data exported successfully, length: ${wantToVisitData.length.toLocaleString()}`);
-				zip.file('want-to-visit.json', wantToVisitData);
+			if (wantToVisitTempPath) {
+				const fileSize = (await Deno.stat(wantToVisitTempPath)).size;
+				console.log(`✅ Want-to-visit data exported to temp file, size: ${(fileSize / 1024).toFixed(2)} KB`);
+				zip.file('want-to-visit.json', Deno.readFile(wantToVisitTempPath), { binary: true });
+				tempFiles.push(wantToVisitTempPath);
 				totalFiles++;
 				processedRecords += counts.wantToVisit;
 				reportProgress(processedRecords, `📌 Exported ${counts.wantToVisit.toLocaleString()} want-to-visit places`);
-				console.log('📦 Added want-to-visit.json to ZIP file');
+				console.log('📦 Added want-to-visit.json to ZIP (lazy loaded)');
 			}
 		} else if (payload.includeWantToVisit) {
 			console.log(`⏭️ No want-to-visit data found for user ${userId}`);
@@ -230,14 +238,16 @@ export async function handler(
 		// Export trips data if requested
 		if (payload.includeTrips && counts.trips > 0) {
 			console.log(`✈️ Starting trips export (${counts.trips.toLocaleString()} records)...`);
-			const tripsData = await exportTrips(fluxbase, userId, payload.startDate, payload.endDate);
-			if (tripsData) {
-				console.log(`✅ Trips data exported successfully, length: ${tripsData.length.toLocaleString()}`);
-				zip.file('trips.json', tripsData);
+			const tripsTempPath = await exportTripsToFile(fluxbase, userId, payload.startDate, payload.endDate);
+			if (tripsTempPath) {
+				const fileSize = (await Deno.stat(tripsTempPath)).size;
+				console.log(`✅ Trips data exported to temp file, size: ${(fileSize / 1024).toFixed(2)} KB`);
+				zip.file('trips.json', Deno.readFile(tripsTempPath), { binary: true });
+				tempFiles.push(tripsTempPath);
 				totalFiles++;
 				processedRecords += counts.trips;
 				reportProgress(processedRecords, `✈️ Exported ${counts.trips.toLocaleString()} trips`);
-				console.log('📦 Added trips.json to ZIP file');
+				console.log('📦 Added trips.json to ZIP (lazy loaded)');
 			}
 		} else if (payload.includeTrips) {
 			console.log(`⏭️ No trips data found for user ${userId}`);
@@ -245,25 +255,20 @@ export async function handler(
 			console.log('⏭️ Trips export skipped (not requested)');
 		}
 
-		// Generate zip file
-		safeReportProgress(job, 92, '📦 Generating ZIP file...');
+		// Generate zip file and stream upload directly (memory efficient)
+		safeReportProgress(job, 90, '📦 Generating & uploading ZIP file...');
 		console.log(`📦 Generating zip file for job ${jobId} with ${totalFiles} files`);
-		const zipBuffer = await zip.generateAsync({ type: 'uint8array' });
-		console.log(`📊 Zip file generated, size: ${(zipBuffer.length / 1024 / 1024).toFixed(2)} MB`);
 
-		// Upload to storage
-		safeReportProgress(job, 95, '📤 Uploading export file...');
 		const fileName = `export_${userId}_${Date.now()}.zip`;
 		const filePath = `${userId}/${fileName}`;
-		console.log(`📤 Uploading zip file to storage: ${filePath}`);
 
 		// Before uploading, delete old export files (keep only 5 most recent)
 		try {
 			const exportJobs = await getUserExportJobs(fluxbaseService, userId);
-			const oldJobs = exportJobs.filter((job, idx) => idx >= 5 && job.file_path);
+			const oldJobs = exportJobs.filter((j, idx) => idx >= 5 && j.file_path);
 			if (oldJobs.length > 0) {
 				const oldPaths = oldJobs
-					.map((job) => job.file_path)
+					.map((j) => j.file_path)
 					.filter((p): p is string => typeof p === 'string');
 				if (oldPaths.length > 0) {
 					console.log(`🗑️ Deleting old export files:`, oldPaths);
@@ -272,24 +277,36 @@ export async function handler(
 			}
 		} catch (cleanupError) {
 			console.warn('⚠️ Failed to cleanup old exports:', cleanupError);
-			// Continue with upload even if cleanup fails
 		}
 
-		// Upload using the Fluxbase Storage API (using service role for storage access)
-		console.log('📤 Attempting upload to Fluxbase Storage...');
+		// Generate zip file
+		let lastZipProgress = 0;
+		const zipData = await zip.generateAsync(
+			{
+				type: 'uint8array',
+				streamFiles: true,
+				compression: 'DEFLATE',
+				compressionOptions: { level: 6 }
+			},
+			(metadata: { percent: number; currentFile: string | null }) => {
+				const currentProgress = Math.floor(metadata.percent / 10) * 10;
+				if (currentProgress > lastZipProgress) {
+					lastZipProgress = currentProgress;
+					const jobProgress = Math.round(90 + (metadata.percent / 100) * 4);
+					safeReportProgress(job, jobProgress, `📦 Compressing: ${Math.round(metadata.percent)}%`);
+				}
+			}
+		);
 
-		// Use service role client for storage operations (temp-files bucket is already configured)
+		const zipFileSize = zipData.length;
+		console.log(`📊 Zip file generated: ${(zipFileSize / 1024 / 1024).toFixed(2)} MB`);
+
+		safeReportProgress(job, 95, '📤 Uploading export file...');
+		console.log('📤 Uploading to storage...');
 		const storage = fluxbaseService.storage.from('temp-files');
 
-		// Log available methods on storage for debugging
-		console.log('📤 Storage methods:', Object.keys(storage));
-
-		// Upload the Uint8Array directly (File constructor may not work properly in Deno)
-		console.log(`📁 Uploading buffer: size=${zipBuffer.length} bytes`);
-
-		// Upload using the standard storage API with Uint8Array directly
-		console.log('📤 Uploading via storage.upload...');
-		const { data: uploadData, error: uploadError } = await storage.upload(filePath, zipBuffer, {
+		// Upload zip data directly
+		const { error: uploadError } = await storage.upload(filePath, zipData, {
 			contentType: 'application/zip',
 			upsert: true
 		});
@@ -299,7 +316,17 @@ export async function handler(
 			throw new Error(`Failed to upload export file: ${uploadError.message}`);
 		}
 
-		console.log('✅ Upload successful:', uploadData);
+		console.log(`✅ Upload successful, total size: ${(zipFileSize / 1024 / 1024).toFixed(2)} MB`);
+
+		// Cleanup temp files (location data temp file)
+		for (const tempFile of tempFiles) {
+			try {
+				await Deno.remove(tempFile);
+				console.log(`🗑️ Cleaned up temp file: ${tempFile}`);
+			} catch {
+				console.warn(`⚠️ Failed to cleanup temp file: ${tempFile}`);
+			}
+		}
 
 		safeReportProgress(job, 100, '✅ Export completed!');
 
@@ -315,7 +342,7 @@ export async function handler(
 			format: payload.format,
 			exportedAt: new Date().toISOString(),
 			file_path: filePath,
-			file_size: zipBuffer.length
+			file_size: zipFileSize
 		};
 	} catch (error: unknown) {
 		console.error(`❌ Export processing failed for job ${jobId}:`, error);
@@ -323,15 +350,15 @@ export async function handler(
 	}
 }
 
-async function exportLocationData(
+async function exportLocationDataToFile(
 	fluxbase: FluxbaseClient,
 	userId: string,
 	startDate?: string | null,
 	endDate?: string | null,
 	totalCount?: number,
 	onProgress?: (processed: number, total: number) => void
-): Promise<Uint8Array | null> {
-	console.log('📍 exportLocationData', { userId, startDate, endDate, totalCount });
+): Promise<string | null> {
+	console.log('📍 exportLocationDataToFile', { userId, startDate, endDate, totalCount });
 	const batchSize = 1000; // Supabase has a default limit of 1000 rows
 	let totalFetched = 0;
 	let batchNum = 0;
@@ -435,69 +462,88 @@ async function exportLocationData(
 		file.close();
 	}
 
-	console.log(`✅ exportLocationData done: ${totalFetched.toLocaleString()} points in ${batchNum} batches`);
+	console.log(`✅ exportLocationDataToFile done: ${totalFetched.toLocaleString()} points in ${batchNum} batches`);
 
 	if (totalFetched === 0) {
 		await Deno.remove(tempPath);
 		return null;
 	}
 
-	// Read the file content and clean up
-	const content = await Deno.readFile(tempPath);
-	await Deno.remove(tempPath);
-	console.log(`📁 Location file size: ${(content.length / 1024 / 1024).toFixed(2)} MB`);
+	// Return temp file path - content will be read lazily by JSZip
+	const fileSize = (await Deno.stat(tempPath)).size;
+	console.log(`📁 Location file size: ${(fileSize / 1024 / 1024).toFixed(2)} MB`);
 
-	return content;
+	return tempPath;
 }
 
-async function exportWantToVisit(
+async function exportWantToVisitToFile(
 	fluxbase: FluxbaseClient,
 	userId: string,
 	startDate?: string | null,
 	endDate?: string | null
 ): Promise<string | null> {
-	console.log('📌 exportWantToVisit starting', { userId, startDate, endDate });
+	console.log('📌 exportWantToVisitToFile starting', { userId, startDate, endDate });
 	let query = fluxbase.from('want_to_visit_places').select('*').eq('user_id', userId);
 	if (startDate) query = query.gte('created_at', startDate);
 	if (endDate) query = query.lte('created_at', endDate);
 	query = query.order('created_at', { ascending: true });
 	const { data: wantToVisit, error } = await query;
-	console.log('📊 exportWantToVisit query result', {
+	console.log('📊 exportWantToVisitToFile query result', {
 		count: wantToVisit?.length || 0,
 		error: error?.message
 	});
 	if (error || !wantToVisit || wantToVisit.length === 0) {
-		console.log('⏭️ exportWantToVisit returning null');
+		console.log('⏭️ exportWantToVisitToFile returning null');
 		return null;
 	}
-	const result = JSON.stringify(wantToVisit, null, 2);
-	console.log(`✅ exportWantToVisit completed: ${result.length.toLocaleString()} bytes`);
-	return result;
+
+	// Write to temp file
+	const tempPath = `/tmp/export_want_to_visit_${Date.now()}.json`;
+	const encoder = new TextEncoder();
+	const file = await Deno.open(tempPath, { write: true, create: true, truncate: true });
+	try {
+		await file.write(encoder.encode(JSON.stringify(wantToVisit, null, 2)));
+	} finally {
+		file.close();
+	}
+
+	console.log(`✅ exportWantToVisitToFile completed: ${tempPath}`);
+	return tempPath;
 }
 
-async function exportTrips(
+async function exportTripsToFile(
 	fluxbase: FluxbaseClient,
 	userId: string,
 	startDate?: string | null,
 	endDate?: string | null
 ): Promise<string | null> {
-	console.log('✈️ exportTrips starting', { userId, startDate, endDate });
+	console.log('✈️ exportTripsToFile starting', { userId, startDate, endDate });
 	let query = fluxbase.from('trips').select('*').eq('user_id', userId);
 	if (startDate) query = query.gte('start_date', startDate);
 	if (endDate) query = query.lte('end_date', endDate);
 	query = query.order('start_date', { ascending: true });
 	const { data: trips, error } = await query;
-	console.log('📊 exportTrips query result', {
+	console.log('📊 exportTripsToFile query result', {
 		count: trips?.length || 0,
 		error: error?.message
 	});
 	if (error || !trips || trips.length === 0) {
-		console.log('⏭️ exportTrips returning null');
+		console.log('⏭️ exportTripsToFile returning null');
 		return null;
 	}
-	const result = JSON.stringify(trips, null, 2);
-	console.log(`✅ exportTrips completed: ${result.length.toLocaleString()} bytes`);
-	return result;
+
+	// Write to temp file
+	const tempPath = `/tmp/export_trips_${Date.now()}.json`;
+	const encoder = new TextEncoder();
+	const file = await Deno.open(tempPath, { write: true, create: true, truncate: true });
+	try {
+		await file.write(encoder.encode(JSON.stringify(trips, null, 2)));
+	} finally {
+		file.close();
+	}
+
+	console.log(`✅ exportTripsToFile completed: ${tempPath}`);
+	return tempPath;
 }
 
 async function getUserExportJobs(

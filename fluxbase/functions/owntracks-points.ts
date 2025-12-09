@@ -6,6 +6,8 @@
  * @fluxbase:allow-env
  */
 
+import type { FluxbaseClient } from '../jobs/types';
+
 // ===== Type Definitions =====
 interface FluxbaseRequest {
 	method: string;
@@ -162,7 +164,11 @@ async function reverseGeocode(lat: number, lon: number): Promise<any | null> {
 	}
 }
 
-async function handler(req: FluxbaseRequest): Promise<FluxbaseResponse> {
+async function handler(
+	req: FluxbaseRequest,
+	_fluxbase: FluxbaseClient,
+	fluxbaseService: FluxbaseClient
+): Promise<FluxbaseResponse> {
 	try {
 		// This endpoint uses API key authentication instead of JWT
 		// We check for query parameters first to allow OwnTracks devices to connect
@@ -182,39 +188,20 @@ async function handler(req: FluxbaseRequest): Promise<FluxbaseResponse> {
 			return errorResponse('Invalid user ID format', 400);
 		}
 
-		// Create service role client to verify API key and insert data
-		const fluxbaseUrl = Deno.env.get('FLUXBASE_BASE_URL');
-		const fluxbaseServiceKey = Deno.env.get('FLUXBASE_SERVICE_ROLE_KEY');
-
-		if (!fluxbaseUrl || !fluxbaseServiceKey) {
-			logError('Missing environment variables', 'OWNTRACKS_POINTS');
-			return errorResponse('Server configuration error', 500);
-		}
-
 		// Verify API key by checking user preferences
 		// The API key is stored in user_preferences.owntracks_api_key
-		const userResponse = await fetch(
-			`${fluxbaseUrl}/rest/v1/user_preferences?id=eq.${userId}&select=owntracks_api_key`,
-			{
-				headers: {
-					'apikey': fluxbaseServiceKey,
-					'Authorization': `Bearer ${fluxbaseServiceKey}`
-				}
-			}
-		);
+		const { data: userData, error: userError } = await fluxbaseService
+			.from('user_preferences')
+			.select('owntracks_api_key')
+			.eq('id', userId)
+			.single();
 
-		if (!userResponse.ok) {
-			logError('Failed to fetch user', 'OWNTRACKS_POINTS', { userId });
-			return errorResponse('Invalid user ID', 401);
-		}
-
-		const userData = await userResponse.json();
-		if (!userData || userData.length === 0) {
+		if (userError || !userData) {
 			logError('User not found', 'OWNTRACKS_POINTS', { userId });
 			return errorResponse('Invalid user ID', 401);
 		}
 
-		const storedApiKey = userData[0]?.owntracks_api_key;
+		const storedApiKey = userData.owntracks_api_key;
 		if (!storedApiKey || storedApiKey !== apiKey) {
 			logError('Invalid API key', 'OWNTRACKS_POINTS', { userId });
 			return errorResponse('Invalid or inactive API key', 401);
@@ -317,41 +304,32 @@ async function handler(req: FluxbaseRequest): Promise<FluxbaseResponse> {
 			})
 		);
 
-		// Insert points with complete geocode data using REST API
+		// Insert points with complete geocode data using SDK
 		// Use upsert with ignoreDuplicates to handle cases where OwnTracks retries the same point
-		const insertResponse = await fetch(`${fluxbaseUrl}/rest/v1/tracker_data`, {
-			method: 'POST',
-			headers: {
-				'apikey': fluxbaseServiceKey,
-				'Authorization': `Bearer ${fluxbaseServiceKey}`,
-				'Content-Type': 'application/json',
-				'Prefer': 'resolution=ignore-duplicates,return=representation'
-			},
-			body: JSON.stringify(processedPoints)
-		});
+		const { data: insertedPoints, error: insertError } = await fluxbaseService
+			.from('tracker_data')
+			.upsert(processedPoints, { ignoreDuplicates: true });
 
-		if (!insertResponse.ok) {
-			const errorText = await insertResponse.text();
+		if (insertError) {
 			logError(
-				`Failed to insert ${processedPoints.length} points for user ${user.id}: ${errorText}`,
+				`Failed to insert ${processedPoints.length} points for user ${user.id}: ${insertError.message}`,
 				'OWNTRACKS_POINTS'
 			);
 			return errorResponse('Failed to insert points', 500);
 		}
-
-		const insertedPoints = await insertResponse.json();
 		const geocodedCount = processedPoints.filter((p) => p.geocode !== null).length;
+		const insertedCount = insertedPoints?.length || processedPoints.length;
 
 		logSuccess('Points inserted successfully', 'OWNTRACKS_POINTS', {
 			userId: user.id,
-			totalCount: insertedPoints?.length || 0,
+			totalCount: insertedCount,
 			geocodedCount,
-			ungeocodedCount: (insertedPoints?.length || 0) - geocodedCount
+			ungeocodedCount: insertedCount - geocodedCount
 		});
 
 		return successResponse({
 			message: 'Points inserted successfully',
-			count: insertedPoints?.length || 0
+			count: insertedCount
 		});
 	} catch (error) {
 		logError(error, 'OWNTRACKS_POINTS');

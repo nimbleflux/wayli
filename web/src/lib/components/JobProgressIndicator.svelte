@@ -117,7 +117,7 @@
 	// Status color mapping
 	const statusColors: Record<string, string> = {
 		pending: 'text-yellow-600',
-		running: 'text-[rgb(34,51,95)]',
+		running: 'text-[rgb(34,51,95)] dark:text-blue-400',
 		completed: 'text-green-600',
 		failed: 'text-red-600',
 		cancelled: 'text-gray-600'
@@ -335,7 +335,7 @@
 {#snippet uploadCard(upload: UploadProgress)}
 	<div class="mb-3 flex items-center gap-3">
 		<div class="flex-shrink-0">
-			<Upload class="h-5 w-5 text-[rgb(34,51,95)]" />
+			<Upload class="h-5 w-5 text-[rgb(34,51,95)] dark:text-blue-400" />
 		</div>
 
 		<div class="min-w-0 flex-1">
@@ -347,7 +347,7 @@
 				<div class="relative mb-1">
 					<div class="h-4 w-full rounded-full bg-gray-200 dark:bg-gray-700">
 						<div
-							class="relative h-4 rounded-full bg-[rgb(34,51,95)] transition-all duration-300"
+							class="relative h-4 rounded-full bg-[rgb(34,51,95)] transition-all duration-300 dark:bg-blue-500"
 							style="width: {upload.percentage}%"
 						>
 							{#if upload.percentage > 10}
@@ -366,7 +366,7 @@
 			{:else if upload.status === 'processing'}
 				<div class="relative mb-1">
 					<div class="h-4 w-full rounded-full bg-gray-200 dark:bg-gray-700">
-						<div class="h-4 w-full animate-pulse rounded-full bg-[rgb(34,51,95)]"></div>
+						<div class="h-4 w-full animate-pulse rounded-full bg-[rgb(34,51,95)] dark:bg-blue-500"></div>
 					</div>
 				</div>
 				<div class="text-xs text-gray-500 dark:text-gray-400">{t('jobProgress.creatingJob')}</div>
@@ -406,7 +406,7 @@
 				<div class="relative mb-1">
 					<div class="h-4 w-full rounded-full bg-gray-200 dark:bg-gray-700">
 						<div
-							class="relative h-4 rounded-full bg-[rgb(34,51,95)] transition-all duration-300"
+							class="relative h-4 rounded-full bg-[rgb(34,51,95)] transition-all duration-300 dark:bg-blue-500"
 							style="width: {job.progress_percent || 0}%"
 						>
 							{#if (job.progress_percent || 0) > 10}

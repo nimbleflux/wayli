@@ -138,7 +138,7 @@
 	</div>
 {:else}
 	<!-- Theme Toggle, Language Selector, and User/Login Button in Top Right -->
-	<div class="fixed top-4 right-4 z-50 flex items-center gap-3">
+	<div class="fixed right-4 top-4 z-50 flex items-center gap-3">
 		<!-- Language Selector -->
 		<LanguageSelector variant="minimal" size="sm" showLabel={false} position="bottom-right" />
 
@@ -178,7 +178,7 @@
 
 				<!-- Dropdown Menu -->
 				<div
-					class="invisible absolute top-full right-0 mt-2 w-48 rounded-lg border border-gray-200 bg-white opacity-0 shadow-lg transition-all duration-200 group-hover:visible group-hover:opacity-100 dark:border-gray-700 dark:bg-gray-800"
+					class="invisible absolute right-0 top-full mt-2 w-48 rounded-lg border border-gray-200 bg-white opacity-0 shadow-lg transition-all duration-200 group-hover:visible group-hover:opacity-100 dark:border-gray-700 dark:bg-gray-800"
 				>
 					<div class="py-2">
 						<a
@@ -225,7 +225,11 @@
 			<div class="mx-auto mb-16 max-w-4xl text-center">
 				<!-- Logo with text -->
 				<div class="mx-auto mb-6 flex justify-center">
-					<img src="/logo.svg" alt="Wayli logo" class="h-32 w-auto md:h-40" />
+					<div
+						class="rounded-2xl bg-white/80 p-4 backdrop-blur-sm dark:bg-white/80 dark:backdrop-blur-md"
+					>
+						<img src="/logo.svg" alt="Wayli logo" class="h-32 w-auto md:h-40" />
+					</div>
 				</div>
 				<p
 					class="mb-4 text-2xl font-semibold text-gray-800 transition-colors duration-300 md:text-3xl dark:text-gray-200"

@@ -1,12 +1,10 @@
-import { createClient } from '@fluxbase/sdk';
-import type { FluxbaseClient } from '@fluxbase/sdk';
 import { translateServer, getCountryNameServer } from '../utils/server-translations';
 import { getCountryForPoint } from '../services/external/country-reverse-geocoding.service';
 
-export interface DateRange {
-	startDate: string;
-	endDate: string;
-}
+// Use a flexible type that works with both SDK client and job runtime client
+type FluxbaseClient = {
+	from(table: string): any;
+};
 
 export interface ExcludedDateRange {
 	startDate: string;
@@ -98,12 +96,9 @@ export interface TripDetectionProgress {
 	message: string;
 	details?: {
 		currentBatch?: number;
-		totalBatches?: number;
 		processedPoints?: number;
 		totalPoints?: number;
 		detectedTrips?: number;
-		currentDateRange?: string;
-		totalDateRanges?: number;
 	};
 }
 
@@ -112,11 +107,12 @@ export class TripDetectionService {
 	private userState: UserLocationState | null = null;
 	private userId: string | null = null;
 	private homeLocationsCache: Map<string, { locations: Location[]; language: string }> = new Map();
+	private customHomeAddress: Location | null = null; // Custom home address override (still fetches trip exclusions)
 	private jobId: string | null = null;
 	private progressCallback?: (progress: TripDetectionProgress) => void;
 
-	constructor(fluxbaseUrl: string, fluxbaseKey: string) {
-		this.fluxbase = createClient(fluxbaseUrl, fluxbaseKey);
+	constructor(fluxbaseClient: FluxbaseClient) {
+		this.fluxbase = fluxbaseClient;
 	}
 
 	/**
@@ -148,17 +144,17 @@ export class TripDetectionService {
 				.from('trips')
 				.select('start_date, end_date, status')
 				.eq('user_id', userId)
-				.in('status', ['approved', 'rejected', 'pending']);
+				.in('status', ['completed', 'rejected', 'pending']);
 
 			if (error) {
 				console.error('❌ Error fetching trips:', error);
 				return [];
 			}
 
-			const excludedRanges: ExcludedDateRange[] = trips.map((trip) => ({
+			const excludedRanges: ExcludedDateRange[] = trips.map((trip: { start_date: string; end_date: string; status: string }) => ({
 				startDate: trip.start_date,
 				endDate: trip.end_date,
-				reason: trip.status === 'approved' ? 'approved_trip' : 'rejected_trip'
+				reason: trip.status === 'completed' ? 'approved_trip' : 'rejected_trip'
 			}));
 
 			return excludedRanges;
@@ -181,22 +177,29 @@ export class TripDetectionService {
 
 			const homeLocations: Location[] = [];
 
-			// Fetch home address from user_profiles
-			const { data: profile, error: profileError } = await this.fluxbase
-				.from('user_profiles')
-				.select('home_address')
-				.eq('id', userId)
-				.single();
+			// Use custom home address if set, otherwise fetch from user_profiles
+			if (this.customHomeAddress) {
+				homeLocations.push(this.customHomeAddress);
+				console.log(`🏠 Custom home address: ${this.customHomeAddress.address?.city || 'unknown city'}`);
+			} else {
+				// Fetch home address from user_profiles
+				const { data: profile, error: profileError } = await this.fluxbase
+					.from('user_profiles')
+					.select('home_address')
+					.eq('id', userId)
+					.single();
 
-			if (profileError) {
-				console.warn('⚠️ Could not fetch home address:', profileError);
-			} else if (profile?.home_address) {
-				// Parse home address and add to home locations
-				const homeAddress = this.parseLocation(profile.home_address);
-				homeLocations.push(homeAddress);
+				if (profileError) {
+					console.warn('⚠️ Could not fetch home address:', profileError);
+				} else if (profile?.home_address) {
+					// Parse home address and add to home locations
+					const homeAddress = this.parseLocation(profile.home_address);
+					homeLocations.push(homeAddress);
+					console.log(`🏠 Home address: ${homeAddress.address?.city || 'unknown city'}`);
+				}
 			}
 
-			// Fetch trip exclusions and language from user_preferences
+			// Always fetch trip exclusions and language from user_preferences
 			const { data: preferences, error: preferencesError } = await this.fluxbase
 				.from('user_preferences')
 				.select('trip_exclusions, language')
@@ -205,12 +208,13 @@ export class TripDetectionService {
 
 			if (preferencesError) {
 				console.warn('⚠️ Could not fetch trip exclusions:', preferencesError);
-			} else if (preferences?.trip_exclusions) {
+			} else if (preferences?.trip_exclusions && preferences.trip_exclusions.length > 0) {
 				// Parse trip exclusions and add to home locations
 				const tripExclusions = preferences.trip_exclusions.map((exclusion: any) =>
 					this.parseLocation(exclusion)
 				);
 				homeLocations.push(...tripExclusions);
+				console.log(`🏢 Trip exclusions (${tripExclusions.length}): ${tripExclusions.map((e: Location) => e.name || e.address?.city || 'unknown').join(', ')}`);
 			}
 
 			const language = preferences?.language || 'en';
@@ -240,110 +244,90 @@ export class TripDetectionService {
 	}
 
 	/**
-	 * 3. Create date ranges for processing, excluding the excluded date ranges
+	 * Set a custom home address override (will still fetch trip exclusions from database)
+	 * Used when payload specifies useCustomHomeAddress with a customHomeAddress
 	 */
-	createProcessingDateRanges(
-		startDate: string,
-		endDate: string,
-		excludedRanges: ExcludedDateRange[]
-	): DateRange[] {
-		try {
-			const ranges: DateRange[] = [];
-			let currentDate = new Date(startDate);
+	setCustomHomeAddress(homeAddress: Location): void {
+		this.customHomeAddress = homeAddress;
+		// Clear the cache so getUserHomeLocations will re-fetch with the custom address
+		this.homeLocationsCache.clear();
+	}
 
-			while (currentDate <= new Date(endDate)) {
-				// Find the next available date range
-				const rangeStart = new Date(currentDate);
-				let rangeEnd = new Date(endDate);
-
-				// Check if this range overlaps with any excluded ranges
-				for (const excluded of excludedRanges) {
-					const excludedStart = new Date(excluded.startDate);
-					const excludedEnd = new Date(excluded.endDate);
-
-					// If there's an overlap, adjust our range end
-					if (rangeStart < excludedEnd && rangeEnd > excludedStart) {
-						if (rangeStart < excludedStart) {
-							// We can process up to the excluded range start
-							rangeEnd = new Date(excludedStart);
-							rangeEnd.setDate(rangeEnd.getDate() - 1); // Day before excluded range
-						} else {
-							// Skip this range entirely
-							rangeStart.setDate(excludedEnd.getDate() + 1);
-							rangeEnd = new Date(endDate);
-						}
-					}
-				}
-
-				// Add the range if it's valid
-				if (rangeStart <= rangeEnd && rangeStart <= new Date(endDate)) {
-					ranges.push({
-						startDate: rangeStart.toISOString().split('T')[0],
-						endDate: rangeEnd.toISOString().split('T')[0]
-					});
-				}
-
-				// Move to the next day after the current range
-				currentDate = new Date(rangeEnd);
-				currentDate.setDate(currentDate.getDate() + 1);
-			}
-
-			return ranges;
-		} catch (error) {
-			console.error('❌ Exception in createProcessingDateRanges:', error);
-			return [];
-		}
+	/**
+	 * Clear the custom home address override
+	 */
+	clearCustomHomeAddress(): void {
+		this.customHomeAddress = null;
 	}
 
 	/**
 	 * Main entry point: Detect trips for a user within a date range
+	 * Uses single-loop architecture with database-level filtering via not.between
 	 */
 	async detectTrips(userId: string, startDate?: string, endDate?: string): Promise<DetectedTrip[]> {
 		try {
-			// Update progress: Initialization phase
+			// 1. Initialize
 			this.updateProgress({
 				phase: 'initializing',
-				progress: 5,
+				progress: 0,
 				message: 'Initializing trip detection...',
 				details: {}
 			});
 
-			// Set userId for use in other methods
 			this.userId = userId;
+			// Note: Don't clear home locations cache here - if setCustomHomeAddress was called
+			// before detectTrips, we want to preserve the custom home address
 
-			// Clear cache for this user to ensure fresh home address data
-			this.clearHomeLocationsCache(userId);
-
-			// Update progress: Fetching data phase
+			// 2. Get excluded ranges and home locations
 			this.updateProgress({
 				phase: 'fetching_data',
-				progress: 10,
-				message: 'Fetching excluded date ranges and home locations...',
+				progress: 0,
+				message: 'Fetching configuration...',
 				details: {}
 			});
 
-			// 1. Get excluded date ranges (approved/rejected trips)
 			const excludedRanges = await this.getExcludedDateRanges(userId);
-
-			// 2. Get user's home locations (home address + trip exclusions)
 			const { locations: homeLocations, language } = await this.getUserHomeLocations(userId);
 
-			// Update progress: Creating processing ranges
+			console.log(`📅 Found ${excludedRanges.length} excluded date ranges`);
+			console.log(`🏠 Found ${homeLocations.length} home locations`);
+			if (homeLocations.length > 0) {
+				console.log(`🏠 Home locations:`, homeLocations.map(loc => loc.address?.city || loc.name || 'unknown').join(', '));
+			} else {
+				console.log(`⚠️ No home locations defined - trip detection may not work correctly`);
+			}
+
+			// 3. Determine date range
+			const effectiveStartDate = startDate || (await this.getUserFirstDataPoint(userId));
+			const effectiveEndDate = endDate || this.getTomorrowDate();
+
+			// 4. Count total points (with exclusions applied at DB level)
 			this.updateProgress({
 				phase: 'fetching_data',
-				progress: 15,
-				message: 'Creating processing date ranges...',
+				progress: 0,
+				message: 'Counting data points...',
 				details: {}
 			});
 
-			// 3. Create processing date ranges, excluding the excluded ranges
-			const processingRanges = this.createProcessingDateRanges(
-				startDate || (await this.getUserFirstDataPoint(userId)), // Default start date: first user data point
-				endDate || this.getTomorrowDate(), // Default end date: tomorrow
-				excludedRanges
-			);
+			let countQuery = this.fluxbase
+				.from('tracker_data')
+				.select('recorded_at', { count: 'exact', head: true })
+				.eq('user_id', userId)
+				.gte('recorded_at', effectiveStartDate)
+				.lte('recorded_at', effectiveEndDate);
 
-			if (processingRanges.length === 0) {
+			// Apply not.between for each excluded range (filtered at DB level)
+			for (const range of excludedRanges) {
+				countQuery = countQuery.filter('recorded_at', 'not.between', [range.startDate, range.endDate]);
+			}
+
+			const { count: totalPoints, error: countError } = await countQuery;
+
+			if (countError) {
+				console.error(`❌ Error counting data points:`, countError);
+			}
+
+			if (!totalPoints || totalPoints === 0) {
 				this.updateProgress({
 					phase: 'completed',
 					progress: 100,
@@ -353,179 +337,83 @@ export class TripDetectionService {
 				return [];
 			}
 
-			// Update progress: Starting data processing
-			this.updateProgress({
-				phase: 'processing_batches',
-				progress: 20,
-				message: `Starting to process ${processingRanges.length} date ranges...`,
-				details: { totalDateRanges: processingRanges.length }
-			});
+			// 5. Initialize state machine
+			this.userState = {
+				currentState: 'home',
+				stateStartTime: effectiveStartDate,
+				dataPointsInState: 0,
+				lastHomeStateStartTime: effectiveStartDate,
+				nextStateDataPoints: 0,
+				visitedCities: []
+			};
 
-			// 4. Process each date range and detect trips
-			const allTrips: DetectedTrip[] = [];
+			// 6. Process all points in single loop
+			const trips: DetectedTrip[] = [];
+			let processedPoints = 0;
+			let batchNumber = 0;
+			let lastRecordedAt: string | null = null;
+			const batchSize = 1000;
 
-			for (let i = 0; i < processingRanges.length; i++) {
-				const range = processingRanges[i];
+			console.log(`🔍 Starting batch processing: ${effectiveStartDate} to ${effectiveEndDate}`);
+			console.log(`📊 Total points to process: ${totalPoints}`);
 
-				// Update progress: Processing current date range
-				const rangeProgress = Math.round((i / processingRanges.length) * 75);
-				this.updateProgress({
-					phase: 'processing_batches',
-					progress: 20 + rangeProgress, // 20-95% for date range processing
-					message: `Processing date range ${i + 1}/${processingRanges.length}: ${range.startDate} to ${range.endDate}`,
-					details: {
-						currentDateRange: `${range.startDate} to ${range.endDate}`,
-						totalDateRanges: processingRanges.length,
-						detectedTrips: allTrips.length
-					}
-				});
-
-				try {
-					const trips = await this.processDateRange(
-						userId,
-						range,
-						homeLocations,
-						language,
-						i,
-						processingRanges.length
-					);
-					allTrips.push(...trips);
-				} catch (error) {
-					console.error(
-						`❌ Error processing date range ${i + 1}/${processingRanges.length}:`,
-						error
-					);
-					// Continue with next range instead of failing completely
-				}
-			}
-
-			// Update progress: Processing complete
-			this.updateProgress({
-				phase: 'completed',
-				progress: 100,
-				message: `Trip detection completed: ${allTrips.length} trips detected`,
-				details: { detectedTrips: allTrips.length }
-			});
-
-			return allTrips;
-		} catch (error) {
-			console.error('❌ Exception in detectTrips:', error);
-			return [];
-		}
-	}
-
-	/**
-	 * Process a single date range to detect trips
-	 */
-	private async processDateRange(
-		userId: string,
-		dateRange: DateRange,
-		homeLocations: Location[],
-		language: string,
-		dateRangeIndex: number,
-		totalDateRanges: number
-	): Promise<DetectedTrip[]> {
-		// Initialize state and results
-		const trips: DetectedTrip[] = [];
-
-		this.userState = {
-			currentState: 'home', // Assume user starts at home
-			stateStartTime: dateRange.startDate,
-			dataPointsInState: 0,
-			lastHomeStateStartTime: dateRange.startDate, // Initialize to start date since we assume user starts at home
-			nextStateDataPoints: 0,
-			visitedCities: []
-		};
-
-		// First, count total data points for accurate progress tracking
-		const { count: totalDataPoints, error: countError } = await this.fluxbase
-			.from('tracker_data')
-			.select('*', { count: 'exact', head: true })
-			.eq('user_id', userId)
-			.gte('recorded_at', dateRange.startDate)
-			.lte('recorded_at', dateRange.endDate);
-
-		if (countError) {
-			console.error(`❌ Error counting data points:`, countError);
-		}
-
-		const totalPoints = totalDataPoints || 0;
-		console.log(`📊 Total data points to process: ${totalPoints}`);
-
-		// Process data in batches of 1000 (Fluxbase limit)
-		const batchSize = 1000;
-		let offset = 0;
-		let hasMoreData = true;
-		let totalProcessedPoints = 0;
-
-		// Update progress: Starting batch processing for this date range
-		this.updateProgress({
-			phase: 'processing_batches',
-			progress: 10,
-			message: `Starting to process ${totalPoints.toLocaleString()} data points...`,
-			details: {
-				currentDateRange: `${dateRange.startDate} to ${dateRange.endDate}`,
-				totalDateRanges: totalDateRanges,
-				totalPoints: totalPoints,
-				processedPoints: 0
-			}
-		});
-
-		while (hasMoreData) {
-			try {
-				// Query tracking data for this date range with pagination
-				const { data: batch, error } = await this.fluxbase
+			while (true) {
+				// Build query with excluded ranges filtered at DB level
+				let query = this.fluxbase
 					.from('tracker_data')
 					.select('recorded_at, geocode')
 					.eq('user_id', userId)
-					.gte('recorded_at', dateRange.startDate)
-					.lte('recorded_at', dateRange.endDate)
+					.gte('recorded_at', effectiveStartDate)
+					.lte('recorded_at', effectiveEndDate);
+
+				// Apply not.between for each excluded range (filtered at DB level)
+				for (const range of excludedRanges) {
+					query = query.filter('recorded_at', 'not.between', [range.startDate, range.endDate]);
+				}
+
+				// Apply cursor for pagination
+				if (lastRecordedAt) {
+					query = query.gt('recorded_at', lastRecordedAt);
+				}
+
+				const { data: batch, error } = await query
 					.order('recorded_at', { ascending: true })
-					.range(offset, offset + batchSize - 1);
+					.limit(batchSize);
 
 				if (error) {
-					console.error(`❌ Error fetching batch at offset ${offset}:`, error);
+					console.error(`❌ Error fetching batch ${batchNumber}:`, error);
 					break;
 				}
 
 				if (!batch || batch.length === 0) {
-					hasMoreData = false;
+					console.log(`✅ No more data after batch ${batchNumber}, stopping`);
 					break;
 				}
 
-				// Filter out points without city names
-				const validPoints = batch.filter((point) => {
-					const city = point.geocode?.properties?.city || point.geocode?.properties?.address?.city;
+				console.log(`📦 Batch ${batchNumber}: ${batch.length} records fetched, current state: ${this.userState?.currentState}, nextState: ${this.userState?.nextState || 'none'}, nextStateDataPoints: ${this.userState?.nextStateDataPoints || 0}`);
+
+				// Filter by city presence (check Pelias addendum.osm path first, then fallback to Nominatim paths)
+				const pointsWithCity = batch.filter((point: { recorded_at: string; geocode?: { properties?: { city?: string; address?: { city?: string }; addendum?: { osm?: { 'addr:city'?: string } } } } }) => {
+					const city = point.geocode?.properties?.addendum?.osm?.['addr:city'] ||
+						point.geocode?.properties?.city ||
+						point.geocode?.properties?.address?.city;
 					return city && city.trim() !== '';
 				});
 
-				if (validPoints.length === 0) {
-					offset += batchSize;
-					continue;
-				}
-
-				// Process each valid data point in the batch with context
-				for (let i = 0; i < validPoints.length; i++) {
-					const point = validPoints[i];
-					const previousPoint = i > 0 ? validPoints[i - 1] : null;
-					// Note: nextPoint will be null for the last point in each batch
-					// This is expected behavior for batch processing
-
-					// Determine if this point is at home or away
+				// Process each valid point
+				for (let i = 0; i < pointsWithCity.length; i++) {
+					const point = pointsWithCity[i];
+					const previousPoint = i > 0 ? pointsWithCity[i - 1] : null;
 					const isPointAtHome = this.isPointAtHome(point, homeLocations);
 					const pointState: 'home' | 'away' = isPointAtHome ? 'home' : 'away';
 
-					// Update state based on the point
 					const trip = await this.updateUserState(point, previousPoint, pointState, language);
-
 					if (trip) {
-						// Only add trips that have meaningful data (sufficient data points and locations)
-						if (trip.metadata.dataPoints > 10 && trip.metadata.visitedCities.length > 0) {
-							trips.push({
-								...trip,
-								user_id: userId
-							} as DetectedTrip);
-						}
+						console.log(`🎯 Trip candidate: dataPoints=${trip.metadata.dataPoints}, visitedCities=${trip.metadata.visitedCities.length}, duration=${trip.metadata.totalDurationHours}h`);
+					}
+					if (trip && trip.metadata.dataPoints > 10 && trip.metadata.visitedCities.length > 0) {
+						console.log(`✅ Trip accepted: ${trip.title}`);
+						trips.push({ ...trip, user_id: userId } as DetectedTrip);
 						// Reset userState after trip creation
 						this.userState = {
 							currentState: 'home',
@@ -536,68 +424,41 @@ export class TripDetectionService {
 							visitedCities: []
 						};
 					}
-
-					// Update progress every 50 points processed (more frequent updates)
-					if (i % 50 === 0 && i > 0 && totalPoints > 0) {
-						// Calculate progress based on actual data points processed (10% to 95%)
-						const processedSoFar = totalProcessedPoints + i;
-						const currentProgress = Math.min(
-							95,
-							10 + Math.round((processedSoFar / totalPoints) * 85)
-						);
-
-						this.updateProgress({
-							phase: 'processing_batches',
-							progress: currentProgress,
-							message: `Processing data points: ${processedSoFar.toLocaleString()} / ${totalPoints.toLocaleString()}`,
-							details: {
-								currentDateRange: `${dateRange.startDate} to ${dateRange.endDate}`,
-								totalDateRanges: totalDateRanges,
-								processedPoints: processedSoFar,
-								totalPoints: totalPoints,
-								currentBatch: Math.floor(offset / batchSize) + 1,
-								detectedTrips: trips.length
-							}
-						});
-					}
 				}
 
-				// Update total processed points after batch completion
-				totalProcessedPoints += validPoints.length;
+				processedPoints += batch.length;
 
-				// Update progress after each batch
-				const currentProgress =
-					totalPoints > 0
-						? Math.min(95, 10 + Math.round((totalProcessedPoints / totalPoints) * 85))
-						: 50;
-
+				// Update progress (based solely on points processed)
+				const progress = Math.round((processedPoints / totalPoints) * 100);
 				this.updateProgress({
 					phase: 'processing_batches',
-					progress: currentProgress,
-					message: `Processing data points: ${totalProcessedPoints.toLocaleString()} / ${totalPoints.toLocaleString()}`,
+					progress,
+					message: `Processing: ${processedPoints.toLocaleString()} / ${totalPoints.toLocaleString()} points`,
 					details: {
-						currentDateRange: `${dateRange.startDate} to ${dateRange.endDate}`,
-						totalDateRanges: totalDateRanges,
-						processedPoints: totalProcessedPoints,
-						totalPoints: totalPoints,
-						currentBatch: Math.floor(offset / batchSize) + 1,
-						detectedTrips: trips.length
+						processedPoints,
+						totalPoints,
+						detectedTrips: trips.length,
+						currentBatch: batchNumber
 					}
 				});
 
-				// Check if we have more data
-				if (batch.length < batchSize) {
-					hasMoreData = false;
-				} else {
-					offset += batchSize;
-				}
-			} catch (error) {
-				console.error(`❌ Exception processing batch at offset ${offset}:`, error);
-				break;
+				lastRecordedAt = batch[batch.length - 1].recorded_at;
+				batchNumber++;
 			}
-		}
 
-		return trips;
+			// 7. Finalize
+			this.updateProgress({
+				phase: 'completed',
+				progress: 100,
+				message: `Trip detection completed: ${trips.length} trips detected`,
+				details: { detectedTrips: trips.length }
+			});
+
+			return trips;
+		} catch (error) {
+			console.error('❌ Exception in detectTrips:', error);
+			return [];
+		}
 	}
 
 	/**
@@ -702,7 +563,11 @@ export class TripDetectionService {
 	 * Extract city name from a data point
 	 */
 	private getCityFromPoint(point: any): string | null {
-		// Try different possible locations for city name
+		// Try Pelias addendum.osm path first (most common with new geocoding)
+		if (point.geocode?.properties?.addendum?.osm?.['addr:city']) {
+			return point.geocode.properties.addendum.osm['addr:city'];
+		}
+		// Fallback to Nominatim paths
 		if (point.geocode?.properties?.address?.city) {
 			return point.geocode.properties.address.city;
 		}
@@ -734,9 +599,9 @@ export class TripDetectionService {
 		const a =
 			Math.sin(dLat / 2) * Math.sin(dLat / 2) +
 			Math.cos(this.toRadians(lat1)) *
-				Math.cos(this.toRadians(lat2)) *
-				Math.sin(dLon / 2) *
-				Math.sin(dLon / 2);
+			Math.cos(this.toRadians(lat2)) *
+			Math.sin(dLon / 2) *
+			Math.sin(dLon / 2);
 		const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 		return R * c;
 	}
@@ -1204,25 +1069,26 @@ export class TripDetectionService {
 	}
 
 	/**
-	 * Get primary city (most visited city or first city, filtered by duration)
+	 * Get primary city (city with longest duration)
 	 */
 	private getPrimaryCity(visitedCities: any[]): string {
 		const filteredLocations = this.filterLocationsByDuration(visitedCities);
 		if (filteredLocations.length === 0) return 'Unknown';
 
-		// Count city occurrences
-		const cityCounts = new Map<string, number>();
+		// Sum duration hours by city
+		const cityDurations = new Map<string, number>();
 		filteredLocations.forEach((loc) => {
 			const city = loc.cityName;
-			cityCounts.set(city, (cityCounts.get(city) || 0) + 1);
+			const duration = loc.durationHours || 0;
+			cityDurations.set(city, (cityDurations.get(city) || 0) + duration);
 		});
 
-		// Return most visited city
-		let maxCount = 0;
+		// Return city with longest duration
+		let maxDuration = 0;
 		let primaryCity = 'Unknown';
-		for (const [city, count] of cityCounts) {
-			if (count > maxCount) {
-				maxCount = count;
+		for (const [city, duration] of cityDurations) {
+			if (duration > maxDuration) {
+				maxDuration = duration;
 				primaryCity = city;
 			}
 		}
@@ -1231,25 +1097,26 @@ export class TripDetectionService {
 	}
 
 	/**
-	 * Get primary country (most visited country or first country, filtered by duration)
+	 * Get primary country code (country with longest duration)
 	 */
 	private getPrimaryCountry(visitedCities: any[]): string {
 		const filteredLocations = this.filterLocationsByDuration(visitedCities);
 		if (filteredLocations.length === 0) return 'Unknown';
 
-		// Count country occurrences
-		const countryCounts = new Map<string, number>();
+		// Sum duration hours by country
+		const countryDurations = new Map<string, number>();
 		filteredLocations.forEach((loc) => {
 			const country = loc.countryCode;
-			countryCounts.set(country, (countryCounts.get(country) || 0) + 1);
+			const duration = loc.durationHours || 0;
+			countryDurations.set(country, (countryDurations.get(country) || 0) + duration);
 		});
 
-		// Return most visited country
-		let maxCount = 0;
+		// Return country with longest duration
+		let maxDuration = 0;
 		let primaryCountry = 'Unknown';
-		for (const [country, count] of countryCounts) {
-			if (count > maxCount) {
-				maxCount = count;
+		for (const [country, duration] of countryDurations) {
+			if (duration > maxDuration) {
+				maxDuration = duration;
 				primaryCountry = country;
 			}
 		}

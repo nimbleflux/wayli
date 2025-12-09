@@ -6,6 +6,8 @@
  *
  * @fluxbase:require-role authenticated
  * @fluxbase:timeout 1200
+ * @fluxbase:allow-net true
+ * @fluxbase:allow-env true
  */
 
 import { TripDetectionService } from '../../web/src/lib/services/trip-detection.service';
@@ -13,6 +15,7 @@ import { UserProfileService } from '../../web/src/lib/services/user-profile.serv
 import { forwardGeocode } from '../../web/src/lib/services/external/pelias.service';
 
 import type { TripGenerationData, HomeAddress } from '../../web/src/lib/types/trip-generation.types';
+import type { Location } from '../../web/src/lib/services/trip-detection.service';
 import type { FluxbaseClient, JobUtils } from './types';
 
 // Safe wrapper for reportProgress - logs if method doesn't exist
@@ -74,6 +77,9 @@ export async function handler(
 			'✈️ Determining available date ranges for sleep-based trip generation...'
 		);
 
+		// Configure services with the fluxbase client passed to the handler
+		UserProfileService.setFluxbaseClient(fluxbaseService as any);
+
 		// Get user's home address
 		let homeAddress: HomeAddress | null = null;
 		if (useCustomHomeAddress && customHomeAddress) {
@@ -110,8 +116,8 @@ export async function handler(
 				};
 			}
 		} else {
-			// Get user's stored home address from user_profiles table
-			const userProfile = await UserProfileService.getUserProfile(userId);
+			// Get user's stored home address from user_profiles table (using basic method for job context)
+			const userProfile = await UserProfileService.getUserProfileBasic(userId);
 			if (userProfile?.home_address) {
 				if (typeof userProfile.home_address === 'string') {
 					homeAddress = {
@@ -134,14 +140,24 @@ export async function handler(
 			`🏠 Retrieved home address, fetching GPS data for sleep pattern analysis...`
 		);
 
-		// Configure UserProfileService for worker environment
-		UserProfileService.useNodeEnvironmentConfig();
+		// Use trip detection service with the service role client to bypass RLS
+		const tripDetectionService = new TripDetectionService(fluxbaseService);
 
-		// Use trip detection service
-		const tripDetectionService = new TripDetectionService(
-			process.env.FLUXBASE_BASE_URL!,
-			process.env.FLUXBASE_SERVICE_ROLE_KEY!
-		);
+		// Set custom home location if we have one (either from custom address or user profile)
+		if (homeAddress && homeAddress.coordinates) {
+			const customHomeLocation: Location = {
+				coordinates: {
+					lat: homeAddress.coordinates.lat,
+					lng: homeAddress.coordinates.lng
+				},
+				address: {
+					city: homeAddress.address?.city || homeAddress.address?.town || homeAddress.address?.village,
+					country_code: homeAddress.address?.country
+				}
+			};
+			tripDetectionService.setCustomHomeAddress(customHomeLocation);
+			console.log(`✅ Set custom home location: ${homeAddress.display_name}`);
+		}
 
 		// Set up progress tracking for trip detection with ETA calculation
 		const progressSamples: Array<{ time: number; progress: number }> = [];

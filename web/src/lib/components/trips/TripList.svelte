@@ -91,12 +91,12 @@
 					</th>
 					<th class="px-6 py-4">
 						<button
-							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-[rgb(34,51,95)] dark:text-gray-100"
+							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-[rgb(34,51,95)] dark:text-gray-100 dark:hover:text-blue-400"
 							onclick={() => toggleSort('title')}
 						>
 							Trip Name
 							{#if sortField === 'title'}
-								<span class="text-[rgb(34,51,95)]">
+								<span class="text-[rgb(34,51,95)] dark:text-blue-400">
 									{#if sortDirection === 'asc'}
 										<ArrowUp class="h-4 w-4" />
 									{:else}
@@ -108,12 +108,12 @@
 					</th>
 					<th class="px-6 py-4">
 						<button
-							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-[rgb(34,51,95)] dark:text-gray-100"
+							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-[rgb(34,51,95)] dark:text-gray-100 dark:hover:text-blue-400"
 							onclick={() => toggleSort('labels')}
 						>
 							Labels
 							{#if sortField === 'labels'}
-								<span class="text-[rgb(34,51,95)]">
+								<span class="text-[rgb(34,51,95)] dark:text-blue-400">
 									{#if sortDirection === 'asc'}
 										<ArrowUp class="h-4 w-4" />
 									{:else}
@@ -125,12 +125,12 @@
 					</th>
 					<th class="px-6 py-4">
 						<button
-							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-[rgb(34,51,95)] dark:text-gray-100"
+							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-[rgb(34,51,95)] dark:text-gray-100 dark:hover:text-blue-400"
 							onclick={() => toggleSort('distance')}
 						>
 							Distance
 							{#if sortField === 'distance'}
-								<span class="text-[rgb(34,51,95)]">
+								<span class="text-[rgb(34,51,95)] dark:text-blue-400">
 									{#if sortDirection === 'asc'}
 										<ArrowUp class="h-4 w-4" />
 									{:else}
@@ -142,12 +142,12 @@
 					</th>
 					<th class="px-6 py-4">
 						<button
-							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-[rgb(34,51,95)] dark:text-gray-100"
+							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-[rgb(34,51,95)] dark:text-gray-100 dark:hover:text-blue-400"
 							onclick={() => toggleSort('startDate')}
 						>
 							Start Date
 							{#if sortField === 'startDate'}
-								<span class="text-[rgb(34,51,95)]">
+								<span class="text-[rgb(34,51,95)] dark:text-blue-400">
 									{#if sortDirection === 'asc'}
 										<ArrowUp class="h-4 w-4" />
 									{:else}
@@ -159,12 +159,12 @@
 					</th>
 					<th class="px-6 py-4">
 						<button
-							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-[rgb(34,51,95)] dark:text-gray-100"
+							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-[rgb(34,51,95)] dark:text-gray-100 dark:hover:text-blue-400"
 							onclick={() => toggleSort('duration')}
 						>
 							Duration
 							{#if sortField === 'duration'}
-								<span class="text-[rgb(34,51,95)]">
+								<span class="text-[rgb(34,51,95)] dark:text-blue-400">
 									{#if sortDirection === 'asc'}
 										<ArrowUp class="h-4 w-4" />
 									{:else}
@@ -200,7 +200,7 @@
 											: label === 'Nature'
 												? 'bg-green-100 text-green-700'
 												: label === 'Roadtrip'
-													? 'bg-[rgb(34,51,95)]/10 text-[rgb(34,51,95)]'
+													? 'bg-[rgb(34,51,95)]/10 text-[rgb(34,51,95)] dark:bg-blue-500/20 dark:text-blue-400'
 													: label === 'Vacation'
 														? 'bg-purple-100 text-purple-700'
 														: label === 'auto-generated'

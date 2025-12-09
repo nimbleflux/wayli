@@ -91,6 +91,14 @@
 	}
 
 	function handleCustomHomeAddressToggle() {
+		// Clear the custom home address when toggle is turned off
+		if (!useCustomHomeAddress) {
+			customHomeAddress = '';
+			customHomeAddressInput = '';
+			selectedCustomHomeAddress = null;
+			customHomeAddressSuggestions = [];
+			showCustomHomeAddressSuggestions = false;
+		}
 		if (onCustomHomeAddressToggle) {
 			onCustomHomeAddressToggle({ useCustomHomeAddress });
 		}
@@ -189,6 +197,7 @@
 	}) {
 		selectedCustomHomeAddress = suggestion;
 		customHomeAddressInput = suggestion.display_name;
+		customHomeAddress = suggestion.display_name; // Update the bound prop so parent receives the value
 		showCustomHomeAddressSuggestions = false;
 		selectedCustomHomeAddressIndex = -1;
 	}

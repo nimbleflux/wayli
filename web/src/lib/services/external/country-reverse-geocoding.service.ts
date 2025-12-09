@@ -11,120 +11,107 @@ import type { FeatureCollection, Feature, Polygon, MultiPolygon } from 'geojson'
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load and cache countries.geojson
-let countriesGeoJSON: FeatureCollection<Polygon | MultiPolygon> | null = null;
-function loadCountriesGeoJSON(): FeatureCollection<Polygon | MultiPolygon> {
-	if (!countriesGeoJSON) {
-		let rawGeoJSON: FeatureCollection<Polygon | MultiPolygon> | null = null;
+// Eager load countries.geojson at module initialization to avoid blocking during job processing
+// This prevents worker health check failures from the blocking gunzipSync call
+const countriesGeoJSON: FeatureCollection<Polygon | MultiPolygon> = (() => {
+	let rawGeoJSON: FeatureCollection<Polygon | MultiPolygon> | null = null;
 
-		// Try to load embedded compressed data first (for bundled mode)
-		try {
-			// @ts-ignore - This constant will be injected during bundling via esbuild define
-			const compressedData = EMBEDDED_COUNTRIES_GEOJSON;
-			const buffer = Buffer.from(compressedData, 'base64');
-			const decompressed = gunzipSync(buffer).toString('utf-8');
-			rawGeoJSON = JSON.parse(decompressed) as FeatureCollection<Polygon | MultiPolygon>;
-			console.log('✅ Loaded countries.geojson from embedded compressed data');
-		} catch {
-			// Fallback to filesystem (for development mode)
-			const possiblePaths = [
-				path.resolve(__dirname, '../../data/countries.geojson'),
-				path.resolve(process.cwd(), 'src/lib/data/countries.geojson'),
-				path.resolve(process.cwd(), 'web/src/lib/data/countries.geojson'),
-				'/data/countries.geojson'
-			];
+	// Try to load embedded compressed data first (for bundled mode)
+	try {
+		// @ts-ignore - This constant will be injected during bundling via esbuild define
+		const compressedData = EMBEDDED_COUNTRIES_GEOJSON;
+		const buffer = Buffer.from(compressedData, 'base64');
+		const decompressed = gunzipSync(buffer).toString('utf-8');
+		rawGeoJSON = JSON.parse(decompressed) as FeatureCollection<Polygon | MultiPolygon>;
+		console.log('✅ Loaded countries.geojson from embedded compressed data');
+	} catch {
+		// Fallback to filesystem (for development mode)
+		const possiblePaths = [
+			path.resolve(__dirname, '../../data/countries.geojson'),
+			path.resolve(process.cwd(), 'src/lib/data/countries.geojson'),
+			path.resolve(process.cwd(), 'web/src/lib/data/countries.geojson'),
+			'/data/countries.geojson'
+		];
 
-			for (const filePath of possiblePaths) {
-				try {
-					const data = fs.readFileSync(filePath, 'utf-8');
-					rawGeoJSON = JSON.parse(data) as FeatureCollection<Polygon | MultiPolygon>;
-					break;
-				} catch {
-					// Continue trying other paths
-				}
-			}
-
-			if (!rawGeoJSON) {
-				console.error('❌ [COUNTRY] Failed to load countries.geojson from any path');
-				// Return empty feature collection to prevent crashes
-				countriesGeoJSON = {
-					type: 'FeatureCollection',
-					features: []
-				} as FeatureCollection<Polygon | MultiPolygon>;
-				return countriesGeoJSON;
+		for (const filePath of possiblePaths) {
+			try {
+				const data = fs.readFileSync(filePath, 'utf-8');
+				rawGeoJSON = JSON.parse(data) as FeatureCollection<Polygon | MultiPolygon>;
+				console.log(`✅ Loaded countries.geojson from ${filePath}`);
+				break;
+			} catch {
+				// Continue trying other paths
 			}
 		}
 
-		// Normalize properties
-		for (const feature of rawGeoJSON.features) {
-			const props = feature.properties || {};
-			props.ADMIN = props.ADMIN || props.name || null;
-			props.NAME = props.NAME || props.name || null;
-			props.ISO_A2 = props.ISO_A2 || props['ISO3166-1-Alpha-2'] || null;
-			props.ISO_A3 = props.ISO_A3 || props['ISO3166-1-Alpha-3'] || null;
-			feature.properties = props;
-		}
-		countriesGeoJSON = rawGeoJSON;
-	}
-	return countriesGeoJSON;
-}
-
-// Load and cache timezones.geojson
-let timezonesGeoJSON: FeatureCollection<Polygon | MultiPolygon> | null = null;
-function loadTimezonesGeoJSON(): FeatureCollection<Polygon | MultiPolygon> {
-	if (!timezonesGeoJSON) {
-		// Try to load embedded compressed data first (for bundled mode)
-		try {
-			// @ts-ignore - This constant will be injected during bundling via esbuild define
-			const compressedData = EMBEDDED_TIMEZONES_GEOJSON;
-			const buffer = Buffer.from(compressedData, 'base64');
-			const decompressed = gunzipSync(buffer).toString('utf-8');
-			timezonesGeoJSON = JSON.parse(decompressed) as FeatureCollection<Polygon | MultiPolygon>;
-			console.log('✅ Loaded timezones.geojson from embedded compressed data');
-		} catch {
-			// Fallback to filesystem (for development mode)
-			const possiblePaths = [
-				path.resolve(__dirname, '../../data/timezones.geojson'),
-				path.resolve(process.cwd(), 'src/lib/data/timezones.geojson'),
-				path.resolve(process.cwd(), 'web/src/lib/data/timezones.geojson'),
-				'./src/lib/data/timezones.geojson',
-				'./web/src/lib/data/timezones.geojson'
-			];
-
-			let loaded = false;
-			for (const filePath of possiblePaths) {
-				try {
-					const data = fs.readFileSync(filePath, 'utf-8');
-					const parsed = JSON.parse(data) as FeatureCollection<Polygon | MultiPolygon>;
-					timezonesGeoJSON = parsed;
-					loaded = true;
-					break;
-				} catch {
-					// Continue trying other paths
-				}
-			}
-
-			if (!loaded) {
-				console.error(`❌ [TIMEZONE] Failed to load timezones.geojson from any path`);
-				// Return empty feature collection to prevent crashes
-				const emptyCollection = {
-					type: 'FeatureCollection',
-					features: []
-				} as FeatureCollection<Polygon | MultiPolygon>;
-				timezonesGeoJSON = emptyCollection;
-			}
+		if (!rawGeoJSON) {
+			console.error('❌ [COUNTRY] Failed to load countries.geojson from any path');
+			// Return empty feature collection to prevent crashes
+			return {
+				type: 'FeatureCollection',
+				features: []
+			} as FeatureCollection<Polygon | MultiPolygon>;
 		}
 	}
-	return timezonesGeoJSON!;
-}
+
+	// Normalize properties
+	for (const feature of rawGeoJSON.features) {
+		const props = feature.properties || {};
+		props.ADMIN = props.ADMIN || props.name || null;
+		props.NAME = props.NAME || props.name || null;
+		props.ISO_A2 = props.ISO_A2 || props['ISO3166-1-Alpha-2'] || null;
+		props.ISO_A3 = props.ISO_A3 || props['ISO3166-1-Alpha-3'] || null;
+		feature.properties = props;
+	}
+
+	return rawGeoJSON;
+})();
+
+// Eager load timezones.geojson at module initialization (same pattern as countries)
+const timezonesGeoJSON: FeatureCollection<Polygon | MultiPolygon> = (() => {
+	// Try to load embedded compressed data first (for bundled mode)
+	try {
+		// @ts-ignore - This constant will be injected during bundling via esbuild define
+		const compressedData = EMBEDDED_TIMEZONES_GEOJSON;
+		const buffer = Buffer.from(compressedData, 'base64');
+		const decompressed = gunzipSync(buffer).toString('utf-8');
+		console.log('✅ Loaded timezones.geojson from embedded compressed data');
+		return JSON.parse(decompressed) as FeatureCollection<Polygon | MultiPolygon>;
+	} catch {
+		// Fallback to filesystem (for development mode)
+		const possiblePaths = [
+			path.resolve(__dirname, '../../data/timezones.geojson'),
+			path.resolve(process.cwd(), 'src/lib/data/timezones.geojson'),
+			path.resolve(process.cwd(), 'web/src/lib/data/timezones.geojson'),
+			'./src/lib/data/timezones.geojson',
+			'./web/src/lib/data/timezones.geojson'
+		];
+
+		for (const filePath of possiblePaths) {
+			try {
+				const data = fs.readFileSync(filePath, 'utf-8');
+				console.log(`✅ Loaded timezones.geojson from ${filePath}`);
+				return JSON.parse(data) as FeatureCollection<Polygon | MultiPolygon>;
+			} catch {
+				// Continue trying other paths
+			}
+		}
+
+		console.error(`❌ [TIMEZONE] Failed to load timezones.geojson from any path`);
+		// Return empty feature collection to prevent crashes
+		return {
+			type: 'FeatureCollection',
+			features: []
+		} as FeatureCollection<Polygon | MultiPolygon>;
+	}
+})();
 
 /**
  * Returns the country name or code for a given lat/lng, or null if not found.
  */
 export function getCountryForPoint(lat: number, lng: number): string | null {
-	const geojson = loadCountriesGeoJSON();
 	const pt = point([lng, lat]);
-	for (const feature of geojson.features) {
+	for (const feature of countriesGeoJSON.features) {
 		if (booleanPointInPolygon(pt, feature as Feature<Polygon | MultiPolygon>)) {
 			return (
 				feature.properties?.ISO_A2 || feature.properties?.ADMIN || feature.properties?.NAME || null
@@ -139,10 +126,9 @@ export function getCountryForPoint(lat: number, lng: number): string | null {
  * The timezone offset is a string like "-9.5", "-8", "-6", "-4", etc.
  */
 export function getTimezoneForPoint(lat: number, lng: number): string | null {
-	const geojson = loadTimezonesGeoJSON();
 	const pt = point([lng, lat]);
 
-	for (const feature of geojson.features) {
+	for (const feature of timezonesGeoJSON.features) {
 		if (booleanPointInPolygon(pt, feature as Feature<Polygon | MultiPolygon>)) {
 			const timezoneOffset = feature.properties?.name || null;
 			return timezoneOffset;
@@ -219,10 +205,9 @@ export function applyTimezoneCorrectionToTimestamp(
 export function getCountryCodeFromName(countryName: string): string | null {
 	if (!countryName) return null;
 
-	const geojson = loadCountriesGeoJSON();
 	const normalizedName = countryName.toLowerCase().trim();
 
-	for (const feature of geojson.features) {
+	for (const feature of countriesGeoJSON.features) {
 		const props = feature.properties || {};
 		const adminName = props.ADMIN?.toLowerCase();
 		const name = props.NAME?.toLowerCase();

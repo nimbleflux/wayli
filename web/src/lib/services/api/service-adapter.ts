@@ -355,7 +355,7 @@ export class ServiceAdapter {
 			.from('trips')
 			.select('*')
 			.eq('user_id', userData.user.id)
-			.eq('status', 'active') // Only show active trips by default
+			.eq('status', 'completed') // Only show completed (approved) trips by default
 			.order('created_at', { ascending: false });
 
 		// Add search filter if provided
@@ -607,10 +607,10 @@ export class ServiceAdapter {
 		const limit = options?.limit || 50;
 		const offset = options?.offset || 0;
 
-		// Query trips with status='pending' (suggested trips)
-		const { data: trips, error } = await fluxbase
+		// Query trips with status='pending' (suggested trips) with count
+		const { data: trips, error, count } = await fluxbase
 			.from('trips')
-			.select('*')
+			.select('*', { count: 'exact' })
 			.eq('user_id', userData.user.id)
 			.eq('status', 'pending')
 			.order('created_at', { ascending: false })
@@ -620,7 +620,13 @@ export class ServiceAdapter {
 			throw new Error(error.message || 'Failed to fetch suggested trips');
 		}
 
-		return trips || [];
+		// Return in the format the UI expects
+		return {
+			trips: trips || [],
+			total: count || 0,
+			limit,
+			offset
+		};
 	}
 
 	async clearAllSuggestedTrips() {
@@ -695,20 +701,28 @@ export class ServiceAdapter {
 				distanceTraveled
 			};
 
-			// Add pre-generated image if available
+			// Add pre-generated image attribution to metadata if available
+			let imageUrl: string | undefined;
 			if (preGeneratedImages && preGeneratedImages[trip.id]) {
-				updatedMetadata.image_url = preGeneratedImages[trip.id].image_url;
-				updatedMetadata.attribution = preGeneratedImages[trip.id].attribution;
+				imageUrl = preGeneratedImages[trip.id].image_url;
+				updatedMetadata.image_attribution = preGeneratedImages[trip.id].attribution;
 			}
 
-			// Update trip status to 'active' and metadata
+			// Update trip status to 'completed', image_url, and metadata
+			const updateData: Record<string, unknown> = {
+				status: 'completed',
+				metadata: updatedMetadata,
+				updated_at: new Date().toISOString()
+			};
+
+			// Set image_url on the trip record if we have one
+			if (imageUrl) {
+				updateData.image_url = imageUrl;
+			}
+
 			const { data: updatedTrip, error: updateError } = await fluxbase
 				.from('trips')
-				.update({
-					status: 'active',
-					metadata: updatedMetadata,
-					updated_at: new Date().toISOString()
-				})
+				.update(updateData)
 				.eq('id', trip.id)
 				.eq('user_id', userData.user.id)
 				.select()
@@ -716,13 +730,14 @@ export class ServiceAdapter {
 
 			if (updateError) {
 				console.error(`Failed to approve trip ${trip.id}:`, updateError);
+				approvedTrips.push({ tripId: trip.id, success: false, error: updateError.message });
 				continue;
 			}
 
-			approvedTrips.push(updatedTrip);
+			approvedTrips.push({ tripId: updatedTrip.id, success: true, trip: updatedTrip });
 		}
 
-		const result = { approved: approvedTrips };
+		const result = { results: approvedTrips, approved: approvedTrips.filter((t) => t.success) };
 		console.log('📥 [SERVICE] approveSuggestedTrips result:', result);
 		return result;
 	}
@@ -835,7 +850,7 @@ export class ServiceAdapter {
 		const { data: activeTrip, error: updateError } = await fluxbase
 			.from('trips')
 			.update({
-				status: 'active',
+				status: 'completed',
 				metadata: {
 					...(trip.metadata || {}),
 					distanceTraveled
@@ -1125,20 +1140,16 @@ export class ServiceAdapter {
 			throw new Error('Export file not ready');
 		}
 
-		console.log('[ServiceAdapter] getExportDownloadUrl - generating signed URL for:', filePath);
+		console.log('[ServiceAdapter] getExportDownloadUrl - generating download URL for:', filePath);
 
-		// Generate signed URL for the export file (stored in temp-files bucket)
-		const { data: signedUrl, error: urlError } = await fluxbase.storage
+		// Use the public URL through the Fluxbase API gateway (handles auth via session)
+		// This avoids issues with presigned URLs using internal hostnames (e.g., minio:9000)
+		const { data: urlData } = fluxbase.storage
 			.from('temp-files')
-			.createSignedUrl(filePath, 3600); // 1 hour expiry
+			.getPublicUrl(filePath);
 
-		if (urlError) {
-			console.error('[ServiceAdapter] getExportDownloadUrl - signed URL error:', urlError);
-			throw new Error(urlError.message || 'Failed to generate download URL');
-		}
-
-		console.log('[ServiceAdapter] getExportDownloadUrl - signed URL generated successfully');
-		return { downloadUrl: signedUrl.signedUrl };
+		console.log('[ServiceAdapter] getExportDownloadUrl - download URL generated successfully');
+		return { downloadUrl: urlData.publicUrl };
 	}
 
 	/**
@@ -1371,14 +1382,56 @@ export class ServiceAdapter {
 		// Get app settings via SDK
 		const appSettings = await fluxbase.admin.settings.app.get();
 
-		// Get custom Wayli settings from system settings
-		const { settings } = await fluxbase.admin.settings.system.list();
-		const wayliSettings = settings
+		// Get custom Wayli settings using SDK's listSettings
+		const customSettings = await fluxbase.admin.settings.app.listSettings();
+		const wayliSettings = (customSettings || [])
 			.filter((s: any) => s.key.startsWith('wayli.'))
-			.reduce((acc: any, s: any) => ({ ...acc, [s.key]: s.value }), {});
+			.reduce((acc: any, s: any) => ({
+				...acc,
+				[s.key]: s.value
+			}), {});
+
+		// Get AI settings from FluxbaseAdmin SDK
+		let aiEnabled = false;
+		let allowUserOverride = false;
+		try {
+			const enableAISetting = await fluxbase.admin.settings.system.get('app.features.enable_ai');
+			aiEnabled = enableAISetting?.value?.value ?? false;
+
+			const userOverrideSetting = await fluxbase.admin.settings.system.get(
+				'app.ai.allow_user_provider_override'
+			);
+			allowUserOverride = userOverrideSetting?.value?.value ?? false;
+		} catch {
+			// Settings don't exist yet - use defaults
+		}
+
+		// Get AI providers from FluxbaseAdmin SDK
+		let providers: any[] = [];
+		let defaultProvider: any | undefined;
+		try {
+			const { data: providerList } = await fluxbase.admin.ai.listProviders();
+			if (providerList) {
+				providers = providerList;
+				defaultProvider = providers.find((p) => p.is_default);
+			}
+		} catch {
+			// AI providers not configured yet
+		}
+
+		// Build AI settings from SDK data
+		const appSettingsWithAI = {
+			...appSettings,
+			ai: {
+				enabled: aiEnabled,
+				allow_user_provider_override: allowUserOverride,
+				default_provider: defaultProvider,
+				providers: providers
+			}
+		};
 
 		return {
-			app: appSettings,
+			app: appSettingsWithAI,
 			custom: wayliSettings
 		};
 	}
@@ -1411,13 +1464,79 @@ export class ServiceAdapter {
 				return await settings.setFeature(params.feature, params.enabled);
 			case 'setRateLimiting':
 				return await settings.setRateLimiting(params.enabled);
+			case 'setAIConfig':
+				return await this.updateAIConfig(params);
 			default:
 				throw new Error(`Unknown action: ${action}`);
 		}
 	}
 
 	/**
-	 * Update custom Wayli setting using system settings directly
+	 * Update AI config using FluxbaseAdmin SDK
+	 */
+	async updateAIConfig(params: {
+		enabled: boolean;
+		allow_user_provider_override?: boolean;
+		provider?: {
+			name: string;
+			display_name: string;
+			provider_type: string;
+			is_default?: boolean;
+			config: {
+				api_key?: string;
+				model?: string;
+				api_endpoint?: string;
+				max_tokens?: number;
+				temperature?: number;
+			};
+		};
+	}) {
+		const { fluxbase } = await import('$lib/fluxbase');
+
+		// Update AI enabled feature flag
+		await fluxbase.admin.settings.system.update('app.features.enable_ai', {
+			value: { value: params.enabled },
+			description: 'Enable or disable AI chatbot functionality'
+		});
+
+		// Update user override permission
+		if (params.allow_user_provider_override !== undefined) {
+			await fluxbase.admin.settings.system.update('app.ai.allow_user_provider_override', {
+				value: { value: params.allow_user_provider_override },
+				description: 'Allow users to configure their own AI provider'
+			});
+		}
+
+		// Create or update provider if specified
+		if (params.provider) {
+			const { data: existingProviders } = await fluxbase.admin.ai.listProviders();
+			const existing = existingProviders?.find((p: any) => p.name === params.provider!.name);
+
+			if (existing) {
+				// Update existing provider
+				await fluxbase.admin.ai.updateProvider(existing.id, {
+					display_name: params.provider.display_name,
+					provider_type: params.provider.provider_type,
+					is_default: params.provider.is_default ?? false,
+					config: params.provider.config
+				});
+			} else {
+				// Create new provider
+				await fluxbase.admin.ai.createProvider({
+					name: params.provider.name,
+					display_name: params.provider.display_name,
+					provider_type: params.provider.provider_type,
+					is_default: params.provider.is_default ?? true,
+					config: params.provider.config
+				});
+			}
+		}
+
+		return { updated: true };
+	}
+
+	/**
+	 * Update custom Wayli setting using the SDK's setSetting method
 	 */
 	async updateCustomSetting(key: string, value: any, description?: string) {
 		const { fluxbase } = await import('$lib/fluxbase');
@@ -1426,9 +1545,12 @@ export class ServiceAdapter {
 			throw new Error('Custom setting keys must start with "wayli."');
 		}
 
-		await fluxbase.admin.settings.system.update(key, {
-			value: { value },
-			description: description || `Wayli custom setting: ${key}`
+		// Use the SDK's setSetting method for custom settings
+		await fluxbase.admin.settings.app.setSetting(key, value, {
+			description: description || `Wayli setting: ${key}`,
+			is_public: false,
+			is_secret: key.includes('api_key') || key.includes('secret'),
+			value_type: typeof value === 'object' ? 'json' : typeof value as 'string' | 'number' | 'boolean'
 		});
 
 		return { updated: key };

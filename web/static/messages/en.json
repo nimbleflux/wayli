@@ -530,6 +530,8 @@
 		"titleLabel": "Title",
 		"startDate": "Start date",
 		"endDate": "End date",
+		"description": "Description",
+		"labels": "Labels",
 		"describeTripPlaceholder": "Describe your trip...",
 		"addLabelPlaceholder": "Add a label (e.g., vacation, business, adventure)",
 		"tripImage": "Trip image",

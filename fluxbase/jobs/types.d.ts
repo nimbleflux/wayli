@@ -21,6 +21,12 @@ interface FluxbaseClient {
 				file: File | Blob | Buffer,
 				options?: { contentType?: string; upsert?: boolean }
 			): Promise<{ data: any; error: Error | null }>;
+			uploadStream(
+				path: string,
+				stream: ReadableStream<Uint8Array>,
+				size: number,
+				options?: { contentType?: string; upsert?: boolean }
+			): Promise<{ data: any; error: Error | null }>;
 			remove(paths: string[]): Promise<{ data: any; error: Error | null }>;
 			list(
 				path?: string,
@@ -139,6 +145,18 @@ interface QueryBuilder<T = any> {
 }
 
 /**
+ * User context for submitting jobs on behalf of another user
+ */
+interface OnBehalfOfUser {
+	/** User UUID */
+	user_id: string;
+	/** User email address */
+	user_email: string;
+	/** User role (admin, dashboard_admin, authenticated, anon) */
+	user_role: string;
+}
+
+/**
  * Jobs client for querying and submitting jobs
  */
 interface JobsClient {
@@ -148,7 +166,21 @@ interface JobsClient {
 	 *
 	 * @param jobName - Name of the job handler to execute
 	 * @param payload - Data to pass to the job handler
-	 * @param options - Job options (namespace, priority)
+	 * @param options - Job options (namespace, priority, onBehalfOf)
+	 *
+	 * @example
+	 * // Submit a job with user context from current session
+	 * await fluxbase.jobs.submit('data-export', { format: 'csv' });
+	 *
+	 * @example
+	 * // Submit a job on behalf of another user (from scheduled/cron jobs)
+	 * await fluxbaseService.jobs.submit('user-task', payload, {
+	 *   onBehalfOf: {
+	 *     user_id: 'target-user-uuid',
+	 *     user_email: 'user@example.com',
+	 *     user_role: 'authenticated'
+	 *   }
+	 * });
 	 */
 	submit(
 		jobName: string,
@@ -156,6 +188,15 @@ interface JobsClient {
 		options?: {
 			namespace?: string;
 			priority?: number;
+			/**
+			 * Submit the job on behalf of another user.
+			 * Useful for scheduled/cron jobs that need to create user-specific jobs
+			 * without a user session context.
+			 *
+			 * When provided, the job's user context (accessible via job.getJobContext().user)
+			 * will be set to this user instead of the submitting user/service.
+			 */
+			onBehalfOf?: OnBehalfOfUser;
 		}
 	): Promise<{ data: { job_id: string; status: string } | null; error: Error | null }>;
 
@@ -226,4 +267,4 @@ interface JobContext {
 	} | null;
 }
 
-export { FluxbaseClient, JobUtils, QueryBuilder, JobsClient, JobRecord, JobContext };
+export { FluxbaseClient, JobUtils, QueryBuilder, JobsClient, JobRecord, JobContext, OnBehalfOfUser };

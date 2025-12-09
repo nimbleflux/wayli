@@ -205,10 +205,16 @@
 		if (localExportStartDate instanceof Date) {
 			exportStartDate = localExportStartDate;
 			appState.filtersStartDate = localExportStartDate;
+		} else {
+			exportStartDate = undefined;
+			appState.filtersStartDate = undefined;
 		}
 		if (localExportEndDate instanceof Date) {
 			exportEndDate = localExportEndDate;
 			appState.filtersEndDate = localExportEndDate;
+		} else {
+			exportEndDate = undefined;
+			appState.filtersEndDate = undefined;
 		}
 	}
 </script>

@@ -113,6 +113,81 @@ Fluxbase.reportProgress(50, "Processed 5000/10000 points");
 Fluxbase.reportProgress(100, "Import complete");
 ```
 
+## Submitting Jobs on Behalf of Another User
+
+When a job needs to submit child jobs (e.g., after data import), or when scheduled/cron jobs need to run tasks for specific users, use the `onBehalfOf` option.
+
+### The `onBehalfOf` Option
+
+Jobs submitted with `onBehalfOf` will have their user context set to the specified user, making it available via `job.getJobContext().user`.
+
+```typescript
+// Example: Submit a job on behalf of another user
+await fluxbaseService.jobs.submit('reverse-geocoding', {}, {
+  namespace: 'wayli',
+  priority: 3,
+  onBehalfOf: {
+    user_id: 'target-user-uuid',
+    user_email: 'user@example.com',
+    user_role: 'authenticated'
+  }
+});
+```
+
+### Use Cases
+
+1. **Job chaining** - When a user-initiated job needs to trigger follow-up jobs
+2. **Scheduled jobs** - Cron-triggered jobs that need to process data for specific users
+3. **Admin operations** - Admin-triggered batch operations for multiple users
+
+### Example: Job Chaining
+
+```typescript
+export async function handler(req, fluxbase, fluxbaseService, job) {
+  const context = job.getJobContext();
+  const userId = context.user?.id;
+
+  // ... perform main job logic ...
+
+  // Submit follow-up job on behalf of the same user
+  if (context.user) {
+    await fluxbaseService.jobs.submit('follow-up-job', {}, {
+      namespace: 'wayli',
+      onBehalfOf: {
+        user_id: context.user.id,
+        user_email: context.user.email,
+        user_role: context.user.role
+      }
+    });
+  }
+}
+```
+
+### Migration from `target_user_id`
+
+The `target_user_id` payload field is deprecated. Use `onBehalfOf` instead:
+
+```typescript
+// ❌ Old approach (deprecated)
+await fluxbaseService.jobs.submit('distance-calculation',
+  { target_user_id: userId },
+  { namespace: 'wayli' }
+);
+
+// ✅ New approach (recommended)
+await fluxbaseService.jobs.submit('distance-calculation',
+  {},
+  {
+    namespace: 'wayli',
+    onBehalfOf: {
+      user_id: userId,
+      user_email: userEmail,
+      user_role: userRole
+    }
+  }
+);
+```
+
 ## Available Jobs
 
 ### Data Import

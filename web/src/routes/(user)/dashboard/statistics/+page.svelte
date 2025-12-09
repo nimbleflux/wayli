@@ -35,6 +35,7 @@
 
 	import type { Map as LeafletMap } from 'leaflet';
 	import { browser } from '$app/environment';
+	import { page } from '$app/stores';
 	import { SvelteDate } from 'svelte/reactivity';
 
 	// Use the reactive translation function
@@ -712,8 +713,17 @@
 		initializeService();
 		await initializeMap();
 
-		// Set default date range to past 7 days if no date range is set
-		if (!appState.filtersStartDate && !appState.filtersEndDate) {
+		// Check for URL params first (e.g., from trip statistics link)
+		const startParam = $page.url.searchParams.get('start');
+		const endParam = $page.url.searchParams.get('end');
+
+		if (startParam && endParam) {
+			// Use dates from URL params
+			appState.filtersStartDate = new Date(startParam);
+			appState.filtersEndDate = new Date(endParam);
+			console.log('📅 Set date range from URL params:', { start: startParam, end: endParam });
+		} else if (!appState.filtersStartDate && !appState.filtersEndDate) {
+			// Set default date range to past 7 days if no date range is set
 			const endDate = new SvelteDate();
 			const startDate = new SvelteDate();
 			startDate.setDate(endDate.getDate() - 6); // Last 7 days includes today and 6 days before
@@ -1166,7 +1176,7 @@
 						class="w-full rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"
 					>
 						<div class="mb-3 flex items-center gap-2">
-							<Globe2 class="h-5 w-5 text-[rgb(34,51,95)]" />
+							<Globe2 class="h-5 w-5 text-[rgb(34,51,95)] dark:text-blue-400" />
 							<span class="text-lg font-semibold text-gray-800 dark:text-gray-100">
 								{t('statistics.countryTimeDistribution')}
 							</span>
@@ -1206,7 +1216,7 @@
 						class="w-full rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"
 					>
 						<div class="mb-3 flex items-center gap-2">
-							<Route class="h-5 w-5 text-[rgb(34,51,95)]" />
+							<Route class="h-5 w-5 text-[rgb(34,51,95)] dark:text-blue-400" />
 							<span class="text-lg font-semibold text-gray-800 dark:text-gray-100">
 								{t('statistics.transportModes')}
 							</span>
@@ -1288,7 +1298,7 @@
 			class="mb-8 w-full rounded-lg border border-gray-200 bg-white p-4 md:w-1/2 dark:border-gray-700 dark:bg-gray-800"
 		>
 			<div class="mb-3 flex items-center gap-2">
-				<Train class="h-5 w-5 text-[rgb(34,51,95)]" />
+				<Train class="h-5 w-5 text-[rgb(34,51,95)] dark:text-blue-400" />
 				<span class="text-lg font-semibold text-gray-800 dark:text-gray-100">
 					{t('statistics.trainStationVisits')}
 				</span>

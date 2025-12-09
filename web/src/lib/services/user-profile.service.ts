@@ -1,51 +1,57 @@
-import { createClient } from '@fluxbase/sdk';
-
-import { getFluxbaseConfig } from '../../shared/config/node-environment';
-
 import type { UserProfile } from '$lib/types/user.types';
-// Supports both SvelteKit and Node/worker environments. By default, uses SvelteKit $env/static/*, but can be configured for Node/worker via setFluxbaseClient or setFluxbaseConfig.
+
+// Flexible type for Fluxbase client that works with both SDK and job runtime
+type FluxbaseClientLike = {
+	from(table: string): any;
+	auth: any;
+	rpc(fn: string, params?: Record<string, unknown>): Promise<any>;
+};
+
+// Supports both SvelteKit and Node/worker environments.
+// For job workers, call setFluxbaseClient() with the client passed to the handler.
 
 export class UserProfileService {
-	private static _fluxbase: ReturnType<typeof createClient> | null = null;
+	private static _fluxbase: FluxbaseClientLike | null = null;
 
-	// Lazy-load client to avoid localStorage errors in worker context
-	private static get fluxbase() {
+	// Lazy-load client - throws if not configured
+	private static get fluxbase(): FluxbaseClientLike {
 		if (!this._fluxbase) {
-			const config = getFluxbaseConfig();
-			this._fluxbase = createClient(config.url, config.serviceRoleKey, {
-				auth: {
-					autoRefresh: false,
-					persist: false
-				}
-			});
+			throw new Error(
+				'UserProfileService not configured. Call setFluxbaseClient() first.'
+			);
 		}
 		return this._fluxbase;
 	}
 
-	// Allow override for test/worker/Node.js
-	static setFluxbaseClient(client: ReturnType<typeof createClient>) {
+	// Allow override for test/worker/Node.js - use this in job handlers
+	static setFluxbaseClient(client: FluxbaseClientLike) {
 		this._fluxbase = client;
 	}
 
-	// Allow override for Node/worker: call this at startup in worker context
-	static setFluxbaseConfig(url: string, serviceRoleKey: string) {
-		this._fluxbase = createClient(url, serviceRoleKey, {
-			auth: {
-				autoRefresh: false,
-				persist: false
-			}
-		});
-	}
+	/**
+	 * Get basic user profile from user_profiles table only (works in job context)
+	 * Use this in jobs where auth.admin is not available
+	 */
+	static async getUserProfileBasic(
+		userId: string
+	): Promise<{ home_address?: any; [key: string]: any } | null> {
+		try {
+			const { data: profile, error } = await this.fluxbase
+				.from('user_profiles')
+				.select('*')
+				.eq('id', userId)
+				.single();
 
-	// Helper for Node/worker: call this at startup
-	static useNodeEnvironmentConfig() {
-		const config = getFluxbaseConfig();
-		this._fluxbase = createClient(config.url, config.serviceRoleKey, {
-			auth: {
-				autoRefresh: false,
-				persist: false
+			if (error || !profile) {
+				console.error('Error fetching user profile:', error);
+				return null;
 			}
-		});
+
+			return profile;
+		} catch (error) {
+			console.error('Error in getUserProfileBasic:', error);
+			return null;
+		}
 	}
 
 	/**

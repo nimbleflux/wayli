@@ -16,7 +16,8 @@
       "Bash(npx svelte-check:*)",
       "Bash(xargs:*)",
       "Bash(npm test:*)",
-      "Bash(npx vitest:*)"
+      "Bash(npx vitest:*)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []

@@ -5,17 +5,72 @@
  * Uses WebSocket-based streaming for real-time chat interactions.
  */
 
-import { FluxbaseAIChat, type AIChatOptions, type AIChatEvent } from '@fluxbase/sdk';
-import { config } from '$lib/config';
+import { FluxbaseAIChat, type AIChatOptions } from '@fluxbase/sdk';
 import { fluxbase } from '$lib/fluxbase';
+import { config } from '$lib/config';
+
+// Conversation history types (matching Fluxbase SDK when updated)
+export interface AIUserConversationSummary {
+	id: string;
+	chatbot: string;
+	namespace: string;
+	title: string | null;
+	preview: string | null;
+	message_count: number;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface AIUserMessage {
+	id: string;
+	role: 'user' | 'assistant';
+	content: string;
+	timestamp: string;
+	query_results?: Array<{
+		query: string;
+		summary: string;
+		row_count: number;
+		data: Record<string, unknown>[];
+	}>;
+	usage?: {
+		prompt_tokens: number;
+		completion_tokens: number;
+		total_tokens?: number;
+	};
+}
+
+export interface AIUserConversationDetail extends AIUserConversationSummary {
+	messages: AIUserMessage[];
+}
+
+export interface ListConversationsOptions {
+	chatbot?: string;
+	namespace?: string;
+	limit?: number;
+	offset?: number;
+}
+
+export interface ListConversationsResult {
+	conversations: AIUserConversationSummary[];
+	total: number;
+	has_more: boolean;
+}
 
 // Types
+export interface ExecutionLog {
+	id: number;
+	step: string;
+	message: string;
+	timestamp: Date;
+}
+
 export interface ChatMessage {
 	id: string;
 	role: 'user' | 'assistant';
 	content: string;
 	timestamp: Date;
-	queryResult?: QueryResultData;
+	queryResults?: QueryResultData[];
+	executionLogs?: ExecutionLog[];
 	usage?: UsageStats;
 	isStreaming?: boolean;
 }
@@ -208,6 +263,48 @@ class ChatService {
 	 */
 	generateMessageId(): string {
 		return `msg_${Date.now()}_${++this.messageIdCounter}`;
+	}
+
+	/**
+	 * List conversations for the current user
+	 */
+	async listConversations(options?: ListConversationsOptions): Promise<ListConversationsResult> {
+		const { data, error } = await fluxbase.ai.listConversations(options);
+		if (error) {
+			throw error;
+		}
+		return data!;
+	}
+
+	/**
+	 * Get a specific conversation with its messages
+	 */
+	async getConversation(conversationId: string): Promise<AIUserConversationDetail> {
+		const { data, error } = await fluxbase.ai.getConversation(conversationId);
+		if (error) {
+			throw error;
+		}
+		return data!;
+	}
+
+	/**
+	 * Delete a conversation
+	 */
+	async deleteConversation(conversationId: string): Promise<void> {
+		const { error } = await fluxbase.ai.deleteConversation(conversationId);
+		if (error) {
+			throw error;
+		}
+	}
+
+	/**
+	 * Update a conversation's title
+	 */
+	async updateConversation(conversationId: string, title: string): Promise<void> {
+		const { error } = await fluxbase.ai.updateConversation(conversationId, { title });
+		if (error) {
+			throw error;
+		}
 	}
 
 	/**

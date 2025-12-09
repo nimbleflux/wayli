@@ -86,15 +86,18 @@
 	// Security
 	let enableRateLimiting = $state(false);
 
-	// AI Settings
+	// AI Settings - provider-based model
 	let aiEnabled = $state(false);
 	let aiAllowUserOverride = $state(false);
-	let aiProvider = $state('openai');
-	let aiModel = $state('gpt-4o-mini');
-	let aiApiKey = $state('');
-	let aiApiEndpoint = $state('');
-	let aiMaxTokens = $state(4096);
-	let aiTemperature = $state(0.7);
+	let providerName = $state('openai-main');
+	let providerDisplayName = $state('OpenAI (Production)');
+	let providerType = $state('openai');
+	let providerModel = $state('gpt-4-turbo');
+	let providerApiKey = $state('');
+	let providerApiEndpoint = $state('');
+	let providerMaxTokens = $state(4096);
+	let providerTemperature = $state(0.7);
+	let providerIsDefault = $state(true);
 
 	// Handle Escape key for modals
 	$effect(() => {
@@ -351,15 +354,27 @@
 			await serviceAdapter.updateAppSetting('setAIConfig', {
 				enabled: aiEnabled,
 				allow_user_provider_override: aiAllowUserOverride,
-				provider: aiProvider,
-				model: aiModel,
-				api_key: aiApiKey || undefined,
-				api_endpoint: aiApiEndpoint || undefined,
-				max_tokens: aiMaxTokens,
-				temperature: aiTemperature
+				provider: aiEnabled
+					? {
+							name: providerName,
+							display_name: providerDisplayName,
+							provider_type: providerType,
+							is_default: providerIsDefault,
+							config: {
+								api_key: providerApiKey || undefined,
+								model: providerModel,
+								api_endpoint: providerApiEndpoint || undefined,
+								max_tokens: providerMaxTokens,
+								temperature: providerTemperature
+							}
+						}
+					: undefined
 			});
 
 			toast.success(t('serverAdmin.aiSettingsSaved'));
+
+			// Reload settings to get updated provider list
+			await loadAllSettings();
 		} catch (error: any) {
 			console.error('❌ Failed to save AI settings:', error);
 			toast.error(t('serverAdmin.failedToUpdateSettings'), {
@@ -512,16 +527,24 @@
 			// Security
 			enableRateLimiting = app.security.enable_global_rate_limit;
 
-			// AI Settings
+			// AI Settings - load from provider-based model
 			if (app.ai) {
 				aiEnabled = app.ai.enabled ?? false;
 				aiAllowUserOverride = app.ai.allow_user_provider_override ?? false;
-				aiProvider = app.ai.provider ?? 'openai';
-				aiModel = app.ai.model ?? 'gpt-4o-mini';
-				aiApiKey = app.ai.api_key ?? '';
-				aiApiEndpoint = app.ai.api_endpoint ?? '';
-				aiMaxTokens = app.ai.max_tokens ?? 4096;
-				aiTemperature = app.ai.temperature ?? 0.7;
+
+				// Load default provider into form if available
+				const defaultProvider = app.ai.default_provider;
+				if (defaultProvider) {
+					providerName = defaultProvider.name ?? 'openai-main';
+					providerDisplayName = defaultProvider.display_name ?? 'OpenAI (Production)';
+					providerType = defaultProvider.provider_type ?? 'openai';
+					providerModel = defaultProvider.config?.model ?? 'gpt-4-turbo';
+					providerApiEndpoint = defaultProvider.config?.api_endpoint ?? '';
+					providerMaxTokens = defaultProvider.config?.max_tokens ?? 4096;
+					providerTemperature = defaultProvider.config?.temperature ?? 0.7;
+					providerIsDefault = defaultProvider.is_default ?? true;
+					// Note: API key is not returned for security reasons
+				}
 			}
 
 			// Custom Wayli settings
@@ -871,7 +894,7 @@
 		<!-- Header -->
 		<div class="mb-8">
 			<div class="flex items-center gap-3">
-				<Settings class="h-7 w-7 text-[rgb(34,51,95)]" />
+				<Settings class="h-7 w-7 text-[rgb(34,51,95)] dark:text-blue-400" />
 				<h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
 					{t('serverAdmin.title')}
 				</h1>
@@ -883,7 +906,7 @@
 			<nav class="-mb-px flex space-x-8">
 				<button
 					class="cursor-pointer border-b-2 px-1 py-2 text-sm font-medium {activeTab === 'settings'
-						? 'border-[rgb(34,51,95)] text-[rgb(34,51,95)]'
+						? 'border-[rgb(34,51,95)] text-[rgb(34,51,95)] dark:border-blue-400 dark:text-blue-400'
 						: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
 					onclick={() => (activeTab = 'settings')}
 				>
@@ -894,7 +917,7 @@
 				</button>
 				<button
 					class="cursor-pointer border-b-2 px-1 py-2 text-sm font-medium {activeTab === 'users'
-						? 'border-[rgb(34,51,95)] text-[rgb(34,51,95)]'
+						? 'border-[rgb(34,51,95)] text-[rgb(34,51,95)] dark:border-blue-400 dark:text-blue-400'
 						: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
 					onclick={() => (activeTab = 'users')}
 				>
@@ -1406,13 +1429,40 @@
 							</div>
 
 							<div class="space-y-3 rounded border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
+								<div class="grid grid-cols-2 gap-4">
+									<div>
+										<label for="providerName" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+											Provider Name
+										</label>
+										<input
+											id="providerName"
+											type="text"
+											bind:value={providerName}
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											placeholder="openai-main"
+										/>
+									</div>
+									<div>
+										<label for="providerDisplayName" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+											Display Name
+										</label>
+										<input
+											id="providerDisplayName"
+											type="text"
+											bind:value={providerDisplayName}
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											placeholder="OpenAI (Production)"
+										/>
+									</div>
+								</div>
+
 								<div>
-									<label for="aiProvider" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+									<label for="providerType" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
 										{t('serverAdmin.aiProvider')}
 									</label>
 									<select
-										id="aiProvider"
-										bind:value={aiProvider}
+										id="providerType"
+										bind:value={providerType}
 										class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
 									>
 										<option value="openai">{t('serverAdmin.aiProviders.openai')}</option>
@@ -1425,15 +1475,15 @@
 								</div>
 
 								<div>
-									<label for="aiModel" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+									<label for="providerModel" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
 										{t('serverAdmin.aiModel')}
 									</label>
 									<input
-										id="aiModel"
+										id="providerModel"
 										type="text"
-										bind:value={aiModel}
+										bind:value={providerModel}
 										class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
-										placeholder="gpt-4o-mini"
+										placeholder="gpt-4-turbo"
 									/>
 									<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
 										{t('serverAdmin.aiModelDescription')}
@@ -1441,27 +1491,27 @@
 								</div>
 
 								<div>
-									<label for="aiApiKey" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+									<label for="providerApiKey" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
 										{t('serverAdmin.aiApiKey')}
 									</label>
 									<input
-										id="aiApiKey"
+										id="providerApiKey"
 										type="password"
-										bind:value={aiApiKey}
+										bind:value={providerApiKey}
 										class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
 										placeholder={t('serverAdmin.aiApiKeyPlaceholder')}
 									/>
 								</div>
 
-								{#if aiProvider === 'ollama' || aiProvider === 'azure' || aiProvider === 'custom'}
+								{#if providerType === 'ollama' || providerType === 'azure' || providerType === 'custom'}
 									<div>
-										<label for="aiApiEndpoint" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										<label for="providerApiEndpoint" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
 											{t('serverAdmin.aiApiEndpoint')}
 										</label>
 										<input
-											id="aiApiEndpoint"
+											id="providerApiEndpoint"
 											type="text"
-											bind:value={aiApiEndpoint}
+											bind:value={providerApiEndpoint}
 											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
 											placeholder={t('serverAdmin.aiApiEndpointPlaceholder')}
 										/>
@@ -1473,13 +1523,13 @@
 
 								<div class="grid grid-cols-2 gap-4">
 									<div>
-										<label for="aiMaxTokens" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										<label for="providerMaxTokens" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
 											{t('serverAdmin.aiMaxTokens')}
 										</label>
 										<input
-											id="aiMaxTokens"
+											id="providerMaxTokens"
 											type="number"
-											bind:value={aiMaxTokens}
+											bind:value={providerMaxTokens}
 											min="256"
 											max="128000"
 											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
@@ -1487,13 +1537,13 @@
 									</div>
 
 									<div>
-										<label for="aiTemperature" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										<label for="providerTemperature" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
 											{t('serverAdmin.aiTemperature')}
 										</label>
 										<input
-											id="aiTemperature"
+											id="providerTemperature"
 											type="number"
-											bind:value={aiTemperature}
+											bind:value={providerTemperature}
 											min="0"
 											max="2"
 											step="0.1"

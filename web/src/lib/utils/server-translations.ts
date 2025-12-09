@@ -1,8 +1,8 @@
 // web/src/lib/utils/server-translations.ts
 // Server-side translation utility for worker environments
 
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 interface Translations {
 	[key: string]: string;

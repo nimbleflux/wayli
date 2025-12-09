@@ -9,7 +9,10 @@
  */
 
 import { TripDetectionService } from '../../web/src/lib/services/trip-detection.service';
+import { forwardGeocode } from '../../web/src/lib/services/external/pelias.service';
 
+import type { TripGenerationData } from '../../web/src/lib/types/trip-generation.types';
+import type { Location } from '../../web/src/lib/services/trip-detection.service';
 import type { FluxbaseClient, JobUtils } from './types';
 
 // Safe wrapper for reportProgress - logs if method doesn't exist
@@ -32,7 +35,7 @@ export async function handler(
 	job: JobUtils
 ) {
 	const context = job.getJobContext();
-	const payload = context.payload;
+	const payload = context.payload as Partial<TripGenerationData>;
 	const jobId = context.job_id;
 	const userId = context.user?.id;
 
@@ -49,21 +52,59 @@ export async function handler(
 
 		const startTime = Date.now();
 
-		safeReportProgress(job, 10, '✈️ Starting trip detection...');
+		// Extract payload options
+		const { startDate, endDate, useCustomHomeAddress, customHomeAddress } = payload || {};
 
-		// Use trip detection service
-		const tripDetectionService = new TripDetectionService(
-			process.env.FLUXBASE_BASE_URL!,
-			process.env.FLUXBASE_SERVICE_ROLE_KEY!
-		);
+		console.log(`📅 Job parameters:`);
+		console.log(`  - startDate: ${startDate || 'not specified'}`);
+		console.log(`  - endDate: ${endDate || 'not specified'}`);
+		console.log(`  - useCustomHomeAddress: ${useCustomHomeAddress || false}`);
+		console.log(`  - customHomeAddress: ${customHomeAddress || 'not specified'}`);
+
+		safeReportProgress(job, 5, '✈️ Starting trip detection...');
+
+		// Use trip detection service with the provided Fluxbase client
+		const tripDetectionService = new TripDetectionService(fluxbase);
+
+		// Handle custom home address if specified
+		if (useCustomHomeAddress && customHomeAddress) {
+			console.log(`🏠 Geocoding custom home address: ${customHomeAddress}`);
+			safeReportProgress(job, 8, `🏠 Geocoding custom home address: ${customHomeAddress}...`);
+
+			try {
+				const geocodeResult = await forwardGeocode(customHomeAddress);
+				if (geocodeResult) {
+					const customHomeLocation: Location = {
+						coordinates: {
+							lat: geocodeResult.lat,
+							lng: geocodeResult.lon
+						},
+						address: {
+							city: geocodeResult.address?.city || geocodeResult.address?.town || geocodeResult.address?.village,
+							country_code: geocodeResult.address?.country_code
+						}
+					};
+					tripDetectionService.setCustomHomeAddress(customHomeLocation);
+					console.log(
+						`✅ Successfully geocoded custom home address: ${geocodeResult.display_name} (${geocodeResult.lat}, ${geocodeResult.lon})`
+					);
+				} else {
+					console.warn(`⚠️ Could not geocode custom home address: ${customHomeAddress}`);
+				}
+			} catch (error) {
+				console.error(`❌ Error geocoding custom home address: ${customHomeAddress}`, error);
+			}
+		}
+
+		safeReportProgress(job, 10, '✈️ Detecting trips...');
 
 		// Set up progress tracking
 		tripDetectionService.setProgressTracking(jobId, async (progress) => {
 			safeReportProgress(job, progress.progress, progress.message);
 		});
 
-		// Use the trip detection service (will use default date range)
-		const detectedTrips = await tripDetectionService.detectTrips(userId);
+		// Use the trip detection service with optional date range from payload
+		const detectedTrips = await tripDetectionService.detectTrips(userId, startDate, endDate);
 
 		console.log(`✅ Trip detection completed: ${detectedTrips.length} trips detected`);
 

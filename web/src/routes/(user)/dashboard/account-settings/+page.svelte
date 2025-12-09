@@ -9,8 +9,7 @@
 		MapPin,
 		Plus,
 		Pencil,
-		Image,
-		Bot
+		Image
 	} from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
@@ -106,14 +105,9 @@
 	let editExclusionAddressSearchTimeout: ReturnType<typeof setTimeout> | null = null;
 	let editExclusionAddressSearchError: string | null = $state(null);
 
-	// AI Settings state (only shown if user override is allowed)
+	// AI Settings - user override controlled by Fluxbase SDK
+	// Note: User-level AI provider configuration is managed via Fluxbase SDK
 	let aiAllowUserOverride = $state(false);
-	let userAIEnabled = $state(false);
-	let userAIProvider = $state('openai');
-	let userAIModel = $state('');
-	let userAIApiKey = $state('');
-	let userAIApiEndpoint = $state('');
-	let isUpdatingAISettings = $state(false);
 
 	// Handle Escape key for modals
 	$effect(() => {
@@ -199,7 +193,6 @@
 			// This is only relevant for admins, regular users don't need this info
 			// For now, we'll assume it's not available unless explicitly configured
 			serverPexelsApiKeyAvailable = false;
-
 		} catch (error) {
 			console.error('❌ [AccountSettings] Error loading user data:', error);
 		}
@@ -218,50 +211,10 @@
 				aiAllowUserOverride = result.app.ai.allow_user_provider_override ?? false;
 			}
 
-			// Load user's personal AI config from preferences
-			if (aiAllowUserOverride && preferences?.ai_config) {
-				const aiConfig = preferences.ai_config as any;
-				userAIEnabled = aiConfig.enabled ?? false;
-				userAIProvider = aiConfig.provider ?? 'openai';
-				userAIModel = aiConfig.model ?? '';
-				userAIApiKey = aiConfig.api_key ?? '';
-				userAIApiEndpoint = aiConfig.api_endpoint ?? '';
-			}
+			// Note: User-level AI provider configuration is now managed via Fluxbase SDK
+			// The SDK handles user provider settings when aiAllowUserOverride is true
 		} catch (error) {
 			console.error('❌ [AccountSettings] Error loading AI settings:', error);
-		}
-	}
-
-	async function handleSaveAISettings() {
-		isUpdatingAISettings = true;
-		try {
-			const session = await fluxbase.auth.getSession();
-			if (!session.data.session) throw new Error('No session found');
-
-			const serviceAdapter = new ServiceAdapter({ session: session.data.session });
-
-			// Update user's AI config in preferences
-			const aiConfig = {
-				enabled: userAIEnabled,
-				provider: userAIProvider,
-				model: userAIModel,
-				api_key: userAIApiKey || undefined,
-				api_endpoint: userAIApiEndpoint || undefined
-			};
-
-			await serviceAdapter.updatePreferences({
-				...(preferences || {}),
-				ai_config: aiConfig
-			});
-
-			toast.success(t('serverAdmin.aiSettingsSaved'));
-		} catch (error: any) {
-			console.error('❌ [AccountSettings] Error saving AI settings:', error);
-			toast.error(t('accountSettings.failedToSaveSettings'), {
-				description: error?.message
-			});
-		} finally {
-			isUpdatingAISettings = false;
 		}
 	}
 
@@ -452,13 +405,10 @@
 		try {
 			// Mark onboarding as completed and home address as skipped
 			if (profile) {
-				const { error } = await fluxbase
-					.from('user_profiles')
-					.eq('id', profile.id)
-					.update({
-						onboarding_completed: true,
-						home_address_skipped: true
-					});
+				const { error } = await fluxbase.from('user_profiles').eq('id', profile.id).update({
+					onboarding_completed: true,
+					home_address_skipped: true
+				});
 
 				if (error) {
 					console.error('Error marking onboarding as skipped:', error);
@@ -608,7 +558,6 @@
 			isUpdatingPassword = false;
 		}
 	}
-
 
 	function handleHomeAddressInput(event: Event) {
 		const target = event.target as HTMLInputElement;
@@ -1374,119 +1323,8 @@
 			</button>
 		</div>
 
-		<!-- AI Settings (only shown if user override is allowed) -->
-		{#if aiAllowUserOverride}
-			<div
-				class="mt-8 rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]"
-			>
-				<div class="mb-6 flex items-center gap-3">
-					<Bot class="h-6 w-6 text-purple-500" />
-					<div>
-						<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
-							{t('accountSettings.aiSettings')}
-						</h2>
-						<p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
-							{t('accountSettings.aiSettingsDescription')}
-						</p>
-					</div>
-				</div>
-
-				<div class="space-y-4">
-					<div class="flex items-center justify-between">
-						<div>
-							<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-								{t('accountSettings.usePersonalProvider')}
-							</span>
-							<p class="text-xs text-gray-500 dark:text-gray-400">
-								{t('accountSettings.usePersonalProviderDescription')}
-							</p>
-						</div>
-						<input
-							type="checkbox"
-							bind:checked={userAIEnabled}
-							class="h-4 w-4 rounded border-gray-300 text-[rgb(34,51,95)] focus:ring-[rgb(34,51,95)]"
-						/>
-					</div>
-
-					{#if userAIEnabled}
-						<div class="space-y-3 rounded border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
-							<div>
-								<label for="userAiProvider" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-									{t('serverAdmin.aiProvider')}
-								</label>
-								<select
-									id="userAiProvider"
-									bind:value={userAIProvider}
-									class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-								>
-									<option value="openai">{t('serverAdmin.aiProviders.openai')}</option>
-									<option value="anthropic">{t('serverAdmin.aiProviders.anthropic')}</option>
-									<option value="ollama">{t('serverAdmin.aiProviders.ollama')}</option>
-									<option value="openrouter">{t('serverAdmin.aiProviders.openrouter')}</option>
-									<option value="azure">{t('serverAdmin.aiProviders.azure')}</option>
-									<option value="custom">{t('serverAdmin.aiProviders.custom')}</option>
-								</select>
-							</div>
-
-							<div>
-								<label for="userAiModel" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-									{t('serverAdmin.aiModel')}
-								</label>
-								<input
-									id="userAiModel"
-									type="text"
-									bind:value={userAIModel}
-									class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
-									placeholder="gpt-4o-mini"
-								/>
-								<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-									{t('serverAdmin.aiModelDescription')}
-								</p>
-							</div>
-
-							<div>
-								<label for="userAiApiKey" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-									{t('serverAdmin.aiApiKey')}
-								</label>
-								<input
-									id="userAiApiKey"
-									type="password"
-									bind:value={userAIApiKey}
-									class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
-									placeholder={t('serverAdmin.aiApiKeyPlaceholder')}
-								/>
-							</div>
-
-							{#if userAIProvider === 'ollama' || userAIProvider === 'azure' || userAIProvider === 'custom'}
-								<div>
-									<label for="userAiApiEndpoint" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-										{t('serverAdmin.aiApiEndpoint')}
-									</label>
-									<input
-										id="userAiApiEndpoint"
-										type="text"
-										bind:value={userAIApiEndpoint}
-										class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
-										placeholder={t('serverAdmin.aiApiEndpointPlaceholder')}
-									/>
-									<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-										{t('serverAdmin.aiApiEndpointDescription')}
-									</p>
-								</div>
-							{/if}
-						</div>
-					{/if}
-
-					<button
-						class="mt-4 cursor-pointer rounded-md bg-[rgb(34,51,95)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(34,51,95)]/90 disabled:cursor-not-allowed disabled:opacity-50"
-						onclick={handleSaveAISettings}
-						disabled={isUpdatingAISettings}
-					>
-						{isUpdatingAISettings ? t('accountSettings.savingChanges') : t('common.actions.saveChanges')}
-					</button>
-				</div>
-			</div>
-		{/if}
+		<!-- AI Settings - User-level provider configuration is managed via Fluxbase SDK -->
+		<!-- When aiAllowUserOverride is true, users can configure their own AI provider through the SDK -->
 
 		<!-- Trips Settings -->
 		<div

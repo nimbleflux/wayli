@@ -215,7 +215,7 @@
 	<title>{t('auth.signIn')} - Wayli</title>
 </svelte:head>
 
-<div class="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-gray-900">
+<div class="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100 px-4 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
 	<div class="w-full max-w-md">
 		<!-- Back to home -->
 		<div class="mb-8">
@@ -258,7 +258,7 @@
 					<button
 						type="button"
 						onclick={() => (isMagicLinkSent = false)}
-						class="text-sm text-[rgb(34,51,95)] transition-colors hover:text-[rgb(34,51,95)]/80"
+						class="text-sm text-[rgb(34,51,95)] transition-colors hover:text-[rgb(34,51,95)]/80 dark:text-blue-400 dark:hover:text-blue-300"
 					>
 						{t('auth.backToSignIn')}
 					</button>
@@ -338,7 +338,7 @@
 							type="button"
 							onclick={handlePasswordReset}
 							disabled={loading || !email}
-							class="cursor-pointer text-sm text-[rgb(34,51,95)] transition-colors hover:text-[rgb(34,51,95)]/80 disabled:cursor-not-allowed disabled:opacity-50"
+							class="cursor-pointer text-sm text-[rgb(34,51,95)] transition-colors hover:text-[rgb(34,51,95)]/80 disabled:cursor-not-allowed disabled:opacity-50 dark:text-blue-400 dark:hover:text-blue-300"
 						>
 							{t('auth.forgotPassword')}
 						</button>
@@ -359,7 +359,7 @@
 						{t('auth.dontHaveAccount')}
 						<a
 							href="/auth/signup"
-							class="cursor-pointer font-medium text-[rgb(34,51,95)] transition-colors hover:text-[rgb(34,51,95)]/80"
+							class="cursor-pointer font-medium text-[rgb(34,51,95)] transition-colors hover:text-[rgb(34,51,95)]/80 dark:text-blue-400 dark:hover:text-blue-300"
 						>
 							{t('auth.signUp')}
 						</a>

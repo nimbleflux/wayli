@@ -2,30 +2,15 @@
  * Trip Image Suggestion Edge Function
  * Suggests images for trips based on travel data
  * Authentication required (enforced by platform)
+ * @fluxbase:require-role authenticated
  * @fluxbase:allow-net
  * @fluxbase:allow-env
+ * @fluxbase:timeout 30
  */
 
+import type { FluxbaseClient } from '../jobs/types';
+
 // ===== Type Definitions =====
-interface FluxbaseRequest {
-	method: string;
-	url: string;
-	headers: Record<string, string>;
-	body: string;
-	params: Record<string, string>;
-	// Platform-injected authentication fields
-	user_id?: string;
-	user_email?: string;
-	user_role?: string;
-	session_id?: string;
-}
-
-interface FluxbaseResponse {
-	status: number;
-	headers?: Record<string, string>;
-	body?: string;
-}
-
 interface ApiResponse<T = unknown> {
 	success: boolean;
 	data?: T;
@@ -34,38 +19,28 @@ interface ApiResponse<T = unknown> {
 }
 
 // ===== Utility Functions =====
-function successResponse<T>(data: T, status = 200): FluxbaseResponse {
+function successResponse<T>(data: T, status = 200): Response {
 	const response: ApiResponse<T> = {
 		success: true,
 		data
 	};
 
-	return {
+	return new Response(JSON.stringify(response), {
 		status,
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(response)
-	};
+		headers: { 'Content-Type': 'application/json' }
+	});
 }
 
-function errorResponse(message: string, status = 400): FluxbaseResponse {
+function errorResponse(message: string, status = 400): Response {
 	const response: ApiResponse = {
 		success: false,
 		error: message
 	};
 
-	return {
+	return new Response(JSON.stringify(response), {
 		status,
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(response)
-	};
-}
-
-async function parseJsonBody<T>(req: FluxbaseRequest): Promise<T> {
-	try {
-		return JSON.parse(req.body);
-	} catch {
-		throw new Error('Invalid JSON body');
-	}
+		headers: { 'Content-Type': 'application/json' }
+	});
 }
 
 function validateRequiredFields(obj: Record<string, unknown>, fields: string[]): string[] {
@@ -92,62 +67,87 @@ function logSuccess(message: string, context: string, data?: unknown): void {
 	console.log(`✅ [${context}] ${message}`, data || '');
 }
 
-// Helper function to make REST API calls
-async function fluxbaseQuery(url: string, options: {
-	method?: string;
-	body?: any;
-	select?: string;
-	filter?: string;
-} = {}) {
-	const fluxbaseUrl = Deno.env.get('FLUXBASE_BASE_URL');
-	const fluxbaseKey = Deno.env.get('FLUXBASE_SERVICE_ROLE_KEY');
+// ISO 3166-1 alpha-2 country code to full name mapping
+const COUNTRY_NAMES: Record<string, string> = {
+	'AF': 'Afghanistan', 'AL': 'Albania', 'DZ': 'Algeria', 'AS': 'American Samoa', 'AD': 'Andorra',
+	'AO': 'Angola', 'AI': 'Anguilla', 'AQ': 'Antarctica', 'AG': 'Antigua and Barbuda', 'AR': 'Argentina',
+	'AM': 'Armenia', 'AW': 'Aruba', 'AU': 'Australia', 'AT': 'Austria', 'AZ': 'Azerbaijan',
+	'BS': 'Bahamas', 'BH': 'Bahrain', 'BD': 'Bangladesh', 'BB': 'Barbados', 'BY': 'Belarus',
+	'BE': 'Belgium', 'BZ': 'Belize', 'BJ': 'Benin', 'BM': 'Bermuda', 'BT': 'Bhutan',
+	'BO': 'Bolivia', 'BQ': 'Bonaire, Sint Eustatius and Saba', 'BA': 'Bosnia and Herzegovina',
+	'BW': 'Botswana', 'BV': 'Bouvet Island', 'BR': 'Brazil', 'IO': 'British Indian Ocean Territory',
+	'BN': 'Brunei Darussalam', 'BG': 'Bulgaria', 'BF': 'Burkina Faso', 'BI': 'Burundi',
+	'CV': 'Cabo Verde', 'KH': 'Cambodia', 'CM': 'Cameroon', 'CA': 'Canada', 'KY': 'Cayman Islands',
+	'CF': 'Central African Republic', 'TD': 'Chad', 'CL': 'Chile', 'CN': 'China', 'CX': 'Christmas Island',
+	'CC': 'Cocos (Keeling) Islands', 'CO': 'Colombia', 'KM': 'Comoros', 'CG': 'Congo',
+	'CD': 'Congo, Democratic Republic of the', 'CK': 'Cook Islands', 'CR': 'Costa Rica',
+	'CI': "Côte d'Ivoire", 'HR': 'Croatia', 'CU': 'Cuba', 'CW': 'Curaçao', 'CY': 'Cyprus',
+	'CZ': 'Czech Republic', 'DK': 'Denmark', 'DJ': 'Djibouti', 'DM': 'Dominica', 'DO': 'Dominican Republic',
+	'EC': 'Ecuador', 'EG': 'Egypt', 'SV': 'El Salvador', 'GQ': 'Equatorial Guinea', 'ER': 'Eritrea',
+	'EE': 'Estonia', 'SZ': 'Eswatini', 'ET': 'Ethiopia', 'FK': 'Falkland Islands (Malvinas)',
+	'FO': 'Faroe Islands', 'FJ': 'Fiji', 'FI': 'Finland', 'FR': 'France', 'GF': 'French Guiana',
+	'PF': 'French Polynesia', 'TF': 'French Southern Territories', 'GA': 'Gabon', 'GM': 'Gambia',
+	'GE': 'Georgia', 'DE': 'Germany', 'GH': 'Ghana', 'GI': 'Gibraltar', 'GR': 'Greece', 'GL': 'Greenland',
+	'GD': 'Grenada', 'GP': 'Guadeloupe', 'GU': 'Guam', 'GT': 'Guatemala', 'GG': 'Guernsey', 'GN': 'Guinea',
+	'GW': 'Guinea-Bissau', 'GY': 'Guyana', 'HT': 'Haiti', 'HM': 'Heard Island and McDonald Islands',
+	'VA': 'Holy See (Vatican City State)', 'HN': 'Honduras', 'HK': 'Hong Kong', 'HU': 'Hungary',
+	'IS': 'Iceland', 'IN': 'India', 'ID': 'Indonesia', 'IR': 'Iran, Islamic Republic of', 'IQ': 'Iraq',
+	'IE': 'Ireland', 'IM': 'Isle of Man', 'IL': 'Israel', 'IT': 'Italy', 'JM': 'Jamaica', 'JP': 'Japan',
+	'JE': 'Jersey', 'JO': 'Jordan', 'KZ': 'Kazakhstan', 'KE': 'Kenya', 'KI': 'Kiribati',
+	'KP': "Korea, Democratic People's Republic of", 'KR': 'Korea, Republic of', 'KW': 'Kuwait',
+	'KG': 'Kyrgyzstan', 'LA': "Lao People's Democratic Republic", 'LV': 'Latvia', 'LB': 'Lebanon',
+	'LS': 'Lesotho', 'LR': 'Liberia', 'LY': 'Libya', 'LI': 'Liechtenstein', 'LT': 'Lithuania',
+	'LU': 'Luxembourg', 'MO': 'Macao', 'MK': 'North Macedonia', 'MG': 'Madagascar', 'MW': 'Malawi',
+	'MY': 'Malaysia', 'MV': 'Maldives', 'ML': 'Mali', 'MT': 'Malta', 'MH': 'Marshall Islands',
+	'MQ': 'Martinique', 'MR': 'Mauritania', 'MU': 'Mauritius', 'YT': 'Mayotte', 'MX': 'Mexico',
+	'FM': 'Micronesia, Federated States of', 'MD': 'Moldova, Republic of', 'MC': 'Monaco',
+	'MN': 'Mongolia', 'ME': 'Montenegro', 'MS': 'Montserrat', 'MA': 'Morocco', 'MZ': 'Mozambique',
+	'MM': 'Myanmar', 'NA': 'Namibia', 'NR': 'Nauru', 'NP': 'Nepal', 'NL': 'Netherlands',
+	'NC': 'New Caledonia', 'NZ': 'New Zealand', 'NI': 'Nicaragua', 'NE': 'Niger', 'NG': 'Nigeria',
+	'NU': 'Niue', 'NF': 'Norfolk Island', 'MP': 'Northern Mariana Islands', 'NO': 'Norway', 'OM': 'Oman',
+	'PK': 'Pakistan', 'PW': 'Palau', 'PS': 'Palestine, State of', 'PA': 'Panama', 'PG': 'Papua New Guinea',
+	'PY': 'Paraguay', 'PE': 'Peru', 'PH': 'Philippines', 'PN': 'Pitcairn', 'PL': 'Poland', 'PT': 'Portugal',
+	'PR': 'Puerto Rico', 'QA': 'Qatar', 'RE': 'Réunion', 'RO': 'Romania', 'RU': 'Russian Federation',
+	'RW': 'Rwanda', 'BL': 'Saint Barthélemy', 'SH': 'Saint Helena, Ascension and Tristan da Cunha',
+	'KN': 'Saint Kitts and Nevis', 'LC': 'Saint Lucia', 'MF': 'Saint Martin (French part)',
+	'PM': 'Saint Pierre and Miquelon', 'VC': 'Saint Vincent and the Grenadines', 'WS': 'Samoa',
+	'SM': 'San Marino', 'ST': 'Sao Tome and Principe', 'SA': 'Saudi Arabia', 'SN': 'Senegal',
+	'RS': 'Serbia', 'SC': 'Seychelles', 'SL': 'Sierra Leone', 'SG': 'Singapore', 'SK': 'Slovakia',
+	'SI': 'Slovenia', 'SB': 'Solomon Islands', 'SO': 'Somalia', 'ZA': 'South Africa',
+	'GS': 'South Georgia and the South Sandwich Islands', 'SS': 'South Sudan', 'ES': 'Spain',
+	'LK': 'Sri Lanka', 'SD': 'Sudan', 'SR': 'Suriname', 'SJ': 'Svalbard and Jan Mayen', 'SE': 'Sweden',
+	'CH': 'Switzerland', 'SY': 'Syrian Arab Republic', 'TW': 'Taiwan, Province of China',
+	'TJ': 'Tajikistan', 'TZ': 'Tanzania, United Republic of', 'TH': 'Thailand', 'TL': 'Timor-Leste',
+	'TG': 'Togo', 'TK': 'Tokelau', 'TO': 'Tonga', 'TT': 'Trinidad and Tobago', 'TN': 'Tunisia',
+	'TR': 'Turkey', 'TM': 'Turkmenistan', 'TC': 'Turks and Caicos Islands', 'TV': 'Tuvalu',
+	'UG': 'Uganda', 'UA': 'Ukraine', 'AE': 'United Arab Emirates', 'GB': 'United Kingdom',
+	'US': 'United States', 'UM': 'United States Minor Outlying Islands', 'UY': 'Uruguay',
+	'UZ': 'Uzbekistan', 'VU': 'Vanuatu', 'VE': 'Venezuela, Bolivarian Republic of', 'VN': 'Viet Nam',
+	'VG': 'Virgin Islands, British', 'VI': 'Virgin Islands, U.S.', 'WF': 'Wallis and Futuna',
+	'EH': 'Western Sahara', 'YE': 'Yemen', 'ZM': 'Zambia', 'ZW': 'Zimbabwe'
+};
 
-	let apiUrl = `${fluxbaseUrl}/rest/v1/${url}`;
-	const params = new URLSearchParams();
-	if (options.select) params.set('select', options.select);
-	if (options.filter) apiUrl += `?${options.filter}`;
-	else if (params.toString()) apiUrl += `?${params.toString()}`;
-
-	const response = await fetch(apiUrl, {
-		method: options.method || 'GET',
-		headers: {
-			'apikey': fluxbaseKey!,
-			'Authorization': `Bearer ${fluxbaseKey}`,
-			'Content-Type': 'application/json'
-		},
-		body: options.body ? JSON.stringify(options.body) : undefined
-	});
-
-	if (!response.ok) {
-		throw new Error(`API error: ${response.status}`);
-	}
-
-	return response.json();
+// Helper to get full country name from code
+function getCountryName(code: string): string {
+	return COUNTRY_NAMES[code.toUpperCase()] || code;
 }
 
-// Helper function to get the best available Pexels API key
-// Priority: User's personal key > Server key from database
-async function getPexelsApiKey(userId: string): Promise<string | null> {
+// Helper function to get the server-level Pexels API key via SDK
+async function getPexelsApiKey(fluxbaseService: FluxbaseClient): Promise<string | null> {
 	try {
-		// First try user's personal API key
-		const preferences = await fluxbaseQuery('user_preferences', {
-			select: 'pexels_api_key',
-			filter: `id=eq.${userId}`
-		});
+		// Get server-level key using SDK settings API
+		const result = await (fluxbaseService as any).admin?.settings?.app?.getSetting('wayli.server_pexels_api_key');
 
-		if (preferences && preferences[0]?.pexels_api_key) {
-			logInfo('Using user personal Pexels API key', 'TRIPS-SUGGEST-IMAGE');
-			return preferences[0].pexels_api_key;
+		// Extract the string value - SDK may return the value directly or wrapped in an object
+		let pexelsKey: string | null = null;
+		if (typeof result === 'string') {
+			pexelsKey = result;
+		} else if (result && typeof result === 'object') {
+			pexelsKey = result.value || result.data || null;
 		}
 
-		// Fallback to server-level key from server_settings table
-		const serverSettings = await fluxbaseQuery('server_settings', {
-			select: 'server_pexels_api_key'
-		});
-
-		if (serverSettings && serverSettings[0]?.server_pexels_api_key) {
-			logInfo('Using server-level Pexels API key from database', 'TRIPS-SUGGEST-IMAGE');
-			return serverSettings[0].server_pexels_api_key;
+		if (pexelsKey && typeof pexelsKey === 'string') {
+			return pexelsKey;
 		}
 
 		logError('No Pexels API key available', 'TRIPS-SUGGEST-IMAGE');
@@ -158,20 +158,27 @@ async function getPexelsApiKey(userId: string): Promise<string | null> {
 	}
 }
 
-async function handler(req: FluxbaseRequest): Promise<FluxbaseResponse> {
+async function handler(
+	req: Request,
+	fluxbase: FluxbaseClient,
+	fluxbaseService: FluxbaseClient,
+	utils?: { getExecutionContext?: () => { user?: { id: string; email: string; role: string } } }
+): Promise<Response> {
 	try {
-		// Platform authentication: req.user_id is automatically populated by Fluxbase
-		// If user_id is missing, platform already returned 401
-		if (!req.user_id) {
+		// Get user from execution context (injected by Fluxbase platform)
+		const executionContext = utils?.getExecutionContext?.();
+		const userId = executionContext?.user?.id;
+
+		// Platform authentication: user context is provided via utils.getExecutionContext()
+		if (!userId) {
 			return errorResponse('Unauthorized', 401);
 		}
-
-		const userId = req.user_id;
 
 		if (req.method === 'POST') {
 			logInfo('Suggesting trip image', 'TRIPS-SUGGEST-IMAGE', { userId });
 
-			const body = await parseJsonBody<Record<string, unknown>>(req);
+			// Use standard Web API to parse JSON body
+			const body = await req.json() as Record<string, unknown>;
 
 			// Check if this is a new trip suggestion (based on date range) or existing trip
 			const tripId = body.trip_id as string;
@@ -190,11 +197,17 @@ async function handler(req: FluxbaseRequest): Promise<FluxbaseResponse> {
 					return errorResponse(`Missing required fields: ${missingFields.join(', ')}`, 400);
 				}
 
-				// Verify trip ownership
-				const trips = await fluxbaseQuery('trips', {
-					select: 'id,title,description,start_date,end_date,metadata,status',
-					filter: `id=eq.${tripId}&user_id=eq.${userId}`
-				});
+				// Verify trip ownership using SDK
+				const { data: trips, error: tripError } = await fluxbase
+					.from('trips')
+					.select('id,title,description,start_date,end_date,metadata,status')
+					.eq('id', tripId)
+					.eq('user_id', userId);
+
+				if (tripError) {
+					logError(tripError, 'TRIPS-SUGGEST-IMAGE', 'Error fetching trip');
+					return errorResponse('Error fetching trip', 500);
+				}
 
 				const trip = trips && trips.length > 0 ? trips[0] : null;
 
@@ -203,32 +216,17 @@ async function handler(req: FluxbaseRequest): Promise<FluxbaseResponse> {
 					return errorResponse('Trip not found', 404);
 				}
 
-				// Check if this is a suggested trip (status='pending') that needs image generation
-				if (trip.status === 'pending' && trip.start_date && trip.end_date) {
-					// Type guard to ensure dates are strings
+				// Generate Pexels image for any trip with dates
+				if (trip.start_date && trip.end_date) {
 					const startDate = String(trip.start_date);
 					const endDate = String(trip.end_date);
 
-					logInfo(
-						'Generating image for suggested trip based on date range',
-						'TRIPS-SUGGEST-IMAGE',
-						{
-							userId,
-							tripId,
-							startDate,
-							endDate
-						}
-					);
-
-					// Analyze user's travel data for the date range
-					const analysis = await analyzeTripLocations(userId, startDate, endDate);
-
-					if (!analysis.primaryCountry) {
-						return errorResponse('No travel data found for the specified date range', 404);
-					}
+					// Extract metadata if available
+					const tripMetadata =
+						trip.metadata && typeof trip.metadata === 'object' ? (trip.metadata as any) : undefined;
 
 					// Get the best available Pexels API key
-					const apiKey = await getPexelsApiKey(userId);
+					const apiKey = await getPexelsApiKey(fluxbaseService);
 					if (!apiKey) {
 						return errorResponse(
 							'No Pexels API key available. Please configure your API key in preferences.',
@@ -236,9 +234,53 @@ async function handler(req: FluxbaseRequest): Promise<FluxbaseResponse> {
 						);
 					}
 
-					// Extract metadata if available
-					const tripMetadata =
-						trip.metadata && typeof trip.metadata === 'object' ? (trip.metadata as any) : undefined;
+					// Check if trip metadata has primaryCity or primaryCountry for search
+					// If so, use metadata directly; otherwise fall back to analyzing tracker_data
+					let analysis: {
+						primaryCountry: string;
+						primaryCity?: string;
+						allCountries: string[];
+						allCities: string[];
+						countryStats: Record<string, number>;
+						cityStats: Record<string, number>;
+						isMultiCity: boolean;
+						distanceTraveled: number;
+					};
+
+					if (tripMetadata?.primaryCity || tripMetadata?.primaryCountry) {
+						// Use metadata directly - more accurate since it's based on duration
+						logInfo('Using trip metadata for image search', 'TRIPS-SUGGEST-IMAGE', {
+							tripId,
+							primaryCity: tripMetadata.primaryCity,
+							primaryCountry: tripMetadata.primaryCountry
+						});
+
+						analysis = {
+							primaryCountry: tripMetadata.primaryCountry
+								? getCountryName(tripMetadata.primaryCountry)
+								: '',
+							primaryCity: tripMetadata.primaryCity,
+							allCountries: tripMetadata.visitedCountries || [],
+							allCities: tripMetadata.visitedCities || [],
+							countryStats: {},
+							cityStats: {},
+							isMultiCity: tripMetadata.isMultiCityTrip || false,
+							distanceTraveled: tripMetadata.distanceTraveled || 0
+						};
+					} else {
+						// Fall back to analyzing tracker_data
+						logInfo('Analyzing tracker data for image search', 'TRIPS-SUGGEST-IMAGE', {
+							tripId,
+							startDate,
+							endDate
+						});
+
+						analysis = await analyzeTripLocations(userId, startDate, endDate, fluxbase);
+
+						if (!analysis.primaryCountry) {
+							return errorResponse('No travel data found for the specified date range', 404);
+						}
+					}
 
 					// Generate image suggestion based on analysis and metadata
 					const suggestion = await generateImageSuggestionFromAnalysis(
@@ -247,52 +289,60 @@ async function handler(req: FluxbaseRequest): Promise<FluxbaseResponse> {
 						tripMetadata
 					);
 
-					logSuccess('Image suggestion generated for suggested trip', 'TRIPS-SUGGEST-IMAGE', {
+					logSuccess('Image suggestion generated for trip', 'TRIPS-SUGGEST-IMAGE', {
 						userId,
 						tripId,
+						searchQuery: suggestion.searchQuery,
 						primaryCountry: analysis.primaryCountry || 'Unknown',
-						primaryCity: analysis.primaryCity || undefined
+						primaryCity: analysis.primaryCity || undefined,
+						usedMetadata: !!(tripMetadata?.primaryCity || tripMetadata?.primaryCountry)
 					});
 
 					return successResponse({
 						suggestedImageUrl: suggestion.imageUrl,
+						searchQuery: suggestion.searchQuery,
 						attribution: suggestion.attribution,
 						analysis: analysis,
 						message: 'Image suggestion generated successfully'
 					});
 				} else {
-					// Regular trip - generate text suggestions
-					const suggestions = await generateImageSuggestions(trip);
-
-					logSuccess('Image suggestions generated successfully', 'TRIPS-SUGGEST-IMAGE', {
-						userId,
-						tripId,
-						suggestionCount: suggestions.length
-					});
-
-					return successResponse({
-						trip_id: tripId,
-						suggestions,
-						message: 'Image suggestions generated successfully'
-					});
+					return errorResponse('Trip must have start_date and end_date', 400);
 				}
 			} else if (startDate && endDate) {
-				// New trip image suggestion based on date range
-				logInfo('Suggesting image for new trip based on date range', 'TRIPS-SUGGEST-IMAGE', {
+				// Image suggestion based on date range
+				logInfo('Suggesting image based on date range', 'TRIPS-SUGGEST-IMAGE', {
 					userId,
 					startDate,
 					endDate
 				});
 
+				// Check if there's an existing trip with matching dates that has metadata
+				let tripMetadata: any = undefined;
+				const { data: existingTrips } = await fluxbase
+					.from('trips')
+					.select('id,metadata')
+					.eq('user_id', userId)
+					.eq('start_date', startDate)
+					.eq('end_date', endDate)
+					.limit(1);
+
+				if (existingTrips && existingTrips.length > 0 && existingTrips[0].metadata) {
+					tripMetadata = existingTrips[0].metadata;
+					logInfo('Found existing trip with metadata for date range', 'TRIPS-SUGGEST-IMAGE', {
+						tripId: existingTrips[0].id,
+						hasVisitedCitiesDetailed: !!tripMetadata?.visitedCitiesDetailed
+					});
+				}
+
 				// Analyze user's travel data for the date range
-				const analysis = await analyzeTripLocations(userId, startDate, endDate);
+				const analysis = await analyzeTripLocations(userId, startDate, endDate, fluxbase);
 
 				if (!analysis.primaryCountry) {
 					return errorResponse('No travel data found for the specified date range', 404);
 				}
 
 				// Get the best available Pexels API key
-				const apiKey = await getPexelsApiKey(userId);
+				const apiKey = await getPexelsApiKey(fluxbaseService);
 				if (!apiKey) {
 					return errorResponse(
 						'No Pexels API key available. Please configure your API key in preferences.',
@@ -300,17 +350,20 @@ async function handler(req: FluxbaseRequest): Promise<FluxbaseResponse> {
 					);
 				}
 
-				// Generate image suggestion based on analysis (no metadata available for new trips)
-				const suggestion = await generateImageSuggestionFromAnalysis(analysis, apiKey);
+				// Generate image suggestion based on analysis and existing trip metadata (if available)
+				const suggestion = await generateImageSuggestionFromAnalysis(analysis, apiKey, tripMetadata);
 
-				logSuccess('Image suggestion generated for new trip', 'TRIPS-SUGGEST-IMAGE', {
+				logSuccess('Image suggestion generated', 'TRIPS-SUGGEST-IMAGE', {
 					userId,
-					primaryCountry: analysis.primaryCountry || 'Unknown', // This is now the full name
-					primaryCity: analysis.primaryCity || undefined
+					searchQuery: suggestion.searchQuery,
+					primaryCountry: analysis.primaryCountry || 'Unknown',
+					primaryCity: analysis.primaryCity || undefined,
+					usedExistingMetadata: !!tripMetadata
 				});
 
 				return successResponse({
 					suggestedImageUrl: suggestion.imageUrl,
+					searchQuery: suggestion.searchQuery,
 					attribution: suggestion.attribution,
 					analysis: analysis,
 					message: 'Image suggestion generated successfully'
@@ -331,7 +384,8 @@ async function handler(req: FluxbaseRequest): Promise<FluxbaseResponse> {
 async function analyzeTripLocations(
 	userId: string,
 	startDate: string,
-	endDate: string
+	endDate: string,
+	fluxbase: FluxbaseClient
 ): Promise<{
 	primaryCountry: string;
 	primaryCity?: string;
@@ -342,11 +396,19 @@ async function analyzeTripLocations(
 	isMultiCity: boolean;
 	distanceTraveled: number;
 }> {
-	// Fetch tracker data for the date range
-	const trackerData = await fluxbaseQuery('tracker_data', {
-		select: 'country_code,geocode,recorded_at,distance',
-		filter: `user_id=eq.${userId}&recorded_at=gte.${startDate}T00:00:00Z&recorded_at=lte.${endDate}T23:59:59Z&country_code=not.is.null&order=recorded_at.asc`
-	});
+	// Fetch tracker data for the date range using SDK
+	const { data: trackerData, error } = await fluxbase
+		.from('tracker_data')
+		.select('country_code,geocode,recorded_at,distance')
+		.eq('user_id', userId)
+		.gte('recorded_at', `${startDate}T00:00:00Z`)
+		.lte('recorded_at', `${endDate}T23:59:59Z`)
+		.not('country_code', 'is', null)
+		.order('recorded_at', { ascending: true });
+
+	if (error) {
+		logError(error, 'TRIPS-SUGGEST-IMAGE', 'Error fetching tracker data');
+	}
 
 	// Calculate total distance for the date range
 	let distanceTraveled = 0;
@@ -388,13 +450,17 @@ async function analyzeTripLocations(
 				const geocode =
 					typeof point.geocode === 'string' ? JSON.parse(point.geocode) : point.geocode;
 
-				if (geocode && geocode.properties && geocode.properties.address) {
+				if (geocode && geocode.properties) {
+					// Try multiple sources for city name:
+					// 1. Standard address fields
+					// 2. OSM addendum data (often has addr:city when address.city is null)
 					const city =
-						geocode.properties.address.city ||
-						geocode.properties.address.town ||
-						geocode.properties.address.village ||
-						geocode.properties.address.suburb ||
-						geocode.properties.address.neighbourhood;
+						geocode.properties.address?.city ||
+						geocode.properties.address?.town ||
+						geocode.properties.address?.village ||
+						geocode.properties.address?.suburb ||
+						geocode.properties.address?.neighbourhood ||
+						geocode.properties.addendum?.osm?.['addr:city'];
 
 					if (city) {
 						const cityKey = city.toLowerCase().trim();
@@ -411,39 +477,14 @@ async function analyzeTripLocations(
 		}
 	});
 
-	// Map country codes to full names using the full_country SQL function
+	// Map country codes to full names using the local mapping
 	const countryCodes = Array.from(allCountries);
-	const codeToName: Record<string, string> = {};
-	for (const code of countryCodes) {
-		try {
-			const fluxbaseUrl = Deno.env.get('FLUXBASE_BASE_URL');
-			const fluxbaseKey = Deno.env.get('FLUXBASE_SERVICE_ROLE_KEY');
-			const response = await fetch(`${fluxbaseUrl}/rest/v1/rpc/full_country`, {
-				method: 'POST',
-				headers: {
-					'apikey': fluxbaseKey!,
-					'Authorization': `Bearer ${fluxbaseKey}`,
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({ country: code })
-			});
-			const data = await response.json();
-			codeToName[code] = (data && typeof data === 'string' && data) || code;
-		} catch (error) {
-			// If the full_country function doesn't exist, just use the code
-			logInfo(
-				`full_country function not available, using country code: ${code}`,
-				'TRIPS-SUGGEST-IMAGE'
-			);
-			codeToName[code] = code;
-		}
-	}
 
 	// Replace codes with names in allCountries and countryStats
-	const allCountriesFull = countryCodes.map((code) => codeToName[code] || code);
+	const allCountriesFull = countryCodes.map((code) => getCountryName(code));
 	const countryStatsFull: Record<string, number> = {};
 	for (const code of Object.keys(countryStats)) {
-		const name = codeToName[code] || code;
+		const name = getCountryName(code);
 		countryStatsFull[name] = countryStats[code];
 	}
 
@@ -452,7 +493,7 @@ async function analyzeTripLocations(
 		(a, b) => (countryStats[a] > countryStats[b] ? a : b),
 		''
 	);
-	const primaryCountry = codeToName[primaryCountryCode] || primaryCountryCode;
+	const primaryCountry = getCountryName(primaryCountryCode);
 
 	// Find primary city (most visited)
 	const primaryCity = Object.keys(cityStats).reduce(
@@ -560,6 +601,7 @@ async function generateImageSuggestionFromAnalysis(
 	}
 ): Promise<{
 	imageUrl: string;
+	searchQuery: string;
 	attribution?: {
 		source: 'pexels' | 'picsum' | 'placeholder';
 		photographer?: string;
@@ -578,21 +620,8 @@ async function generateImageSuggestionFromAnalysis(
 				(a, b) => b.durationHours - a.durationHours
 			)[0];
 
-			// Map country code to full name
-			const fluxbaseUrl = Deno.env.get('FLUXBASE_BASE_URL');
-			const fluxbaseKey = Deno.env.get('FLUXBASE_SERVICE_ROLE_KEY');
-			const fullNameResponse = await fetch(`${fluxbaseUrl}/rest/v1/rpc/full_country`, {
-				method: 'POST',
-				headers: {
-					'apikey': fluxbaseKey!,
-					'Authorization': `Bearer ${fluxbaseKey}`,
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({ country: dominantCountry.countryCode })
-			});
-			const fullName = await fullNameResponse.json();
-			const countryName =
-				(fullName && typeof fullName === 'string' && fullName) || dominantCountry.countryCode;
+			// Map country code to full name using local mapping
+			const countryName = getCountryName(dominantCountry.countryCode);
 
 			searchTerm = cleanCountryNameForSearch(countryName);
 			logInfo(
@@ -626,22 +655,8 @@ async function generateImageSuggestionFromAnalysis(
 			tripMetadata.visitedCountriesDetailed &&
 			tripMetadata.visitedCountriesDetailed.length === 1
 		) {
-			// Single country trip
-			const fluxbaseUrl = Deno.env.get('FLUXBASE_BASE_URL');
-			const fluxbaseKey = Deno.env.get('FLUXBASE_SERVICE_ROLE_KEY');
-			const fullNameResponse = await fetch(`${fluxbaseUrl}/rest/v1/rpc/full_country`, {
-				method: 'POST',
-				headers: {
-					'apikey': fluxbaseKey!,
-					'Authorization': `Bearer ${fluxbaseKey}`,
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({ country: tripMetadata.visitedCountriesDetailed[0].countryCode })
-			});
-			const fullName = await fullNameResponse.json();
-			const countryName =
-				(fullName && typeof fullName === 'string' && fullName) ||
-				tripMetadata.visitedCountriesDetailed[0].countryCode;
+			// Single country trip - use local mapping to get full name
+			const countryName = getCountryName(tripMetadata.visitedCountriesDetailed[0].countryCode);
 			searchTerm = `${cleanCountryNameForSearch(countryName)} landscape`;
 			logInfo(`Using single country from metadata: ${countryName}`, 'TRIPS-SUGGEST-IMAGE');
 		}
@@ -681,6 +696,7 @@ async function generateImageSuggestionFromAnalysis(
 		// Return the Pexels URL directly (no upload to storage)
 		return {
 			imageUrl: photo.src.large,
+			searchQuery: searchTerm,
 			attribution: {
 				source: 'pexels',
 				photographer: photo.photographer,
@@ -696,6 +712,7 @@ async function generateImageSuggestionFromAnalysis(
 	logError(`No Pexels images found for: ${searchTerm}, using placeholder`, 'TRIPS-SUGGEST-IMAGE');
 	return {
 		imageUrl: `https://placehold.co/800x400/3b82f6/ffffff?text=${encodeURIComponent(searchTerm)}`,
+		searchQuery: searchTerm,
 		attribution: {
 			source: 'placeholder'
 		}

@@ -538,6 +538,8 @@
 		"titleLabel": "Título",
 		"startDate": "Fecha de inicio",
 		"endDate": "Fecha de fin",
+		"description": "Descripción",
+		"labels": "Etiquetas",
 		"describeTripPlaceholder": "Describe tu viaje...",
 		"addLabelPlaceholder": "Agregar una etiqueta (ej., vacaciones, trabajo, aventura)",
 		"tripImage": "Imagen del viaje",

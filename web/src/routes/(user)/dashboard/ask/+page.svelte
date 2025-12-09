@@ -14,19 +14,30 @@
 		Utensils,
 		StopCircle,
 		Settings,
-		ExternalLink
+		ExternalLink,
+		X,
+		FileText,
+		ChevronRight,
+		ChevronDown,
+		Database
 	} from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
 	import { format } from 'date-fns';
+	import { marked } from 'marked';
+	import DOMPurify from 'dompurify';
 
 	import { translate } from '$lib/i18n';
 	import {
 		chatService,
 		type ChatMessage,
-		type QueryResultData
+		type QueryResultData,
+		type ExecutionLog,
+		type AIUserConversationSummary
 	} from '$lib/services/chat.service';
 	import { sessionStore } from '$lib/stores/auth';
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
+	import { ChatResultRenderer, ConversationSidebar } from '$lib/components/chat';
+	import { detectResultType } from '$lib/utils/chat-result-detection';
 
 	let t = $derived($translate);
 
@@ -36,14 +47,75 @@
 	let isLoading = $state(false);
 	let messages = $state<ChatMessage[]>([]);
 	let currentStreamingContent = $state('');
-	let currentQueryResult = $state<QueryResultData | null>(null);
+	let currentQueryResults = $state<QueryResultData[]>([]);
 	let error = $state<string | null>(null);
+
+	// Progress and execution logs state
+	let currentProgress = $state<{ step: string; message: string } | null>(null);
+	let currentExecutionLogs = $state<ExecutionLog[]>([]);
+	let executionLogCounter = 0;
+
+	// Execution logs modal state
+	let showExecutionLogsModal = $state(false);
+	let selectedMessageLogs = $state<ExecutionLog[]>([]);
+
+	// Streaming details collapse state
+	let streamingDetailsExpanded = $state(false);
+
+	// Track which completed messages have expanded query results (by message id)
+	let expandedMessageQueries = $state<Set<string>>(new Set());
+
+	// Track which messages have expanded text (collapsed by default when cards are shown)
+	let expandedMessageText = $state<Set<string>>(new Set());
+
+	function toggleMessageQueries(messageId: string) {
+		const newSet = new Set(expandedMessageQueries);
+		if (newSet.has(messageId)) {
+			newSet.delete(messageId);
+		} else {
+			newSet.add(messageId);
+		}
+		expandedMessageQueries = newSet;
+	}
+
+	function toggleMessageText(messageId: string) {
+		const newSet = new Set(expandedMessageText);
+		if (newSet.has(messageId)) {
+			newSet.delete(messageId);
+		} else {
+			newSet.add(messageId);
+		}
+		expandedMessageText = newSet;
+	}
+
+	/**
+	 * Check if any query results will be shown as cards (trips or places with <=6 items)
+	 */
+	function hasCardResults(queryResults: QueryResultData[] | undefined): boolean {
+		if (!queryResults || queryResults.length === 0) return false;
+		return queryResults.some((qr) => {
+			const detection = detectResultType(qr.query, qr.data, qr.rowCount);
+			return detection.suggestedView === 'cards' && qr.data.length <= 6;
+		});
+	}
 
 	// Configuration error state
 	let configurationError = $state(false);
 	let isAdmin = $state(false);
 	let allowUserOverride = $state(false);
 	let isCheckingConfig = $state(true);
+
+	// Conversation history state
+	let conversationList = $state<AIUserConversationSummary[]>([]);
+	let currentConversationId = $state<string | null>(null);
+	let isLoadingConversations = $state(false);
+	let isLoadingConversation = $state(false);
+
+	// Lazy loading state
+	const CONVERSATIONS_PER_PAGE = 20;
+	let hasMoreConversations = $state(false);
+	let conversationOffset = $state(0);
+	let isLoadingMoreConversations = $state(false);
 
 	// Example suggestions
 	const suggestions = [
@@ -76,6 +148,7 @@
 	// Connect to chat on mount
 	onMount(async () => {
 		await checkConfigAndConnect();
+		await loadConversationList();
 	});
 
 	// Disconnect on destroy
@@ -118,27 +191,66 @@
 					currentStreamingContent = fullContent;
 				},
 				onProgress: (step, message) => {
-					// Could show progress indicators here
-					console.log(`[${step}] ${message}`);
+					// Update current progress display
+					currentProgress = { step, message };
+
+					// Skip duplicate "generating" messages to avoid flickering
+					const lastLog = currentExecutionLogs[currentExecutionLogs.length - 1];
+					if (step === 'generating' && lastLog?.step === 'generating') {
+						return;
+					}
+
+					// Add to execution logs
+					currentExecutionLogs = [
+						...currentExecutionLogs,
+						{
+							id: ++executionLogCounter,
+							step,
+							message,
+							timestamp: new Date()
+						}
+					];
 				},
 				onQueryResult: (result) => {
-					currentQueryResult = result;
+					// Accumulate query results
+					currentQueryResults = [...currentQueryResults, result];
+
+					// Add the actual SQL query to execution logs for debugging
+					currentExecutionLogs = [
+						...currentExecutionLogs,
+						{
+							id: ++executionLogCounter,
+							step: 'sql',
+							message: result.query,
+							timestamp: new Date()
+						}
+					];
 				},
 				onDone: (usage) => {
 					// Add the completed assistant message
-					if (currentStreamingContent || currentQueryResult) {
+					if (currentStreamingContent || currentQueryResults.length > 0) {
 						const assistantMessage: ChatMessage = {
 							id: chatService.generateMessageId(),
 							role: 'assistant',
 							content: currentStreamingContent,
 							timestamp: new Date(),
-							queryResult: currentQueryResult ?? undefined
+							queryResults:
+								currentQueryResults.length > 0 ? [...currentQueryResults] : undefined,
+							executionLogs:
+								currentExecutionLogs.length > 0 ? [...currentExecutionLogs] : undefined,
+							usage
 						};
 						messages = [...messages, assistantMessage];
 					}
+					// Reset all state
 					currentStreamingContent = '';
-					currentQueryResult = null;
+					currentQueryResults = [];
+					currentExecutionLogs = [];
+					currentProgress = null;
 					isLoading = false;
+
+					// Refresh conversation list to show updated title/preview
+					refreshConversationList();
 				},
 				onError: (errorMsg, code) => {
 					error = errorMsg;
@@ -147,8 +259,7 @@
 				}
 			});
 
-			// Start a chat session
-			await chatService.startChat('location-assistant', 'wayli');
+			// Mark as connected - conversation will be created on first message
 			isConnected = true;
 			configurationError = false;
 		} catch (err) {
@@ -174,11 +285,28 @@
 		if (!question.trim() || isLoading || !isConnected) return;
 
 		const userQuestion = question.trim();
+		const isFirstMessage = messages.length === 0;
 		question = '';
 		error = null;
 		isLoading = true;
 		currentStreamingContent = '';
-		currentQueryResult = null;
+		currentQueryResults = [];
+		currentExecutionLogs = [];
+		currentProgress = null;
+		executionLogCounter = 0;
+		streamingDetailsExpanded = false;
+
+		// Create conversation on first message
+		if (!currentConversationId) {
+			try {
+				currentConversationId = await chatService.startChat('location-assistant', 'wayli');
+			} catch (err) {
+				error = (err as Error).message;
+				isLoading = false;
+				toast.error('Failed to start conversation');
+				return;
+			}
+		}
 
 		// Add user message
 		const userMessage: ChatMessage = {
@@ -188,6 +316,21 @@
 			timestamp: new Date()
 		};
 		messages = [...messages, userMessage];
+
+		// Optimistically add conversation to sidebar on first message
+		if (isFirstMessage && currentConversationId) {
+			const optimisticConversation: AIUserConversationSummary = {
+				id: currentConversationId,
+				chatbot: 'location-assistant',
+				namespace: 'wayli',
+				title: userQuestion.length > 50 ? userQuestion.slice(0, 50) + '...' : userQuestion,
+				preview: userQuestion,
+				message_count: 1,
+				created_at: new Date().toISOString(),
+				updated_at: new Date().toISOString()
+			};
+			conversationList = [optimisticConversation, ...conversationList];
+		}
 
 		try {
 			await chatService.sendMessage(userQuestion);
@@ -219,33 +362,228 @@
 		}
 	}
 
-	// Get amenity display name
-	function getAmenityLabel(amenity: string | null | undefined): string {
-		if (!amenity) return 'Place';
-		return amenity.charAt(0).toUpperCase() + amenity.slice(1);
+	// Get step color for execution logs
+	function getStepColor(step: string): string {
+		switch (step) {
+			case 'thinking':
+				return 'text-purple-500';
+			case 'generating':
+				return 'text-blue-500';
+			case 'querying':
+				return 'text-green-500';
+			case 'sql':
+				return 'text-orange-500';
+			default:
+				return 'text-gray-500';
+		}
+	}
+
+	// Get friendly table name from SQL query
+	function getQueriedTable(query: string): string {
+		if (/from\s+my_trips/i.test(query)) return 'trips';
+		if (/from\s+my_place_visits/i.test(query)) return 'places';
+		if (/from\s+my_tracker_data/i.test(query)) return 'GPS data';
+		return 'data';
+	}
+
+	// Render markdown content safely, optionally stripping images
+	function renderMarkdown(content: string, stripImages: boolean = false): string {
+		if (!content) return '';
+		try {
+			let processedContent = content;
+
+			// Strip markdown images if requested (they're shown in cards already)
+			if (stripImages) {
+				// Remove "Image: ![alt](url)" or just "![alt](url)" patterns
+				processedContent = processedContent.replace(/(?:Image:\s*)?!\[([^\]]*)\]\([^)]+\)/gi, '');
+				// Remove lines that are just "Image:" or similar labels left behind
+				processedContent = processedContent.replace(/^(?:Image|Photo|Picture|Cover):\s*$/gim, '');
+				// Remove any leftover empty lines (more than 2 newlines become 2)
+				processedContent = processedContent.replace(/\n{3,}/g, '\n\n').trim();
+			}
+
+			const html = marked.parse(processedContent, { async: false }) as string;
+			return DOMPurify.sanitize(html);
+		} catch {
+			return content;
+		}
+	}
+
+	// Open execution logs modal
+	function openExecutionLogs(logs: ExecutionLog[] | undefined) {
+		if (logs && logs.length > 0) {
+			selectedMessageLogs = logs;
+			showExecutionLogsModal = true;
+		}
+	}
+
+	// Show current logs (during streaming)
+	function showCurrentLogs() {
+		selectedMessageLogs = currentExecutionLogs;
+		showExecutionLogsModal = true;
+	}
+
+	// Close execution logs modal
+	function closeExecutionLogsModal() {
+		showExecutionLogsModal = false;
+		selectedMessageLogs = [];
+	}
+
+	// Handle escape key for modal
+	function handleKeydown(event: KeyboardEvent) {
+		if (event.key === 'Escape' && showExecutionLogsModal) {
+			closeExecutionLogsModal();
+		}
+	}
+
+	// Load conversation list (initial load)
+	async function loadConversationList() {
+		isLoadingConversations = true;
+		try {
+			const result = await chatService.listConversations({
+				chatbot: 'location-assistant',
+				namespace: 'wayli',
+				limit: CONVERSATIONS_PER_PAGE,
+				offset: 0
+			});
+			conversationList = result.conversations;
+			hasMoreConversations = result.has_more;
+			conversationOffset = result.conversations.length;
+		} catch (err) {
+			console.error('Failed to load conversations:', err);
+		} finally {
+			isLoadingConversations = false;
+		}
+	}
+
+	// Load more conversations (infinite scroll)
+	async function loadMoreConversations() {
+		if (!hasMoreConversations || isLoadingMoreConversations) return;
+
+		isLoadingMoreConversations = true;
+		try {
+			const result = await chatService.listConversations({
+				chatbot: 'location-assistant',
+				namespace: 'wayli',
+				limit: CONVERSATIONS_PER_PAGE,
+				offset: conversationOffset
+			});
+			conversationList = [...conversationList, ...result.conversations];
+			hasMoreConversations = result.has_more;
+			conversationOffset += result.conversations.length;
+		} catch (err) {
+			console.error('Failed to load more conversations:', err);
+		} finally {
+			isLoadingMoreConversations = false;
+		}
+	}
+
+	// Load a specific conversation
+	async function loadConversation(conversationId: string) {
+		if (conversationId === currentConversationId) return;
+
+		isLoadingConversation = true;
+		try {
+			const conversation = await chatService.getConversation(conversationId);
+
+			// Convert SDK messages to ChatMessage format
+			messages = conversation.messages.map((msg) => ({
+				id: msg.id,
+				role: msg.role as 'user' | 'assistant',
+				content: msg.content,
+				timestamp: new Date(msg.timestamp),
+				queryResults: msg.query_results?.map((qr) => ({
+					query: qr.query,
+					summary: qr.summary,
+					rowCount: qr.row_count,
+					data: qr.data
+				})),
+				usage: msg.usage
+					? {
+							promptTokens: msg.usage.prompt_tokens,
+							completionTokens: msg.usage.completion_tokens,
+							totalTokens: msg.usage.total_tokens
+						}
+					: undefined
+			}));
+
+			currentConversationId = conversationId;
+
+			// Resume the conversation via WebSocket
+			await chatService.startChat('location-assistant', 'wayli', conversationId);
+		} catch (err) {
+			console.error('Failed to load conversation:', err);
+			toast.error('Failed to load conversation');
+		} finally {
+			isLoadingConversation = false;
+		}
+	}
+
+	// Start a new conversation
+	function startNewConversation() {
+		messages = [];
+		currentConversationId = null;
+		currentStreamingContent = '';
+		currentQueryResults = [];
+		currentExecutionLogs = [];
+		currentProgress = null;
+		error = null;
+		// Conversation will be created when user sends first message
+	}
+
+	// Delete a conversation
+	async function deleteConversation(conversationId: string) {
+		try {
+			await chatService.deleteConversation(conversationId);
+			conversationList = conversationList.filter((c) => c.id !== conversationId);
+
+			// If deleted the current conversation, start new
+			if (conversationId === currentConversationId) {
+				await startNewConversation();
+			}
+
+			toast.success('Conversation deleted');
+		} catch (err) {
+			console.error('Failed to delete conversation:', err);
+			toast.error('Failed to delete conversation');
+		}
+	}
+
+	// Refresh conversation list after sending a message
+	async function refreshConversationList() {
+		// Small delay to allow backend to update
+		setTimeout(async () => {
+			await loadConversationList();
+		}, 500);
 	}
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <svelte:head>
 	<title>Ask About Your Travels | Wayli</title>
 </svelte:head>
 
-<div class="mx-auto flex h-[calc(100vh-4rem)] max-w-4xl flex-col px-4 py-4">
-	<!-- Header -->
-	<div class="mb-4 text-center">
-		<div class="mb-2 flex items-center justify-center gap-2">
-			<Sparkles class="h-6 w-6 text-purple-500" />
-			<h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
-				Ask About Your Travels
-			</h1>
-		</div>
-		<p class="text-sm text-gray-600 dark:text-gray-400">
-			Use natural language to explore your travel history
-		</p>
+<div class="-m-6 flex h-screen">
+	<!-- Conversation Sidebar -->
+	<div class="hidden md:block">
+		<ConversationSidebar
+			conversations={conversationList}
+			activeConversationId={currentConversationId}
+			isLoading={isLoadingConversations}
+			hasMore={hasMoreConversations}
+			isLoadingMore={isLoadingMoreConversations}
+			onSelect={loadConversation}
+			onNewConversation={startNewConversation}
+			onDelete={deleteConversation}
+			onLoadMore={loadMoreConversations}
+		/>
 	</div>
 
-	<!-- Messages Area -->
-	<div class="flex-1 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
+	<!-- Chat Area -->
+	<div class="flex flex-1 flex-col overflow-hidden bg-gray-50 dark:bg-gray-900">
+		<!-- Messages Area -->
+		<div class="flex-1 overflow-y-auto">
 		{#if isCheckingConfig}
 			<!-- Loading configuration -->
 			<div class="flex h-full flex-col items-center justify-center p-6">
@@ -322,7 +660,7 @@
 					{#each suggestions.slice(0, 4) as suggestion (suggestion.question)}
 						<button
 							onclick={() => useSuggestion(suggestion)}
-							class="rounded-lg border border-gray-200 bg-white p-3 text-left text-sm transition-all hover:border-purple-300 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:hover:border-purple-600"
+							class="rounded-lg border border-gray-200 bg-white p-3 text-left text-sm transition-all hover:border-[rgb(34,51,95)]/50 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:hover:border-[rgb(34,51,95)]"
 						>
 							<div class="font-medium text-gray-700 dark:text-gray-300">
 								{suggestion.question}
@@ -337,67 +675,46 @@
 				{#each messages as message (message.id)}
 					<div class="flex gap-3 {message.role === 'user' ? 'justify-end' : ''}">
 						{#if message.role === 'assistant'}
-							<div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30">
-								<Bot class="h-5 w-5 text-purple-600 dark:text-purple-400" />
+							<div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[rgb(34,51,95)]/10 dark:bg-[rgb(34,51,95)]/20">
+								<Bot class="h-5 w-5 text-[rgb(34,51,95)] dark:text-blue-400" />
 							</div>
 						{/if}
 						<div
 							class="max-w-[80%] rounded-xl px-4 py-3 {message.role === 'user'
-								? 'bg-purple-500 text-white'
+								? 'bg-[rgb(34,51,95)] text-white'
 								: 'bg-white dark:bg-gray-800'}"
 						>
 							{#if message.role === 'assistant'}
-								<div class="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-									{message.content}
-								</div>
-
-								<!-- Query Results -->
-								{#if message.queryResult}
-									<div class="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900">
-										<div class="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">
-											Query Results ({message.queryResult.rowCount} rows)
-										</div>
-										{#if message.queryResult.summary}
-											<div class="text-sm text-gray-700 dark:text-gray-300">
-												{message.queryResult.summary}
-											</div>
-										{/if}
-										{#if message.queryResult.data && message.queryResult.data.length > 0}
-											<div class="mt-2 max-h-48 overflow-y-auto">
-												{#each message.queryResult.data.slice(0, 5) as row, idx (idx)}
-													<div class="border-t border-gray-200 py-2 first:border-t-0 dark:border-gray-700">
-														<div class="flex items-center gap-2">
-															<span class="font-medium text-gray-900 dark:text-gray-100">
-																{row.poi_name || 'Unknown Place'}
-															</span>
-															{#if row.poi_amenity}
-																<span class="text-xs text-gray-500">
-																	({getAmenityLabel(row.poi_amenity as string)})
-																</span>
-															{/if}
-														</div>
-														{#if row.city || row.country}
-															<div class="flex items-center gap-1 text-xs text-gray-500">
-																<MapPin class="h-3 w-3" />
-																{row.city}{row.country ? `, ${row.country}` : ''}
-															</div>
-														{/if}
-														{#if row.started_at}
-															<div class="flex items-center gap-1 text-xs text-gray-400">
-																<Clock class="h-3 w-3" />
-																{formatDate(row.started_at as string)}
-															</div>
-														{/if}
-													</div>
-												{/each}
-												{#if message.queryResult.data.length > 5}
-													<div class="mt-2 text-center text-xs text-gray-400">
-														... and {message.queryResult.data.length - 5} more results
-													</div>
-												{/if}
-											</div>
-										{/if}
+								{@const hasQueryResults = message.queryResults && message.queryResults.length > 0}
+								<!-- Always show text response first (with Markdown rendering, strip images if cards shown) -->
+								{#if message.content}
+									<div class="prose prose-sm dark:prose-invert max-w-none text-gray-800 dark:text-gray-200">
+										{@html renderMarkdown(message.content, hasQueryResults)}
 									</div>
+								{/if}
+
+								<!-- Query Results (shown inline as cards below text) -->
+								{#if message.queryResults && message.queryResults.length > 0}
+									<div class="mt-4 space-y-3">
+										{#each message.queryResults as queryResult, idx}
+											<ChatResultRenderer
+												{queryResult}
+												queryIndex={idx}
+												totalQueries={message.queryResults.length}
+											/>
+										{/each}
+									</div>
+								{/if}
+
+								<!-- View Execution Logs button -->
+								{#if message.executionLogs && message.executionLogs.length > 0}
+									<button
+										onclick={() => openExecutionLogs(message.executionLogs)}
+										class="mt-2 flex items-center gap-1 text-xs text-[rgb(34,51,95)] hover:text-[rgb(34,51,95)]/80 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
+									>
+										<FileText class="h-3 w-3" />
+										View execution logs ({message.executionLogs.length} steps)
+									</button>
 								{/if}
 							{:else}
 								<div>{message.content}</div>
@@ -412,40 +729,62 @@
 				{/each}
 
 				<!-- Streaming Response -->
-				{#if isLoading && (currentStreamingContent || currentQueryResult)}
+				{#if isLoading}
 					<div class="flex gap-3">
-						<div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30">
-							<Bot class="h-5 w-5 text-purple-600 dark:text-purple-400" />
+						<div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[rgb(34,51,95)]/10 dark:bg-[rgb(34,51,95)]/20">
+							<Bot class="h-5 w-5 text-[rgb(34,51,95)] dark:text-blue-400" />
 						</div>
 						<div class="max-w-[80%] rounded-xl bg-white px-4 py-3 dark:bg-gray-800">
-							{#if currentStreamingContent}
-								<div class="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-									{currentStreamingContent}
-									<span class="inline-block h-4 w-2 animate-pulse bg-gray-400"></span>
+							<!-- Clean Status Indicator - always visible during loading, stable height -->
+							{#if !currentStreamingContent}
+								<div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400" style="min-height: 24px;">
+									<Loader2 class="h-4 w-4 flex-shrink-0 animate-spin text-[rgb(34,51,95)] dark:text-blue-400" />
+									<span class="transition-opacity duration-150">
+										{currentProgress?.message || 'Thinking...'}
+									</span>
 								</div>
 							{/if}
 
-							{#if currentQueryResult}
-								<div class="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900">
-									<div class="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">
-										Query Results ({currentQueryResult.rowCount} rows)
-									</div>
-									{#if currentQueryResult.summary}
-										<div class="text-sm text-gray-700 dark:text-gray-300">
-											{currentQueryResult.summary}
-										</div>
+							<!-- Collapsible Query Summary -->
+							{#if currentQueryResults.length > 0}
+								<button
+									type="button"
+									onclick={() => streamingDetailsExpanded = !streamingDetailsExpanded}
+									class="mt-1 flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+								>
+									{#if streamingDetailsExpanded}
+										<ChevronDown class="h-3.5 w-3.5 flex-shrink-0" />
+									{:else}
+										<ChevronRight class="h-3.5 w-3.5 flex-shrink-0" />
 									{/if}
-								</div>
+									<Database class="h-3 w-3 flex-shrink-0" />
+									<span>{currentQueryResults.length} {currentQueryResults.length === 1 ? 'query' : 'queries'} executed</span>
+								</button>
+
+								<!-- Expanded Query Details -->
+								{#if streamingDetailsExpanded}
+									<div class="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900">
+										{#each currentQueryResults as queryResult, idx}
+											<div class="flex items-center justify-between py-1 text-xs {idx > 0 ? 'border-t border-gray-200 dark:border-gray-700' : ''}">
+												<span class="text-gray-600 dark:text-gray-400">
+													{getQueriedTable(queryResult.query)}
+												</span>
+												<span class="text-gray-400">
+													{queryResult.rowCount} rows
+												</span>
+											</div>
+										{/each}
+									</div>
+								{/if}
 							{/if}
-						</div>
-					</div>
-				{:else if isLoading}
-					<div class="flex gap-3">
-						<div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30">
-							<Bot class="h-5 w-5 text-purple-600 dark:text-purple-400" />
-						</div>
-						<div class="rounded-xl bg-white px-4 py-3 dark:bg-gray-800">
-							<Loader2 class="h-5 w-5 animate-spin text-gray-400" />
+
+							<!-- Streaming content (with live Markdown rendering) -->
+							{#if currentStreamingContent}
+								<div class="prose prose-sm dark:prose-invert max-w-none text-gray-800 dark:text-gray-200">
+									{@html renderMarkdown(currentStreamingContent)}
+								</div>
+								<span class="inline-block h-4 w-2 animate-pulse bg-gray-400 mt-1"></span>
+							{/if}
 						</div>
 					</div>
 				{/if}
@@ -461,42 +800,108 @@
 		{/if}
 	</div>
 
-	<!-- Input Area -->
-	<div class="mt-4">
-		<div class="relative flex items-center gap-2">
-			<input
-				type="text"
-				bind:value={question}
-				onkeydown={(e) => e.key === 'Enter' && sendMessage()}
-				placeholder={isConnected ? "Ask about your travels..." : "Connecting..."}
-				disabled={isLoading || !isConnected}
-				class="flex-1 rounded-xl border border-gray-300 bg-white py-3 pl-4 pr-12 shadow-sm transition-all focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-purple-400"
-			/>
-			{#if isLoading}
-				<button
-					onclick={cancelMessage}
-					class="absolute right-3 rounded-lg bg-red-500 p-2 text-white transition-colors hover:bg-red-600"
-					title="Cancel"
-				>
-					<StopCircle class="h-5 w-5" />
-				</button>
-			{:else}
-				<button
-					onclick={sendMessage}
-					disabled={!question.trim() || !isConnected}
-					class="absolute right-3 rounded-lg bg-purple-500 p-2 text-white transition-colors hover:bg-purple-600 disabled:cursor-not-allowed disabled:opacity-50"
-				>
-					<Send class="h-5 w-5" />
-				</button>
+		<!-- Input Area -->
+		<div class="flex-shrink-0 border-t border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+			<div class="relative flex items-center gap-2">
+				<input
+					type="text"
+					bind:value={question}
+					onkeydown={(e) => e.key === 'Enter' && sendMessage()}
+					placeholder={isConnected ? "Ask about your travels..." : "Connecting..."}
+					disabled={isLoading || !isConnected}
+					class="flex-1 rounded-xl border border-gray-300 bg-white py-3 pl-4 pr-12 shadow-sm transition-all focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-2 focus:ring-[rgb(34,51,95)]/20 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-[rgb(34,51,95)]"
+				/>
+				{#if isLoading}
+					<button
+						onclick={cancelMessage}
+						class="absolute right-3 rounded-lg bg-red-500 p-2 text-white transition-colors hover:bg-red-600"
+						title="Cancel"
+					>
+						<StopCircle class="h-5 w-5" />
+					</button>
+				{:else}
+					<button
+						onclick={sendMessage}
+						disabled={!question.trim() || !isConnected}
+						class="absolute right-3 rounded-lg bg-[rgb(34,51,95)] p-2 text-white transition-colors hover:bg-[rgb(34,51,95)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+					>
+						<Send class="h-5 w-5" />
+					</button>
+				{/if}
+			</div>
+
+			<!-- Connection Status -->
+			{#if !isConnected && !configurationError && !isCheckingConfig}
+				<div class="mt-2 flex items-center justify-center gap-2 text-sm text-gray-500">
+					<Loader2 class="h-4 w-4 animate-spin" />
+					{t('ask.connectingToChat')}
+				</div>
 			{/if}
 		</div>
-
-		<!-- Connection Status -->
-		{#if !isConnected && !configurationError && !isCheckingConfig}
-			<div class="mt-2 flex items-center justify-center gap-2 text-sm text-gray-500">
-				<Loader2 class="h-4 w-4 animate-spin" />
-				{t('ask.connectingToChat')}
-			</div>
-		{/if}
 	</div>
 </div>
+
+<!-- Execution Logs Modal -->
+{#if showExecutionLogsModal}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="execution-logs-title"
+		onclick={closeExecutionLogsModal}
+		onkeydown={(e) => e.key === 'Escape' && closeExecutionLogsModal()}
+		tabindex="0"
+	>
+		<div
+			class="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl dark:bg-gray-900"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
+			role="dialog"
+			tabindex="-1"
+		>
+			<!-- Header -->
+			<div class="mb-4 flex items-center justify-between">
+				<h3 id="execution-logs-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+					Execution Logs
+				</h3>
+				<button
+					onclick={closeExecutionLogsModal}
+					class="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+					aria-label="Close modal"
+				>
+					<X class="h-5 w-5" />
+				</button>
+			</div>
+
+			<!-- Logs Container -->
+			<div
+				class="max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-3 font-mono text-xs dark:border-gray-700 dark:bg-gray-950"
+			>
+				{#if selectedMessageLogs.length === 0}
+					<div class="flex h-full items-center justify-center text-gray-500">
+						No logs available
+					</div>
+				{:else}
+					{#each selectedMessageLogs as log (log.id)}
+						<div class="mb-1 flex gap-2">
+							<span class="flex-shrink-0 uppercase {getStepColor(log.step)}">
+								[{log.step}]
+							</span>
+							<span class="text-gray-700 dark:text-gray-300">{log.message}</span>
+						</div>
+					{/each}
+				{/if}
+			</div>
+
+			<!-- Footer -->
+			<div class="mt-4 flex justify-end">
+				<button
+					onclick={closeExecutionLogsModal}
+					class="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+				>
+					Close
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}

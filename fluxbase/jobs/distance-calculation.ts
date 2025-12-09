@@ -24,7 +24,8 @@ function safeReportProgress(job: JobUtils, percent: number, message: string): vo
 }
 
 interface DistanceCalculationPayload {
-	target_user_id: string;
+	/** @deprecated Use onBehalfOf option in job submission instead */
+	target_user_id?: string;
 }
 
 export async function handler(
@@ -42,7 +43,15 @@ export async function handler(
 
 		safeReportProgress(job, 0, '🧮 Starting distance calculation...');
 
-		const targetUserId = payload.target_user_id;
+		// Use user context from onBehalfOf (preferred) or fall back to target_user_id in payload (deprecated)
+		const targetUserId = context.user?.id || payload?.target_user_id;
+
+		if (!targetUserId) {
+			return {
+				success: false,
+				error: 'No user context available. Submit job with onBehalfOf option or as authenticated user.'
+			};
+		}
 		const BATCH_SIZE = 1000; // Process 1000 records per batch
 
 		// Count total records for accurate progress tracking

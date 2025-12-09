@@ -25,7 +25,6 @@
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
 	import { uploadTripImage } from '$lib/services/external/image-upload.service';
 	import { getTripsService } from '$lib/services/service-layer-adapter';
-	import { setDateRange } from '$lib/stores/app-state.svelte';
 	import { sessionStore, sessionStoreReady } from '$lib/stores/auth';
 	import { tripJobs, type JobStoreJob, addJobToStore, getActiveJobsMap } from '$lib/stores/job-store';
 	import { fluxbase } from '$lib/fluxbase';
@@ -264,15 +263,8 @@
 	}
 
 	function showTripStatistics(trip: Trip) {
-		// Set the date range to match the trip's start and end dates
-		const startDate = new Date(trip.start_date);
-		const endDate = new Date(trip.end_date);
-
-		// Set the date range in the global state
-		setDateRange(startDate, endDate);
-
-		// Navigate to the statistics page
-		goto('/dashboard/statistics');
+		// Navigate to statistics page with trip dates as URL params
+		goto(`/dashboard/statistics?start=${trip.start_date}&end=${trip.end_date}`);
 	}
 
 	function filterTrips() {
@@ -324,7 +316,7 @@
 			}
 
 			const serviceAdapter = new ServiceAdapter({ session: session.data.session });
-			const offset = loadMore ? (currentPage - 1) * tripsPerPage : 0;
+			const offset = loadMore ? trips.length : 0;
 
 			const tripsData = await serviceAdapter.getTrips({
 				limit: tripsPerPage,
@@ -386,12 +378,12 @@
 	}
 
 	// Handle infinite scroll
-	function handleScroll() {
+	function handleScroll(scrollContainer: HTMLElement) {
 		if (!hasMoreTrips || isLoadingMore) return;
 
-		const scrollTop = window.scrollY;
-		const scrollHeight = document.documentElement.scrollHeight;
-		const clientHeight = window.innerHeight;
+		const scrollTop = scrollContainer.scrollTop;
+		const scrollHeight = scrollContainer.scrollHeight;
+		const clientHeight = scrollContainer.clientHeight;
 		const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
 
 		// Load more when user scrolls to within 300px of the bottom
@@ -493,20 +485,24 @@
 	// Add scroll event listener for infinite scroll
 	onMount(() => {
 		if (browser) {
+			// Find the scrollable main container (from AppNav)
+			const scrollContainer = document.querySelector('main.overflow-auto') as HTMLElement;
+			if (!scrollContainer) return;
+
 			// Throttle scroll events to improve performance
 			let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
 			const throttledHandleScroll = () => {
 				if (scrollTimeout) return;
 				scrollTimeout = setTimeout(() => {
-					handleScroll();
+					handleScroll(scrollContainer);
 					scrollTimeout = null;
 				}, 100); // Throttle to 100ms
 			};
 
-			window.addEventListener('scroll', throttledHandleScroll);
+			scrollContainer.addEventListener('scroll', throttledHandleScroll);
 
 			return () => {
-				window.removeEventListener('scroll', throttledHandleScroll);
+				scrollContainer.removeEventListener('scroll', throttledHandleScroll);
 				if (scrollTimeout) clearTimeout(scrollTimeout);
 			};
 		}
@@ -644,7 +640,7 @@
 			console.log('🔍 [TRIPS] About to create job with data:', jobData);
 
 			const result = (await serviceAdapter.createJob({
-				type: 'trip_generation',
+				type: 'trip-generation',
 				data: jobData
 			})) as any;
 
@@ -742,8 +738,8 @@
 		editingTrip = trip;
 		tripForm = {
 			title: trip.title,
-			start_date: trip.start_date,
-			end_date: trip.end_date,
+			start_date: trip.start_date?.split('T')[0] || '',
+			end_date: trip.end_date?.split('T')[0] || '',
 			description: trip.description || '',
 			labels: trip.labels || []
 		};
@@ -945,10 +941,13 @@
 			if (!session) throw new Error('No session found');
 
 			const serviceAdapter = new ServiceAdapter({ session });
-			const suggestResult = (await serviceAdapter.suggestTripImages({
-				start_date: tripForm.start_date,
-				end_date: tripForm.end_date
-			})) as any;
+			// When editing an existing trip, pass the trip ID to use its metadata
+			// Otherwise, fall back to date range
+			const suggestResult = (await serviceAdapter.suggestTripImages(
+				isEditing && editingTrip?.id
+					? editingTrip.id
+					: { start_date: tripForm.start_date, end_date: tripForm.end_date }
+			)) as any;
 
 			if (suggestResult.suggestedImageUrl) {
 				suggestedImageUrl = suggestResult.suggestedImageUrl;
@@ -1216,15 +1215,14 @@
 			suggestedTrips = [];
 
 			// Get the created trip IDs from the approve result
-
 			const createdTripIds = successfulApprovals
 				.filter((result: any) => result.tripId)
 				.map((result: any) => result.tripId);
 
-			if (createdTripIds.length > 0) {
-				// Reload trips to show the newly created trips
-				await loadTrips();
+			// Always reload trips to show the newly created/updated trips
+			await loadTrips();
 
+			if (createdTripIds.length > 0) {
 				// Verify image attachment by checking the loaded trips
 				const approvedTrips = trips.filter((trip) => createdTripIds.includes(trip.id));
 				const tripsWithImages = approvedTrips.filter((trip) => trip.image_url);
@@ -1537,7 +1535,7 @@
 											>{t('trips.autoSuggestedImage')}</span
 										>
 										{#if isSuggestingImage}
-											<Loader2 class="h-4 w-4 animate-spin text-[rgb(34,51,95)]" />
+											<Loader2 class="h-4 w-4 animate-spin text-[rgb(34,51,95)] dark:text-blue-400" />
 										{/if}
 									</div>
 
@@ -1561,83 +1559,15 @@
 								</div>
 							{/if}
 
-							{#if isEditing && tripForm.start_date && tripForm.end_date && !uploadedImageUrl && !imageFile}
-								<div class="mb-3">
-									{#if serverPexelsApiKeyAvailable || userPreferences?.pexels_api_key}
-										<button
-											type="button"
-											class="text-sm font-medium text-[rgb(34,51,95)] underline hover:text-[rgb(34,51,95)]/80"
-											onclick={suggestTripImage}
-											disabled={isSuggestingImage}
-										>
-											{isSuggestingImage ? t('trips.suggesting') : t('trips.autoSuggestImage')}
-										</button>
-										{#if serverPexelsApiKeyAvailable}
-											<p class="mt-1 text-xs text-green-600 dark:text-green-400">
-												✅ Using server API key for high-quality suggestions
-											</p>
-										{/if}
-									{:else}
-										<div class="flex items-center gap-2">
-											<button
-												type="button"
-												class="text-sm font-medium text-[rgb(34,51,95)] underline hover:text-[rgb(34,51,95)]/80"
-												onclick={suggestTripImage}
-												disabled={isSuggestingImage}
-											>
-												{isSuggestingImage ? t('trips.suggesting') : t('trips.autoSuggestImage')}
-											</button>
-											<span class="text-xs text-gray-500 dark:text-gray-400">
-												(Using fallback image service)
-											</span>
-										</div>
-									{/if}
-									<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-										Analyzes your travel data to suggest relevant images for this trip
-									</p>
-								</div>
-							{/if}
-
 							<!-- Manual upload section -->
-							<div class="space-y-2">
-								<input
-									id="trip-image"
-									type="file"
-									accept="image/*"
-									onchange={handleImageChange}
-									class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-lg file:border-0 file:bg-[rgb(34,51,95)]/5 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[rgb(34,51,95)] hover:file:bg-[rgb(34,51,95)]/10"
-									disabled={isUploadingImage}
-								/>
-
-								{#if tripForm.start_date && tripForm.end_date}
-									<div class="text-xs text-gray-500 dark:text-gray-400">
-										{#if !uploadedImageUrl && !imageFile}
-											{t('trips.orText')}
-											<button
-												type="button"
-												class="text-[rgb(34,51,95)] underline hover:text-[rgb(34,51,95)]/80"
-												onclick={suggestTripImage}
-												disabled={isSuggestingImage}
-											>
-												{isSuggestingImage ? t('trips.suggesting') : t('trips.suggestAnImage')}
-											</button>
-											{t('trips.basedOnTravelData')}
-										{:else if suggestedImageUrl}
-											<button
-												type="button"
-												class="text-[rgb(34,51,95)] underline hover:text-[rgb(34,51,95)]/80"
-												onclick={suggestTripImage}
-												disabled={isSuggestingImage}
-											>
-												{isSuggestingImage
-													? t('trips.suggesting')
-													: t('trips.suggestDifferentImage')}
-											</button>
-											{t('trips.basedOnTravelData')}
-										{/if}
-									</div>
-								{/if}
-							</div>
+							<input
+								id="trip-image"
+								type="file"
+								accept="image/*"
+								onchange={handleImageChange}
+								class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-lg file:border-0 file:bg-[rgb(34,51,95)]/5 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[rgb(34,51,95)] hover:file:bg-[rgb(34,51,95)]/10"
+								disabled={isUploadingImage}
+							/>
 
 							{#if isUploadingImage}
 								<div class="mt-2 flex items-center gap-2 text-[rgb(34,51,95)] dark:text-gray-400">
@@ -1657,7 +1587,7 @@
 								class="relative mt-2 flex h-40 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800"
 							>
 								{#if isSuggestingImage}
-									<Loader2 class="h-10 w-10 animate-spin text-[rgb(34,51,95)]" />
+									<Loader2 class="h-10 w-10 animate-spin text-[rgb(34,51,95)] dark:text-blue-400" />
 								{:else if imagePreview}
 									<img
 										src={imagePreview}
@@ -1680,17 +1610,17 @@
 										Suggested
 									</div>
 								{/if}
-								<!-- Auto-suggest new image button when editing -->
-								{#if isEditing && tripForm.start_date && tripForm.end_date}
+								<!-- Auto-suggest image button -->
+								{#if tripForm.start_date && tripForm.end_date && !isSuggestingImage}
 									<div class="absolute top-2 left-2">
 										<button
 											type="button"
 											class="rounded bg-white/95 px-3 py-1.5 text-xs font-medium text-[rgb(34,51,95)] shadow-lg transition-all duration-200 hover:bg-white hover:text-[rgb(34,51,95)]/80 dark:bg-gray-800/95 dark:text-gray-300 dark:hover:bg-gray-800"
 											onclick={suggestTripImage}
 											disabled={isSuggestingImage}
-											title="Get a new suggested image based on your travel data"
+											title="Get a suggested image based on your travel data"
 										>
-											{isSuggestingImage ? 'Suggesting...' : '🔄 New suggestion'}
+											{suggestedImageUrl || uploadedImageUrl ? '🔄 Try different' : '✨ Suggest image'}
 										</button>
 									</div>
 								{/if}
@@ -1705,7 +1635,7 @@
 											href={imageAttribution.photographerUrl}
 											target="_blank"
 											rel="noopener noreferrer"
-											class="text-[rgb(34,51,95)] underline hover:text-[rgb(34,51,95)]/80"
+											class="text-[rgb(34,51,95)] underline hover:text-[rgb(34,51,95)]/80 dark:text-blue-400 dark:hover:text-blue-300"
 										>
 											{imageAttribution.photographer}
 										</a>
@@ -1717,7 +1647,7 @@
 										href="https://www.pexels.com"
 										target="_blank"
 										rel="noopener noreferrer"
-										class="text-[rgb(34,51,95)] underline hover:text-[rgb(34,51,95)]/80"
+										class="text-[rgb(34,51,95)] underline hover:text-[rgb(34,51,95)]/80 dark:text-blue-400 dark:hover:text-blue-300"
 									>
 										Pexels
 									</a>
@@ -1755,7 +1685,7 @@
 	{#if isLoading || isInitialLoad}
 		<div class="flex items-center justify-center py-12">
 			<div class="text-center">
-				<Loader2 class="mx-auto mb-4 h-8 w-8 animate-spin text-[rgb(34,51,95)]" />
+				<Loader2 class="mx-auto mb-4 h-8 w-8 animate-spin text-[rgb(34,51,95)] dark:text-blue-400" />
 				<p class="text-gray-600 dark:text-gray-400">Loading trips...</p>
 			</div>
 		</div>
@@ -1788,14 +1718,14 @@
 					<!-- Action Buttons -->
 					<div class="absolute top-3 right-3 z-10 flex gap-2">
 						<button
-							class="cursor-pointer rounded-full bg-gray-100 p-2 text-gray-400 transition-colors hover:bg-[rgb(34,51,95)]/10 hover:text-[rgb(34,51,95)] dark:bg-gray-700 dark:hover:bg-[rgb(34,51,95)]/30"
+							class="cursor-pointer rounded-full bg-gray-100 p-2 text-gray-400 transition-colors hover:bg-[rgb(34,51,95)]/10 hover:text-[rgb(34,51,95)] dark:bg-gray-700 dark:hover:bg-[rgb(34,51,95)]/30 dark:hover:text-blue-400"
 							onclick={() => refreshTripMetadata(trip)}
 							aria-label="Refresh trip metadata"
 						>
 							<RefreshCw class="h-5 w-5" />
 						</button>
 						<button
-							class="cursor-pointer rounded-full bg-gray-100 p-2 text-gray-400 transition-colors hover:bg-[rgb(34,51,95)]/10 hover:text-[rgb(34,51,95)] dark:bg-gray-700 dark:hover:bg-[rgb(34,51,95)]/30"
+							class="cursor-pointer rounded-full bg-gray-100 p-2 text-gray-400 transition-colors hover:bg-[rgb(34,51,95)]/10 hover:text-[rgb(34,51,95)] dark:bg-gray-700 dark:hover:bg-[rgb(34,51,95)]/30 dark:hover:text-blue-400"
 							onclick={() => openEditTripModal(trip)}
 							aria-label="Edit trip"
 						>
@@ -1816,7 +1746,7 @@
 								<!-- Loading placeholder -->
 								<div class="flex h-full w-full items-center justify-center">
 									<div class="text-center">
-										<Loader2 class="mx-auto h-12 w-12 animate-spin text-[rgb(34,51,95)]" />
+										<Loader2 class="mx-auto h-12 w-12 animate-spin text-[rgb(34,51,95)] dark:text-blue-400" />
 										<p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading image...</p>
 									</div>
 								</div>
@@ -1846,7 +1776,7 @@
 						<div
 							class="absolute right-3 bottom-3 flex items-center gap-1 rounded bg-black/60 px-3 py-1 text-xs font-medium text-white shadow"
 						>
-							<Route class="h-4 w-4 text-[rgb(34,51,95)]" />
+							<Route class="h-4 w-4 text-[rgb(34,51,95)] dark:text-blue-400" />
 							{formatDistance(trip.metadata?.distanceTraveled ?? 0)}
 						</div>
 						<!-- Autogenerated label at top left -->
@@ -1921,7 +1851,7 @@
 												href={trip.metadata.image_attribution.photographerUrl}
 												target="_blank"
 												rel="noopener noreferrer"
-												class="text-[rgb(34,51,95)] underline hover:text-[rgb(34,51,95)]/80 dark:text-[rgb(34,51,95)] dark:hover:text-gray-300"
+												class="text-[rgb(34,51,95)] underline hover:text-[rgb(34,51,95)]/80 dark:text-blue-400 dark:hover:text-blue-300"
 											>
 												{trip.metadata.image_attribution.photographer}
 											</a>
@@ -1933,7 +1863,7 @@
 											href="https://www.pexels.com"
 											target="_blank"
 											rel="noopener noreferrer"
-											class="text-[rgb(34,51,95)] underline hover:text-[rgb(34,51,95)]/80 dark:text-[rgb(34,51,95)] dark:hover:text-gray-300"
+											class="text-[rgb(34,51,95)] underline hover:text-[rgb(34,51,95)]/80 dark:text-blue-400 dark:hover:text-blue-300"
 										>
 											Pexels
 										</a>
@@ -1973,7 +1903,7 @@
 								{getRelativeTime(trip.updated_at)}
 							</span>
 							<button
-								class="flex cursor-pointer items-center gap-1 text-sm font-medium text-[rgb(34,51,95)] transition-colors hover:text-[rgb(34,51,95)]/80"
+								class="flex cursor-pointer items-center gap-1 text-sm font-medium text-[rgb(34,51,95)] transition-colors hover:text-[rgb(34,51,95)]/80 dark:text-blue-400 dark:hover:text-blue-300"
 								onclick={() => showTripStatistics(trip)}
 							>
 								<BarChart class="h-4 w-4" />
@@ -2039,7 +1969,7 @@
 
 				{#if isLoadingSuggestedTrips && suggestedTrips.length === 0}
 					<div class="flex items-center justify-center py-12">
-						<Loader2 class="h-8 w-8 animate-spin text-[rgb(34,51,95)]" />
+						<Loader2 class="h-8 w-8 animate-spin text-[rgb(34,51,95)] dark:text-blue-400" />
 						<span class="ml-2 text-gray-600 dark:text-gray-400"
 							>{t('trips.loadingSuggestedTrips')}</span
 						>
@@ -2151,7 +2081,7 @@
 															{t('trips.visitedCities')}:
 														</div>
 														<div class="flex flex-wrap gap-2">
-															{#each significantCities as city (city.city)}
+															{#each significantCities as city, i (`${city.city}-${i}`)}
 																<span
 																	class="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-xs text-gray-700 shadow-sm dark:bg-gray-700 dark:text-gray-300"
 																>
@@ -2412,9 +2342,9 @@
 				<div class="mb-6 rounded-lg bg-[rgb(34,51,95)]/5 p-4 dark:bg-[rgb(34,51,95)]/20">
 					<div class="flex items-center">
 						{#if approvalProgress.step === 'generating-images'}
-							<Loader2 class="mr-3 h-5 w-5 animate-spin text-[rgb(34,51,95)]" />
+							<Loader2 class="mr-3 h-5 w-5 animate-spin text-[rgb(34,51,95)] dark:text-blue-400" />
 						{:else if approvalProgress.step === 'creating-trips'}
-							<Loader2 class="mr-3 h-5 w-5 animate-spin text-[rgb(34,51,95)]" />
+							<Loader2 class="mr-3 h-5 w-5 animate-spin text-[rgb(34,51,95)] dark:text-blue-400" />
 						{:else if approvalProgress.step === 'complete'}
 							<Check class="mr-3 h-5 w-5 text-green-600" />
 						{/if}

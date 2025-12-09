@@ -77,17 +77,33 @@ export interface SecuritySettings {
 }
 
 /**
- * AI settings from Fluxbase AppSettingsManager
+ * AI Provider from FluxbaseAdmin SDK
+ */
+export interface AIProvider {
+	id: string;
+	name: string;
+	display_name: string;
+	provider_type: 'openai' | 'anthropic' | 'ollama' | 'openrouter' | 'azure' | 'custom';
+	is_default: boolean;
+	config: {
+		api_key?: string;
+		model?: string;
+		api_endpoint?: string;
+		max_tokens?: number;
+		temperature?: number;
+	};
+	created_at?: string;
+	updated_at?: string;
+}
+
+/**
+ * AI settings from FluxbaseAdmin SDK
  */
 export interface AISettings {
 	enabled: boolean;
 	allow_user_provider_override: boolean;
-	provider: 'openai' | 'anthropic' | 'ollama' | 'openrouter' | 'azure' | 'custom';
-	model: string;
-	api_key?: string;
-	api_endpoint?: string;
-	max_tokens: number;
-	temperature: number;
+	default_provider?: AIProvider;
+	providers: AIProvider[];
 }
 
 /**

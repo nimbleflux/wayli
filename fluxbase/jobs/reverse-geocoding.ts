@@ -21,6 +21,7 @@ import {
 import type { FluxbaseClient, JobUtils } from './types';
 
 interface ReverseGeocodingPayload {
+	/** @deprecated Use onBehalfOf option in job submission instead */
 	target_user_id?: string;
 }
 
@@ -51,13 +52,13 @@ export async function handler(
 	const userRole = context.user?.role;
 	const isAdmin = userRole === 'admin' || userRole === 'dashboard_admin';
 
-	// Use target_user_id from payload if provided, otherwise fall back to authenticated user
-	const userId = payload?.target_user_id || authenticatedUserId;
+	// Use user context from onBehalfOf (preferred) or fall back to target_user_id in payload (deprecated)
+	const userId = authenticatedUserId || payload?.target_user_id;
 
 	if (!userId) {
 		return {
 			success: false,
-			error: 'No user context available (provide target_user_id in payload or authenticate)'
+			error: 'No user context available. Submit job with onBehalfOf option or as authenticated user.'
 		};
 	}
 

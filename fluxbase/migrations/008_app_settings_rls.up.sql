@@ -45,6 +45,15 @@ VALUES (
     "description" = EXCLUDED."description",
     "updated_at" = NOW();
 
+-- Insert server-level Pexels API key (private, admin-only)
+INSERT INTO "app"."settings" ("key", "value", "is_public", "description")
+VALUES (
+    'wayli.server_pexels_api_key',
+    '{"value": ""}'::jsonb,
+    false,
+    'Server-level Pexels API key for trip images (fallback when user has no personal key)'
+) ON CONFLICT ("key") DO NOTHING;
+
 -- Insert password requirement settings (public for signup page validation)
 INSERT INTO "app"."settings" ("key", "value", "is_public", "description")
 VALUES (
@@ -148,7 +157,61 @@ FOR SELECT
 TO "authenticated"
 USING ("is_public" = true);
 
+-- Allow admins to read ALL settings (including private ones)
+CREATE POLICY "Admins can read all settings"
+ON "app"."settings"
+FOR SELECT
+TO "authenticated"
+USING (
+    EXISTS (
+        SELECT 1 FROM public.user_profiles
+        WHERE id = auth.uid() AND role = 'admin'
+    )
+);
+
+-- Allow admins to insert new settings
+CREATE POLICY "Admins can insert settings"
+ON "app"."settings"
+FOR INSERT
+TO "authenticated"
+WITH CHECK (
+    EXISTS (
+        SELECT 1 FROM public.user_profiles
+        WHERE id = auth.uid() AND role = 'admin'
+    )
+);
+
+-- Allow admins to update settings
+CREATE POLICY "Admins can update settings"
+ON "app"."settings"
+FOR UPDATE
+TO "authenticated"
+USING (
+    EXISTS (
+        SELECT 1 FROM public.user_profiles
+        WHERE id = auth.uid() AND role = 'admin'
+    )
+)
+WITH CHECK (
+    EXISTS (
+        SELECT 1 FROM public.user_profiles
+        WHERE id = auth.uid() AND role = 'admin'
+    )
+);
+
+-- Allow admins to delete settings
+CREATE POLICY "Admins can delete settings"
+ON "app"."settings"
+FOR DELETE
+TO "authenticated"
+USING (
+    EXISTS (
+        SELECT 1 FROM public.user_profiles
+        WHERE id = auth.uid() AND role = 'admin'
+    )
+);
+
 -- Grant necessary permissions
 GRANT SELECT ON TABLE "app"."settings" TO "anon";
-GRANT SELECT ON TABLE "app"."settings" TO "authenticated";
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "app"."settings" TO "authenticated";
 GRANT ALL ON TABLE "app"."settings" TO "service_role";

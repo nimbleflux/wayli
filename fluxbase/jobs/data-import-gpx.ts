@@ -128,33 +128,49 @@ export async function handler(
 		console.log(`   ⏱️ Total time: ${totalTime.toFixed(1)}s`);
 		console.log(`   🚀 Average rate: ${(results.importedCount / totalTime).toFixed(1)} points/sec`);
 
-		// Trigger follow-up jobs after import completes
+		// Trigger distance calculation RPC asynchronously after import
 		if (results.importedCount > 0) {
-			console.log(`🧮 Queueing distance calculation job for user ${userId}...`);
+			console.log(`🧮 Triggering distance calculation RPC for user ${userId}...`);
 			try {
-				const { data: distanceJob, error: distanceError } = await fluxbaseService.jobs.submit(
-					'distance-calculation',
-					{ target_user_id: userId },
+				const { data: rpcResult, error: rpcError } = await fluxbase.rpc.invoke(
+					'calculate-distances-batch',
+					{
+						p_user_id: userId,
+						p_offset: 0,
+						p_limit: 1000
+					},
 					{
 						namespace: 'wayli',
-						priority: 3 // Lower priority since import is done
+						async: true // Fire and forget - don't wait for completion
 					}
 				);
 
-				if (distanceError) {
-					console.warn(`⚠️ Failed to queue distance calculation job: ${distanceError.message}`);
+				if (rpcError) {
+					console.warn(`⚠️ Failed to trigger distance calculation RPC: ${rpcError.message}`);
 				} else {
-					console.log(`✅ Distance calculation job queued: ${(distanceJob as any)?.job_id || 'unknown'}`);
+					console.log(`✅ Distance calculation RPC triggered: ${(rpcResult as any)?.execution_id || 'started'}`);
 				}
+			} catch (distanceError) {
+				console.warn(`⚠️ Distance calculation trigger failed:`, distanceError);
+				// Don't fail the import if distance calculation fails
+			}
 
-				// Queue reverse geocoding job to get address info for imported points
-				console.log(`🌍 Queueing reverse geocoding job for user ${userId}...`);
+			// Queue reverse geocoding job to get address info for imported points
+			console.log(`🌍 Queueing reverse geocoding job for user ${userId}...`);
+			try {
+				const onBehalfOf = context.user ? {
+					user_id: context.user.id,
+					user_email: context.user.email,
+					user_role: context.user.role
+				} : undefined;
+
 				const { data: geocodeJob, error: geocodeError } = await fluxbaseService.jobs.submit(
 					'reverse-geocoding',
-					{ target_user_id: userId },
+					{},
 					{
 						namespace: 'wayli',
-						priority: 4 // Lower priority than distance calculation
+						priority: 4,
+						onBehalfOf
 					}
 				);
 
@@ -163,8 +179,8 @@ export async function handler(
 				} else {
 					console.log(`✅ Reverse geocoding job queued: ${(geocodeJob as any)?.job_id || 'unknown'}`);
 				}
-			} catch (distanceQueueError) {
-				console.warn(`⚠️ Error queueing follow-up jobs:`, distanceQueueError);
+			} catch (geocodeQueueError) {
+				console.warn(`⚠️ Error queueing reverse geocoding job:`, geocodeQueueError);
 			}
 		}
 
@@ -491,7 +507,7 @@ async function processPointChunk(
 
 			const { error } = await fluxbase.from('tracker_data').upsert(deduplicatedData, {
 				onConflict: 'user_id,recorded_at',
-				ignoreDuplicates: false
+				ignoreDuplicates: true
 			});
 
 			if (!error) {
@@ -535,3 +551,4 @@ function safeNormalizeCountryCode(countryCode: string | null): string | null {
 		return null;
 	}
 }
+

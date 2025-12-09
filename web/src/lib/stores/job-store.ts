@@ -600,7 +600,8 @@ async function initializeRealtimeSubscription(_userId: string) {
 		.on('postgres_changes', {
 			event: '*',
 			schema: 'jobs',
-			table: 'queue'
+			table: 'queue',
+			filter: `created_by=eq.${_userId}`
 		}, handlePostgresChange)
 		.subscribe((status) => {
 			if (status === 'SUBSCRIBED') {

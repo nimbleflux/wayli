@@ -166,8 +166,8 @@
 			label: 'Pending'
 		},
 		running: {
-			color: 'text-[rgb(34,51,95)]',
-			bgColor: 'bg-[rgb(34,51,95)]/10 dark:bg-[rgb(34,51,95)]/30',
+			color: 'text-[rgb(34,51,95)] dark:text-blue-400',
+			bgColor: 'bg-[rgb(34,51,95)]/10 dark:bg-blue-500/20',
 			label: 'Running'
 		},
 		completed: {
@@ -186,7 +186,7 @@
 	// Log level colors
 	const logLevelColors: Record<LogLevel, string> = {
 		debug: 'text-gray-500',
-		info: 'text-[rgb(34,51,95)]',
+		info: 'text-[rgb(34,51,95)] dark:text-blue-400',
 		warn: 'text-yellow-600',
 		error: 'text-red-600'
 	};
@@ -201,21 +201,46 @@
 
 	// Fetch existing logs from jobs.execution_logs table
 	async function fetchExistingLogs(jobId: string) {
+		console.log('[JobDetailModal] Fetching existing logs for job:', jobId);
 		isLoadingLogs = true;
 		try {
-			const { data, error } = await fluxbase
-				.schema('jobs')
-				.from('execution_logs')
-				.select('*')
-				.eq('job_id', jobId)
-				.order('line_number', { ascending: true });
+			// Try the jobs.logs() method first if available, fall back to schema query
+			let data: ExecutionLog[] | null = null;
+			let error: { message: string } | null = null;
+
+			if (typeof (fluxbase.jobs as any).logs === 'function') {
+				// Use SDK method if available
+				const result = await (fluxbase.jobs as any).logs(jobId);
+				data = result.data;
+				error = result.error;
+				console.log('[JobDetailModal] Using fluxbase.jobs.logs() method');
+			} else {
+				// Fall back to direct schema query
+				const result = await fluxbase
+					.schema('jobs')
+					.from('execution_logs')
+					.select('*')
+					.eq('job_id', jobId)
+					.order('line_number');
+				data = result.data as ExecutionLog[] | null;
+				error = result.error;
+				console.log('[JobDetailModal] Using schema query method');
+			}
 
 			if (error) {
-				console.error('[JobDetailModal] Error fetching logs:', error);
+				// Schema query not supported on this backend - rely on realtime only
+				console.warn('[JobDetailModal] Could not fetch existing logs (will use realtime only):', error);
 				return;
 			}
 
-			logs = (data || []) as ExecutionLog[];
+			console.log('[JobDetailModal] Fetched logs count:', data?.length ?? 0);
+			const fetchedLogs = (data || []) as ExecutionLog[];
+			// Merge with any logs that came in via realtime during the fetch
+			// Deduplicate by id to avoid duplicates
+			const fetchedIds = new Set(fetchedLogs.map((l) => l.id));
+			const realtimeLogs = logs.filter((l) => !fetchedIds.has(l.id));
+			logs = [...fetchedLogs, ...realtimeLogs].sort((a, b) => a.line_number - b.line_number);
+			console.log('[JobDetailModal] Total logs after merge:', logs.length);
 		} catch (err) {
 			console.error('[JobDetailModal] Exception fetching logs:', err);
 		} finally {
@@ -296,8 +321,11 @@
 			}
 			// Subscribe to new job
 			subscribedJobId = jobId;
-			fetchExistingLogs(jobId);
+			// First subscribe to realtime updates, then fetch existing logs
+			// This ensures we don't miss any logs that arrive during the fetch
 			subscribeToLogs(jobId);
+			// Fetch existing logs (async) - must run after subscription is set up
+			fetchExistingLogs(jobId);
 		} else if (!shouldSubscribe && subscribedJobId) {
 			// Modal closed or job cleared - cleanup
 			if (logsChannel) {
@@ -434,7 +462,7 @@
 						</div>
 						<div class="h-3 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
 							<div
-								class="h-3 rounded-full bg-[rgb(34,51,95)] transition-all duration-300"
+								class="h-3 rounded-full bg-[rgb(34,51,95)] transition-all duration-300 dark:bg-blue-500"
 								style="width: {displayJob.progress_percent || 0}%"
 							></div>
 						</div>
@@ -541,7 +569,7 @@
 				{#if userHasScrolled && filteredLogs.length > 0}
 					<button
 						type="button"
-						class="mt-2 w-full rounded-lg bg-[rgb(34,51,95)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[rgb(34,51,95)]/90"
+						class="mt-2 w-full rounded-lg bg-[rgb(34,51,95)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[rgb(34,51,95)]/90 dark:bg-blue-500 dark:hover:bg-blue-600"
 						onclick={() => {
 							userHasScrolled = false;
 							if (logsContainer) {

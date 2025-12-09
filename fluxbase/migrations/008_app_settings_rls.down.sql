@@ -19,5 +19,11 @@ DROP POLICY IF EXISTS "Authenticated users can read public settings" ON "app"."s
 -- Remove settings (optional - you may want to keep them)
 DELETE FROM "app"."settings" WHERE "key" IN (
     'wayli.is_setup_complete',
-    'wayli.server_name'
+    'wayli.server_name',
+    'wayli.server_pexels_api_key',
+    'wayli.password_min_length',
+    'wayli.password_require_uppercase',
+    'wayli.password_require_lowercase',
+    'wayli.password_require_number',
+    'wayli.password_require_special'
 );

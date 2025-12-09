@@ -164,7 +164,7 @@
 			<div class="flex h-64 items-center justify-center">
 				<div class="text-center">
 					<div
-						class="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-b-2 border-[rgb(34,51,95)]"
+						class="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-b-2 border-[rgb(34,51,95)] dark:border-blue-400"
 					></div>
 				</div>
 			</div>

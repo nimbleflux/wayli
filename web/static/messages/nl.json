@@ -539,6 +539,8 @@
 		"titleLabel": "Title",
 		"startDate": "Startdatum",
 		"endDate": "Einddatum",
+		"description": "Beschrijving",
+		"labels": "Labels",
 		"describeTripPlaceholder": "Beschrijf je reis...",
 		"addLabelPlaceholder": "Voeg een label toe (bijv. vakantie, zakelijk, avontuur)",
 		"tripImage": "Reis afbeelding",

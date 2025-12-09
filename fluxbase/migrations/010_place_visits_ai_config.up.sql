@@ -93,47 +93,10 @@ CREATE INDEX "idx_place_visits_location" ON "public"."place_visits" USING GIST (
 CREATE INDEX "idx_place_visits_poi_tags" ON "public"."place_visits" USING GIN ("poi_tags");
 
 -- =============================================================================
--- AI Configuration Table (server-level settings)
+-- AI Configuration - Managed by FluxbaseAdmin SDK
+-- Note: AI providers are now managed via fluxbase.admin.ai.createProvider/listProviders
+-- System settings for AI are managed via fluxbase.admin.settings.system
 -- =============================================================================
-
-CREATE TABLE IF NOT EXISTS "public"."ai_config" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL PRIMARY KEY,
-    "name" "text" NOT NULL UNIQUE,          -- Config name, e.g., 'default', 'location_query'
-    "provider" "text" NOT NULL,              -- 'openai', 'anthropic', 'ollama', 'openrouter'
-    "model" "text" NOT NULL,                 -- Model identifier, e.g., 'gpt-4o', 'claude-3-sonnet', 'llama3.1'
-    "api_endpoint" "text",                   -- Custom endpoint URL (for Ollama, OpenRouter, etc.)
-    "api_key_encrypted" "text",              -- Encrypted API key (server-level)
-    "max_tokens" integer DEFAULT 4096,
-    "temperature" numeric(2,1) DEFAULT 0.7,
-    "enabled" boolean DEFAULT true,
-    "config" "jsonb" DEFAULT '{}'::"jsonb",  -- Additional provider-specific config
-    "created_at" timestamp with time zone DEFAULT "now"(),
-    "updated_at" timestamp with time zone DEFAULT "now"(),
-
-    CONSTRAINT "ai_config_provider_check" CHECK (
-        "provider" = ANY (ARRAY['openai'::"text", 'anthropic'::"text", 'ollama'::"text", 'openrouter'::"text", 'azure'::"text", 'custom'::"text"])
-    ),
-    CONSTRAINT "ai_config_temperature_check" CHECK (
-        "temperature" >= 0 AND "temperature" <= 2
-    )
-);
-
-COMMENT ON TABLE "public"."ai_config" IS 'Server-level AI/LLM configuration. Users can override with their own settings in user_preferences.';
-COMMENT ON COLUMN "public"."ai_config"."name" IS 'Configuration name for different use cases: default, location_query, trip_summary, etc.';
-COMMENT ON COLUMN "public"."ai_config"."provider" IS 'LLM provider: openai, anthropic, ollama, openrouter, azure, custom';
-COMMENT ON COLUMN "public"."ai_config"."api_endpoint" IS 'Custom API endpoint for self-hosted models (Ollama) or alternative providers';
-COMMENT ON COLUMN "public"."ai_config"."api_key_encrypted" IS 'Server-level API key (encrypted). Users can provide their own in preferences.';
-COMMENT ON COLUMN "public"."ai_config"."config" IS 'Provider-specific configuration like system prompts, stop sequences, etc.';
-
--- =============================================================================
--- Add AI config fields to user_preferences (user overrides)
--- =============================================================================
-
--- Add ai_config column to user_preferences for user-level overrides
-ALTER TABLE "public"."user_preferences"
-ADD COLUMN IF NOT EXISTS "ai_config" "jsonb" DEFAULT '{}'::"jsonb";
-
-COMMENT ON COLUMN "public"."user_preferences"."ai_config" IS 'User-level AI configuration overrides. Structure: {provider, model, api_key, api_endpoint, enabled}';
 
 -- =============================================================================
 -- RLS Policies for place_visits
@@ -158,38 +121,12 @@ CREATE POLICY "place_visits_delete_own" ON "public"."place_visits"
     FOR DELETE USING (auth.uid() = user_id);
 
 -- =============================================================================
--- RLS Policies for ai_config (read-only for users, admin write)
--- =============================================================================
-
-ALTER TABLE "public"."ai_config" ENABLE ROW LEVEL SECURITY;
-
--- All authenticated users can read AI configs (to know what's available)
-CREATE POLICY "ai_config_select_authenticated" ON "public"."ai_config"
-    FOR SELECT USING (auth.role() = 'authenticated');
-
--- Only service role can modify AI configs (admin operations)
-CREATE POLICY "ai_config_all_service" ON "public"."ai_config"
-    FOR ALL USING (auth.role() = 'service_role');
-
--- =============================================================================
 -- Foreign Key Constraints
 -- =============================================================================
 
 ALTER TABLE ONLY "public"."place_visits"
     ADD CONSTRAINT "place_visits_user_id_fkey"
     FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
-
--- =============================================================================
--- Insert default AI configuration
--- =============================================================================
-
-INSERT INTO "public"."ai_config" ("name", "provider", "model", "config") VALUES
-    ('default', 'openai', 'gpt-4o-mini', '{"description": "Default AI configuration for general use"}'),
-    ('location_query', 'openai', 'gpt-4o-mini', '{
-        "description": "AI configuration for natural language location queries",
-        "system_prompt": "You are a helpful assistant that translates natural language questions about travel and location history into SQL queries. You have access to a place_visits table with columns: poi_name, poi_amenity, poi_cuisine, poi_category, poi_tags (JSONB), city, country, country_code, started_at, ended_at, duration_minutes. Always return valid PostgreSQL queries."
-    }')
-ON CONFLICT ("name") DO NOTHING;
 
 -- =============================================================================
 -- Function: strip_sql_comments
@@ -275,9 +212,34 @@ WHERE user_id = auth.uid();  -- HARDCODED - cannot be bypassed by LLM
 
 COMMENT ON VIEW "public"."my_tracker_data" IS 'Secure view of tracker_data filtered to current user. Use this for LLM queries.';
 
+-- Secure view for trips - ALWAYS filtered to current user
+CREATE OR REPLACE VIEW "public"."my_trips"
+WITH (security_barrier = true, security_invoker = true)
+AS
+SELECT
+    id,
+    title,
+    description,
+    start_date,
+    end_date,
+    status,
+    image_url,
+    labels,
+    metadata,
+    metadata->>'dataPoints' as data_points,
+    metadata->>'visitedCities' as visited_cities,
+    metadata->>'visitedCountries' as visited_countries,
+    created_at,
+    updated_at
+FROM "public"."trips"
+WHERE user_id = auth.uid();  -- HARDCODED - cannot be bypassed by LLM
+
+COMMENT ON VIEW "public"."my_trips" IS 'Secure view of trips filtered to current user. Use this for LLM queries.';
+
 -- Grant SELECT on views to authenticated users
 GRANT SELECT ON "public"."my_place_visits" TO authenticated;
 GRANT SELECT ON "public"."my_tracker_data" TO authenticated;
+GRANT SELECT ON "public"."my_trips" TO authenticated;
 
 -- =============================================================================
 -- Function: execute_user_query
@@ -401,14 +363,18 @@ BEGIN
         RAISE EXCEPTION 'Direct table access not allowed. Use my_tracker_data view instead.';
     END IF;
 
+    IF lower_sql ~ '\mtrips\M' AND lower_sql !~ '\mmy_trips\M' THEN
+        RAISE EXCEPTION 'Direct table access not allowed. Use my_trips view instead.';
+    END IF;
+
     -- Block access to sensitive tables
     IF lower_sql ~ '\m(ai_config|user_preferences|rate_limits|query_feedback|users|auth_users|sessions)\M' THEN
         RAISE EXCEPTION 'Access to this table is not allowed';
     END IF;
 
     -- Verify query uses ONLY allowed views
-    IF NOT (lower_sql ~ '\mmy_place_visits\M' OR lower_sql ~ '\mmy_tracker_data\M') THEN
-        RAISE EXCEPTION 'Query must use my_place_visits or my_tracker_data views';
+    IF NOT (lower_sql ~ '\mmy_place_visits\M' OR lower_sql ~ '\mmy_tracker_data\M' OR lower_sql ~ '\mmy_trips\M') THEN
+        RAISE EXCEPTION 'Query must use my_place_visits, my_tracker_data, or my_trips views';
     END IF;
 
     -- ==========================================================
@@ -528,62 +494,6 @@ $$;
 COMMENT ON FUNCTION "public"."check_rate_limit"(UUID, TEXT, INTEGER, INTEGER) IS 'Checks and increments rate limit for a user action. Returns TRUE if under limit.';
 GRANT EXECUTE ON FUNCTION "public"."check_rate_limit"(UUID, TEXT, INTEGER, INTEGER) TO authenticated;
 GRANT EXECUTE ON FUNCTION "public"."check_rate_limit"(UUID, TEXT, INTEGER, INTEGER) TO service_role;
-
--- =============================================================================
--- API Key Encryption Functions (using pgcrypto)
--- =============================================================================
-
--- Note: Requires pgcrypto extension
--- CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
-CREATE OR REPLACE FUNCTION "public"."encrypt_api_key"(
-    plain_key TEXT,
-    encryption_key TEXT
-)
-RETURNS TEXT
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-    -- Use AES-256 encryption
-    -- In production, encryption_key should come from environment variable
-    RETURN encode(
-        pgp_sym_encrypt(plain_key, encryption_key, 'cipher-algo=aes256'),
-        'base64'
-    );
-EXCEPTION
-    WHEN undefined_function THEN
-        RAISE EXCEPTION 'pgcrypto extension not installed. Run: CREATE EXTENSION pgcrypto;';
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION "public"."decrypt_api_key"(
-    encrypted_key TEXT,
-    encryption_key TEXT
-)
-RETURNS TEXT
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-    RETURN pgp_sym_decrypt(
-        decode(encrypted_key, 'base64'),
-        encryption_key
-    );
-EXCEPTION
-    WHEN undefined_function THEN
-        RAISE EXCEPTION 'pgcrypto extension not installed. Run: CREATE EXTENSION pgcrypto;';
-    WHEN OTHERS THEN
-        RAISE EXCEPTION 'Failed to decrypt API key';
-END;
-$$;
-
-COMMENT ON FUNCTION "public"."encrypt_api_key"(TEXT, TEXT) IS 'Encrypts an API key using AES-256. Requires pgcrypto extension.';
-COMMENT ON FUNCTION "public"."decrypt_api_key"(TEXT, TEXT) IS 'Decrypts an API key encrypted with encrypt_api_key. Requires pgcrypto extension.';
-
--- Only service role can encrypt/decrypt (admin operations)
-GRANT EXECUTE ON FUNCTION "public"."encrypt_api_key"(TEXT, TEXT) TO service_role;
-GRANT EXECUTE ON FUNCTION "public"."decrypt_api_key"(TEXT, TEXT) TO service_role;
 
 -- =============================================================================
 -- Query Feedback Table (for improving LLM accuracy)

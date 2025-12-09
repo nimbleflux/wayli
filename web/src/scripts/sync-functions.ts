@@ -2,6 +2,7 @@
  * Fluxbase Function Sync Script
  *
  * Syncs edge functions to Fluxbase on Wayli startup.
+ * Uses bundling to resolve imports and dependencies.
  * Runs in both development and production environments.
  */
 
@@ -23,22 +24,49 @@ interface FunctionConfig {
 	allow_net?: boolean;
 	allow_env?: boolean;
 	allow_read?: boolean;
+	allow_write?: boolean;
+	allow_unauthenticated?: boolean;
+	require_role?: string;
+	timeout?: number;
 }
 
 /**
  * Parse JSDoc comments from function file to extract Fluxbase annotations
- * Supports: @fluxbase:allow-net, @fluxbase:allow-env, @fluxbase:allow-read, @fluxbase:disabled
+ * Supports:
+ * - @fluxbase:allow-net
+ * - @fluxbase:allow-env
+ * - @fluxbase:allow-read
+ * - @fluxbase:allow-write
+ * - @fluxbase:allow-unauthenticated
+ * - @fluxbase:disabled
+ * - @fluxbase:require-role <role>
+ * - @fluxbase:timeout <seconds>
  */
 function parseFunctionAnnotations(code: string): {
 	allow_net: boolean;
 	allow_env: boolean;
 	allow_read: boolean;
+	allow_write: boolean;
+	allow_unauthenticated: boolean;
 	enabled: boolean;
+	require_role?: string;
+	timeout?: number;
 } {
-	const annotations = {
-		allow_net: true,
-		allow_env: true,
-		allow_read: true,
+	const annotations: {
+		allow_net: boolean;
+		allow_env: boolean;
+		allow_read: boolean;
+		allow_write: boolean;
+		allow_unauthenticated: boolean;
+		enabled: boolean;
+		require_role?: string;
+		timeout?: number;
+	} = {
+		allow_net: false,
+		allow_env: false,
+		allow_read: false,
+		allow_write: false,
+		allow_unauthenticated: false,
 		enabled: true
 	};
 
@@ -54,7 +82,21 @@ function parseFunctionAnnotations(code: string): {
 	if (jsdoc.includes('@fluxbase:allow-net')) annotations.allow_net = true;
 	if (jsdoc.includes('@fluxbase:allow-env')) annotations.allow_env = true;
 	if (jsdoc.includes('@fluxbase:allow-read')) annotations.allow_read = true;
+	if (jsdoc.includes('@fluxbase:allow-write')) annotations.allow_write = true;
+	if (jsdoc.includes('@fluxbase:allow-unauthenticated')) annotations.allow_unauthenticated = true;
 	if (jsdoc.includes('@fluxbase:disabled')) annotations.enabled = false;
+
+	// Parse require-role
+	const requireRoleMatch = jsdoc.match(/@fluxbase:require-role\s+(\w+)/);
+	if (requireRoleMatch) {
+		annotations.require_role = requireRoleMatch[1];
+	}
+
+	// Parse timeout
+	const timeoutMatch = jsdoc.match(/@fluxbase:timeout\s+(\d+)/);
+	if (timeoutMatch) {
+		annotations.timeout = parseInt(timeoutMatch[1], 10);
+	}
 
 	return annotations;
 }
@@ -90,6 +132,9 @@ async function discoverFunctions(basePath: string): Promise<FunctionConfig[]> {
 			// Skip test files
 			if (file.endsWith('.test.ts') || file.startsWith('test-')) continue;
 
+			// Skip _shared directory (if it exists)
+			if (file.startsWith('_')) continue;
+
 			const functionName = basename(file, '.ts');
 			const filePath = join(functionsDir, file);
 
@@ -97,16 +142,35 @@ async function discoverFunctions(basePath: string): Promise<FunctionConfig[]> {
 			const code = await readFile(filePath, 'utf-8');
 			const annotations = parseFunctionAnnotations(code);
 
+			// Validate that function has handler export
+			if (!code.includes('async function handler') && !code.includes('export default handler')) {
+				console.warn(`⚠️  ${functionName}: Missing handler function - skipping`);
+				continue;
+			}
+
 			functions.push({
 				name: functionName,
 				filePath: `fluxbase/functions/${file}`,
 				enabled: annotations.enabled,
 				allow_net: annotations.allow_net,
 				allow_env: annotations.allow_env,
-				allow_read: annotations.allow_read
+				allow_read: annotations.allow_read,
+				allow_write: annotations.allow_write,
+				allow_unauthenticated: annotations.allow_unauthenticated,
+				require_role: annotations.require_role,
+				timeout: annotations.timeout
 			});
 
-			console.log(`📦 Discovered: ${functionName} (net=${annotations.allow_net}, env=${annotations.allow_env}, read=${annotations.allow_read})`);
+			const permissions: string[] = [];
+			if (annotations.allow_net) permissions.push('net');
+			if (annotations.allow_env) permissions.push('env');
+			if (annotations.allow_read) permissions.push('read');
+			if (annotations.allow_write) permissions.push('write');
+			if (annotations.allow_unauthenticated) permissions.push('unauthenticated');
+			if (annotations.require_role) permissions.push(`role=${annotations.require_role}`);
+			if (annotations.timeout) permissions.push(`timeout=${annotations.timeout}s`);
+
+			console.log(`📦 Discovered: ${functionName} [${permissions.join(', ') || 'no special permissions'}]`);
 		}
 
 		return functions.sort((a, b) => a.name.localeCompare(b.name));
@@ -160,6 +224,9 @@ async function syncFunctions() {
 
 		console.log(`\n✅ Discovered ${discoveredFunctions.length} functions\n`);
 
+		// Where node_modules live (for resolving npm packages)
+		const webNodeModules = join(basePath, 'web/node_modules');
+
 		// Read and prepare function code
 		const functionsToSync = await Promise.all(
 			discoveredFunctions.map(async (config: FunctionConfig) => {
@@ -173,10 +240,18 @@ async function syncFunctions() {
 					return {
 						name: config.name,
 						code,
+						// Source directory for resolving relative imports like "../jobs/types"
+						sourceDir: join(basePath, 'fluxbase/functions'),
+						// Additional node_modules paths for resolving npm packages
+						nodePaths: [webNodeModules],
 						enabled: config.enabled,
 						allow_net: config.allow_net,
 						allow_env: config.allow_env,
-						allow_read: config.allow_read
+						allow_read: config.allow_read,
+						allow_write: config.allow_write,
+						allow_unauthenticated: config.allow_unauthenticated,
+						require_role: config.require_role,
+						timeout: config.timeout
 					};
 				} catch (error) {
 					console.error(`❌ Failed to read ${config.name}:`, error);
@@ -185,7 +260,7 @@ async function syncFunctions() {
 			})
 		);
 
-		console.log(`\n🚀 Syncing ${functionsToSync.length} functions to namespace "${namespace}"...`);
+		console.log(`\n🚀 Preparing to sync ${functionsToSync.length} functions to namespace "${namespace}"...`);
 
 		// Create Fluxbase client
 		const client = createClient(fluxbaseUrl, serviceRoleKey, {
@@ -195,36 +270,71 @@ async function syncFunctions() {
 			}
 		});
 
-		// Sync functions using SDK
-		const { data, error } = await client.admin.functions.sync({
-			namespace,
-			functions: functionsToSync,
-			options: {
-				delete_missing: deleteMissing
+		console.log('\n📦 Syncing functions (SDK will handle bundling)...\n');
+
+		// Sync functions - SDK handles bundling with proper Deno external handling
+		const { data, error } = await client.admin.functions.syncWithBundling(
+			{
+				namespace,
+				functions: functionsToSync,
+				options: {
+					delete_missing: deleteMissing
+				}
+			},
+			{
+				// No embedded defines needed for functions (unlike jobs which may need GeoJSON)
 			}
-		});
+		);
 
 		if (error) {
 			console.error('❌ Function sync failed:', error);
 			process.exit(1);
 		}
 
-		console.log('✅ Function sync completed successfully!');
-
 		if (data) {
 			console.log('\n📊 Sync results:');
 			console.log(JSON.stringify(data, null, 2));
+
+			// Check for errors in the response
+			const syncData = data as {
+				summary?: { errors?: number; created?: number; updated?: number };
+				errors?: Array<{ function: string; error: string; action: string }>;
+			};
+
+			if (syncData.summary?.errors && syncData.summary.errors > 0) {
+				console.error(`\n❌ Function sync failed: ${syncData.summary.errors} function(s) had errors`);
+
+				if (syncData.errors && syncData.errors.length > 0) {
+					console.error('\n📋 Failed functions:');
+					for (const err of syncData.errors) {
+						console.error(`   • ${err.function}: ${err.error}`);
+					}
+				}
+
+				process.exit(1);
+			}
+
+			const successCount = (syncData.summary?.created || 0) + (syncData.summary?.updated || 0);
+			console.log(`\n✅ Function sync completed: ${successCount} function(s) synced successfully`);
+		} else {
+			console.log('✅ Function sync completed successfully!');
 		}
 
 		// Summary
-		console.log('\n📋 Synced functions:');
-		functionsToSync.forEach((fn: typeof functionsToSync[0]) => {
-			const permissions: string[] = [];
-			if (fn.allow_net) permissions.push('net');
-			if (fn.allow_env) permissions.push('env');
-			if (fn.allow_read) permissions.push('read');
+		console.log('\n📋 Edge functions:');
+		functionsToSync.forEach((fn: (typeof functionsToSync)[0]) => {
+			const details: string[] = [];
+			if (fn.allow_net) details.push('net');
+			if (fn.allow_env) details.push('env');
+			if (fn.allow_read) details.push('read');
+			if (fn.allow_write) details.push('write');
+			if (fn.allow_unauthenticated) details.push('unauthenticated');
+			if (fn.require_role) details.push(`role=${fn.require_role}`);
+			if (fn.timeout) details.push(`timeout=${fn.timeout}s`);
 
-			console.log(`   • ${fn.name} (${fn.enabled ? 'enabled' : 'disabled'}) [${permissions.join(', ')}]`);
+			console.log(
+				`   • ${fn.name} (${fn.enabled ? 'enabled' : 'disabled'}) [${details.join(', ') || 'no special permissions'}]`
+			);
 		});
 
 		console.log('\n✨ All functions are now deployed and ready!');

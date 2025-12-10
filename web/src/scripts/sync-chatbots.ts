@@ -33,6 +33,7 @@ interface ChatbotConfig {
 	daily_token_budget: number;
 	allow_unauthenticated: boolean;
 	is_public: boolean;
+	http_allowed_domains: string[];
 }
 
 /**
@@ -50,6 +51,7 @@ interface ChatbotConfig {
  * - @fluxbase:allow-unauthenticated
  * - @fluxbase:public
  * - @fluxbase:disabled
+ * - @fluxbase:http-allowed-domains <domain1,domain2> (supports ${ENV_VAR:-default} syntax)
  */
 function parseChatbotAnnotations(code: string): Omit<ChatbotConfig, 'name' | 'filePath'> {
 	const annotations: Omit<ChatbotConfig, 'name' | 'filePath'> = {
@@ -64,7 +66,8 @@ function parseChatbotAnnotations(code: string): Omit<ChatbotConfig, 'name' | 'fi
 		daily_request_limit: 500,
 		daily_token_budget: 100000,
 		allow_unauthenticated: false,
-		is_public: false
+		is_public: false,
+		http_allowed_domains: []
 	};
 
 	// Match JSDoc comment at the start of the file
@@ -138,7 +141,86 @@ function parseChatbotAnnotations(code: string): Omit<ChatbotConfig, 'name' | 'fi
 		annotations.daily_token_budget = parseInt(tokenBudgetMatch[1], 10);
 	}
 
+	// Parse @fluxbase:http-allowed-domains with env var substitution
+	const httpDomainsMatch = jsdoc.match(/@fluxbase:http-allowed-domains\s+([^\n@]+)/);
+	if (httpDomainsMatch) {
+		const rawValue = httpDomainsMatch[1].trim();
+		annotations.http_allowed_domains = parseHttpAllowedDomains(rawValue);
+	}
+
 	return annotations;
+}
+
+/**
+ * Parse http-allowed-domains annotation with env var substitution.
+ * Supports syntax: ${ENV_VAR:-default} or ${ENV_VAR} or plain value
+ * Extracts hostname from URLs (e.g., https://pelias.wayli.app -> pelias.wayli.app)
+ */
+function parseHttpAllowedDomains(value: string): string[] {
+	return value
+		.split(',')
+		.map((domain) => {
+			domain = domain.trim();
+
+			// Check for env var syntax: ${VAR:-default} or ${VAR}
+			const envVarMatch = domain.match(/\$\{(\w+)(?::-([^}]+))?\}/);
+			if (envVarMatch) {
+				const [, envVarName, defaultValue] = envVarMatch;
+				const envValue = process.env[envVarName];
+				domain = envValue || defaultValue || domain;
+			}
+
+			// Extract hostname from URL if it's a full URL
+			if (domain.startsWith('http://') || domain.startsWith('https://')) {
+				try {
+					const url = new URL(domain);
+					return url.hostname;
+				} catch {
+					// If URL parsing fails, return as-is
+					return domain;
+				}
+			}
+
+			return domain;
+		})
+		.filter(Boolean);
+}
+
+/**
+ * Substitute environment variable placeholders in chatbot code.
+ * Supports two syntaxes:
+ * - {{ENV_VAR}} - replaced with full env var value (for URLs in prompt)
+ * - ${ENV_VAR:-default} - replaced with hostname extracted from env var, or default (for domain annotations)
+ * Falls back to default values for known placeholders.
+ */
+function substituteEnvVars(code: string): string {
+	const defaults: Record<string, string> = {
+		PELIAS_ENDPOINT: 'https://pelias.wayli.app'
+	};
+
+	// First, handle {{VAR}} syntax (full value substitution for prompt URLs)
+	let result = code.replace(/\{\{(\w+)\}\}/g, (match, envVar) => {
+		return process.env[envVar] || defaults[envVar] || match;
+	});
+
+	// Then, handle ${VAR:-default} syntax in JSDoc annotations (hostname extraction for domains)
+	result = result.replace(/\$\{(\w+):-([^}]+)\}/g, (_match, envVar, defaultValue) => {
+		const envValue = process.env[envVar] || defaults[envVar];
+		const value = envValue || defaultValue;
+
+		// Extract hostname if it's a URL
+		if (value.startsWith('http://') || value.startsWith('https://')) {
+			try {
+				const url = new URL(value);
+				return url.hostname;
+			} catch {
+				return value;
+			}
+		}
+		return value;
+	});
+
+	return result;
 }
 
 /**
@@ -214,6 +296,8 @@ async function discoverChatbots(basePath: string): Promise<ChatbotConfig[]> {
 			if (annotations.temperature !== 0.7) settings.push(`temp=${annotations.temperature}`);
 			if (annotations.rate_limit_per_minute !== 10)
 				settings.push(`rate=${annotations.rate_limit_per_minute}/min`);
+			if (annotations.http_allowed_domains.length > 0)
+				settings.push(`http_domains=${annotations.http_allowed_domains.join(',')}`);
 			if (!annotations.enabled) settings.push('disabled');
 
 			console.log(
@@ -283,9 +367,10 @@ async function syncChatbots() {
 				console.log(`📖 Reading: ${config.name} from ${filePath}`);
 
 				try {
-					const code = await readFile(filePath, 'utf-8');
+					const rawCode = await readFile(filePath, 'utf-8');
+					const code = substituteEnvVars(rawCode);
 					const description = extractDescription(code);
-					console.log(`✅ Read ${config.name}: ${code.length} bytes`);
+					console.log(`✅ Read ${config.name}: ${rawCode.length} bytes`);
 
 					return {
 						name: config.name,
@@ -302,7 +387,8 @@ async function syncChatbots() {
 						daily_request_limit: config.daily_request_limit,
 						daily_token_budget: config.daily_token_budget,
 						allow_unauthenticated: config.allow_unauthenticated,
-						is_public: config.is_public
+						is_public: config.is_public,
+						http_allowed_domains: config.http_allowed_domains
 					};
 				} catch (error) {
 					console.error(`❌ Failed to read ${config.name}:`, error);
@@ -374,6 +460,8 @@ async function syncChatbots() {
 			if (chatbot.max_tokens) details.push(`tokens=${chatbot.max_tokens}`);
 			if (chatbot.temperature) details.push(`temp=${chatbot.temperature}`);
 			if (chatbot.rate_limit_per_minute) details.push(`rate=${chatbot.rate_limit_per_minute}/min`);
+			if (chatbot.http_allowed_domains && chatbot.http_allowed_domains.length > 0)
+				details.push(`http_domains=${chatbot.http_allowed_domains.join(',')}`);
 
 			console.log(
 				`   • ${chatbot.name} (${chatbot.enabled ? 'enabled' : 'disabled'}) [${details.join(', ') || 'default settings'}]`

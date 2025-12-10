@@ -94,8 +94,9 @@
 	function hasCardResults(queryResults: QueryResultData[] | undefined): boolean {
 		if (!queryResults || queryResults.length === 0) return false;
 		return queryResults.some((qr) => {
-			const detection = detectResultType(qr.query, qr.data, qr.rowCount);
-			return detection.suggestedView === 'cards' && qr.data.length <= 6;
+			const data = qr.data ?? [];
+			const detection = detectResultType(qr.query, data, qr.rowCount);
+			return detection.suggestedView === 'cards' && data.length <= 6;
 		});
 	}
 
@@ -116,6 +117,9 @@
 	let hasMoreConversations = $state(false);
 	let conversationOffset = $state(0);
 	let isLoadingMoreConversations = $state(false);
+
+	// Input element reference
+	let inputElement: HTMLInputElement | undefined = $state();
 
 	// Example suggestions
 	const suggestions = [
@@ -529,6 +533,9 @@
 		currentProgress = null;
 		error = null;
 		// Conversation will be created when user sends first message
+
+		// Focus on input field
+		inputElement?.focus();
 	}
 
 	// Delete a conversation
@@ -805,6 +812,7 @@
 			<div class="relative flex items-center gap-2">
 				<input
 					type="text"
+					bind:this={inputElement}
 					bind:value={question}
 					onkeydown={(e) => e.key === 'Enter' && sendMessage()}
 					placeholder={isConnected ? "Ask about your travels..." : "Connecting..."}

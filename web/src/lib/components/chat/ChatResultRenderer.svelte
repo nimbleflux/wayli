@@ -35,21 +35,24 @@
 	let showAllResults = $state(false);
 	const maxInitialResults = 5;
 
+	// Safely access data with fallback to empty array
+	const safeData = $derived(queryResult.data ?? []);
+
 	const detection = $derived(
-		detectResultType(queryResult.query, queryResult.data, queryResult.rowCount)
+		detectResultType(queryResult.query, safeData, queryResult.rowCount)
 	);
 
 	const showAsCards = $derived(
-		detection.suggestedView === 'cards' && queryResult.data.length <= maxCardsToShow
+		detection.suggestedView === 'cards' && safeData.length <= maxCardsToShow
 	);
 
 	// For table view, show 5 initially or all if expanded
 	const displayData = $derived(
 		showAsCards
-			? queryResult.data
+			? safeData
 			: showAllResults
-				? queryResult.data
-				: queryResult.data.slice(0, maxInitialResults)
+				? safeData
+				: safeData.slice(0, maxInitialResults)
 	);
 
 	// Clean up summary by removing "Sample X values: ..." text
@@ -104,7 +107,7 @@
 	{/if}
 
 	<!-- Results -->
-	{#if queryResult.data && queryResult.data.length > 0}
+	{#if safeData.length > 0}
 		{#if showAsCards}
 			<!-- Card view -->
 			{#if detection.type === 'trip'}
@@ -205,7 +208,7 @@
 						{/if}
 					</div>
 				{/each}
-				{#if queryResult.data.length > maxInitialResults}
+				{#if safeData.length > maxInitialResults}
 					<button
 						onclick={() => (showAllResults = !showAllResults)}
 						class="mt-2 flex w-full items-center justify-center gap-1 text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
@@ -215,7 +218,7 @@
 							Show less
 						{:else}
 							<ChevronDown class="h-3 w-3" />
-							Show all {queryResult.data.length} results
+							Show all {safeData.length} results
 						{/if}
 					</button>
 				{/if}

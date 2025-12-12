@@ -71,23 +71,10 @@ UPDATE USING (
                     SELECT "auth"."role"() AS "role"
                 ) = 'service_role'::"text"
             )
-            OR (
-                EXISTS (
-                    SELECT 1
-                    FROM "public"."workers"
-                    WHERE (
-                            (
-                                "workers"."id" = (
-                                    SELECT "auth"."uid"() AS "uid"
-                                )
-                            )
-                            AND ("workers"."current_job" = "jobs"."id")
-                        )
-                )
-            )
         )
     );
-COMMENT ON POLICY "Jobs can be updated" ON "public"."jobs" IS 'Allows job updates by: job creator, service role, or worker assigned to this specific job';
+-- Note: workers check removed - workers are now managed by Fluxbase Jobs platform
+COMMENT ON POLICY "Jobs can be updated" ON "public"."jobs" IS 'Allows job updates by: job creator or service role';
 CREATE POLICY "User preferences can be deleted" ON "public"."user_preferences" FOR DELETE USING (
     (
         (

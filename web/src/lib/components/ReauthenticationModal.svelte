@@ -150,7 +150,7 @@
 				</button>
 				<button
 					onclick={handleVerify}
-					class="flex-1 rounded-lg bg-[rgb(34,51,95)] px-4 py-3 font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+					class="flex-1 rounded-lg bg-primary px-4 py-3 font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
 					disabled={isLoading || !password}
 				>
 					{#if isLoading}

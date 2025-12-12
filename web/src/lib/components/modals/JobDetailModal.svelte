@@ -166,8 +166,8 @@
 			label: 'Pending'
 		},
 		running: {
-			color: 'text-[rgb(34,51,95)] dark:text-blue-400',
-			bgColor: 'bg-[rgb(34,51,95)]/10 dark:bg-blue-500/20',
+			color: 'text-primary dark:text-primary-dark',
+			bgColor: 'bg-primary/10 dark:bg-primary-dark/20',
 			label: 'Running'
 		},
 		completed: {
@@ -186,7 +186,7 @@
 	// Log level colors
 	const logLevelColors: Record<LogLevel, string> = {
 		debug: 'text-gray-500',
-		info: 'text-[rgb(34,51,95)] dark:text-blue-400',
+		info: 'text-primary dark:text-primary-dark',
 		warn: 'text-yellow-600',
 		error: 'text-red-600'
 	};
@@ -462,7 +462,7 @@
 						</div>
 						<div class="h-3 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
 							<div
-								class="h-3 rounded-full bg-[rgb(34,51,95)] transition-all duration-300 dark:bg-blue-500"
+								class="h-3 rounded-full bg-primary transition-all duration-300 dark:bg-primary-dark"
 								style="width: {displayJob.progress_percent || 0}%"
 							></div>
 						</div>
@@ -569,7 +569,7 @@
 				{#if userHasScrolled && filteredLogs.length > 0}
 					<button
 						type="button"
-						class="mt-2 w-full rounded-lg bg-[rgb(34,51,95)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[rgb(34,51,95)]/90 dark:bg-blue-500 dark:hover:bg-blue-600"
+						class="mt-2 w-full rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-blue-600"
 						onclick={() => {
 							userHasScrolled = false;
 							if (logsContainer) {

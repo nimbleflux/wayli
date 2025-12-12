@@ -211,7 +211,7 @@
 				{#if safeData.length > maxInitialResults}
 					<button
 						onclick={() => (showAllResults = !showAllResults)}
-						class="mt-2 flex w-full items-center justify-center gap-1 text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
+						class="mt-2 flex w-full items-center justify-center gap-1 text-xs text-blue-500 hover:text-blue-600 dark:text-primary-dark dark:hover:text-primary-dark/80"
 					>
 						{#if showAllResults}
 							<ChevronUp class="h-3 w-3" />

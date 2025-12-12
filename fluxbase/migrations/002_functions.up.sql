@@ -1641,3 +1641,18 @@ COMMENT ON FUNCTION "public"."validate_tracking_query_limits"(
     "p_limit" integer,
     "p_max_points_threshold" integer
 ) IS 'Validates query limits to prevent DoS attacks via unbounded queries';
+
+-- =============================================================================
+-- Place Visits Materialized View Refresh Function
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION "public"."refresh_place_visits"()
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+    REFRESH MATERIALIZED VIEW CONCURRENTLY "public"."place_visits";
+$$;
+
+COMMENT ON FUNCTION "public"."refresh_place_visits"() IS 'Refreshes the place_visits materialized view. Call hourly via job scheduler.';

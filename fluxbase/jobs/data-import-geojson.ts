@@ -128,27 +128,20 @@ export async function handler(
 		console.log(`   ⏱️ Total time: ${totalTime.toFixed(1)}s`);
 		console.log(`   🚀 Average rate: ${(importedCount / totalTime).toFixed(1)} points/sec`);
 
-		// Trigger distance calculation RPC asynchronously after import
+		// Trigger distance calculation RPC after import
 		if (importedCount > 0) {
 			console.log(`🧮 Triggering distance calculation RPC for user ${userId}...`);
 			try {
-				const { data: rpcResult, error: rpcError } = await fluxbase.rpc.invoke(
-					'calculate-distances-batch',
-					{
-						p_user_id: userId,
-						p_offset: 0,
-						p_limit: 1000
-					},
-					{
-						namespace: 'wayli',
-						async: true // Fire and forget - don't wait for completion
-					}
-				);
+				const { data: rpcResult, error: rpcError } = await fluxbase.rpc('calculate_distances_batch_v2', {
+					p_user_id: userId,
+					p_offset: 0,
+					p_limit: 1000
+				});
 
 				if (rpcError) {
 					console.warn(`⚠️ Failed to trigger distance calculation RPC: ${rpcError.message}`);
 				} else {
-					console.log(`✅ Distance calculation RPC triggered: ${(rpcResult as any)?.execution_id || 'started'}`);
+					console.log(`✅ Distance calculation RPC triggered: ${rpcResult || 'completed'}`);
 				}
 			} catch (distanceError) {
 				console.warn(`⚠️ Distance calculation trigger failed:`, distanceError);

@@ -60,6 +60,39 @@ CREATE INDEX IF NOT EXISTS "idx_want_to_visit_places_favorite" ON "public"."want
 CREATE INDEX IF NOT EXISTS "idx_want_to_visit_places_type" ON "public"."want_to_visit_places" USING "btree" ("type");
 CREATE INDEX IF NOT EXISTS "idx_want_to_visit_places_marker_type" ON "public"."want_to_visit_places" USING "btree" ("marker_type");
 CREATE INDEX IF NOT EXISTS "idx_want_to_visit_places_user_id" ON "public"."want_to_visit_places" USING "btree" ("user_id");
-CREATE INDEX IF NOT EXISTS "idx_workers_last_heartbeat" ON "public"."workers" USING "btree" ("last_heartbeat");
-CREATE INDEX IF NOT EXISTS "idx_workers_status" ON "public"."workers" USING "btree" ("status");
-CREATE INDEX IF NOT EXISTS "idx_workers_updated_at" ON "public"."workers" USING "btree" ("updated_at");
+
+-- Note: workers indexes removed - workers are now managed by Fluxbase Jobs platform
+
+-- =============================================================================
+-- Place Visits Materialized View Indexes
+-- =============================================================================
+
+-- Required for REFRESH CONCURRENTLY (must have unique index)
+CREATE UNIQUE INDEX IF NOT EXISTS "idx_place_visits_unique" ON "public"."place_visits" ("id");
+
+-- Primary query indexes
+CREATE INDEX IF NOT EXISTS "idx_place_visits_user_started" ON "public"."place_visits" USING "btree" ("user_id", "started_at" DESC);
+CREATE INDEX IF NOT EXISTS "idx_place_visits_poi_name" ON "public"."place_visits" USING "btree" ("poi_name");
+CREATE INDEX IF NOT EXISTS "idx_place_visits_poi_amenity" ON "public"."place_visits" USING "btree" ("poi_amenity");
+CREATE INDEX IF NOT EXISTS "idx_place_visits_poi_category" ON "public"."place_visits" USING "btree" ("poi_category");
+CREATE INDEX IF NOT EXISTS "idx_place_visits_poi_cuisine" ON "public"."place_visits" USING "btree" ("poi_cuisine");
+CREATE INDEX IF NOT EXISTS "idx_place_visits_poi_sport" ON "public"."place_visits" USING "btree" ("poi_sport");
+
+-- Spatial index for location queries
+CREATE INDEX IF NOT EXISTS "idx_place_visits_location" ON "public"."place_visits" USING "gist" ("location");
+
+-- JSONB index for poi_tags
+CREATE INDEX IF NOT EXISTS "idx_place_visits_poi_tags" ON "public"."place_visits" USING "gin" ("poi_tags");
+
+-- Location indexes
+CREATE INDEX IF NOT EXISTS "idx_place_visits_country" ON "public"."place_visits" USING "btree" ("country_code");
+CREATE INDEX IF NOT EXISTS "idx_place_visits_city" ON "public"."place_visits" USING "btree" ("city");
+
+-- Time-based query indexes
+CREATE INDEX IF NOT EXISTS "idx_place_visits_time_of_day" ON "public"."place_visits" USING "btree" ("visit_time_of_day");
+CREATE INDEX IF NOT EXISTS "idx_place_visits_day_of_week" ON "public"."place_visits" USING "btree" ("day_of_week");
+CREATE INDEX IF NOT EXISTS "idx_place_visits_weekend" ON "public"."place_visits" USING "btree" ("is_weekend");
+CREATE INDEX IF NOT EXISTS "idx_place_visits_duration_category" ON "public"."place_visits" USING "btree" ("duration_category");
+
+-- Full-text search index
+CREATE INDEX IF NOT EXISTS "idx_place_visits_fts" ON "public"."place_visits" USING "gin" ("poi_name_search");

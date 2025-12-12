@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
 	import type { Snippet } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
@@ -21,6 +21,9 @@
 	// Admin role state
 	let isAdmin = $state(false);
 	let isCheckingAdmin = $state(true);
+
+	// AI feature state
+	let aiEnabled = $state(true); // Default to true until we know otherwise
 
 	let isInitializing = true;
 	// Get realtime connection status from job store
@@ -91,6 +94,21 @@
 		}
 	}
 
+	// Check if AI features are enabled
+	async function checkAIEnabled() {
+		try {
+			const session = await fluxbase.auth.getSession();
+			if (!session.data?.session) return;
+
+			const serviceAdapter = new ServiceAdapter({ session: session.data.session });
+			aiEnabled = await serviceAdapter.isAIEnabled();
+		} catch (error) {
+			console.error('❌ [Dashboard] Error checking AI enabled:', error);
+			// Default to false if we can't determine
+			aiEnabled = false;
+		}
+	}
+
 	onMount(async () => {
 		try {
 			// Session manager is already initialized in root layout
@@ -107,6 +125,9 @@
 
 			// Load user preferences and apply language
 			await loadUserPreferences();
+
+			// Check if AI features are enabled
+			await checkAIEnabled();
 
 			// Check admin role with timeout
 			const adminCheckPromise = checkAdminRole();
@@ -157,7 +178,7 @@
 	// Cleanup is handled by Fluxbase SDK
 </script>
 
-<AppNav {isAdmin} onSignout={handleSignout} {realtimeConnectionStatus}>
+<AppNav {isAdmin} {aiEnabled} onSignout={handleSignout} {realtimeConnectionStatus}>
 	<!-- Main content area -->
 	<div class="min-h-screen bg-gray-50 p-6 dark:bg-gray-900">
 		{#if isCheckingAdmin}

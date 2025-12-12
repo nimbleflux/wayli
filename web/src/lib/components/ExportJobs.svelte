@@ -351,7 +351,7 @@
 
 	{#if loading}
 		<div class="flex items-center justify-center py-8">
-			<div class="h-6 w-6 animate-spin rounded-full border-b-2 border-[rgb(34,51,95)] dark:border-blue-400"></div>
+			<div class="h-6 w-6 animate-spin rounded-full border-b-2 border-primary dark:border-primary-dark"></div>
 		</div>
 	{:else if filteredExportJobs.length === 0}
 		<div class="py-8 text-center text-gray-500 dark:text-gray-400">
@@ -367,9 +367,9 @@
 						<div class="flex items-center gap-3">
 							<!-- Status icon -->
 							<div
-								class="flex h-8 w-8 items-center justify-center rounded-full {job.status === 'completed' ? 'bg-green-100 dark:bg-green-900/20' : job.status === 'failed' ? 'bg-red-100 dark:bg-red-900/20' : 'bg-[rgb(34,51,95)]/10 dark:bg-blue-500/20'}"
+								class="flex h-8 w-8 items-center justify-center rounded-full {job.status === 'completed' ? 'bg-green-100 dark:bg-green-900/20' : job.status === 'failed' ? 'bg-red-100 dark:bg-red-900/20' : 'bg-primary/10 dark:bg-primary-dark/20'}"
 							>
-								<Check class="h-4 w-4 {job.status === 'completed' ? 'text-green-600 dark:text-green-400' : job.status === 'failed' ? 'text-red-600 dark:text-red-400' : 'text-[rgb(34,51,95)] dark:text-blue-400'}" />
+								<Check class="h-4 w-4 {job.status === 'completed' ? 'text-green-600 dark:text-green-400' : job.status === 'failed' ? 'text-red-600 dark:text-red-400' : 'text-primary dark:text-primary-dark'}" />
 							</div>
 
 							<!-- Job info -->
@@ -403,7 +403,7 @@
 						{#if job.status === 'completed' && new Date(new Date(job.created_at).getTime() + 7 * 24 * 60 * 60 * 1000) > new Date()}
 							<button
 								onclick={() => downloadExport(job.id)}
-								class="inline-flex items-center gap-2 rounded-md bg-[rgb(34,51,95)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90 dark:bg-blue-500 dark:hover:bg-blue-600"
+								class="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-blue-600"
 							>
 								<Download class="h-4 w-4" />
 								{t('exportJobs.download')}
@@ -420,7 +420,7 @@
 							</div>
 							<div class="h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700">
 								<div
-									class="h-2 rounded-full bg-[rgb(34,51,95)] transition-all duration-300 dark:bg-blue-500"
+									class="h-2 rounded-full bg-primary transition-all duration-300 dark:bg-primary-dark"
 									style="width: {job.progress}%"
 								></div>
 							</div>
@@ -433,7 +433,7 @@
 							<div class="flex flex-wrap gap-2">
 								{#if job.data.includeLocationData}
 									<span
-										class="inline-flex items-center rounded-full bg-[rgb(34,51,95)]/10 px-2 py-1 text-xs text-[rgb(34,51,95)] dark:bg-blue-500/20 dark:text-blue-400"
+										class="inline-flex items-center rounded-full bg-primary/10 px-2 py-1 text-xs text-primary dark:bg-primary-dark/20 dark:text-primary-dark"
 									>
 										{t('exportJobs.locationData')}
 									</span>

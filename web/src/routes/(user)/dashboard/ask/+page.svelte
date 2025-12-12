@@ -631,7 +631,7 @@
 						<!-- Admin can configure settings -->
 						<a
 							href="/dashboard/server-admin-settings"
-							class="inline-flex items-center gap-2 rounded-lg bg-[rgb(34,51,95)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90"
+							class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
 						>
 							<Settings class="h-4 w-4" />
 							{t('ask.configureAsAdmin')}
@@ -640,7 +640,7 @@
 						<!-- User can configure their own provider -->
 						<a
 							href="/dashboard/account-settings"
-							class="inline-flex items-center gap-2 rounded-lg bg-[rgb(34,51,95)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90"
+							class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
 						>
 							<Settings class="h-4 w-4" />
 							{t('ask.configureAsUser')}
@@ -667,7 +667,7 @@
 					{#each suggestions.slice(0, 4) as suggestion (suggestion.question)}
 						<button
 							onclick={() => useSuggestion(suggestion)}
-							class="rounded-lg border border-gray-200 bg-white p-3 text-left text-sm transition-all hover:border-[rgb(34,51,95)]/50 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:hover:border-[rgb(34,51,95)]"
+							class="rounded-lg border border-gray-200 bg-white p-3 text-left text-sm transition-all hover:border-primary/50 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:hover:border-primary"
 						>
 							<div class="font-medium text-gray-700 dark:text-gray-300">
 								{suggestion.question}
@@ -682,13 +682,13 @@
 				{#each messages as message (message.id)}
 					<div class="flex gap-3 {message.role === 'user' ? 'justify-end' : ''}">
 						{#if message.role === 'assistant'}
-							<div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[rgb(34,51,95)]/10 dark:bg-[rgb(34,51,95)]/20">
-								<Bot class="h-5 w-5 text-[rgb(34,51,95)] dark:text-blue-400" />
+							<div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 dark:bg-primary/20">
+								<Bot class="h-5 w-5 text-primary dark:text-primary-dark" />
 							</div>
 						{/if}
 						<div
 							class="max-w-[80%] rounded-xl px-4 py-3 {message.role === 'user'
-								? 'bg-[rgb(34,51,95)] text-white'
+								? 'bg-primary text-white'
 								: 'bg-white dark:bg-gray-800'}"
 						>
 							{#if message.role === 'assistant'}
@@ -717,7 +717,7 @@
 								{#if message.executionLogs && message.executionLogs.length > 0}
 									<button
 										onclick={() => openExecutionLogs(message.executionLogs)}
-										class="mt-2 flex items-center gap-1 text-xs text-[rgb(34,51,95)] hover:text-[rgb(34,51,95)]/80 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
+										class="mt-2 flex items-center gap-1 text-xs text-primary hover:text-primary/80 hover:underline dark:text-primary-dark dark:hover:text-primary-dark/80"
 									>
 										<FileText class="h-3 w-3" />
 										View execution logs ({message.executionLogs.length} steps)
@@ -738,14 +738,14 @@
 				<!-- Streaming Response -->
 				{#if isLoading}
 					<div class="flex gap-3">
-						<div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[rgb(34,51,95)]/10 dark:bg-[rgb(34,51,95)]/20">
-							<Bot class="h-5 w-5 text-[rgb(34,51,95)] dark:text-blue-400" />
+						<div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 dark:bg-primary/20">
+							<Bot class="h-5 w-5 text-primary dark:text-primary-dark" />
 						</div>
 						<div class="max-w-[80%] rounded-xl bg-white px-4 py-3 dark:bg-gray-800">
 							<!-- Clean Status Indicator - always visible during loading, stable height -->
 							{#if !currentStreamingContent}
 								<div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400" style="min-height: 24px;">
-									<Loader2 class="h-4 w-4 flex-shrink-0 animate-spin text-[rgb(34,51,95)] dark:text-blue-400" />
+									<Loader2 class="h-4 w-4 flex-shrink-0 animate-spin text-primary dark:text-primary-dark" />
 									<span class="transition-opacity duration-150">
 										{currentProgress?.message || 'Thinking...'}
 									</span>
@@ -817,7 +817,7 @@
 					onkeydown={(e) => e.key === 'Enter' && sendMessage()}
 					placeholder={isConnected ? "Ask about your travels..." : "Connecting..."}
 					disabled={isLoading || !isConnected}
-					class="flex-1 rounded-xl border border-gray-300 bg-white py-3 pl-4 pr-12 shadow-sm transition-all focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-2 focus:ring-[rgb(34,51,95)]/20 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-[rgb(34,51,95)]"
+					class="flex-1 rounded-xl border border-gray-300 bg-white py-3 pl-4 pr-12 shadow-sm transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-primary"
 				/>
 				{#if isLoading}
 					<button
@@ -831,7 +831,7 @@
 					<button
 						onclick={sendMessage}
 						disabled={!question.trim() || !isConnected}
-						class="absolute right-3 rounded-lg bg-[rgb(34,51,95)] p-2 text-white transition-colors hover:bg-[rgb(34,51,95)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+						class="absolute right-3 rounded-lg bg-primary p-2 text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
 					>
 						<Send class="h-5 w-5" />
 					</button>

@@ -2,6 +2,12 @@
 @plugin '@tailwindcss/typography';
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Custom theme colors for Tailwind v4 */
+@theme {
+	--color-primary: rgb(34, 51, 95);
+	--color-primary-dark: #60a5fa;
+}
+
 /* Enhanced Accessibility & Mobile Responsiveness */
 
 /* Screen reader only content */

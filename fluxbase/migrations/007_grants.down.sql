@@ -23,7 +23,16 @@ REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."tracker_data" FROM "aut
 REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."trips" FROM "authenticated";
 REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."user_preferences" FROM "authenticated";
 REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."want_to_visit_places" FROM "authenticated";
-REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."workers" FROM "authenticated";
+
+-- Note: workers revokes removed - workers are now managed by Fluxbase Jobs platform
+
+-- Revoke place_visits and secure views grants
+REVOKE EXECUTE ON FUNCTION "public"."refresh_place_visits"() FROM "service_role";
+REVOKE SELECT ON "public"."my_trips" FROM "authenticated";
+REVOKE SELECT ON "public"."my_tracker_data" FROM "authenticated";
+REVOKE SELECT ON "public"."my_poi_summary" FROM "authenticated";
+REVOKE SELECT ON "public"."my_place_visits" FROM "authenticated";
+REVOKE SELECT ON "public"."place_visits" FROM "service_role";
 
 -- Drop admin role (first set all admin users back to authenticated)
 UPDATE "auth"."users"

@@ -50,7 +50,22 @@ DROP INDEX IF EXISTS "public"."idx_want_to_visit_places_favorite";
 DROP INDEX IF EXISTS "public"."idx_want_to_visit_places_type";
 DROP INDEX IF EXISTS "public"."idx_want_to_visit_places_user_id";
 
--- Drop workers indexes
-DROP INDEX IF EXISTS "public"."idx_workers_last_heartbeat";
-DROP INDEX IF EXISTS "public"."idx_workers_status";
-DROP INDEX IF EXISTS "public"."idx_workers_updated_at";
+-- Note: workers indexes removed - workers are now managed by Fluxbase Jobs platform
+
+-- Drop place_visits indexes
+DROP INDEX IF EXISTS "public"."idx_place_visits_fts";
+DROP INDEX IF EXISTS "public"."idx_place_visits_duration_category";
+DROP INDEX IF EXISTS "public"."idx_place_visits_weekend";
+DROP INDEX IF EXISTS "public"."idx_place_visits_day_of_week";
+DROP INDEX IF EXISTS "public"."idx_place_visits_time_of_day";
+DROP INDEX IF EXISTS "public"."idx_place_visits_city";
+DROP INDEX IF EXISTS "public"."idx_place_visits_country";
+DROP INDEX IF EXISTS "public"."idx_place_visits_poi_tags";
+DROP INDEX IF EXISTS "public"."idx_place_visits_location";
+DROP INDEX IF EXISTS "public"."idx_place_visits_poi_sport";
+DROP INDEX IF EXISTS "public"."idx_place_visits_poi_cuisine";
+DROP INDEX IF EXISTS "public"."idx_place_visits_poi_category";
+DROP INDEX IF EXISTS "public"."idx_place_visits_poi_amenity";
+DROP INDEX IF EXISTS "public"."idx_place_visits_poi_name";
+DROP INDEX IF EXISTS "public"."idx_place_visits_user_started";
+DROP INDEX IF EXISTS "public"."idx_place_visits_unique";

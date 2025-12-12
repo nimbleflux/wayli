@@ -116,7 +116,7 @@
 		<button
 			type="button"
 			onclick={onNewConversation}
-			class="flex w-full items-center justify-center gap-2 rounded-lg bg-[rgb(34,51,95)] px-4 py-2.5 font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90"
+			class="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 font-medium text-white transition-colors hover:bg-primary/90"
 		>
 			<Plus class="h-5 w-5" />
 			New Conversation
@@ -165,14 +165,14 @@
 						onkeydown={(e) => e.key === 'Enter' && handleConversationClick(conv.id)}
 						class="group flex w-full cursor-pointer items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 {activeConversationId ===
 						conv.id
-							? 'bg-[rgb(34,51,95)]/10 dark:bg-[rgb(34,51,95)]/20'
+							? 'bg-primary/10 dark:bg-primary/20'
 							: ''}"
 					>
 						<div class="min-w-0 flex-1">
 							<h4
 								class="truncate text-sm font-medium text-gray-900 dark:text-gray-100 {activeConversationId ===
 								conv.id
-									? 'text-[rgb(34,51,95)] dark:text-blue-300'
+									? 'text-primary dark:text-blue-300'
 									: ''}"
 							>
 								{conv.title || 'Untitled Conversation'}
@@ -213,14 +213,14 @@
 						onkeydown={(e) => e.key === 'Enter' && handleConversationClick(conv.id)}
 						class="group flex w-full cursor-pointer items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 {activeConversationId ===
 						conv.id
-							? 'bg-[rgb(34,51,95)]/10 dark:bg-[rgb(34,51,95)]/20'
+							? 'bg-primary/10 dark:bg-primary/20'
 							: ''}"
 					>
 						<div class="min-w-0 flex-1">
 							<h4
 								class="truncate text-sm font-medium text-gray-900 dark:text-gray-100 {activeConversationId ===
 								conv.id
-									? 'text-[rgb(34,51,95)] dark:text-blue-300'
+									? 'text-primary dark:text-blue-300'
 									: ''}"
 							>
 								{conv.title || 'Untitled Conversation'}
@@ -261,14 +261,14 @@
 						onkeydown={(e) => e.key === 'Enter' && handleConversationClick(conv.id)}
 						class="group flex w-full cursor-pointer items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 {activeConversationId ===
 						conv.id
-							? 'bg-[rgb(34,51,95)]/10 dark:bg-[rgb(34,51,95)]/20'
+							? 'bg-primary/10 dark:bg-primary/20'
 							: ''}"
 					>
 						<div class="min-w-0 flex-1">
 							<h4
 								class="truncate text-sm font-medium text-gray-900 dark:text-gray-100 {activeConversationId ===
 								conv.id
-									? 'text-[rgb(34,51,95)] dark:text-blue-300'
+									? 'text-primary dark:text-blue-300'
 									: ''}"
 							>
 								{conv.title || 'Untitled Conversation'}
@@ -309,14 +309,14 @@
 						onkeydown={(e) => e.key === 'Enter' && handleConversationClick(conv.id)}
 						class="group flex w-full cursor-pointer items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 {activeConversationId ===
 						conv.id
-							? 'bg-[rgb(34,51,95)]/10 dark:bg-[rgb(34,51,95)]/20'
+							? 'bg-primary/10 dark:bg-primary/20'
 							: ''}"
 					>
 						<div class="min-w-0 flex-1">
 							<h4
 								class="truncate text-sm font-medium text-gray-900 dark:text-gray-100 {activeConversationId ===
 								conv.id
-									? 'text-[rgb(34,51,95)] dark:text-blue-300'
+									? 'text-primary dark:text-blue-300'
 									: ''}"
 							>
 								{conv.title || 'Untitled Conversation'}

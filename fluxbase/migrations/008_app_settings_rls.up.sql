@@ -54,6 +54,18 @@ VALUES (
     'Server-level Pexels API key for trip images (fallback when user has no personal key)'
 ) ON CONFLICT ("key") DO NOTHING;
 
+-- Insert AI enabled setting (public so users can check if AI features are available)
+INSERT INTO "app"."settings" ("key", "value", "is_public", "description")
+VALUES (
+    'app.features.enable_ai',
+    '{"value": false}'::jsonb,
+    true,
+    'Enable or disable AI chatbot functionality'
+) ON CONFLICT ("key") DO UPDATE SET
+    "is_public" = EXCLUDED."is_public",
+    "description" = EXCLUDED."description",
+    "updated_at" = NOW();
+
 -- Insert password requirement settings (public for signup page validation)
 INSERT INTO "app"."settings" ("key", "value", "is_public", "description")
 VALUES (
@@ -131,6 +143,10 @@ COMMENT ON TRIGGER "trigger_mark_setup_complete" ON "public"."user_profiles" IS 
 -- Drop policies if they exist to ensure idempotency
 DROP POLICY IF EXISTS "Anonymous users can read public Wayli settings" ON "app"."settings";
 DROP POLICY IF EXISTS "Authenticated users can read public settings" ON "app"."settings";
+DROP POLICY IF EXISTS "Admins can read all settings" ON "app"."settings";
+DROP POLICY IF EXISTS "Admins can insert settings" ON "app"."settings";
+DROP POLICY IF EXISTS "Admins can update settings" ON "app"."settings";
+DROP POLICY IF EXISTS "Admins can delete settings" ON "app"."settings";
 
 -- Allow anonymous users to read specific public Wayli settings
 CREATE POLICY "Anonymous users can read public Wayli settings"

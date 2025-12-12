@@ -12,7 +12,7 @@
 	const buttonVariants = {
 		variant: {
 			default:
-				'bg-[rgb(34,51,95)] text-white hover:bg-[rgb(34,51,95)]/90 dark:bg-[rgb(34,51,95)] dark:hover:bg-[rgb(34,51,95)]/80 focus-visible:ring-[rgb(34,51,95)]',
+				'bg-primary text-white hover:bg-primary/90 dark:bg-primary dark:hover:bg-primary/80 focus-visible:ring-primary',
 			destructive:
 				'bg-red-600 text-white hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700 focus-visible:ring-red-500',
 			outline:
@@ -20,7 +20,7 @@
 			secondary:
 				'bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 focus-visible:ring-gray-500',
 			ghost: 'hover:bg-gray-100 dark:hover:bg-gray-700 focus-visible:ring-gray-500',
-			link: 'text-[rgb(34,51,95)] underline-offset-4 hover:underline dark:text-gray-300 focus-visible:ring-[rgb(34,51,95)]'
+			link: 'text-primary underline-offset-4 hover:underline dark:text-gray-300 focus-visible:ring-primary'
 		},
 		size: {
 			default: 'h-10 px-4 py-2',

@@ -97,7 +97,7 @@
 		>
 			<div class="mb-8 text-center">
 				<div
-					class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[rgb(34,51,95)]"
+					class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary dark:bg-primary-dark"
 				>
 					<Lock class="h-6 w-6 text-white" />
 				</div>
@@ -142,7 +142,7 @@
 								type={showPassword ? 'text' : 'password'}
 								bind:value={password}
 								required
-								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-12 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
+								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-12 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
 								placeholder={t('auth.enterNewPassword')}
 							/>
 							<button
@@ -179,7 +179,7 @@
 								type={showConfirmPassword ? 'text' : 'password'}
 								bind:value={confirmPassword}
 								required
-								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-12 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
+								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-12 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
 								placeholder={t('auth.confirmNewPassword')}
 							/>
 							<button
@@ -200,7 +200,7 @@
 					<button
 						type="submit"
 						disabled={loading}
-						class="w-full cursor-pointer rounded-lg bg-[rgb(34,51,95)] px-4 py-3 font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+						class="w-full cursor-pointer rounded-lg bg-primary px-4 py-3 font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-primary-dark dark:hover:bg-primary-dark/90"
 					>
 						{loading ? t('auth.resettingPassword') : t('auth.resetPassword')}
 					</button>

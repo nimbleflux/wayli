@@ -148,9 +148,24 @@ GRANT ALL ON TABLE "public"."user_preferences" TO "service_role";
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."want_to_visit_places" TO "authenticated";
 GRANT ALL ON TABLE "public"."want_to_visit_places" TO "service_role";
 
--- workers: Full access for authenticated users (RLS enforces own worker only)
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."workers" TO "authenticated";
-GRANT ALL ON TABLE "public"."workers" TO "service_role";
+-- Note: workers grants removed - workers are now managed by Fluxbase Jobs platform
+
+-- =============================================================================
+-- PLACE VISITS AND SECURE VIEWS GRANTS
+-- =============================================================================
+
+-- place_visits: service_role only (materialized view, no RLS)
+GRANT SELECT ON "public"."place_visits" TO "service_role";
+
+-- Secure views: SELECT for authenticated users (views enforce user filtering)
+GRANT SELECT ON "public"."my_place_visits" TO "authenticated";
+GRANT SELECT ON "public"."my_poi_summary" TO "authenticated";
+GRANT SELECT ON "public"."my_tracker_data" TO "authenticated";
+GRANT SELECT ON "public"."my_trips" TO "authenticated";
+
+-- refresh_place_visits: service_role only (for job scheduler)
+GRANT EXECUTE ON FUNCTION "public"."refresh_place_visits"() TO "service_role";
+
 -- Default privileges: Not configured for Fluxbase
 -- Note: Fluxbase doesn't have a 'postgres' role like Supabase
 -- Note: Default privileges for future objects should be configured via Fluxbase settings if needed

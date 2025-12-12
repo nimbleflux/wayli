@@ -147,7 +147,7 @@
 			<button
 				onclick={() => handleThemeChange('light')}
 				class="cursor-pointer rounded-lg p-2 font-medium transition-colors {currentTheme === 'light'
-					? 'bg-[rgb(34,51,95)]/10 text-[rgb(34,51,95)] dark:bg-[rgb(34,51,95)]/40 dark:text-white'
+					? 'bg-primary/10 text-primary dark:bg-primary-dark/40 dark:text-primary-dark'
 					: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}"
 				title={t('landing.lightMode')}
 			>
@@ -156,7 +156,7 @@
 			<button
 				onclick={() => handleThemeChange('dark')}
 				class="cursor-pointer rounded-lg p-2 font-medium transition-colors {currentTheme === 'dark'
-					? 'bg-[rgb(34,51,95)]/10 text-[rgb(34,51,95)] dark:bg-[rgb(34,51,95)]/40 dark:text-white'
+					? 'bg-primary/10 text-primary dark:bg-primary-dark/40 dark:text-primary-dark'
 					: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}"
 				title={t('landing.darkMode')}
 			>
@@ -208,7 +208,7 @@
 			<!-- Login Button -->
 			<button
 				onclick={handleLogin}
-				class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[rgb(34,51,95)] px-4 py-2 font-medium text-white shadow-lg transition-colors hover:bg-[rgb(34,51,95)]/90"
+				class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 py-2 font-medium text-white shadow-lg transition-colors hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-primary-dark/90"
 			>
 				<LogIn class="h-4 w-4" />
 				{t('landing.login')}
@@ -251,7 +251,7 @@
 					</a>
 					<a
 						href="/auth/signin"
-						class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[rgb(34,51,95)] px-8 py-4 font-semibold text-white shadow-lg transition-colors hover:bg-[rgb(34,51,95)]/90"
+						class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-8 py-4 font-semibold text-white shadow-lg transition-colors hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-primary-dark/90"
 					>
 						{t('landing.signIn')}
 					</a>
@@ -265,9 +265,9 @@
 					class="rounded-xl border border-gray-200/50 bg-white/50 p-6 text-center backdrop-blur-sm transition-all duration-300 hover:scale-105 hover:shadow-lg dark:border-gray-700/50 dark:bg-gray-800/50"
 				>
 					<div
-						class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[rgb(34,51,95)]/10 transition-colors duration-300 dark:bg-[rgb(34,51,95)]/20"
+						class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 transition-colors duration-300 dark:bg-primary/20"
 					>
-						<Shield class="h-8 w-8 text-[rgb(34,51,95)] dark:text-gray-300" />
+						<Shield class="h-8 w-8 text-primary dark:text-gray-300" />
 					</div>
 					<h3
 						class="mb-2 text-xl font-semibold text-gray-900 transition-colors duration-300 dark:text-gray-100"

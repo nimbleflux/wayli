@@ -56,7 +56,7 @@
 
 <div class="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
 	<div class="text-center">
-		<Loader2 class="mx-auto mb-4 h-8 w-8 animate-spin text-[rgb(34,51,95)] dark:text-blue-400" />
+		<Loader2 class="mx-auto mb-4 h-8 w-8 animate-spin text-primary dark:text-primary-dark" />
 		<h2 class="mb-2 text-xl font-semibold text-gray-900 dark:text-gray-100">Signing out...</h2>
 		<p class="text-gray-600 dark:text-gray-400">Please wait while we sign you out.</p>
 		<p class="mt-2 text-sm text-gray-500 dark:text-gray-500">Redirecting to home page...</p>

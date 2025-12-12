@@ -168,9 +168,9 @@
 			<!-- Header -->
 			<div class="mb-6 flex items-center gap-3">
 				<div
-					class="flex h-12 w-12 items-center justify-center rounded-full bg-[rgb(34,51,95)]/10 dark:bg-[rgb(34,51,95)]/30"
+					class="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 dark:bg-primary/30"
 				>
-					<Shield class="h-6 w-6 text-[rgb(34,51,95)] dark:text-gray-300" />
+					<Shield class="h-6 w-6 text-primary dark:text-gray-300" />
 				</div>
 				<div>
 					<h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
@@ -258,7 +258,7 @@
 						<!-- Next Button -->
 						<button
 							onclick={() => (currentStep = 'verify')}
-							class="w-full rounded-lg bg-[rgb(34,51,95)] px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-[rgb(34,51,95)]/90"
+							class="w-full rounded-lg bg-primary px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-primary/90"
 						>
 							Continue to Verification
 						</button>
@@ -299,7 +299,7 @@
 						<button
 							onclick={handleVerifyCode}
 							disabled={isLoading || verificationCode.length !== 6}
-							class="flex-1 rounded-lg bg-[rgb(34,51,95)] px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-[rgb(34,51,95)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+							class="flex-1 rounded-lg bg-primary px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
 						>
 							{isLoading ? 'Verifying...' : 'Verify & Enable'}
 						</button>
@@ -368,7 +368,7 @@
 					<!-- Finish Button -->
 					<button
 						onclick={handleClose}
-						class="w-full rounded-lg bg-[rgb(34,51,95)] px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-[rgb(34,51,95)]/90"
+						class="w-full rounded-lg bg-primary px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-primary/90"
 					>
 						Done
 					</button>

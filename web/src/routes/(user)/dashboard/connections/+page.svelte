@@ -143,7 +143,7 @@
 	<!-- Header -->
 	<div class="mb-8">
 		<div class="flex items-center gap-3">
-			<Link class="h-8 w-8 text-[rgb(34,51,95)] dark:text-gray-400" />
+			<Link class="h-8 w-8 text-primary dark:text-gray-400" />
 			<h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
 				{t('connections.title')}
 			</h1>
@@ -236,7 +236,7 @@
 				<button
 					type="button"
 					onclick={generateApiKey}
-					class="flex cursor-pointer items-center gap-2 rounded-md bg-[rgb(34,51,95)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90"
+					class="flex cursor-pointer items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-primary-dark/90"
 				>
 					<RefreshCw class="h-4 w-4" />
 					{owntracksApiKey ? t('connections.generateNewApiKey') : t('connections.generateApiKey')}
@@ -244,12 +244,12 @@
 
 				<!-- Instructions -->
 				<div
-					class="mt-4 rounded-lg border border-[rgb(34,51,95)]/30 bg-[rgb(34,51,95)]/5 p-4 dark:border-[rgb(34,51,95)] dark:bg-[rgb(34,51,95)]/20"
+					class="mt-4 rounded-lg border border-primary/30 bg-primary/5 p-4 dark:border-primary-dark/30 dark:bg-primary-dark/20"
 				>
-					<h3 class="mb-2 text-sm font-medium text-[rgb(34,51,95)] dark:text-gray-300">
+					<h3 class="mb-2 text-sm font-medium text-primary dark:text-primary-dark">
 						{t('connections.setupInstructions')}
 					</h3>
-					<ol class="list-inside list-decimal space-y-1 text-sm text-[rgb(34,51,95)] dark:text-gray-400">
+					<ol class="list-inside list-decimal space-y-1 text-sm text-primary dark:text-primary-dark/80">
 						<li>{t('connections.instruction1')}</li>
 						<li>{t('connections.instruction2')}</li>
 						<li>{t('connections.instruction3')}</li>

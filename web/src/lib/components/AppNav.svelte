@@ -33,11 +33,13 @@
 
 	let {
 		isAdmin = false,
+		aiEnabled = true,
 		children,
 		onSignout,
 		realtimeConnectionStatus = 'disconnected'
 	} = $props<{
 		isAdmin?: boolean;
+		aiEnabled?: boolean;
 		children?: unknown;
 		onSignout?: () => void;
 		realtimeConnectionStatus?: 'connecting' | 'connected' | 'disconnected' | 'error';
@@ -53,11 +55,14 @@
 	let currentTheme = $state<'light' | 'dark'>('light');
 	let isSidebarOpen = $state(false);
 
-	// Reactive navigation items that update with language changes
+	// Reactive navigation items that update with language changes and AI enabled state
 	let navMain = $derived([
 		{ href: '/dashboard/statistics', label: t('common.navigation.statistics'), icon: BarChart },
 		{ href: '/dashboard/trips', label: t('common.navigation.trips'), icon: Map },
-		{ href: '/dashboard/ask', label: t('common.navigation.ask') || 'Ask AI', icon: Sparkles },
+		// Only show Ask AI if AI features are enabled
+		...(aiEnabled
+			? [{ href: '/dashboard/ask', label: t('common.navigation.ask') || 'Ask AI', icon: Sparkles }]
+			: []),
 		{ href: '/dashboard/import-export', label: t('common.navigation.importExport'), icon: Import },
 		// { href: '/dashboard/point-editor', label: 'GPS Point Editor', icon: Edit },
 		// { href: '/dashboard/points-of-interest', label: 'Visited POIs', icon: Landmark },
@@ -180,7 +185,7 @@
 						href={item.href}
 						class="flex cursor-pointer items-center rounded-md px-3 py-2 text-sm font-medium transition-colors {$page
 							.url.pathname === item.href
-							? 'bg-[rgb(34,51,95)] text-white'
+							? 'bg-primary text-white dark:bg-primary-dark'
 							: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}"
 						onclick={handleCloseSidebar}
 					>
@@ -199,7 +204,7 @@
 					onclick={() => handleThemeChange('light')}
 					class="cursor-pointer rounded-lg p-2 font-medium transition-colors {currentTheme ===
 					'light'
-						? 'bg-[rgb(34,51,95)]/10 text-[rgb(34,51,95)] dark:bg-[rgb(34,51,95)]/40 dark:text-white'
+						? 'bg-primary/10 text-primary dark:bg-primary-dark/40 dark:text-primary-dark'
 						: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}"
 					title={t('common.navigation.lightMode')}
 				>
@@ -208,7 +213,7 @@
 				<button
 					onclick={() => handleThemeChange('dark')}
 					class="cursor-pointer rounded-lg p-2 font-medium transition-colors {currentTheme === 'dark'
-						? 'bg-[rgb(34,51,95)]/10 text-[rgb(34,51,95)] dark:bg-[rgb(34,51,95)]/40 dark:text-white'
+						? 'bg-primary/10 text-primary dark:bg-primary-dark/40 dark:text-primary-dark'
 						: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}"
 					title={t('common.navigation.darkMode')}
 				>
@@ -232,7 +237,7 @@
 							href={item.href}
 							class="relative flex cursor-pointer items-center rounded-md px-3 py-2 text-sm font-medium transition-colors {$page
 								.url.pathname === item.href
-								? 'bg-[rgb(34,51,95)] text-white'
+								? 'bg-primary text-white dark:bg-primary-dark'
 								: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}"
 							onclick={handleCloseSidebar}
 						>

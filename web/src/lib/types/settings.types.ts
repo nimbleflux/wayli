@@ -43,10 +43,11 @@ export interface AuthenticationSettings {
 
 /**
  * Email settings from Fluxbase AppSettingsManager
+ * Note: Currently only SMTP is supported. More providers may be added later.
  */
 export interface EmailSettings {
 	enabled: boolean;
-	provider: 'smtp' | 'sendgrid' | 'mailgun' | 'ses';
+	provider: 'smtp';
 	smtp?: {
 		host: string;
 		port: number;

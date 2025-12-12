@@ -1370,6 +1370,26 @@ export class ServiceAdapter {
 	 */
 
 	/**
+	 * Public Settings Access (for authenticated users)
+	 */
+
+	/**
+	 * Check if AI features are enabled (accessible to all authenticated users)
+	 * Uses the Fluxbase custom settings API to read the public setting
+	 */
+	async isAIEnabled(): Promise<boolean> {
+		const { fluxbase } = await import('$lib/fluxbase');
+
+		try {
+			const value = await fluxbase.admin.settings.app.getSetting('app.features.enable_ai');
+			return value ?? false;
+		} catch {
+			// Default to false if setting doesn't exist or isn't accessible
+			return false;
+		}
+	}
+
+	/**
 	 * Admin Operations - Direct SDK Access
 	 */
 
@@ -1493,18 +1513,22 @@ export class ServiceAdapter {
 	}) {
 		const { fluxbase } = await import('$lib/fluxbase');
 
-		// Update AI enabled feature flag
-		await fluxbase.admin.settings.system.update('app.features.enable_ai', {
-			value: { value: params.enabled },
-			description: 'Enable or disable AI chatbot functionality'
+		// Update AI enabled feature flag using app.setSetting
+		await fluxbase.admin.settings.app.setSetting('app.features.enable_ai', params.enabled, {
+			description: 'Enable or disable AI chatbot functionality',
+			value_type: 'boolean'
 		});
 
 		// Update user override permission
 		if (params.allow_user_provider_override !== undefined) {
-			await fluxbase.admin.settings.system.update('app.ai.allow_user_provider_override', {
-				value: { value: params.allow_user_provider_override },
-				description: 'Allow users to configure their own AI provider'
-			});
+			await fluxbase.admin.settings.app.setSetting(
+				'app.ai.allow_user_provider_override',
+				params.allow_user_provider_override,
+				{
+					description: 'Allow users to configure their own AI provider',
+					value_type: 'boolean'
+				}
+			);
 		}
 
 		// Create or update provider if specified

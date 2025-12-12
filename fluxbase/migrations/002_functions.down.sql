@@ -42,6 +42,9 @@ DROP FUNCTION IF EXISTS "public"."enable_tracker_data_trigger"();
 -- Drop audit functions
 DROP FUNCTION IF EXISTS "public"."log_audit_event"("p_event_type" "text", "p_description" "text", "p_severity" "text", "p_metadata" "jsonb");
 
+-- Drop place visits refresh function
+DROP FUNCTION IF EXISTS "public"."refresh_place_visits"();
+
 -- Drop trigger functions
 DROP FUNCTION IF EXISTS "public"."audit_user_role_change"();
 DROP FUNCTION IF EXISTS "public"."handle_new_user"();

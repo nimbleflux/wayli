@@ -107,9 +107,9 @@
 			<!-- Header -->
 			<div class="mb-6 flex items-center gap-3">
 				<div
-					class="flex h-12 w-12 items-center justify-center rounded-full bg-[rgb(34,51,95)]/10 dark:bg-[rgb(34,51,95)]/30"
+					class="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 dark:bg-primary/30"
 				>
-					<Shield class="h-6 w-6 text-[rgb(34,51,95)] dark:text-gray-300" />
+					<Shield class="h-6 w-6 text-primary dark:text-gray-300" />
 				</div>
 				<div>
 					<h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
@@ -190,7 +190,7 @@
 				</button>
 				<button
 					onclick={handleVerify}
-					class="flex-1 rounded-lg bg-[rgb(34,51,95)] px-4 py-3 font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+					class="flex-1 rounded-lg bg-primary px-4 py-3 font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
 					disabled={isLoading || !code}
 				>
 					{#if isLoading}

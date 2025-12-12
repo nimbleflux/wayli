@@ -234,7 +234,7 @@
 		>
 			<div class="mb-8 text-center">
 				<div
-					class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[rgb(34,51,95)]"
+					class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary dark:bg-primary-dark"
 				>
 					<LogIn class="h-6 w-6 text-white" />
 				</div>
@@ -258,7 +258,7 @@
 					<button
 						type="button"
 						onclick={() => (isMagicLinkSent = false)}
-						class="text-sm text-[rgb(34,51,95)] transition-colors hover:text-[rgb(34,51,95)]/80 dark:text-blue-400 dark:hover:text-blue-300"
+						class="text-sm text-primary transition-colors hover:text-primary/80 dark:text-primary-dark dark:hover:text-primary-dark/80"
 					>
 						{t('auth.backToSignIn')}
 					</button>
@@ -282,7 +282,7 @@
 								type="email"
 								bind:value={email}
 								required
-								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-4 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
+								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-4 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
 								placeholder={t('auth.enterYourEmail')}
 							/>
 						</div>
@@ -305,7 +305,7 @@
 								type={showPassword ? 'text' : 'password'}
 								bind:value={password}
 								required
-								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-12 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
+								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-12 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
 								placeholder={t('auth.enterYourPassword')}
 							/>
 							<button
@@ -328,7 +328,7 @@
 							<input
 								type="checkbox"
 								bind:checked={rememberMe}
-								class="h-4 w-4 cursor-pointer rounded border-gray-300 text-[rgb(34,51,95)] focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-700"
+								class="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary focus:ring-primary dark:border-gray-600 dark:bg-gray-700"
 							/>
 							<span class="ml-2 text-sm text-gray-600 dark:text-gray-400">
 								{t('auth.rememberMe')}
@@ -338,7 +338,7 @@
 							type="button"
 							onclick={handlePasswordReset}
 							disabled={loading || !email}
-							class="cursor-pointer text-sm text-[rgb(34,51,95)] transition-colors hover:text-[rgb(34,51,95)]/80 disabled:cursor-not-allowed disabled:opacity-50 dark:text-blue-400 dark:hover:text-blue-300"
+							class="cursor-pointer text-sm text-primary transition-colors hover:text-primary/80 disabled:cursor-not-allowed disabled:opacity-50 dark:text-primary-dark dark:hover:text-primary-dark/80"
 						>
 							{t('auth.forgotPassword')}
 						</button>
@@ -348,7 +348,7 @@
 					<button
 						type="submit"
 						disabled={loading}
-						class="w-full cursor-pointer rounded-lg bg-[rgb(34,51,95)] px-4 py-3 font-medium text-white transition-colors hover:bg-[rgb(34,51,95)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+						class="w-full cursor-pointer rounded-lg bg-primary px-4 py-3 font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-primary-dark dark:hover:bg-primary-dark/90"
 					>
 						{loading ? t('auth.signingIn') : t('auth.signIn')}
 					</button>
@@ -359,7 +359,7 @@
 						{t('auth.dontHaveAccount')}
 						<a
 							href="/auth/signup"
-							class="cursor-pointer font-medium text-[rgb(34,51,95)] transition-colors hover:text-[rgb(34,51,95)]/80 dark:text-blue-400 dark:hover:text-blue-300"
+							class="cursor-pointer font-medium text-primary transition-colors hover:text-primary/80 dark:text-primary-dark dark:hover:text-primary-dark/80"
 						>
 							{t('auth.signUp')}
 						</a>

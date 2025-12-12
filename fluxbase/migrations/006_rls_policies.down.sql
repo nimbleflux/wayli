@@ -16,7 +16,7 @@ ALTER TABLE "public"."trips" DISABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."user_preferences" DISABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."user_profiles" DISABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."want_to_visit_places" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "public"."workers" DISABLE ROW LEVEL SECURITY;
+-- Note: workers RLS removed - workers are now managed by Fluxbase Jobs platform
 
 -- Drop all RLS policies
 DROP POLICY IF EXISTS "Jobs can be updated" ON "public"."jobs";
@@ -40,10 +40,7 @@ DROP POLICY IF EXISTS "Want to visit places can be deleted" ON "public"."want_to
 DROP POLICY IF EXISTS "Want to visit places can be inserted" ON "public"."want_to_visit_places";
 DROP POLICY IF EXISTS "Want to visit places can be selected" ON "public"."want_to_visit_places";
 DROP POLICY IF EXISTS "Want to visit places can be updated" ON "public"."want_to_visit_places";
-DROP POLICY IF EXISTS "Workers can be deleted" ON "public"."workers";
-DROP POLICY IF EXISTS "Workers can be inserted" ON "public"."workers";
-DROP POLICY IF EXISTS "Workers can be selected" ON "public"."workers";
-DROP POLICY IF EXISTS "Workers can be updated" ON "public"."workers";
+-- Note: workers policies removed - workers are now managed by Fluxbase Jobs platform
 DROP POLICY IF EXISTS "tracker_data_delete_policy" ON "public"."tracker_data";
 DROP POLICY IF EXISTS "tracker_data_insert_policy" ON "public"."tracker_data";
 DROP POLICY IF EXISTS "tracker_data_select_policy" ON "public"."tracker_data";

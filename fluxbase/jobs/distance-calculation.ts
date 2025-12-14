@@ -100,11 +100,7 @@ export async function handler(
 			console.log(`🧮 Processing batch at offset ${offset}/${totalRecords}...`);
 
 			// Call V2 function which uses chronological offset-based processing
-			const { data: updatedCount, error } = await fluxbase.rpc('calculate_distances_batch_v2', {
-				p_user_id: targetUserId,
-				p_offset: offset,
-				p_limit: BATCH_SIZE
-			});
+			const { data: updatedCount, error } = await fluxbase.rpc('calculate_distances_batch_v2', {});
 
 			const elapsed = Date.now() - startTime;
 

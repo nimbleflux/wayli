@@ -122,14 +122,14 @@ class JobCreationService {
 			const timestamp = Date.now();
 			const fileName = `${session.user.id}/${timestamp}-${file.name}`;
 
-			// Upload file using SDK storage with onUploadProgress to use XHR path
-			// (The SDK's regular fetch path has a bug with FormData serialization)
+			// Upload file using resumable chunked uploads for large file support
 			const { error: uploadError } = await fluxbase.storage
 				.from('temp-files')
-				.upload(fileName, file, {
+				.uploadResumable(fileName, file, {
+					chunkSize: 10 * 1024 * 1024, // 10MB chunks
+					maxRetries: 3,
 					contentType: file.type,
-					upsert: false,
-					onUploadProgress: (progress) => {
+					onProgress: (progress) => {
 						// Update the upload store with progress
 						updateUploadProgress(uploadId, progress.loaded, progress.total, progress.percentage);
 					}

@@ -65,6 +65,7 @@
 	let requireSpecial = $state(false);
 	let sessionTimeout = $state(15);
 	let maxSessions = $state(5);
+	let authReadOnly = $state(false);
 
 	// Email Settings
 	let emailEnabled = $state(false);
@@ -77,6 +78,7 @@
 	let smtpFromAddress = $state('');
 	let smtpFromName = $state('Wayli');
 	let smtpReplyTo = $state('');
+	let emailReadOnly = $state(false);
 
 	// Feature Toggles
 	let enableRealtime = $state(true);
@@ -98,6 +100,7 @@
 	let providerMaxTokens = $state(4096);
 	let providerTemperature = $state(0.7);
 	let providerIsDefault = $state(true);
+	let providerReadOnly = $state(false);
 
 	// Handle Escape key for modals
 	$effect(() => {
@@ -514,10 +517,24 @@
 			enableMagicLink = app.authentication.enable_magic_link;
 			passwordMinLength = app.authentication.password_min_length;
 			requireEmailVerification = app.authentication.require_email_verification;
+			authReadOnly = app.authentication.read_only ?? false;
 
 			// Email
 			emailEnabled = app.email.enabled;
 			emailProvider = app.email.provider;
+			emailReadOnly = app.email.read_only ?? false;
+
+			// Load SMTP configuration if available
+			if (app.email.smtp) {
+				smtpHost = app.email.smtp.host ?? '';
+				smtpPort = app.email.smtp.port ?? 587;
+				smtpUsername = app.email.smtp.username ?? '';
+				smtpUseTls = app.email.smtp.use_tls ?? true;
+				smtpFromAddress = app.email.smtp.from_address ?? '';
+				smtpFromName = app.email.smtp.from_name ?? 'Wayli';
+				smtpReplyTo = app.email.smtp.reply_to_address ?? '';
+				// Note: SMTP password is not returned for security reasons
+			}
 
 			// Features
 			enableRealtime = app.features.enable_realtime;
@@ -543,6 +560,7 @@
 					providerMaxTokens = defaultProvider.config?.max_tokens ?? 4096;
 					providerTemperature = defaultProvider.config?.temperature ?? 0.7;
 					providerIsDefault = defaultProvider.is_default ?? true;
+					providerReadOnly = defaultProvider.read_only ?? false;
 					// Note: API key is not returned for security reasons
 				}
 			}
@@ -1206,18 +1224,32 @@
 					</div>
 
 					<div class="space-y-4">
+						{#if authReadOnly}
+							<div class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+								<Lock class="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+								<div>
+									<span class="text-sm font-medium text-amber-800 dark:text-amber-200">
+										{t('serverAdmin.authSettingsReadOnly')}
+									</span>
+									<p class="text-xs text-amber-700 dark:text-amber-300">
+										{t('serverAdmin.authSettingsReadOnlyDescription')}
+									</p>
+								</div>
+							</div>
+						{/if}
+
 						<div class="flex items-center justify-between">
 							<span class="text-sm text-gray-700 dark:text-gray-300">
 								{t('serverAdmin.enableSignup')}
 							</span>
-							<Switch bind:checked={enableSignup} label={t('serverAdmin.enableSignup')} />
+							<Switch bind:checked={enableSignup} label={t('serverAdmin.enableSignup')} disabled={authReadOnly} />
 						</div>
 
 						<div class="flex items-center justify-between">
 							<span class="text-sm text-gray-700 dark:text-gray-300">
 								{t('serverAdmin.requireEmailVerification')}
 							</span>
-							<Switch bind:checked={requireEmailVerification} label={t('serverAdmin.requireEmailVerification')} />
+							<Switch bind:checked={requireEmailVerification} label={t('serverAdmin.requireEmailVerification')} disabled={authReadOnly} />
 						</div>
 
 						<div>
@@ -1228,20 +1260,23 @@
 								type="number"
 								id="passwordMinLength"
 								bind:value={passwordMinLength}
+								disabled={authReadOnly}
 								min="8"
 								max="128"
-								class="mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
+								class="mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 							/>
 						</div>
 
-						<div class="flex justify-end">
-							<button
-								onclick={saveAuthSettings}
-								class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
-							>
-								{t('serverAdmin.saveSettings')}
-							</button>
-						</div>
+						{#if !authReadOnly}
+							<div class="flex justify-end">
+								<button
+									onclick={saveAuthSettings}
+									class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+								>
+									{t('serverAdmin.saveSettings')}
+								</button>
+							</div>
+						{/if}
 					</div>
 				</div>
 
@@ -1257,11 +1292,25 @@
 					</div>
 
 					<div class="space-y-4">
+						{#if emailReadOnly}
+							<div class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+								<Lock class="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+								<div>
+									<span class="text-sm font-medium text-amber-800 dark:text-amber-200">
+										{t('serverAdmin.emailSettingsReadOnly')}
+									</span>
+									<p class="text-xs text-amber-700 dark:text-amber-300">
+										{t('serverAdmin.emailSettingsReadOnlyDescription')}
+									</p>
+								</div>
+							</div>
+						{/if}
+
 						<div class="flex items-center justify-between">
 							<span class="text-sm text-gray-700 dark:text-gray-300">
 								{t('serverAdmin.emailEnabled')}
 							</span>
-							<Switch bind:checked={emailEnabled} label={t('serverAdmin.emailEnabled')} />
+							<Switch bind:checked={emailEnabled} label={t('serverAdmin.emailEnabled')} disabled={emailReadOnly} />
 						</div>
 
 						{#if emailEnabled}
@@ -1279,7 +1328,8 @@
 												id="smtpHost"
 												type="text"
 												bind:value={smtpHost}
-												class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+												disabled={emailReadOnly}
+												class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 												placeholder={t('serverAdmin.smtpHostPlaceholder')}
 											/>
 										</div>
@@ -1292,7 +1342,8 @@
 												id="smtpPort"
 												type="number"
 												bind:value={smtpPort}
-												class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+												disabled={emailReadOnly}
+												class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 												placeholder={t('serverAdmin.smtpPortPlaceholder')}
 											/>
 										</div>
@@ -1306,7 +1357,8 @@
 											id="smtpUsername"
 											type="text"
 											bind:value={smtpUsername}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											disabled={emailReadOnly}
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 											placeholder={t('serverAdmin.smtpUsernamePlaceholder')}
 										/>
 									</div>
@@ -1319,7 +1371,8 @@
 											id="smtpPassword"
 											type="password"
 											bind:value={smtpPassword}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											disabled={emailReadOnly}
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 											placeholder={t('serverAdmin.smtpPasswordPlaceholder')}
 										/>
 									</div>
@@ -1328,7 +1381,7 @@
 										<span class="text-sm text-gray-700 dark:text-gray-300">
 											{t('serverAdmin.smtpUseTls')}
 										</span>
-										<Switch bind:checked={smtpUseTls} label={t('serverAdmin.smtpUseTls')} />
+										<Switch bind:checked={smtpUseTls} label={t('serverAdmin.smtpUseTls')} disabled={emailReadOnly} />
 									</div>
 
 									<div>
@@ -1339,7 +1392,8 @@
 											id="smtpFromAddress"
 											type="email"
 											bind:value={smtpFromAddress}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											disabled={emailReadOnly}
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 											placeholder={t('serverAdmin.smtpFromAddressPlaceholder')}
 										/>
 									</div>
@@ -1352,21 +1406,24 @@
 											id="smtpFromName"
 											type="text"
 											bind:value={smtpFromName}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											disabled={emailReadOnly}
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 											placeholder={t('serverAdmin.smtpFromNamePlaceholder')}
 										/>
 									</div>
 							</div>
 						{/if}
 
-						<div class="flex justify-end">
-							<button
-								onclick={saveEmailSettings}
-								class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
-							>
-								{t('serverAdmin.saveSettings')}
-							</button>
-						</div>
+						{#if !emailReadOnly}
+							<div class="flex justify-end">
+								<button
+									onclick={saveEmailSettings}
+									class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+								>
+									{t('serverAdmin.saveSettings')}
+								</button>
+							</div>
+						{/if}
 					</div>
 				</div>
 
@@ -1385,6 +1442,20 @@
 					</div>
 
 					<div class="space-y-4">
+						{#if providerReadOnly}
+							<div class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+								<Lock class="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+								<div>
+									<span class="text-sm font-medium text-amber-800 dark:text-amber-200">
+										{t('serverAdmin.aiProviderReadOnly')}
+									</span>
+									<p class="text-xs text-amber-700 dark:text-amber-300">
+										{t('serverAdmin.aiProviderReadOnlyDescription')}
+									</p>
+								</div>
+							</div>
+						{/if}
+
 						<div class="flex items-center justify-between">
 							<div>
 								<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1394,7 +1465,7 @@
 									{t('serverAdmin.aiEnabledDescription')}
 								</p>
 							</div>
-							<Switch bind:checked={aiEnabled} label={t('serverAdmin.aiEnabled')} />
+							<Switch bind:checked={aiEnabled} label={t('serverAdmin.aiEnabled')} disabled={providerReadOnly} />
 						</div>
 
 						{#if aiEnabled}
@@ -1407,33 +1478,35 @@
 										{t('serverAdmin.allowUserOverrideDescription')}
 									</p>
 								</div>
-								<Switch bind:checked={aiAllowUserOverride} label={t('serverAdmin.allowUserOverride')} />
+								<Switch bind:checked={aiAllowUserOverride} label={t('serverAdmin.allowUserOverride')} disabled={providerReadOnly} />
 							</div>
 
 							<div class="space-y-3 rounded border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
 								<div class="grid grid-cols-2 gap-4">
 									<div>
 										<label for="providerName" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-											Provider Name
+											{t('serverAdmin.aiProviderName')}
 										</label>
 										<input
 											id="providerName"
 											type="text"
 											bind:value={providerName}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
-											placeholder="openai-main"
+											disabled={providerReadOnly}
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+											placeholder={t('serverAdmin.aiProviderNamePlaceholder')}
 										/>
 									</div>
 									<div>
 										<label for="providerDisplayName" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-											Display Name
+											{t('serverAdmin.aiDisplayName')}
 										</label>
 										<input
 											id="providerDisplayName"
 											type="text"
 											bind:value={providerDisplayName}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
-											placeholder="OpenAI (Production)"
+											disabled={providerReadOnly}
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+											placeholder={t('serverAdmin.aiDisplayNamePlaceholder')}
 										/>
 									</div>
 								</div>
@@ -1445,14 +1518,12 @@
 									<select
 										id="providerType"
 										bind:value={providerType}
-										class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+										disabled={providerReadOnly}
+										class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 									>
 										<option value="openai">{t('serverAdmin.aiProviders.openai')}</option>
-										<option value="anthropic">{t('serverAdmin.aiProviders.anthropic')}</option>
-										<option value="ollama">{t('serverAdmin.aiProviders.ollama')}</option>
-										<option value="openrouter">{t('serverAdmin.aiProviders.openrouter')}</option>
 										<option value="azure">{t('serverAdmin.aiProviders.azure')}</option>
-										<option value="custom">{t('serverAdmin.aiProviders.custom')}</option>
+										<option value="ollama">{t('serverAdmin.aiProviders.ollama')}</option>
 									</select>
 								</div>
 
@@ -1464,7 +1535,8 @@
 										id="providerModel"
 										type="text"
 										bind:value={providerModel}
-										class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+										disabled={providerReadOnly}
+										class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 										placeholder="gpt-4-turbo"
 									/>
 									<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -1480,7 +1552,8 @@
 										id="providerApiKey"
 										type="password"
 										bind:value={providerApiKey}
-										class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+										disabled={providerReadOnly}
+										class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 										placeholder={t('serverAdmin.aiApiKeyPlaceholder')}
 									/>
 								</div>
@@ -1494,7 +1567,8 @@
 											id="providerApiEndpoint"
 											type="text"
 											bind:value={providerApiEndpoint}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											disabled={providerReadOnly}
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 											placeholder={t('serverAdmin.aiApiEndpointPlaceholder')}
 										/>
 										<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -1512,9 +1586,10 @@
 											id="providerMaxTokens"
 											type="number"
 											bind:value={providerMaxTokens}
+											disabled={providerReadOnly}
 											min="256"
 											max="128000"
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 										/>
 									</div>
 
@@ -1526,24 +1601,27 @@
 											id="providerTemperature"
 											type="number"
 											bind:value={providerTemperature}
+											disabled={providerReadOnly}
 											min="0"
 											max="2"
 											step="0.1"
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 										/>
 									</div>
 								</div>
 							</div>
 						{/if}
 
-						<div class="flex justify-end">
-							<button
-								onclick={saveAISettings}
-								class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
-							>
-								{t('serverAdmin.saveSettings')}
-							</button>
-						</div>
+						{#if !providerReadOnly}
+							<div class="flex justify-end">
+								<button
+									onclick={saveAISettings}
+									class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+								>
+									{t('serverAdmin.saveSettings')}
+								</button>
+							</div>
+						{/if}
 					</div>
 				</div>
 			</div>

@@ -45,7 +45,6 @@ function safeReportProgress(job: JobUtils, percent: number, message: string): vo
 		console.log(`[Progress ${percent}%] ${message}`);
 	}
 }
-
 export async function handler(
 	req: Request,
 	fluxbase: FluxbaseClient,
@@ -65,8 +64,8 @@ export async function handler(
 	}
 
 	try {
-		// Use resumable chunked download for large files - handles connection timeouts gracefully
-		console.log('🗺️ Starting GeoJSON import with resumable chunked download...');
+		// Use resumable chunked download for large files
+		console.log('🗺️ Starting GeoJSON import with streaming download...');
 		const storage = fluxbase.storage.from('temp-files') as any;
 
 		let lastDownloadLog = 0;
@@ -83,7 +82,6 @@ export async function handler(
 					currentChunk?: number;
 					totalChunks?: number;
 				}) => {
-					// Log download progress every 5 seconds
 					const now = Date.now();
 					if (now - lastDownloadLog > 5000) {
 						const mb = ((progress.loaded ?? 0) / 1024 / 1024).toFixed(1);
@@ -100,10 +98,10 @@ export async function handler(
 		);
 
 		if (downloadError || !downloadData) {
-			throw new Error(`Failed to download file: ${JSON.stringify(downloadError)}`);
+			console.error('Download error details:', downloadError);
+			throw new Error(`Failed to download file: ${downloadError?.message || JSON.stringify(downloadError) || 'Unknown error'}`);
 		}
 
-		// downloadResumable returns { size: number, stream: ReadableStream }
 		const stream: ReadableStream<Uint8Array> = downloadData.stream;
 		const totalBytes = downloadData.size || 0;
 		console.log(`📦 File size: ${(totalBytes / 1024 / 1024).toFixed(2)} MB`);
@@ -117,31 +115,32 @@ export async function handler(
 		const skippedCount = results.skippedCount;
 		const errorCount = results.errorCount;
 		const duplicatesCount = results.duplicatesCount;
+		const alreadyExistsCount = results.alreadyExistsCount;
 
 		const totalTime = (Date.now() - startTime) / 1000;
 		console.log(`✅ GeoJSON import completed!`);
 		console.log(`📊 Final stats:`);
 		console.log(`   📥 Imported: ${importedCount.toLocaleString()} points`);
-		console.log(`   ⏭️ Skipped: ${skippedCount.toLocaleString()} points`);
-		console.log(`   🔄 Duplicates: ${duplicatesCount.toLocaleString()} points`);
+		console.log(`   ⏭️ Skipped (invalid): ${skippedCount.toLocaleString()} points`);
+		console.log(`   🔄 Duplicates (in batch): ${duplicatesCount.toLocaleString()} points`);
+		console.log(`   📋 Already exists: ${alreadyExistsCount.toLocaleString()} points`);
 		console.log(`   ❌ Errors: ${errorCount.toLocaleString()} points`);
 		console.log(`   ⏱️ Total time: ${totalTime.toFixed(1)}s`);
 		console.log(`   🚀 Average rate: ${(importedCount / totalTime).toFixed(1)} points/sec`);
 
 		// Trigger distance calculation RPC after import
-		if (importedCount > 0) {
+		if (true || importedCount > 0) {
 			console.log(`🧮 Triggering distance calculation RPC for user ${userId}...`);
 			try {
-				const { data: rpcResult, error: rpcError } = await fluxbase.rpc('calculate_distances_batch_v2', {
-					p_user_id: userId,
-					p_offset: 0,
-					p_limit: 1000
+				const { data: rpcResult, error: rpcError } = await fluxbase.rpc.invoke('calculate-distances-batch', {}, {
+					namespace: 'wayli',
+					async: true  // run asynchronously to avoid request timeout
 				});
 
 				if (rpcError) {
 					console.warn(`⚠️ Failed to trigger distance calculation RPC: ${rpcError.message}`);
 				} else {
-					console.log(`✅ Distance calculation RPC triggered: ${rpcResult || 'completed'}`);
+					console.log(`✅ Distance calculation RPC triggered: ${rpcResult || 'started'}`);
 				}
 			} catch (distanceError) {
 				console.warn(`⚠️ Distance calculation trigger failed:`, distanceError);
@@ -209,11 +208,13 @@ async function processGeoJSONStream(
 	skippedCount: number;
 	errorCount: number;
 	duplicatesCount: number;
+	alreadyExistsCount: number;
 }> {
 	let importedCount = 0;
 	let skippedCount = 0;
 	let errorCount = 0;
 	let duplicatesCount = 0;
+	let alreadyExistsCount = 0;
 	const errorSummary: ErrorSummary = { counts: {}, samples: [] };
 
 	const BATCH_SIZE = 240; // Process features in batches (30 * 8 to match previous concurrent chunk size)
@@ -223,7 +224,6 @@ async function processGeoJSONStream(
 	let lastLogTime = startTime;
 
 	console.log(`🔄 True streaming mode: Processing features in batches of ${BATCH_SIZE}`);
-	console.log(`📦 File size: ${totalBytes > 0 ? (totalBytes / 1024 / 1024).toFixed(2) + ' MB' : 'unknown'}`);
 
 	// Create streaming JSON parser that extracts features from FeatureCollection
 	const parser = new JSONParser({
@@ -249,6 +249,7 @@ async function processGeoJSONStream(
 		skippedCount += result.skipped;
 		errorCount += result.errors;
 		duplicatesCount += result.duplicates;
+		alreadyExistsCount += result.alreadyExists;
 
 		// Merge error summaries
 		for (const [k, v] of Object.entries(result.errorSummary.counts)) {
@@ -326,7 +327,7 @@ async function processGeoJSONStream(
 		reader.releaseLock();
 	}
 
-	return { importedCount, skippedCount, errorCount, duplicatesCount };
+	return { importedCount, skippedCount, errorCount, duplicatesCount, alreadyExistsCount };
 }
 
 async function processFeatureChunk(
@@ -339,12 +340,14 @@ async function processFeatureChunk(
 	skipped: number;
 	errors: number;
 	duplicates: number;
+	alreadyExists: number;
 	errorSummary: ErrorSummary;
 }> {
 	let imported = 0;
 	let skipped = 0;
 	let errors = 0;
 	let duplicates = 0;
+	let alreadyExists = 0;
 	const errorSummary: ErrorSummary = { counts: {}, samples: [] };
 
 	const trackerData: Array<{
@@ -483,8 +486,17 @@ async function processFeatureChunk(
 					? ((properties as any).activity_type as string)
 					: null;
 
-			// Calculate timezone difference for this location
-			const tzDiff = getTimezoneDifferenceForPoint(latitude, longitude);
+			// Use timezone from properties if available, otherwise calculate
+			let tzDiff: number | null = null;
+			if (typeof (properties as Record<string, unknown>).tz_diff === 'number') {
+				tzDiff = (properties as Record<string, unknown>).tz_diff as number;
+			} else if (typeof (properties as Record<string, unknown>).timezone_offset === 'number') {
+				tzDiff = (properties as Record<string, unknown>).timezone_offset as number;
+			} else if (typeof (properties as Record<string, unknown>).utc_offset === 'number') {
+				tzDiff = (properties as Record<string, unknown>).utc_offset as number;
+			} else {
+				tzDiff = getTimezoneDifferenceForPoint(latitude, longitude);
+			}
 
 			trackerData.push({
 				user_id: userId,
@@ -531,20 +543,28 @@ async function processFeatureChunk(
 				skipped += duplicatesInBatch;
 			}
 
-			const { error } = await fluxbase.from('tracker_data').upsert(deduplicatedData, {
-				onConflict: 'user_id,recorded_at',
-				ignoreDuplicates: true
-			});
+			// Filter out records that already exist in the database
+			const timestamps = deduplicatedData.map((d) => d.recorded_at);
+			const existingTimestamps = await filterExistingRecords(fluxbase, userId, timestamps);
+			const newRecords = deduplicatedData.filter((d) => !existingTimestamps.has(d.recorded_at));
+			alreadyExists += deduplicatedData.length - newRecords.length;
+
+			if (newRecords.length === 0) {
+				// All records already exist, nothing to insert
+				return { imported, skipped, errors, duplicates, alreadyExists, errorSummary };
+			}
+
+			const { error } = await fluxbase.from('tracker_data').insert(newRecords);
 
 			if (!error) {
-				imported = deduplicatedData.length;
+				imported = newRecords.length;
 			} else {
 				console.log(`❌ Batch insert failed with error:`, error);
-				errors += deduplicatedData.length;
+				errors += newRecords.length;
 				const code = (error as any).code || 'unknown';
 				const message = (error as any).message || 'unknown error';
 				errorSummary.counts[`db ${code}`] =
-					(errorSummary.counts[`db ${code}`] || 0) + deduplicatedData.length;
+					(errorSummary.counts[`db ${code}`] || 0) + newRecords.length;
 				if (errorSummary.samples.length < 10)
 					errorSummary.samples.push({ idx: chunkStart, reason: `db ${code}: ${message}` });
 			}
@@ -558,7 +578,7 @@ async function processFeatureChunk(
 		}
 	}
 
-	return { imported, skipped, errors, duplicates, errorSummary };
+	return { imported, skipped, errors, duplicates, alreadyExists, errorSummary };
 }
 
 function safeGetCountryForPoint(lat: number, lon: number): string | null {
@@ -576,6 +596,49 @@ function safeNormalizeCountryCode(countryCode: string | null): string | null {
 	} catch (e) {
 		console.warn('Failed to normalize country code:', e);
 		return null;
+	}
+}
+
+/**
+ * Filter out records that already exist in the database.
+ * Returns a Set of recorded_at timestamps that already exist.
+ * Chunks queries to avoid "Request Header Fields Too Large" errors.
+ */
+async function filterExistingRecords(
+	fluxbase: FluxbaseClient,
+	userId: string,
+	recordedAtTimestamps: string[]
+): Promise<Set<string>> {
+	if (recordedAtTimestamps.length === 0) return new Set();
+
+	const existingSet = new Set<string>();
+	const CHUNK_SIZE = 50; // Avoid header size limits
+
+	try {
+		// Process in chunks to avoid "Request Header Fields Too Large" error
+		for (let i = 0; i < recordedAtTimestamps.length; i += CHUNK_SIZE) {
+			const chunk = recordedAtTimestamps.slice(i, i + CHUNK_SIZE);
+			const { data: existing, error } = await fluxbase
+				.from('tracker_data')
+				.select('recorded_at')
+				.eq('user_id', userId)
+				.in('recorded_at', chunk);
+
+			if (error) {
+				console.warn('Failed to check existing records chunk:', error);
+				// Continue with other chunks rather than failing completely
+				continue;
+			}
+
+			for (const r of existing || []) {
+				existingSet.add((r as { recorded_at: string }).recorded_at);
+			}
+		}
+
+		return existingSet;
+	} catch (e) {
+		console.warn('Error checking existing records:', e);
+		return new Set();
 	}
 }
 

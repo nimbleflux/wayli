@@ -1530,13 +1530,13 @@
 			tabindex="-1"
 		>
 			<h3 class="mb-6 text-center text-2xl font-bold text-gray-900 dark:text-gray-100">
-				Add Trip Exclusion
+				{t('accountSettings.addTripExclusionModal')}
 			</h3>
 			<div class="space-y-6">
 				<div>
 					<label
 						for="add-exclusion-name"
-						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label
+						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('common.fields.name')}</label
 					>
 					<input
 						id="add-exclusion-name"
@@ -1549,7 +1549,7 @@
 				<div>
 					<label
 						for="add-exclusion-address"
-						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Address</label
+						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('common.fields.address')}</label
 					>
 					<div class="relative">
 						<input
@@ -1633,13 +1633,13 @@
 						disabled={isAddingExclusion || !newExclusion.name || !newExclusion.location}
 						class="flex-1 cursor-pointer rounded-lg bg-primary px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
 					>
-						{isAddingExclusion ? 'Adding...' : 'Add Exclusion'}
+						{isAddingExclusion ? t('common.status.adding') : t('accountSettings.addExclusion')}
 					</button>
 					<button
 						onclick={() => (showAddExclusionModal = false)}
 						class="flex-1 cursor-pointer rounded-lg border border-gray-300 bg-white px-6 py-3 font-semibold text-gray-700 shadow transition-all duration-200 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
 					>
-						Cancel
+						{t('common.actions.cancel')}
 					</button>
 				</div>
 			</div>
@@ -1672,13 +1672,13 @@
 			tabindex="-1"
 		>
 			<h3 class="mb-6 text-center text-2xl font-bold text-gray-900 dark:text-gray-100">
-				Edit Trip Exclusion
+				{t('accountSettings.editTripExclusionModal')}
 			</h3>
 			<div class="space-y-6">
 				<div>
 					<label
 						for="edit-exclusion-name"
-						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label
+						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('common.fields.name')}</label
 					>
 					<input
 						id="edit-exclusion-name"
@@ -1691,7 +1691,7 @@
 				<div>
 					<label
 						for="edit-exclusion-address"
-						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Address</label
+						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('common.fields.address')}</label
 					>
 					<div class="relative">
 						<input
@@ -1775,13 +1775,13 @@
 						disabled={isEditingExclusion || !editingExclusion.name || !editingExclusion.location}
 						class="flex-1 cursor-pointer rounded-lg bg-primary px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
 					>
-						{isEditingExclusion ? 'Updating...' : 'Update Exclusion'}
+						{isEditingExclusion ? t('common.status.updating') : t('accountSettings.updateExclusion')}
 					</button>
 					<button
 						onclick={() => (showEditExclusionModal = false)}
 						class="flex-1 cursor-pointer rounded-lg border border-gray-300 bg-white px-6 py-3 font-semibold text-gray-700 shadow transition-all duration-200 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
 					>
-						Cancel
+						{t('common.actions.cancel')}
 					</button>
 				</div>
 			</div>

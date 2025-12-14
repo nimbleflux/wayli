@@ -167,15 +167,12 @@
 				endDate: exportEndDate
 			});
 
-			// Reset form
+			// Reset date range only - preserve checkbox preferences
 			exportFormat = 'JSON';
 			exportStartDate = undefined;
 			exportEndDate = undefined;
 			localExportStartDate = undefined;
 			localExportEndDate = undefined;
-			includeLocationDataExport = true;
-			includeWantToVisitExport = true;
-			includeTripsExport = true;
 		} catch (error) {
 			console.error('Export error:', error);
 		}

@@ -33,6 +33,48 @@ function safeReportProgress(job: JobUtils, percent: number, message: string): vo
 	}
 }
 
+/**
+ * Wait for an RPC job to complete by polling its status.
+ */
+async function waitForRpcCompletion(
+	fluxbase: FluxbaseClient,
+	executionId: string,
+	job: JobUtils,
+	maxWaitMs: number = 300000, // 5 minutes max
+	pollIntervalMs: number = 2000 // Poll every 2 seconds
+): Promise<void> {
+	const startTime = Date.now();
+	console.log(`⏳ Waiting for RPC execution ${executionId} to complete...`);
+
+	while (Date.now() - startTime < maxWaitMs) {
+		try {
+			const { data: status } = await (fluxbase.rpc as any).getStatus(executionId);
+			console.log(`📊 RPC status for ${executionId}:`, JSON.stringify(status));
+
+			if (status?.status === 'completed' || status?.status === 'success') {
+				console.log(`✅ RPC execution ${executionId} completed successfully`);
+				return;
+			}
+
+			if (status?.status === 'failed' || status?.status === 'error') {
+				console.warn(`⚠️ RPC execution ${executionId} failed: ${status?.error_message || status?.error || status?.message || 'unknown error'}`);
+				return;
+			}
+
+			// Still running, log progress if available
+			if (status?.progress !== undefined) {
+				safeReportProgress(job, status.progress, `🧮 Distance calculation: ${status.progress}%`);
+			}
+		} catch (err) {
+			console.warn(`⚠️ Error checking RPC status:`, err);
+		}
+
+		await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+	}
+
+	console.warn(`⚠️ RPC execution ${executionId} timed out after ${maxWaitMs / 1000}s`);
+}
+
 interface DataImportPayload {
 	storagePath: string;
 	format: string;
@@ -47,6 +89,8 @@ interface GPXPoint {
 	name?: string;
 	desc?: string;
 	type: 'waypoint' | 'trackpoint' | 'routepoint';
+	country_code?: string;
+	tz_diff?: number;
 }
 
 interface ErrorSummary {
@@ -122,8 +166,9 @@ export async function handler(
 		console.log(`✅ GPX import completed!`);
 		console.log(`📊 Final stats:`);
 		console.log(`   📥 Imported: ${results.importedCount.toLocaleString()} points`);
-		console.log(`   ⏭️ Skipped: ${results.skippedCount.toLocaleString()} points`);
-		console.log(`   🔄 Duplicates: ${results.duplicatesCount.toLocaleString()} points`);
+		console.log(`   ⏭️ Skipped (invalid): ${results.skippedCount.toLocaleString()} points`);
+		console.log(`   🔄 Duplicates (in batch): ${results.duplicatesCount.toLocaleString()} points`);
+		console.log(`   📋 Already exists: ${results.alreadyExistsCount.toLocaleString()} points`);
 		console.log(`   ❌ Errors: ${results.errorCount.toLocaleString()} points`);
 		console.log(`   ⏱️ Total time: ${totalTime.toFixed(1)}s`);
 		console.log(`   🚀 Average rate: ${(results.importedCount / totalTime).toFixed(1)} points/sec`);
@@ -132,16 +177,21 @@ export async function handler(
 		if (results.importedCount > 0) {
 			console.log(`🧮 Triggering distance calculation RPC for user ${userId}...`);
 			try {
-				const { data: rpcResult, error: rpcError } = await fluxbase.rpc('calculate_distances_batch_v2', {
-					p_user_id: userId,
-					p_offset: 0,
-					p_limit: 1000
+				const { data: rpcResult, error: rpcError } = await fluxbase.rpc.invoke('calculate-distances-batch', {}, {
+					namespace: 'wayli',
+					async: true  // run asynchronously to avoid request timeout
 				});
 
 				if (rpcError) {
 					console.warn(`⚠️ Failed to trigger distance calculation RPC: ${rpcError.message}`);
 				} else {
-					console.log(`✅ Distance calculation RPC triggered: ${rpcResult || 'completed'}`);
+					console.log(`✅ Distance calculation RPC triggered: ${rpcResult || 'started'}`);
+
+					// Wait for RPC job to complete
+					const executionId = (rpcResult as any)?.execution_id || rpcResult;
+					if (executionId) {
+						await waitForRpcCompletion(fluxbase, executionId, job);
+					}
 				}
 			} catch (distanceError) {
 				console.warn(`⚠️ Distance calculation trigger failed:`, distanceError);
@@ -208,6 +258,7 @@ async function processGPXStream(
 	skippedCount: number;
 	errorCount: number;
 	duplicatesCount: number;
+	alreadyExistsCount: number;
 }> {
 	// Import SAX parser for streaming XML
 	const sax = await import('npm:sax');
@@ -217,6 +268,7 @@ async function processGPXStream(
 	let skippedCount = 0;
 	let errorCount = 0;
 	let duplicatesCount = 0;
+	let alreadyExistsCount = 0;
 	const errorSummary: ErrorSummary = { counts: {}, samples: [] };
 
 	const BATCH_SIZE = 240;
@@ -233,7 +285,6 @@ async function processGPXStream(
 	let textContent = '';
 
 	console.log(`🔄 True streaming mode: Processing GPX points in batches of ${BATCH_SIZE}`);
-	console.log(`📦 File size: ${totalBytes > 0 ? (totalBytes / 1024 / 1024).toFixed(2) + ' MB' : 'unknown'}`);
 
 	// Process a batch of points
 	const processBatch = async () => {
@@ -249,6 +300,7 @@ async function processGPXStream(
 		skippedCount += result.skipped;
 		errorCount += result.errors;
 		duplicatesCount += result.duplicates;
+		alreadyExistsCount += result.alreadyExists;
 
 		for (const [k, v] of Object.entries(result.errorSummary.counts)) {
 			errorSummary.counts[k] = (errorSummary.counts[k] || 0) + v;
@@ -299,6 +351,13 @@ async function processGPXStream(
 				currentPoint.name = textContent.trim();
 			} else if (tag === 'desc') {
 				currentPoint.desc = textContent.trim();
+			} else if (tag === 'country' || tag === 'countrycode' || tag === 'country_code') {
+				currentPoint.country_code = textContent.trim();
+			} else if (tag === 'tz_diff' || tag === 'tzdiff' || tag === 'timezone_offset' || tag === 'utc_offset') {
+				const val = parseFloat(textContent.trim());
+				if (!isNaN(val)) {
+					currentPoint.tz_diff = val;
+				}
 			}
 		}
 
@@ -397,7 +456,7 @@ async function processGPXStream(
 		reader.releaseLock();
 	}
 
-	return { importedCount, skippedCount, errorCount, duplicatesCount };
+	return { importedCount, skippedCount, errorCount, duplicatesCount, alreadyExistsCount };
 }
 
 async function processPointChunk(
@@ -411,12 +470,14 @@ async function processPointChunk(
 	skipped: number;
 	errors: number;
 	duplicates: number;
+	alreadyExists: number;
 	errorSummary: ErrorSummary;
 }> {
 	let imported = 0;
 	let skipped = 0;
 	let errors = 0;
 	let duplicates = 0;
+	let alreadyExists = 0;
 	const errorSummary: ErrorSummary = { counts: {}, samples: [] };
 
 	const trackerData: Array<{
@@ -442,14 +503,18 @@ async function processPointChunk(
 			continue;
 		}
 
-		const countryCode = safeNormalizeCountryCode(safeGetCountryForPoint(point.lat, point.lon));
+		// Use imported country code if available, otherwise calculate
+		const countryCode = point.country_code
+			? safeNormalizeCountryCode(point.country_code)
+			: safeNormalizeCountryCode(safeGetCountryForPoint(point.lat, point.lon));
 		let recordedAt = point.time || new Date().toISOString();
 
 		if (point.time) {
 			recordedAt = applyTimezoneCorrectionToTimestamp(point.time, point.lat, point.lon);
 		}
 
-		const tzDiff = getTimezoneDifferenceForPoint(point.lat, point.lon);
+		// Use imported timezone if available, otherwise calculate
+		const tzDiff = point.tz_diff !== undefined ? point.tz_diff : getTimezoneDifferenceForPoint(point.lat, point.lon);
 
 		const geocodeFeature = {
 			type: 'Feature',
@@ -498,19 +563,27 @@ async function processPointChunk(
 				skipped += duplicatesInBatch;
 			}
 
-			const { error } = await fluxbase.from('tracker_data').upsert(deduplicatedData, {
-				onConflict: 'user_id,recorded_at',
-				ignoreDuplicates: true
-			});
+			// Filter out records that already exist in the database
+			const timestamps = deduplicatedData.map((d) => d.recorded_at);
+			const existingTimestamps = await filterExistingRecords(fluxbase, userId, timestamps);
+			const newRecords = deduplicatedData.filter((d) => !existingTimestamps.has(d.recorded_at));
+			alreadyExists += deduplicatedData.length - newRecords.length;
+
+			if (newRecords.length === 0) {
+				// All records already exist, nothing to insert
+				return { imported, skipped, errors, duplicates, alreadyExists, errorSummary };
+			}
+
+			const { error } = await fluxbase.from('tracker_data').insert(newRecords);
 
 			if (!error) {
-				imported = deduplicatedData.length;
+				imported = newRecords.length;
 			} else {
 				console.log(`❌ Batch insert failed with error:`, error);
-				errors += deduplicatedData.length;
+				errors += newRecords.length;
 				const code = (error as any).code || 'unknown';
 				const message = (error as any).message || 'unknown error';
-				errorSummary.counts[`db ${code}`] = (errorSummary.counts[`db ${code}`] || 0) + deduplicatedData.length;
+				errorSummary.counts[`db ${code}`] = (errorSummary.counts[`db ${code}`] || 0) + newRecords.length;
 				if (errorSummary.samples.length < 10)
 					errorSummary.samples.push({ idx: chunkStart, reason: `db ${code}: ${message}` });
 			}
@@ -524,7 +597,7 @@ async function processPointChunk(
 		}
 	}
 
-	return { imported, skipped, errors, duplicates, errorSummary };
+	return { imported, skipped, errors, duplicates, alreadyExists, errorSummary };
 }
 
 function safeGetCountryForPoint(lat: number, lon: number): string | null {
@@ -542,6 +615,49 @@ function safeNormalizeCountryCode(countryCode: string | null): string | null {
 	} catch (e) {
 		console.warn('Failed to normalize country code:', e);
 		return null;
+	}
+}
+
+/**
+ * Filter out records that already exist in the database.
+ * Returns a Set of recorded_at timestamps that already exist.
+ * Chunks queries to avoid "Request Header Fields Too Large" errors.
+ */
+async function filterExistingRecords(
+	fluxbase: FluxbaseClient,
+	userId: string,
+	recordedAtTimestamps: string[]
+): Promise<Set<string>> {
+	if (recordedAtTimestamps.length === 0) return new Set();
+
+	const existingSet = new Set<string>();
+	const CHUNK_SIZE = 50; // Avoid header size limits
+
+	try {
+		// Process in chunks to avoid "Request Header Fields Too Large" error
+		for (let i = 0; i < recordedAtTimestamps.length; i += CHUNK_SIZE) {
+			const chunk = recordedAtTimestamps.slice(i, i + CHUNK_SIZE);
+			const { data: existing, error } = await fluxbase
+				.from('tracker_data')
+				.select('recorded_at')
+				.eq('user_id', userId)
+				.in('recorded_at', chunk);
+
+			if (error) {
+				console.warn('Failed to check existing records chunk:', error);
+				// Continue with other chunks rather than failing completely
+				continue;
+			}
+
+			for (const r of existing || []) {
+				existingSet.add((r as { recorded_at: string }).recorded_at);
+			}
+		}
+
+		return existingSet;
+	} catch (e) {
+		console.warn('Error checking existing records:', e);
+		return new Set();
 	}
 }
 

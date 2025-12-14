@@ -275,63 +275,8 @@ COMMENT ON FUNCTION "public"."calculate_stable_speed"(
     "recorded_at_param" timestamp with time zone,
     "window_size" integer
 ) IS 'Calculates stable speed using multiple points and outlier filtering for noise reduction';
-CREATE OR REPLACE FUNCTION "public"."cleanup_expired_exports"() RETURNS integer LANGUAGE "plpgsql" SECURITY DEFINER
-SET "search_path" TO '' AS $$
-DECLARE deleted_count INTEGER := 0;
-expired_job RECORD;
-BEGIN -- Find expired export jobs
-FOR expired_job IN
-SELECT id,
-    (data->>'file_path') as file_path
-FROM public.jobs
-WHERE type = 'data_export'
-    AND (data->>'expires_at')::timestamp with time zone < NOW()
-    AND data->>'file_path' IS NOT NULL LOOP -- Delete the file from storage
-DELETE FROM storage.objects
-WHERE name = expired_job.file_path
-    AND bucket_id = 'exports';
-DELETE FROM public.jobs
-WHERE id = expired_job.id;
-deleted_count := deleted_count + 1;
-END LOOP;
-RETURN deleted_count;
-END;
-$$;
-CREATE OR REPLACE FUNCTION "public"."create_distance_calculation_job"(
-        "target_user_id" "uuid",
-        "job_reason" "text" DEFAULT 'import_fallback'::"text"
-    ) RETURNS "uuid" LANGUAGE "plpgsql" SECURITY DEFINER
-SET "search_path" TO '' AS $$
-DECLARE job_id UUID;
-BEGIN -- Insert the job using the correct column name (created_by instead of user_id)
-INSERT INTO public.jobs (
-        type,
-        status,
-        priority,
-        data,
-        created_by
-    )
-VALUES (
-        'distance_calculation',
-        'queued',
-        'low',
-        jsonb_build_object(
-            'type',
-            'distance_calculation',
-            'target_user_id',
-            target_user_id,
-            'reason',
-            job_reason,
-            'created_at',
-            now()
-        ),
-        target_user_id
-    )
-RETURNING id INTO job_id;
-RETURN job_id;
-END;
-$$;
-COMMENT ON FUNCTION "public"."create_distance_calculation_job"("target_user_id" "uuid", "job_reason" "text") IS 'Safely creates a distance calculation job using the correct column names.';
+-- Note: cleanup_expired_exports() removed - Fluxbase handles job cleanup
+-- Note: create_distance_calculation_job() removed - Jobs created via Fluxbase SDK
 CREATE OR REPLACE FUNCTION "public"."disable_tracker_data_trigger"() RETURNS "void" LANGUAGE "plpgsql"
 SET "search_path" TO '' AS $$ BEGIN
 ALTER TABLE public.tracker_data DISABLE TRIGGER tracker_data_distance_trigger;

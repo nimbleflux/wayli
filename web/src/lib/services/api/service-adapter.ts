@@ -1376,13 +1376,20 @@ export class ServiceAdapter {
 	/**
 	 * Check if AI features are enabled (accessible to all authenticated users)
 	 * Uses the Fluxbase custom settings API to read the public setting
+	 * Returns true only if AI is enabled AND a provider is configured
 	 */
 	async isAIEnabled(): Promise<boolean> {
 		const { fluxbase } = await import('$lib/fluxbase');
 
 		try {
-			const value = await fluxbase.admin.settings.app.getSetting('app.features.enable_ai');
-			return value ?? false;
+			const aiEnabled = await fluxbase.admin.settings.app.getSetting('app.features.enable_ai');
+			if (!aiEnabled) {
+				return false;
+			}
+
+			// Also check if a provider is configured
+			const { data: providers } = await fluxbase.admin.ai.listProviders();
+			return providers && providers.length > 0;
 		} catch {
 			// Default to false if setting doesn't exist or isn't accessible
 			return false;

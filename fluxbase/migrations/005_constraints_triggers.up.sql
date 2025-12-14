@@ -41,7 +41,7 @@ COMMENT ON TRIGGER "trigger_sync_user_role" ON "public"."user_profiles" IS 'Sync
 
 DELETE FROM "public"."user_preferences" WHERE "id" NOT IN (SELECT "id" FROM "auth"."users");
 DELETE FROM "public"."user_profiles" WHERE "id" NOT IN (SELECT "id" FROM "auth"."users");
-DELETE FROM "public"."jobs" WHERE "created_by" IS NOT NULL AND "created_by" NOT IN (SELECT "id" FROM "auth"."users");
+-- Note: public.jobs cleanup removed - Jobs are now managed by Fluxbase (jobs.queue)
 DELETE FROM "public"."tracker_data" WHERE "user_id" NOT IN (SELECT "id" FROM "auth"."users");
 DELETE FROM "public"."trips" WHERE "user_id" NOT IN (SELECT "id" FROM "auth"."users");
 DELETE FROM "public"."want_to_visit_places" WHERE "user_id" NOT IN (SELECT "id" FROM "auth"."users");
@@ -50,9 +50,7 @@ DELETE FROM "public"."want_to_visit_places" WHERE "user_id" NOT IN (SELECT "id" 
 -- FOREIGN KEY CONSTRAINTS (idempotent - drop if exists before adding)
 -- ============================================================================
 
-ALTER TABLE "public"."jobs" DROP CONSTRAINT IF EXISTS "jobs_created_by_fkey";
-ALTER TABLE ONLY "public"."jobs"
-ADD CONSTRAINT "jobs_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+-- Note: jobs_created_by_fkey removed - Jobs are now managed by Fluxbase (jobs.queue)
 
 ALTER TABLE "public"."tracker_data" DROP CONSTRAINT IF EXISTS "tracker_data_user_id_fkey";
 ALTER TABLE ONLY "public"."tracker_data"

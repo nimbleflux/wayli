@@ -96,7 +96,8 @@ export async function handler(
 						coordinates: {
 							lat: geocodeResult.lat,
 							lng: geocodeResult.lon
-						}
+						},
+						address: geocodeResult.address
 					};
 					console.log(
 						`✅ Successfully geocoded custom home address: ${geocodeResult.display_name} (${geocodeResult.lat}, ${geocodeResult.lon})`

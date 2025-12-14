@@ -233,13 +233,17 @@
 				onDone: (usage) => {
 					// Add the completed assistant message
 					if (currentStreamingContent || currentQueryResults.length > 0) {
+						// Extract images from markdown content and inject into query results
+						const imageMap = extractMarkdownImages(currentStreamingContent);
+						const enrichedQueryResults = injectImagesIntoResults(currentQueryResults, imageMap);
+
 						const assistantMessage: ChatMessage = {
 							id: chatService.generateMessageId(),
 							role: 'assistant',
 							content: currentStreamingContent,
 							timestamp: new Date(),
 							queryResults:
-								currentQueryResults.length > 0 ? [...currentQueryResults] : undefined,
+								enrichedQueryResults.length > 0 ? [...enrichedQueryResults] : undefined,
 							executionLogs:
 								currentExecutionLogs.length > 0 ? [...currentExecutionLogs] : undefined,
 							usage
@@ -388,6 +392,45 @@
 		if (/from\s+my_place_visits/i.test(query)) return 'places';
 		if (/from\s+my_tracker_data/i.test(query)) return 'GPS data';
 		return 'data';
+	}
+
+	// Extract markdown images from content, returns map of lowercase alt text -> url
+	function extractMarkdownImages(content: string): Map<string, string> {
+		const imageMap = new Map<string, string>();
+		// Match patterns like "Image: ![alt](url)" or just "![alt](url)"
+		const regex = /(?:Image:\s*)?!\[([^\]]*)\]\(([^)]+)\)/gi;
+		let match;
+		while ((match = regex.exec(content)) !== null) {
+			const [, alt, url] = match;
+			if (alt && url) {
+				imageMap.set(alt.toLowerCase().trim(), url);
+			}
+		}
+		return imageMap;
+	}
+
+	// Inject extracted images into query results (trips that don't have image_url)
+	function injectImagesIntoResults(
+		queryResults: QueryResultData[],
+		imageMap: Map<string, string>
+	): QueryResultData[] {
+		if (imageMap.size === 0) return queryResults;
+
+		return queryResults.map((qr) => ({
+			...qr,
+			data: qr.data.map((row) => {
+				// Only inject if this looks like a trip (has title) and doesn't have image_url
+				const title = row.title as string | undefined;
+				if (title && !row.image_url) {
+					// Try to match by title (case-insensitive)
+					const imageUrl = imageMap.get(title.toLowerCase().trim());
+					if (imageUrl) {
+						return { ...row, image_url: imageUrl };
+					}
+				}
+				return row;
+			})
+		}));
 	}
 
 	// Render markdown content safely, optionally stripping images
@@ -720,7 +763,7 @@
 										class="mt-2 flex items-center gap-1 text-xs text-primary hover:text-primary/80 hover:underline dark:text-primary-dark dark:hover:text-primary-dark/80"
 									>
 										<FileText class="h-3 w-3" />
-										View execution logs ({message.executionLogs.length} steps)
+										{t('ask.viewExecutionLogs', { count: message.executionLogs.length })}
 									</button>
 								{/if}
 							{:else}
@@ -747,7 +790,7 @@
 								<div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400" style="min-height: 24px;">
 									<Loader2 class="h-4 w-4 flex-shrink-0 animate-spin text-primary dark:text-primary-dark" />
 									<span class="transition-opacity duration-150">
-										{currentProgress?.message || 'Thinking...'}
+										{currentProgress?.message || t('ask.thinking')}
 									</span>
 								</div>
 							{/if}
@@ -765,7 +808,7 @@
 										<ChevronRight class="h-3.5 w-3.5 flex-shrink-0" />
 									{/if}
 									<Database class="h-3 w-3 flex-shrink-0" />
-									<span>{currentQueryResults.length} {currentQueryResults.length === 1 ? 'query' : 'queries'} executed</span>
+									<span>{currentQueryResults.length} {currentQueryResults.length === 1 ? t('ask.queryExecuted') : t('ask.queriesExecutedPlural')}</span>
 								</button>
 
 								<!-- Expanded Query Details -->
@@ -815,7 +858,7 @@
 					bind:this={inputElement}
 					bind:value={question}
 					onkeydown={(e) => e.key === 'Enter' && sendMessage()}
-					placeholder={isConnected ? "Ask about your travels..." : "Connecting..."}
+					placeholder={isConnected ? t('ask.inputPlaceholder') : t('ask.inputConnecting')}
 					disabled={isLoading || !isConnected}
 					class="flex-1 rounded-xl border border-gray-300 bg-white py-3 pl-4 pr-12 shadow-sm transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-primary"
 				/>
@@ -870,7 +913,7 @@
 			<!-- Header -->
 			<div class="mb-4 flex items-center justify-between">
 				<h3 id="execution-logs-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-					Execution Logs
+					{t('ask.executionLogs')}
 				</h3>
 				<button
 					onclick={closeExecutionLogsModal}
@@ -887,7 +930,7 @@
 			>
 				{#if selectedMessageLogs.length === 0}
 					<div class="flex h-full items-center justify-center text-gray-500">
-						No logs available
+						{t('ask.noLogsAvailable')}
 					</div>
 				{:else}
 					{#each selectedMessageLogs as log (log.id)}
@@ -907,7 +950,7 @@
 					onclick={closeExecutionLogsModal}
 					class="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
 				>
-					Close
+					{t('ask.close')}
 				</button>
 			</div>
 		</div>

@@ -21,48 +21,8 @@ SET default_tablespace = '';
 SET default_table_access_method = "heap";
 
 -- Note: database_migrations table removed - Fluxbase tracks migrations
+-- Note: public.jobs table removed - Jobs are now managed by Fluxbase (jobs.queue)
 
-CREATE TABLE IF NOT EXISTS "public"."jobs" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL PRIMARY KEY,
-    "type" "text" NOT NULL,
-    "status" "text" DEFAULT 'queued'::"text" NOT NULL,
-    "priority" "text" DEFAULT 'normal'::"text" NOT NULL,
-    "data" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
-    "progress" integer DEFAULT 0 NOT NULL,
-    "result" "jsonb",
-    "error" "text",
-    "last_error" "text",
-    "retry_count" integer DEFAULT 0 NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"(),
-    "updated_at" timestamp with time zone DEFAULT "now"(),
-    "started_at" timestamp with time zone,
-    "completed_at" timestamp with time zone,
-    "created_by" "uuid" NOT NULL,
-    "worker_id" "text",
-    CONSTRAINT "jobs_priority_check" CHECK (
-        (
-            "priority" = ANY (
-                ARRAY ['low'::"text", 'normal'::"text", 'high'::"text", 'urgent'::"text"]
-            )
-        )
-    ),
-    CONSTRAINT "jobs_progress_check" CHECK (
-        (
-            ("progress" >= 0)
-            AND ("progress" <= 100)
-        )
-    ),
-    CONSTRAINT "jobs_status_check" CHECK (
-        (
-            "status" = ANY (
-                ARRAY ['queued'::"text", 'running'::"text", 'completed'::"text", 'failed'::"text", 'cancelled'::"text"]
-            )
-        )
-    )
-);
-ALTER TABLE ONLY "public"."jobs" REPLICA IDENTITY FULL;
-COMMENT ON TABLE "public"."jobs" IS 'Job queue table with realtime updates enabled. REPLICA IDENTITY FULL allows realtime to broadcast complete row data for updates.';
-COMMENT ON COLUMN "public"."jobs"."retry_count" IS 'Number of retry attempts for this job';
 CREATE TABLE IF NOT EXISTS "public"."user_profiles" (
     "id" "uuid" NOT NULL PRIMARY KEY,
     "first_name" "text",

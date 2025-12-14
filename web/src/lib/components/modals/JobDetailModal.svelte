@@ -159,29 +159,35 @@
 	}
 
 	// Status color and label mapping
-	const statusConfig: Record<string, { color: string; bgColor: string; label: string }> = {
+	const statusConfig: Record<string, { color: string; bgColor: string; labelKey: string }> = {
 		pending: {
 			color: 'text-yellow-600',
 			bgColor: 'bg-yellow-100 dark:bg-yellow-900/30',
-			label: 'Pending'
+			labelKey: 'jobProgress.statusPending'
 		},
 		running: {
 			color: 'text-primary dark:text-primary-dark',
 			bgColor: 'bg-primary/10 dark:bg-primary-dark/20',
-			label: 'Running'
+			labelKey: 'jobProgress.statusRunning'
 		},
 		completed: {
 			color: 'text-green-600',
 			bgColor: 'bg-green-100 dark:bg-green-900/30',
-			label: 'Completed'
+			labelKey: 'jobProgress.statusCompleted'
 		},
-		failed: { color: 'text-red-600', bgColor: 'bg-red-100 dark:bg-red-900/30', label: 'Failed' },
+		failed: { color: 'text-red-600', bgColor: 'bg-red-100 dark:bg-red-900/30', labelKey: 'jobProgress.statusFailed' },
 		cancelled: {
 			color: 'text-gray-600',
 			bgColor: 'bg-gray-100 dark:bg-gray-900/30',
-			label: 'Cancelled'
+			labelKey: 'jobProgress.statusCancelled'
 		}
 	};
+
+	// Get translated status label
+	function getStatusLabel(status: string): string {
+		const config = statusConfig[status];
+		return config ? t(config.labelKey) : status;
+	}
 
 	// Log level colors
 	const logLevelColors: Record<LogLevel, string> = {
@@ -194,9 +200,9 @@
 	// Format ETA
 	function formatEta(seconds: number | undefined): string {
 		if (!seconds || seconds <= 0) return '';
-		if (seconds < 60) return `~${Math.round(seconds)}s remaining`;
-		if (seconds < 3600) return `~${Math.ceil(seconds / 60)}m remaining`;
-		return `~${Math.ceil(seconds / 3600)}h remaining`;
+		if (seconds < 60) return t('jobProgress.secondsRemaining', { seconds: Math.round(seconds) });
+		if (seconds < 3600) return t('jobProgress.minutesRemaining', { minutes: Math.ceil(seconds / 60) });
+		return t('jobProgress.hoursRemaining', { hours: Math.ceil(seconds / 3600) });
 	}
 
 	// Fetch existing logs from jobs.execution_logs table
@@ -436,7 +442,7 @@
 						<span
 							class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium {status.bgColor} {status.color}"
 						>
-							{status.label}
+							{getStatusLabel(displayJob.status)}
 						</span>
 					</div>
 				</div>

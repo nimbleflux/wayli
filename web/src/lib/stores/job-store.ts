@@ -401,7 +401,7 @@ async function fetchActiveJobs() {
 		const [pendingResult, runningResult, completedResult, failedResult, cancelledResult] = await Promise.all([
 			fluxbase.jobs.list({ status: 'pending' }),
 			fluxbase.jobs.list({ status: 'running' }),
-			fluxbase.jobs.list({ status: 'completed', limit: 10 }),
+			fluxbase.jobs.list({ status: 'completed', limit: 10, includeResult: true }),
 			fluxbase.jobs.list({ status: 'failed', limit: 10 }),
 			fluxbase.jobs.list({ status: 'cancelled', limit: 10 })
 		]);
@@ -575,7 +575,7 @@ async function initializeRealtimeSubscription(_userId: string) {
 	const channelName = 'table:jobs.queue';
 
 	// Handler function for processing job changes
-	const handlePostgresChange = (message: any) => {
+	const handlePostgresChange = async (message: any) => {
 		// Handle both raw format (payload.type) and Supabase-style format (eventType)
 		const eventType = message?.eventType || message?.payload?.type || message?.type;
 		// Handle both raw format (payload.record) and Supabase-style format (new)
@@ -583,7 +583,20 @@ async function initializeRealtimeSubscription(_userId: string) {
 
 		if (!record) return;
 
-		const job = normalizeJob(record);
+		let job = normalizeJob(record);
+
+		// If job just completed, refetch to get the full result
+		// (Realtime broadcasts may not include large JSONB columns like result)
+		if (eventType === 'UPDATE' && job.status === 'completed') {
+			try {
+				const { data } = await fluxbase.jobs.get(job.id);
+				if (data) {
+					job = normalizeJob(data as unknown as Record<string, unknown>);
+				}
+			} catch (e) {
+				console.warn('[JobStore] Failed to refetch completed job:', e);
+			}
+		}
 
 		if (eventType === 'INSERT') {
 			jobsStore.update(current => handleJobInsert(job, current));

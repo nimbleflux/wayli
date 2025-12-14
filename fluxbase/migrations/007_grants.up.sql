@@ -87,14 +87,13 @@ GRANT EXECUTE ON FUNCTION "public"."validate_tracking_query_limits"("p_limit" in
 GRANT EXECUTE ON FUNCTION "public"."is_user_admin"("user_uuid" "uuid") TO "authenticated";
 GRANT EXECUTE ON FUNCTION "public"."is_user_admin"("user_uuid" "uuid") TO "service_role";
 
--- Admin/cleanup functions - service_role only
-GRANT EXECUTE ON FUNCTION "public"."cleanup_expired_exports"() TO "service_role";
+-- Note: cleanup_expired_exports() grant removed - Fluxbase handles job cleanup
 
 -- Distance calculation functions - service_role only (used by backend jobs)
 GRANT EXECUTE ON FUNCTION "public"."calculate_distances_batch_v2"("p_user_id" "uuid", "p_offset" integer, "p_limit" integer) TO "service_role";
 GRANT EXECUTE ON FUNCTION "public"."calculate_mode_aware_speed"("user_id_param" "uuid", "recorded_at_param" timestamp with time zone, "transport_mode" "text") TO "service_role";
 GRANT EXECUTE ON FUNCTION "public"."calculate_stable_speed"("user_id_param" "uuid", "recorded_at_param" timestamp with time zone, "window_size" integer) TO "service_role";
-GRANT EXECUTE ON FUNCTION "public"."create_distance_calculation_job"("target_user_id" "uuid", "job_reason" "text") TO "service_role";
+-- Note: create_distance_calculation_job() grant removed - Jobs created via Fluxbase SDK
 GRANT EXECUTE ON FUNCTION "public"."perform_bulk_import_with_distance_calculation"("target_user_id" "uuid") TO "service_role";
 GRANT EXECUTE ON FUNCTION "public"."update_tracker_distances"("target_user_id" "uuid") TO "service_role";
 GRANT EXECUTE ON FUNCTION "public"."update_tracker_distances_batch"("target_user_id" "uuid", "batch_size" integer) TO "service_role";
@@ -120,10 +119,7 @@ GRANT EXECUTE ON FUNCTION "public"."enable_tracker_data_trigger"() TO "service_r
 
 -- Note: audit_logs table removed - use Fluxbase audit logging instead
 -- Note: database_migrations table removed - Fluxbase tracks migrations
-
--- jobs: Full access for authenticated users (RLS enforces own jobs only)
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."jobs" TO "authenticated";
-GRANT ALL ON TABLE "public"."jobs" TO "service_role";
+-- Note: public.jobs grants removed - Jobs are now managed by Fluxbase (jobs.queue)
 
 -- user_profiles: Full access for authenticated users (RLS enforces own profile only)
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."user_profiles" TO "authenticated";

@@ -475,12 +475,12 @@ export class TripDetectionService {
 	 */
 	private async getUserFirstDataPoint(userId: string): Promise<string> {
 		try {
+			// Get the first data point for the user (city filtering happens during trip detection)
 			const { data, error } = await this.fluxbase
 				.from('tracker_data')
-				.select('recorded_at, geocode')
+				.select('recorded_at')
 				.eq('user_id', userId)
-				.not('geocode->address->city', 'is', null)
-				.not('geocode->address->city', 'eq', '')
+				.not('geocode', 'is', null)
 				.order('recorded_at', { ascending: true })
 				.limit(1)
 				.single();

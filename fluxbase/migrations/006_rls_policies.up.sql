@@ -58,23 +58,7 @@ GRANT EXECUTE ON FUNCTION auth.role() TO anon, authenticated, service_role;
 -- ============================================================================
 
 -- Note: server_settings RLS policies removed - use Fluxbase AppSettingsManager instead
-CREATE POLICY "Jobs can be updated" ON "public"."jobs" FOR
-UPDATE USING (
-        (
-            (
-                (
-                    SELECT "auth"."uid"() AS "uid"
-                ) = "created_by"
-            )
-            OR (
-                (
-                    SELECT "auth"."role"() AS "role"
-                ) = 'service_role'::"text"
-            )
-        )
-    );
--- Note: workers check removed - workers are now managed by Fluxbase Jobs platform
-COMMENT ON POLICY "Jobs can be updated" ON "public"."jobs" IS 'Allows job updates by: job creator or service role';
+-- Note: public.jobs RLS policies removed - Jobs are now managed by Fluxbase (jobs.queue)
 CREATE POLICY "User preferences can be deleted" ON "public"."user_preferences" FOR DELETE USING (
     (
         (
@@ -193,13 +177,6 @@ SELECT USING (
             )
         )
     );
-CREATE POLICY "Users can delete their own jobs" ON "public"."jobs" FOR DELETE USING (
-    (
-        (
-            SELECT "auth"."uid"() AS "uid"
-        ) = "created_by"
-    )
-);
 CREATE POLICY "Users can delete their own tracker data" ON "public"."tracker_data" FOR DELETE USING (
     (
         (
@@ -221,14 +198,6 @@ CREATE POLICY "Users can delete their own want to visit places" ON "public"."wan
         ) = "user_id"
     )
 );
-CREATE POLICY "Users can insert their own jobs" ON "public"."jobs" FOR
-INSERT WITH CHECK (
-        (
-            (
-                SELECT "auth"."uid"() AS "uid"
-            ) = "created_by"
-        )
-    );
 CREATE POLICY "Users can insert their own tracker data" ON "public"."tracker_data" FOR
 INSERT WITH CHECK (
         (
@@ -277,15 +246,6 @@ UPDATE USING (
             ) = "user_id"
         )
     );
-CREATE POLICY "Users can view their own jobs" ON "public"."jobs" FOR
-SELECT USING (
-        (
-            (
-                SELECT "auth"."uid"() AS "uid"
-            ) = "created_by"
-        )
-    );
-COMMENT ON POLICY "Users can view their own jobs" ON "public"."jobs" IS 'Allows users to view their own jobs. This policy is compatible with Supabase Realtime - users will receive real-time updates for jobs they created.';
 CREATE POLICY "Users can view their own tracker data" ON "public"."tracker_data" FOR
 SELECT USING (
         (
@@ -314,7 +274,7 @@ SELECT USING (
 -- It's a system-only table that should only be accessed by service_role
 -- No RLS policies needed - access is controlled by grants only
 -- Note: database_migrations table removed - Fluxbase tracks migrations
-ALTER TABLE "public"."jobs" ENABLE ROW LEVEL SECURITY;
+-- Note: public.jobs RLS removed - Jobs are now managed by Fluxbase (jobs.queue)
 ALTER TABLE "public"."tracker_data" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."trips" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."user_preferences" ENABLE ROW LEVEL SECURITY;

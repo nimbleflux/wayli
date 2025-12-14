@@ -25,7 +25,7 @@ export const CLIENT_ENVIRONMENT = {
 	ANIMATION_DURATION: 300, // 300ms for UI animations
 
 	// Client-side limits
-	MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
+	MAX_FILE_SIZE: 1024 * 1024 * 1024, // 1GB (chunked uploads support large files)
 	MAX_UPLOAD_FILES: 5
 } as const;
 

@@ -39,6 +39,7 @@ export interface AuthenticationSettings {
 		require_number?: boolean;
 		require_special?: boolean;
 	};
+	read_only?: boolean; // True if configured via env/yaml
 }
 
 /**
@@ -57,6 +58,7 @@ export interface EmailSettings {
 		from_name: string;
 		reply_to_address?: string;
 	};
+	read_only?: boolean; // True if configured via env/yaml
 }
 
 /**
@@ -86,13 +88,15 @@ export interface AIProvider {
 	display_name: string;
 	provider_type: 'openai' | 'anthropic' | 'ollama' | 'openrouter' | 'azure' | 'custom';
 	is_default: boolean;
-	config: {
+	enabled: boolean;
+	config?: {
 		api_key?: string;
 		model?: string;
 		api_endpoint?: string;
 		max_tokens?: number;
 		temperature?: number;
 	};
+	read_only?: boolean; // True if provider is read-only (configured via env/yaml)
 	created_at?: string;
 	updated_at?: string;
 }
@@ -105,6 +109,7 @@ export interface AISettings {
 	allow_user_provider_override: boolean;
 	default_provider?: AIProvider;
 	providers: AIProvider[];
+	read_only?: boolean; // True if configured via env/yaml (applies to global AI settings)
 }
 
 /**

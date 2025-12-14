@@ -204,31 +204,8 @@ class QueryOptimizerService {
 		); // 5 minutes cache
 	}
 
-	// Optimized job queries
-	async getJobsWithStatus(userId: string, status?: string) {
-		const cacheKey = `jobs_${userId}_${status}`;
-		return this.cachedQuery(
-			cacheKey,
-			async () => {
-				if (!this.fluxbase) throw new Error('Fluxbase client not initialized');
-
-				let query = this.fluxbase
-					.from('jobs')
-					.select('*')
-					.eq('created_by', userId)
-					.order('created_at', { ascending: false });
-
-				if (status) {
-					query = query.eq('status', status);
-				}
-
-				const { data, error } = await query;
-				if (error) throw error;
-				return data;
-			},
-			30 * 1000
-		); // 30 seconds cache for jobs
-	}
+	// Note: getJobsWithStatus() removed - Jobs are now managed by Fluxbase (jobs.queue)
+	// Use fluxbase.jobs.list() instead via the service adapter
 
 	// Batch location reverse geocoding
 	async batchReverseGeocode(coordinates: Array<{ lat: number; lng: number }>) {
@@ -306,7 +283,7 @@ class QueryOptimizerService {
 	getIndexingRecommendations(): string[] {
 		return [
 			'CREATE INDEX IF NOT EXISTS idx_trips_user_id_created_at ON trips(user_id, created_at DESC);',
-			'CREATE INDEX IF NOT EXISTS idx_jobs_created_by_status ON jobs(created_by, status);',
+			// Note: idx_jobs_created_by_status removed - Jobs are now managed by Fluxbase (jobs.queue)
 			'CREATE INDEX IF NOT EXISTS idx_user_profiles_id ON user_profiles(id);',
 			'CREATE INDEX IF NOT EXISTS idx_trip_exclusions_user_id ON trip_exclusions(user_id);',
 			'CREATE INDEX IF NOT EXISTS idx_poi_visits_user_id_visit_date ON poi_visits(user_id, visit_date DESC);',
@@ -331,8 +308,8 @@ export const optimizedQueries = {
 	getStatistics: (userId: string, startDate?: string, endDate?: string) =>
 		queryOptimizer.getUserStatistics(userId, startDate, endDate),
 
-	// Get jobs
-	getJobs: (userId: string, status?: string) => queryOptimizer.getJobsWithStatus(userId, status),
+	// Note: getJobs removed - Jobs are now managed by Fluxbase (jobs.queue)
+	// Use serviceAdapter.getJobs() instead
 
 	// Batch reverse geocoding
 	batchGeocode: (coordinates: Array<{ lat: number; lng: number }>) =>

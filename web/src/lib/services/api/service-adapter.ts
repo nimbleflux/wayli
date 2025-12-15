@@ -1382,7 +1382,7 @@ export class ServiceAdapter {
 		const { fluxbase } = await import('$lib/fluxbase');
 
 		try {
-			const aiEnabled = await fluxbase.admin.settings.app.getSetting('app.features.enable_ai');
+			const aiEnabled = await fluxbase.admin.settings.app.getSetting('app.ai.enabled');
 			if (!aiEnabled) {
 				return false;
 			}
@@ -1422,7 +1422,7 @@ export class ServiceAdapter {
 		let aiEnabled = false;
 		let allowUserOverride = false;
 		try {
-			const enableAISetting = await fluxbase.admin.settings.system.get('app.features.enable_ai');
+			const enableAISetting = await fluxbase.admin.settings.system.get('app.ai.enabled');
 			aiEnabled = enableAISetting?.value?.value ?? false;
 
 			const userOverrideSetting = await fluxbase.admin.settings.system.get(
@@ -1446,9 +1446,57 @@ export class ServiceAdapter {
 			// AI providers not configured yet
 		}
 
-		// Build AI settings from SDK data
-		const appSettingsWithAI = {
+		// Get Email settings from FluxbaseAdmin SDK
+		let emailEnabledValue = false;
+		let emailSmtpConfig: {
+			host: string;
+			port: number;
+			username: string;
+			use_tls: boolean;
+			from_address: string;
+			from_name: string;
+			reply_to_address?: string;
+		} | undefined;
+		let emailReadOnlyValue = false;
+		try {
+			// Fetch email enabled setting using same pattern as AI
+			const emailEnabledSetting = await fluxbase.admin.settings.system.get('app.email.enabled');
+			emailEnabledValue = emailEnabledSetting?.value?.value ?? false;
+
+			// Fetch SMTP configuration
+			const smtpConfig = await fluxbase.admin.settings.system.get('app.email.smtp');
+			if (smtpConfig?.value?.value) {
+				const smtp = smtpConfig.value.value;
+				emailSmtpConfig = {
+					host: smtp.host ?? '',
+					port: smtp.port ?? 587,
+					username: smtp.username ?? '',
+					use_tls: smtp.use_tls ?? true,
+					from_address: smtp.from_address ?? '',
+					from_name: smtp.from_name ?? 'Wayli',
+					reply_to_address: smtp.reply_to_address
+				};
+			}
+
+			// Check if read-only (configured via env/yaml)
+			const readOnlySetting = await fluxbase.admin.settings.system.get('app.email.read_only');
+			emailReadOnlyValue = readOnlySetting?.value?.value ?? false;
+		} catch {
+			// Settings don't exist yet - use defaults from appSettings if available
+			emailEnabledValue = appSettings.email?.enabled ?? false;
+			emailSmtpConfig = appSettings.email?.smtp;
+			emailReadOnlyValue = appSettings.email?.read_only ?? false;
+		}
+
+		// Build settings with AI and Email from SDK data
+		const appSettingsWithAll = {
 			...appSettings,
+			email: {
+				enabled: emailEnabledValue,
+				provider: 'smtp' as const,
+				smtp: emailSmtpConfig,
+				read_only: emailReadOnlyValue
+			},
 			ai: {
 				enabled: aiEnabled,
 				allow_user_provider_override: allowUserOverride,
@@ -1458,7 +1506,7 @@ export class ServiceAdapter {
 		};
 
 		return {
-			app: appSettingsWithAI,
+			app: appSettingsWithAll,
 			custom: wayliSettings
 		};
 	}
@@ -1521,7 +1569,7 @@ export class ServiceAdapter {
 		const { fluxbase } = await import('$lib/fluxbase');
 
 		// Update AI enabled feature flag using app.setSetting
-		await fluxbase.admin.settings.app.setSetting('app.features.enable_ai', params.enabled, {
+		await fluxbase.admin.settings.app.setSetting('app.ai.enabled', params.enabled, {
 			description: 'Enable or disable AI chatbot functionality',
 			value_type: 'boolean'
 		});

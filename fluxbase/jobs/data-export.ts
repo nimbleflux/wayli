@@ -403,17 +403,19 @@ async function exportLocationDataToFile(
 
 			// Write features one by one to stream
 			for (const location of locations as TrackerLocation[]) {
-				// Handle geocode data - if it's in GeoJSON format, extract the properties
-				let geocodeProperties = null;
+				// Extract geocode properties to flatten into feature properties (proper GeoJSON format)
+				let geocodeProperties: Record<string, unknown> = {};
 				if (location.geocode) {
 					if (isGeoJSONGeocode(location.geocode)) {
 						const geocodeGeoJSON = location.geocode as Record<string, unknown>;
-						geocodeProperties = geocodeGeoJSON.properties || null;
+						geocodeProperties = (geocodeGeoJSON.properties as Record<string, unknown>) || {};
 					} else {
-						geocodeProperties = location.geocode;
+						geocodeProperties = location.geocode as Record<string, unknown>;
 					}
 				}
 
+				// Build feature with geocode properties flattened at the top level
+				// This follows proper GeoJSON convention and makes re-import seamless
 				const feature = JSON.stringify({
 					type: 'Feature',
 					geometry: {
@@ -421,6 +423,7 @@ async function exportLocationDataToFile(
 						coordinates: [location.location.coordinates[0], location.location.coordinates[1]]
 					},
 					properties: {
+						// Core location data
 						recorded_at: location.recorded_at,
 						altitude: location.altitude,
 						accuracy: location.accuracy,
@@ -430,7 +433,8 @@ async function exportLocationDataToFile(
 						is_charging: location.is_charging,
 						activity_type: location.activity_type,
 						country_code: location.country_code,
-						geocode: geocodeProperties
+						// Geocode properties flattened (geocoded_at, label, address, etc.)
+						...geocodeProperties
 					}
 				});
 

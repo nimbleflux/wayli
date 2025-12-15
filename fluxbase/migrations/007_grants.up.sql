@@ -117,10 +117,6 @@ GRANT EXECUTE ON FUNCTION "public"."enable_tracker_data_trigger"() TO "service_r
 -- Note: Grants only define column-level permissions
 -- Note: anon role has NO table access (must authenticate first)
 
--- Note: audit_logs table removed - use Fluxbase audit logging instead
--- Note: database_migrations table removed - Fluxbase tracks migrations
--- Note: public.jobs grants removed - Jobs are now managed by Fluxbase (jobs.queue)
-
 -- user_profiles: Full access for authenticated users (RLS enforces own profile only)
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."user_profiles" TO "authenticated";
 GRANT ALL ON TABLE "public"."user_profiles" TO "service_role";

@@ -20,9 +20,6 @@ SET row_security = off;
 SET default_tablespace = '';
 SET default_table_access_method = "heap";
 
--- Note: database_migrations table removed - Fluxbase tracks migrations
--- Note: public.jobs table removed - Jobs are now managed by Fluxbase (jobs.queue)
-
 CREATE TABLE IF NOT EXISTS "public"."user_profiles" (
     "id" "uuid" NOT NULL PRIMARY KEY,
     "first_name" "text",
@@ -161,14 +158,8 @@ WITH venue_points AS (
             td.geocode->'properties'->'address'->>'city',
             td.geocode->'properties'->'addendum'->'osm'->>'addr:city'
         ) as city,
-        COALESCE(
-            td.geocode->'properties'->>'country',
-            td.geocode->'properties'->'address'->>'country',
-            td.geocode->'properties'->'addendum'->'osm'->>'addr:country'
-        ) as country,
         td.country_code,
         td.geocode->'properties'->'addendum'->'osm'->>'name' as poi_name,
-        NULL::text as poi_osm_id,
         td.geocode->'properties'->>'layer' as poi_layer,
         td.geocode->'properties'->'addendum'->'osm'->>'amenity' as osm_amenity,
         td.geocode->'properties'->'addendum'->'osm'->>'leisure' as osm_leisure,
@@ -203,14 +194,8 @@ WITH venue_points AS (
             td.geocode->'properties'->'address'->>'city',
             td.geocode->'properties'->'addendum'->'osm'->>'addr:city'
         ) as city,
-        COALESCE(
-            td.geocode->'properties'->>'country',
-            td.geocode->'properties'->'address'->>'country',
-            td.geocode->'properties'->'addendum'->'osm'->>'addr:country'
-        ) as country,
         td.country_code,
         poi->>'name' as poi_name,
-        poi->>'osm_id' as poi_osm_id,
         poi->>'layer' as poi_layer,
         poi->'addendum'->'osm'->>'amenity' as osm_amenity,
         poi->'addendum'->'osm'->>'leisure' as osm_leisure,
@@ -251,10 +236,8 @@ poi_points AS (
         recorded_at,
         location,
         city,
-        country,
         country_code,
         poi_name,
-        poi_osm_id,
         poi_layer,
         COALESCE(osm_amenity, osm_leisure, osm_tourism, osm_shop) as poi_amenity,
         poi_cuisine,
@@ -300,11 +283,9 @@ SELECT
     gen_random_uuid() as id,
     user_id,
     MIN(recorded_at) as started_at,
-    MAX(recorded_at) as ended_at,
     ROUND(EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) / 60)::integer as duration_minutes,
     ST_Centroid(ST_Collect(location)) as location,
     poi_name,
-    MODE() WITHIN GROUP (ORDER BY poi_osm_id) as poi_osm_id,
     MODE() WITHIN GROUP (ORDER BY poi_layer) as poi_layer,
     MODE() WITHIN GROUP (ORDER BY poi_amenity) as poi_amenity,
     MODE() WITHIN GROUP (ORDER BY poi_cuisine) as poi_cuisine,
@@ -314,7 +295,6 @@ SELECT
     ROUND(AVG(poi_distance)::numeric, 2) as avg_distance_meters,
     MODE() WITHIN GROUP (ORDER BY poi_tags::text)::jsonb as poi_tags,
     MODE() WITHIN GROUP (ORDER BY city) as city,
-    MODE() WITHIN GROUP (ORDER BY country) as country,
     MODE() WITHIN GROUP (ORDER BY country_code) as country_code,
     COUNT(*)::integer as gps_points_count,
     EXTRACT(HOUR FROM MIN(recorded_at))::integer as visit_hour,
@@ -351,12 +331,10 @@ AS
 SELECT
     id,
     started_at,
-    ended_at,
     duration_minutes,
     ST_X(location::geometry) as longitude,
     ST_Y(location::geometry) as latitude,
     poi_name,
-    poi_osm_id,
     poi_layer,
     poi_amenity,
     poi_cuisine,
@@ -366,7 +344,6 @@ SELECT
     avg_distance_meters,
     poi_tags,
     city,
-    country,
     country_code,
     gps_points_count,
     visit_hour,
@@ -388,7 +365,7 @@ SELECT
     poi_amenity,
     poi_category,
     city,
-    country,
+    country_code,
     COUNT(*)::integer as visit_count,
     MIN(started_at) as first_visit,
     MAX(started_at) as last_visit,
@@ -396,7 +373,7 @@ SELECT
     SUM(duration_minutes)::integer as total_duration_minutes
 FROM "public"."place_visits"
 WHERE user_id = auth.uid()
-GROUP BY poi_name, poi_amenity, poi_category, city, country;
+GROUP BY poi_name, poi_amenity, poi_category, city, country_code;
 
 COMMENT ON VIEW "public"."my_poi_summary" IS 'Aggregated POI visit statistics per user. Use for "most visited", "how many times" questions.';
 

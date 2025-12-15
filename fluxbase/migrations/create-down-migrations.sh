@@ -41,7 +41,6 @@ REVOKE EXECUTE ON FUNCTION "public"."is_user_admin"("user_uuid" "uuid") FROM "au
 
 -- Revoke table grants from authenticated
 REVOKE SELECT ON TABLE "public"."audit_logs" FROM "authenticated";
-REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."jobs" FROM "authenticated";
 REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."user_profiles" FROM "authenticated";
 REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."tracker_data" FROM "authenticated";
 REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."trips" FROM "authenticated";
@@ -77,7 +76,6 @@ DROP PUBLICATION IF EXISTS "supabase_realtime";
 -- Disable RLS on all tables
 ALTER TABLE "public"."audit_logs" DISABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."database_migrations" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "public"."jobs" DISABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."tracker_data" DISABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."trips" DISABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."user_preferences" DISABLE ROW LEVEL SECURITY;
@@ -86,7 +84,6 @@ ALTER TABLE "public"."want_to_visit_places" DISABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."workers" DISABLE ROW LEVEL SECURITY;
 
 -- Drop all RLS policies
-DROP POLICY IF EXISTS "Jobs can be updated" ON "public"."jobs";
 DROP POLICY IF EXISTS "Service role can delete audit logs" ON "public"."audit_logs";
 DROP POLICY IF EXISTS "Service role can insert audit logs" ON "public"."audit_logs";
 DROP POLICY IF EXISTS "Service role can manage migrations" ON "public"."database_migrations";
@@ -99,10 +96,7 @@ DROP POLICY IF EXISTS "User profile can be deleted" ON "public"."user_profiles";
 DROP POLICY IF EXISTS "User profile can be inserted" ON "public"."user_profiles";
 DROP POLICY IF EXISTS "User profile can be selected" ON "public"."user_profiles";
 DROP POLICY IF EXISTS "User profile can be updated" ON "public"."user_profiles";
-DROP POLICY IF EXISTS "Users can create jobs" ON "public"."jobs";
-DROP POLICY IF EXISTS "Users can delete jobs" ON "public"."jobs";
 DROP POLICY IF EXISTS "Users can select own audit logs or admins can select all" ON "public"."audit_logs";
-DROP POLICY IF EXISTS "Users can select their jobs" ON "public"."jobs";
 DROP POLICY IF EXISTS "Want to visit places can be deleted" ON "public"."want_to_visit_places";
 DROP POLICY IF EXISTS "Want to visit places can be inserted" ON "public"."want_to_visit_places";
 DROP POLICY IF EXISTS "Want to visit places can be selected" ON "public"."want_to_visit_places";
@@ -154,7 +148,6 @@ DROP TRIGGER IF EXISTS "update_workers_updated_at" ON "public"."workers";
 
 -- Drop foreign key constraints
 ALTER TABLE "public"."audit_logs" DROP CONSTRAINT IF EXISTS "audit_logs_user_id_fkey";
-ALTER TABLE "public"."jobs" DROP CONSTRAINT IF EXISTS "jobs_created_by_fkey";
 ALTER TABLE "public"."tracker_data" DROP CONSTRAINT IF EXISTS "tracker_data_user_id_fkey";
 ALTER TABLE "public"."trips" DROP CONSTRAINT IF EXISTS "trips_user_id_fkey";
 ALTER TABLE "public"."user_preferences" DROP CONSTRAINT IF EXISTS "user_preferences_id_fkey";
@@ -188,13 +181,6 @@ DROP INDEX IF EXISTS "public"."idx_audit_logs_timestamp";
 DROP INDEX IF EXISTS "public"."idx_audit_logs_type_timestamp";
 DROP INDEX IF EXISTS "public"."idx_audit_logs_user_id";
 DROP INDEX IF EXISTS "public"."idx_audit_logs_user_timestamp";
-
--- Drop jobs indexes
-DROP INDEX IF EXISTS "public"."idx_jobs_created_at";
-DROP INDEX IF EXISTS "public"."idx_jobs_created_by";
-DROP INDEX IF EXISTS "public"."idx_jobs_priority";
-DROP INDEX IF EXISTS "public"."idx_jobs_status";
-DROP INDEX IF EXISTS "public"."idx_jobs_worker_id";
 
 -- Drop tracker_data indexes
 DROP INDEX IF EXISTS "public"."idx_tracker_data_device_id";
@@ -255,7 +241,6 @@ DROP TABLE IF EXISTS "public"."user_preferences" CASCADE;
 DROP TABLE IF EXISTS "public"."user_profiles" CASCADE;
 DROP TABLE IF EXISTS "public"."trips" CASCADE;
 DROP TABLE IF EXISTS "public"."tracker_data" CASCADE;
-DROP TABLE IF EXISTS "public"."jobs" CASCADE;
 DROP TABLE IF EXISTS "public"."database_migrations" CASCADE;
 DROP TABLE IF EXISTS "public"."audit_logs" CASCADE;
 EOF

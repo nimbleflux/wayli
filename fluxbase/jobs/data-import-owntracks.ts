@@ -229,6 +229,23 @@ export async function handler(
 			}
 		}
 
+		// Clean up: remove the uploaded file from storage after successful import
+		console.log(`🧹 Removing uploaded file from storage: ${payload.storagePath}`);
+		try {
+			const { error: removeError } = await fluxbase.storage
+				.from('temp-files')
+				.remove([payload.storagePath]);
+
+			if (removeError) {
+				console.warn(`⚠️ Failed to remove uploaded file: ${removeError.message}`);
+			} else {
+				console.log(`✅ Uploaded file removed from storage`);
+			}
+		} catch (cleanupError) {
+			console.warn(`⚠️ Error removing uploaded file:`, cleanupError);
+			// Don't fail the import if cleanup fails
+		}
+
 		return {
 			success: true,
 			result: {

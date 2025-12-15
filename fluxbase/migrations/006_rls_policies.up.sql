@@ -58,7 +58,6 @@ GRANT EXECUTE ON FUNCTION auth.role() TO anon, authenticated, service_role;
 -- ============================================================================
 
 -- Note: server_settings RLS policies removed - use Fluxbase AppSettingsManager instead
--- Note: public.jobs RLS policies removed - Jobs are now managed by Fluxbase (jobs.queue)
 CREATE POLICY "User preferences can be deleted" ON "public"."user_preferences" FOR DELETE USING (
     (
         (
@@ -273,8 +272,6 @@ SELECT USING (
 -- Workers table does NOT have RLS enabled
 -- It's a system-only table that should only be accessed by service_role
 -- No RLS policies needed - access is controlled by grants only
--- Note: database_migrations table removed - Fluxbase tracks migrations
--- Note: public.jobs RLS removed - Jobs are now managed by Fluxbase (jobs.queue)
 ALTER TABLE "public"."tracker_data" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."trips" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."user_preferences" ENABLE ROW LEVEL SECURITY;

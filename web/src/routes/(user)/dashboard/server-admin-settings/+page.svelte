@@ -12,7 +12,9 @@
 		X,
 		Mail,
 		Lock,
-		Bot
+		Bot,
+		Database,
+		RefreshCw
 	} from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
@@ -87,6 +89,9 @@
 
 	// Security
 	let enableRateLimiting = $state(false);
+
+	// Database Maintenance
+	let isRefreshingPlaceVisits = $state(false);
 
 	// AI Settings - provider-based model
 	let aiEnabled = $state(false);
@@ -281,9 +286,7 @@
 			const serviceAdapter = new ServiceAdapter({ session });
 
 			// Update signup
-			await serviceAdapter.updateAppSetting(
-				enableSignup ? 'enableSignup' : 'disableSignup'
-			);
+			await serviceAdapter.updateAppSetting(enableSignup ? 'enableSignup' : 'disableSignup');
 
 			// Update email verification
 			await serviceAdapter.updateAppSetting('setEmailVerificationRequired', {
@@ -383,6 +386,24 @@
 			toast.error(t('serverAdmin.failedToUpdateSettings'), {
 				description: error?.message
 			});
+		}
+	}
+
+	async function refreshPlaceVisits() {
+		if (isRefreshingPlaceVisits) return;
+
+		isRefreshingPlaceVisits = true;
+		try {
+			const { error } = await fluxbase.rpc('refresh_place_visits');
+			if (error) throw error;
+			toast.success(t('serverAdmin.refreshPlaceVisitsSuccess'));
+		} catch (error: any) {
+			console.error('❌ Failed to refresh place visits:', error);
+			toast.error(t('serverAdmin.refreshPlaceVisitsFailed'), {
+				description: error?.message
+			});
+		} finally {
+			isRefreshingPlaceVisits = false;
 		}
 	}
 
@@ -494,7 +515,8 @@
 			}
 		} catch (error: any) {
 			console.error('Error updating user:', error);
-			const errorDescription = error?.message || error?.error || t('serverAdmin.failedToUpdateUser');
+			const errorDescription =
+				error?.message || error?.error || t('serverAdmin.failedToUpdateUser');
 			toast.error(t('serverAdmin.failedToUpdateUser'), {
 				description: errorDescription
 			});
@@ -717,12 +739,12 @@
 							>First Name *</label
 						>
 						<div class="relative">
-							<UserIcon class="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 text-gray-400" />
+							<UserIcon class="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
 							<input
 								type="text"
 								id="newUserFirstName"
 								bind:value={newUserFirstName}
-								class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-primary focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-primary dark:focus:ring-primary"
+								class="focus:border-primary focus:ring-primary dark:focus:border-primary dark:focus:ring-primary w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pl-10 pr-4 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 								placeholder="e.g. Jane"
 								required
 							/>
@@ -736,12 +758,12 @@
 							>Last Name *</label
 						>
 						<div class="relative">
-							<UserIcon class="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 text-gray-400" />
+							<UserIcon class="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
 							<input
 								type="text"
 								id="newUserLastName"
 								bind:value={newUserLastName}
-								class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-primary focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-primary dark:focus:ring-primary"
+								class="focus:border-primary focus:ring-primary dark:focus:border-primary dark:focus:ring-primary w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pl-10 pr-4 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 								placeholder="e.g. Doe"
 								required
 							/>
@@ -756,12 +778,12 @@
 						>Email Address *</label
 					>
 					<div class="relative">
-						<Mail class="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 text-gray-400" />
+						<Mail class="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
 						<input
 							type="email"
 							id="newUserEmail"
 							bind:value={newUserEmail}
-							class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-primary focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-primary dark:focus:ring-primary"
+							class="focus:border-primary focus:ring-primary dark:focus:border-primary dark:focus:ring-primary w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pl-10 pr-4 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 							placeholder="e.g. jane.doe@example.com"
 							required
 						/>
@@ -776,12 +798,12 @@
 							>Password *</label
 						>
 						<div class="relative">
-							<Lock class="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 text-gray-400" />
+							<Lock class="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
 							<input
 								type="password"
 								id="newUserPassword"
 								bind:value={newUserPassword}
-								class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-primary focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-primary dark:focus:ring-primary"
+								class="focus:border-primary focus:ring-primary dark:focus:border-primary dark:focus:ring-primary w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pl-10 pr-4 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 								placeholder="Min. 6 characters"
 								required
 							/>
@@ -795,12 +817,12 @@
 							>Confirm Password *</label
 						>
 						<div class="relative">
-							<Lock class="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 text-gray-400" />
+							<Lock class="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
 							<input
 								type="password"
 								id="newUserConfirmPassword"
 								bind:value={newUserConfirmPassword}
-								class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-primary focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-primary dark:focus:ring-primary"
+								class="focus:border-primary focus:ring-primary dark:focus:border-primary dark:focus:ring-primary w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pl-10 pr-4 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 								placeholder="Confirm password"
 								required
 							/>
@@ -824,7 +846,7 @@
 				</button>
 				<button
 					onclick={handleAddUser}
-					class="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white hover:bg-primary/90"
+					class="bg-primary hover:bg-primary/90 rounded-lg px-5 py-2.5 text-sm font-medium text-white"
 				>
 					Add User
 				</button>
@@ -912,7 +934,7 @@
 		<!-- Header -->
 		<div class="mb-8">
 			<div class="flex items-center gap-3">
-				<Settings class="h-7 w-7 text-primary dark:text-primary-dark" />
+				<Settings class="text-primary dark:text-primary-dark h-7 w-7" />
 				<h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
 					{t('serverAdmin.title')}
 				</h1>
@@ -965,12 +987,12 @@
 				<div class="mb-6 flex items-center justify-between">
 					<div class="flex items-center gap-2">
 						<div class="relative">
-							<Search class="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+							<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
 							<input
 								type="text"
 								bind:value={searchQuery}
 								placeholder="Search users..."
-								class="w-64 rounded-md border border-[rgb(218,218,221)] bg-white py-2 pr-4 pl-9 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-500"
+								class="focus:border-primary focus:ring-primary w-64 rounded-md border border-[rgb(218,218,221)] bg-white py-2 pl-9 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-500"
 								oninput={handleSearchInput}
 							/>
 						</div>
@@ -978,7 +1000,7 @@
 						<select
 							bind:value={itemsPerPage}
 							onchange={handleItemsPerPageChange}
-							class="rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
+							class="focus:border-primary focus:ring-primary rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
 						>
 							<option value={5}>5 per page</option>
 							<option value={10}>10 per page</option>
@@ -987,7 +1009,7 @@
 						</select>
 					</div>
 					<button
-						class="flex cursor-pointer items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+						class="bg-primary hover:bg-primary/90 flex cursor-pointer items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white"
 						onclick={() => (showAddUserModal = true)}
 					>
 						<UserPlus class="h-4 w-4" />
@@ -1016,25 +1038,25 @@
 								<tr>
 									<th
 										scope="col"
-										class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-300"
+										class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
 									>
 										User
 									</th>
 									<th
 										scope="col"
-										class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-300"
+										class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
 									>
 										Role
 									</th>
 									<th
 										scope="col"
-										class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-300"
+										class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
 									>
 										Created
 									</th>
 									<th
 										scope="col"
-										class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-300"
+										class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
 									>
 										Status
 									</th>
@@ -1048,7 +1070,7 @@
 							>
 								{#each users as user (user.id)}
 									<tr>
-										<td class="px-6 py-4 whitespace-nowrap">
+										<td class="whitespace-nowrap px-6 py-4">
 											<div class="flex items-center gap-3">
 												<UserAvatar {user} size="lg" />
 												<div>
@@ -1059,9 +1081,9 @@
 												</div>
 											</div>
 										</td>
-										<td class="px-6 py-4 whitespace-nowrap">
+										<td class="whitespace-nowrap px-6 py-4">
 											<span
-												class="inline-flex rounded-full px-2 text-xs leading-5 font-semibold {user.role ===
+												class="inline-flex rounded-full px-2 text-xs font-semibold leading-5 {user.role ===
 												'admin'
 													? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
 													: 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'}"
@@ -1070,16 +1092,16 @@
 											</span>
 										</td>
 										<td
-											class="px-6 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400"
+											class="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400"
 										>
 											{formatDate(user.created_at)}
 										</td>
 										<td
-											class="px-6 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400"
+											class="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400"
 										>
 											Active
 										</td>
-										<td class="px-6 py-4 text-right text-sm font-medium whitespace-nowrap">
+										<td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
 											<div class="flex items-center justify-end gap-2">
 												<button
 													class="cursor-pointer rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
@@ -1162,7 +1184,9 @@
 		{#if activeTab === 'settings'}
 			<div class="space-y-8">
 				<!-- Wayli Settings -->
-				<div class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]">
+				<div
+					class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]"
+				>
 					<div class="mb-4">
 						<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
 							{t('serverAdmin.wayliSettings')}
@@ -1174,27 +1198,33 @@
 
 					<div class="space-y-4">
 						<div>
-							<label for="serverName" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+							<label
+								for="serverName"
+								class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+							>
 								{t('serverAdmin.serverName')}
 							</label>
 							<input
 								type="text"
 								id="serverName"
 								bind:value={serverName}
-								class="mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
+								class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
 								placeholder={t('serverAdmin.enterServerName')}
 							/>
 						</div>
 
 						<div>
-							<label for="serverPexelsApiKey" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+							<label
+								for="serverPexelsApiKey"
+								class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+							>
 								{t('serverAdmin.serverPexelsKey')}
 							</label>
 							<input
 								type="text"
 								id="serverPexelsApiKey"
 								bind:value={serverPexelsApiKey}
-								class="mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
+								class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
 							/>
 							<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
 								{t('serverAdmin.serverPexelsKeyDescription')}
@@ -1204,7 +1234,7 @@
 						<div class="flex justify-end">
 							<button
 								onclick={saveWayliSettings}
-								class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+								class="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium text-white"
 							>
 								{t('serverAdmin.saveSettings')}
 							</button>
@@ -1213,7 +1243,9 @@
 				</div>
 
 				<!-- Authentication Settings -->
-				<div class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]">
+				<div
+					class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]"
+				>
 					<div class="mb-4">
 						<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
 							{t('serverAdmin.authenticationSettings')}
@@ -1225,7 +1257,9 @@
 
 					<div class="space-y-4">
 						{#if authReadOnly}
-							<div class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+							<div
+								class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20"
+							>
 								<Lock class="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
 								<div>
 									<span class="text-sm font-medium text-amber-800 dark:text-amber-200">
@@ -1242,18 +1276,29 @@
 							<span class="text-sm text-gray-700 dark:text-gray-300">
 								{t('serverAdmin.enableSignup')}
 							</span>
-							<Switch bind:checked={enableSignup} label={t('serverAdmin.enableSignup')} disabled={authReadOnly} />
+							<Switch
+								bind:checked={enableSignup}
+								label={t('serverAdmin.enableSignup')}
+								disabled={authReadOnly}
+							/>
 						</div>
 
 						<div class="flex items-center justify-between">
 							<span class="text-sm text-gray-700 dark:text-gray-300">
 								{t('serverAdmin.requireEmailVerification')}
 							</span>
-							<Switch bind:checked={requireEmailVerification} label={t('serverAdmin.requireEmailVerification')} disabled={authReadOnly} />
+							<Switch
+								bind:checked={requireEmailVerification}
+								label={t('serverAdmin.requireEmailVerification')}
+								disabled={authReadOnly}
+							/>
 						</div>
 
 						<div>
-							<label for="passwordMinLength" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+							<label
+								for="passwordMinLength"
+								class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+							>
 								{t('serverAdmin.passwordMinLength')}
 							</label>
 							<input
@@ -1263,7 +1308,7 @@
 								disabled={authReadOnly}
 								min="8"
 								max="128"
-								class="mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+								class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 							/>
 						</div>
 
@@ -1271,7 +1316,7 @@
 							<div class="flex justify-end">
 								<button
 									onclick={saveAuthSettings}
-									class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+									class="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium text-white"
 								>
 									{t('serverAdmin.saveSettings')}
 								</button>
@@ -1281,7 +1326,9 @@
 				</div>
 
 				<!-- Email & SMTP Settings -->
-				<div class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]">
+				<div
+					class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]"
+				>
 					<div class="mb-4">
 						<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
 							{t('serverAdmin.emailSettings')}
@@ -1293,7 +1340,9 @@
 
 					<div class="space-y-4">
 						{#if emailReadOnly}
-							<div class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+							<div
+								class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20"
+							>
 								<Lock class="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
 								<div>
 									<span class="text-sm font-medium text-amber-800 dark:text-amber-200">
@@ -1310,107 +1359,135 @@
 							<span class="text-sm text-gray-700 dark:text-gray-300">
 								{t('serverAdmin.emailEnabled')}
 							</span>
-							<Switch bind:checked={emailEnabled} label={t('serverAdmin.emailEnabled')} disabled={emailReadOnly} />
+							<Switch
+								bind:checked={emailEnabled}
+								label={t('serverAdmin.emailEnabled')}
+								disabled={emailReadOnly}
+							/>
 						</div>
 
 						{#if emailEnabled}
-							<div class="space-y-3 rounded border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
-									<h3 class="font-medium text-gray-900 dark:text-gray-100">
-										{t('serverAdmin.smtpConfiguration')}
-									</h3>
+							<div
+								class="space-y-3 rounded border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800"
+							>
+								<h3 class="font-medium text-gray-900 dark:text-gray-100">
+									{t('serverAdmin.smtpConfiguration')}
+								</h3>
 
-									<div class="grid grid-cols-2 gap-4">
-										<div>
-											<label for="smtpHost" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-												{t('serverAdmin.smtpHost')}
-											</label>
-											<input
-												id="smtpHost"
-												type="text"
-												bind:value={smtpHost}
-												disabled={emailReadOnly}
-												class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
-												placeholder={t('serverAdmin.smtpHostPlaceholder')}
-											/>
-										</div>
-
-										<div>
-											<label for="smtpPort" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-												{t('serverAdmin.smtpPort')}
-											</label>
-											<input
-												id="smtpPort"
-												type="number"
-												bind:value={smtpPort}
-												disabled={emailReadOnly}
-												class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
-												placeholder={t('serverAdmin.smtpPortPlaceholder')}
-											/>
-										</div>
-									</div>
-
+								<div class="grid grid-cols-2 gap-4">
 									<div>
-										<label for="smtpUsername" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-											{t('serverAdmin.smtpUsername')}
+										<label
+											for="smtpHost"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
+											{t('serverAdmin.smtpHost')}
 										</label>
 										<input
-											id="smtpUsername"
+											id="smtpHost"
 											type="text"
-											bind:value={smtpUsername}
+											bind:value={smtpHost}
 											disabled={emailReadOnly}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
-											placeholder={t('serverAdmin.smtpUsernamePlaceholder')}
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+											placeholder={t('serverAdmin.smtpHostPlaceholder')}
 										/>
 									</div>
 
 									<div>
-										<label for="smtpPassword" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-											{t('serverAdmin.smtpPassword')}
+										<label
+											for="smtpPort"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
+											{t('serverAdmin.smtpPort')}
 										</label>
 										<input
-											id="smtpPassword"
-											type="password"
-											bind:value={smtpPassword}
+											id="smtpPort"
+											type="number"
+											bind:value={smtpPort}
 											disabled={emailReadOnly}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
-											placeholder={t('serverAdmin.smtpPasswordPlaceholder')}
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+											placeholder={t('serverAdmin.smtpPortPlaceholder')}
 										/>
 									</div>
+								</div>
 
-									<div class="flex items-center justify-between">
-										<span class="text-sm text-gray-700 dark:text-gray-300">
-											{t('serverAdmin.smtpUseTls')}
-										</span>
-										<Switch bind:checked={smtpUseTls} label={t('serverAdmin.smtpUseTls')} disabled={emailReadOnly} />
-									</div>
+								<div>
+									<label
+										for="smtpUsername"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
+										{t('serverAdmin.smtpUsername')}
+									</label>
+									<input
+										id="smtpUsername"
+										type="text"
+										bind:value={smtpUsername}
+										disabled={emailReadOnly}
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+										placeholder={t('serverAdmin.smtpUsernamePlaceholder')}
+									/>
+								</div>
 
-									<div>
-										<label for="smtpFromAddress" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-											{t('serverAdmin.smtpFromAddress')}
-										</label>
-										<input
-											id="smtpFromAddress"
-											type="email"
-											bind:value={smtpFromAddress}
-											disabled={emailReadOnly}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
-											placeholder={t('serverAdmin.smtpFromAddressPlaceholder')}
-										/>
-									</div>
+								<div>
+									<label
+										for="smtpPassword"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
+										{t('serverAdmin.smtpPassword')}
+									</label>
+									<input
+										id="smtpPassword"
+										type="password"
+										bind:value={smtpPassword}
+										disabled={emailReadOnly}
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+										placeholder={t('serverAdmin.smtpPasswordPlaceholder')}
+									/>
+								</div>
 
-									<div>
-										<label for="smtpFromName" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-											{t('serverAdmin.smtpFromName')}
-										</label>
-										<input
-											id="smtpFromName"
-											type="text"
-											bind:value={smtpFromName}
-											disabled={emailReadOnly}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
-											placeholder={t('serverAdmin.smtpFromNamePlaceholder')}
-										/>
-									</div>
+								<div class="flex items-center justify-between">
+									<span class="text-sm text-gray-700 dark:text-gray-300">
+										{t('serverAdmin.smtpUseTls')}
+									</span>
+									<Switch
+										bind:checked={smtpUseTls}
+										label={t('serverAdmin.smtpUseTls')}
+										disabled={emailReadOnly}
+									/>
+								</div>
+
+								<div>
+									<label
+										for="smtpFromAddress"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
+										{t('serverAdmin.smtpFromAddress')}
+									</label>
+									<input
+										id="smtpFromAddress"
+										type="email"
+										bind:value={smtpFromAddress}
+										disabled={emailReadOnly}
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+										placeholder={t('serverAdmin.smtpFromAddressPlaceholder')}
+									/>
+								</div>
+
+								<div>
+									<label
+										for="smtpFromName"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
+										{t('serverAdmin.smtpFromName')}
+									</label>
+									<input
+										id="smtpFromName"
+										type="text"
+										bind:value={smtpFromName}
+										disabled={emailReadOnly}
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+										placeholder={t('serverAdmin.smtpFromNamePlaceholder')}
+									/>
+								</div>
 							</div>
 						{/if}
 
@@ -1418,7 +1495,7 @@
 							<div class="flex justify-end">
 								<button
 									onclick={saveEmailSettings}
-									class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+									class="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium text-white"
 								>
 									{t('serverAdmin.saveSettings')}
 								</button>
@@ -1427,8 +1504,48 @@
 					</div>
 				</div>
 
+				<!-- Database Maintenance -->
+				<div
+					class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]"
+				>
+					<div class="mb-4 flex items-center gap-3">
+						<Database class="h-6 w-6 text-emerald-500" />
+						<div>
+							<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
+								{t('serverAdmin.databaseMaintenance')}
+							</h2>
+							<p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
+								{t('serverAdmin.databaseMaintenanceDescription')}
+							</p>
+						</div>
+					</div>
+
+					<div class="space-y-4">
+						<div class="flex items-center justify-between">
+							<div>
+								<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+									{t('serverAdmin.refreshPlaceVisits')}
+								</span>
+								<p class="text-xs text-gray-500 dark:text-gray-400">
+									{t('serverAdmin.refreshPlaceVisitsDescription')}
+								</p>
+							</div>
+							<button
+								onclick={refreshPlaceVisits}
+								disabled={isRefreshingPlaceVisits}
+								class="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								<RefreshCw class={`h-4 w-4 ${isRefreshingPlaceVisits ? 'animate-spin' : ''}`} />
+								{isRefreshingPlaceVisits ? t('serverAdmin.refreshing') : t('serverAdmin.refresh')}
+							</button>
+						</div>
+					</div>
+				</div>
+
 				<!-- AI Settings -->
-				<div class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]">
+				<div
+					class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]"
+				>
 					<div class="mb-4 flex items-center gap-3">
 						<Bot class="h-6 w-6 text-purple-500" />
 						<div>
@@ -1443,7 +1560,9 @@
 
 					<div class="space-y-4">
 						{#if providerReadOnly}
-							<div class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+							<div
+								class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20"
+							>
 								<Lock class="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
 								<div>
 									<span class="text-sm font-medium text-amber-800 dark:text-amber-200">
@@ -1465,7 +1584,11 @@
 									{t('serverAdmin.aiEnabledDescription')}
 								</p>
 							</div>
-							<Switch bind:checked={aiEnabled} label={t('serverAdmin.aiEnabled')} disabled={providerReadOnly} />
+							<Switch
+								bind:checked={aiEnabled}
+								label={t('serverAdmin.aiEnabled')}
+								disabled={providerReadOnly}
+							/>
 						</div>
 
 						{#if aiEnabled}
@@ -1478,13 +1601,22 @@
 										{t('serverAdmin.allowUserOverrideDescription')}
 									</p>
 								</div>
-								<Switch bind:checked={aiAllowUserOverride} label={t('serverAdmin.allowUserOverride')} disabled={providerReadOnly} />
+								<Switch
+									bind:checked={aiAllowUserOverride}
+									label={t('serverAdmin.allowUserOverride')}
+									disabled={providerReadOnly}
+								/>
 							</div>
 
-							<div class="space-y-3 rounded border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
+							<div
+								class="space-y-3 rounded border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800"
+							>
 								<div class="grid grid-cols-2 gap-4">
 									<div>
-										<label for="providerName" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										<label
+											for="providerName"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
 											{t('serverAdmin.aiProviderName')}
 										</label>
 										<input
@@ -1492,12 +1624,15 @@
 											type="text"
 											bind:value={providerName}
 											disabled={providerReadOnly}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 											placeholder={t('serverAdmin.aiProviderNamePlaceholder')}
 										/>
 									</div>
 									<div>
-										<label for="providerDisplayName" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										<label
+											for="providerDisplayName"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
 											{t('serverAdmin.aiDisplayName')}
 										</label>
 										<input
@@ -1505,21 +1640,24 @@
 											type="text"
 											bind:value={providerDisplayName}
 											disabled={providerReadOnly}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 											placeholder={t('serverAdmin.aiDisplayNamePlaceholder')}
 										/>
 									</div>
 								</div>
 
 								<div>
-									<label for="providerType" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+									<label
+										for="providerType"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
 										{t('serverAdmin.aiProvider')}
 									</label>
 									<select
 										id="providerType"
 										bind:value={providerType}
 										disabled={providerReadOnly}
-										class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 									>
 										<option value="openai">{t('serverAdmin.aiProviders.openai')}</option>
 										<option value="azure">{t('serverAdmin.aiProviders.azure')}</option>
@@ -1528,7 +1666,10 @@
 								</div>
 
 								<div>
-									<label for="providerModel" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+									<label
+										for="providerModel"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
 										{t('serverAdmin.aiModel')}
 									</label>
 									<input
@@ -1536,7 +1677,7 @@
 										type="text"
 										bind:value={providerModel}
 										disabled={providerReadOnly}
-										class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 										placeholder="gpt-4-turbo"
 									/>
 									<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -1545,7 +1686,10 @@
 								</div>
 
 								<div>
-									<label for="providerApiKey" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+									<label
+										for="providerApiKey"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
 										{t('serverAdmin.aiApiKey')}
 									</label>
 									<input
@@ -1553,14 +1697,17 @@
 										type="password"
 										bind:value={providerApiKey}
 										disabled={providerReadOnly}
-										class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 										placeholder={t('serverAdmin.aiApiKeyPlaceholder')}
 									/>
 								</div>
 
 								{#if providerType === 'ollama' || providerType === 'azure' || providerType === 'custom'}
 									<div>
-										<label for="providerApiEndpoint" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										<label
+											for="providerApiEndpoint"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
 											{t('serverAdmin.aiApiEndpoint')}
 										</label>
 										<input
@@ -1568,7 +1715,7 @@
 											type="text"
 											bind:value={providerApiEndpoint}
 											disabled={providerReadOnly}
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 											placeholder={t('serverAdmin.aiApiEndpointPlaceholder')}
 										/>
 										<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -1579,7 +1726,10 @@
 
 								<div class="grid grid-cols-2 gap-4">
 									<div>
-										<label for="providerMaxTokens" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										<label
+											for="providerMaxTokens"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
 											{t('serverAdmin.aiMaxTokens')}
 										</label>
 										<input
@@ -1589,12 +1739,15 @@
 											disabled={providerReadOnly}
 											min="256"
 											max="128000"
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 										/>
 									</div>
 
 									<div>
-										<label for="providerTemperature" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										<label
+											for="providerTemperature"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
 											{t('serverAdmin.aiTemperature')}
 										</label>
 										<input
@@ -1605,7 +1758,7 @@
 											min="0"
 											max="2"
 											step="0.1"
-											class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 										/>
 									</div>
 								</div>
@@ -1616,7 +1769,7 @@
 							<div class="flex justify-end">
 								<button
 									onclick={saveAISettings}
-									class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+									class="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium text-white"
 								>
 									{t('serverAdmin.saveSettings')}
 								</button>

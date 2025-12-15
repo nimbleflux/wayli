@@ -247,6 +247,22 @@ export async function handler(
 			`✅ Reverse geocoding completed: ${totalSuccess} successful, ${totalErrors} errors out of ${totalProcessed} total`
 		);
 
+		// Refresh place_visits materialized view if any points were successfully geocoded
+		if (totalSuccess > 0) {
+			try {
+				console.log('📊 Refreshing place_visits materialized view...');
+				const { error: refreshError } = await fluxbaseService.rpc('refresh_place_visits');
+				if (refreshError) {
+					console.warn('⚠️ Failed to refresh place_visits:', refreshError.message);
+				} else {
+					console.log('✅ Place visits refreshed');
+				}
+			} catch (refreshError) {
+				// Non-fatal - log but don't fail the job
+				console.warn('⚠️ Failed to refresh place_visits:', refreshError);
+			}
+		}
+
 		return {
 			success: true,
 			result: {

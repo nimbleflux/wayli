@@ -129,7 +129,7 @@ export async function handler(
 		console.log(`   🚀 Average rate: ${(importedCount / totalTime).toFixed(1)} points/sec`);
 
 		// Trigger distance calculation RPC after import
-		if (true || importedCount > 0) {
+		if (importedCount > 0) {
 			console.log(`🧮 Triggering distance calculation RPC for user ${userId}...`);
 			try {
 				const { data: rpcResult, error: rpcError } = await fluxbase.rpc.invoke('calculate-distances-batch', {}, {
@@ -174,6 +174,23 @@ export async function handler(
 			} catch (geocodeQueueError) {
 				console.warn(`⚠️ Error queueing reverse geocoding job:`, geocodeQueueError);
 			}
+		}
+
+		// Clean up: remove the uploaded file from storage after successful import
+		console.log(`🧹 Removing uploaded file from storage: ${payload.storagePath}`);
+		try {
+			const { error: removeError } = await fluxbase.storage
+				.from('temp-files')
+				.remove([payload.storagePath]);
+
+			if (removeError) {
+				console.warn(`⚠️ Failed to remove uploaded file: ${removeError.message}`);
+			} else {
+				console.log(`✅ Uploaded file removed from storage`);
+			}
+		} catch (cleanupError) {
+			console.warn(`⚠️ Error removing uploaded file:`, cleanupError);
+			// Don't fail the import if cleanup fails
 		}
 
 		return {
@@ -439,19 +456,58 @@ async function processFeatureChunk(
 			countryCode = safeNormalizeCountryCode(countryCode);
 
 			// Store the complete GeoJSON feature in the geocode column
+			// Check for existing geocode data - support both formats:
+			// 1. Nested: properties.geocode.geocoded_at (from Wayli export)
+			// 2. Flat: properties.geocoded_at (direct format)
+			const nestedGeocode = (properties as Record<string, unknown>).geocode as Record<string, unknown> | undefined;
+			const hasNestedGeocode = nestedGeocode && typeof nestedGeocode === 'object' && nestedGeocode.geocoded_at;
+			const hasFlatGeocode = !!(properties as Record<string, unknown>).geocoded_at;
+
+			// Build properties for the geocode feature
+			// Extract existing geocode data to the correct level
+			let geocodeProperties: Record<string, unknown>;
+			if (hasNestedGeocode) {
+				// Wayli export format: geocode data is nested in properties.geocode
+				geocodeProperties = {
+					...nestedGeocode,
+					imported_at: new Date().toISOString(),
+					import_source: 'geojson'
+				};
+			} else if (hasFlatGeocode) {
+				// Direct format: geocoded_at is already at properties level
+				// Extract geocode-related fields from properties
+				const { geocoded_at, geocoding_provider, label, display_name, address, city, country, confidence, layer, addendum, nearby_pois } = properties as Record<string, unknown>;
+				geocodeProperties = {
+					...(geocoded_at && { geocoded_at }),
+					...(geocoding_provider && { geocoding_provider }),
+					...(label && { label }),
+					...(display_name && { display_name }),
+					...(address && { address }),
+					...(city && { city }),
+					...(country && { country }),
+					...(confidence && { confidence }),
+					...(layer && { layer }),
+					...(addendum && { addendum }),
+					...(nearby_pois && { nearby_pois }),
+					imported_at: new Date().toISOString(),
+					import_source: 'geojson'
+				};
+			} else {
+				// No existing geocode - just add import metadata
+				// The reverse-geocoding job will fill in the rest
+				geocodeProperties = {
+					imported_at: new Date().toISOString(),
+					import_source: 'geojson'
+				};
+			}
+
 			const geocodeFeature = {
 				type: 'Feature',
 				geometry: {
 					type: 'Point',
 					coordinates: [longitude, latitude]
 				},
-				properties: {
-					// Store all original properties from the imported GeoJSON
-					...(properties as Record<string, unknown>),
-					// Add import metadata
-					imported_at: new Date().toISOString(),
-					import_source: 'geojson'
-				}
+				properties: geocodeProperties
 			};
 
 			const altitude =

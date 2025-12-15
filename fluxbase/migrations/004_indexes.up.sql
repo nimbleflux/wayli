@@ -17,14 +17,6 @@ SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
-CREATE INDEX IF NOT EXISTS "idx_jobs_created_at" ON "public"."jobs" USING "btree" ("created_at");
-CREATE INDEX IF NOT EXISTS "idx_jobs_created_by" ON "public"."jobs" USING "btree" ("created_by");
-CREATE INDEX IF NOT EXISTS "idx_jobs_priority" ON "public"."jobs" USING "btree" ("priority");
-CREATE INDEX IF NOT EXISTS "idx_jobs_status" ON "public"."jobs" USING "btree" ("status");
-CREATE INDEX IF NOT EXISTS "idx_jobs_worker_id" ON "public"."jobs" USING "btree" ("worker_id");
-CREATE INDEX IF NOT EXISTS "idx_jobs_queue" ON "public"."jobs" USING "btree" ("status", "priority" DESC, "created_at")
-WHERE ("status" = ANY (ARRAY ['queued'::"text", 'running'::"text"]));
-COMMENT ON INDEX "public"."idx_jobs_queue" IS 'Optimizes job queue queries for processing queued and running jobs by priority';
 CREATE INDEX IF NOT EXISTS "idx_tracker_data_device_id" ON "public"."tracker_data" USING "btree" ("device_id");
 CREATE INDEX IF NOT EXISTS "idx_tracker_data_location" ON "public"."tracker_data" USING "gist" ("location");
 CREATE INDEX IF NOT EXISTS "idx_tracker_data_timestamp" ON "public"."tracker_data" USING "btree" ("recorded_at");

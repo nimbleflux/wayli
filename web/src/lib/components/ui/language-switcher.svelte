@@ -16,13 +16,29 @@
 	const localeNames: Record<SupportedLocale, string> = {
 		en: 'English',
 		nl: 'Nederlands',
-		es: 'Español'
+		es: 'Español',
+		de: 'Deutsch',
+		fr: 'Français',
+		it: 'Italiano',
+		ja: '日本語',
+		ko: '한국어',
+		pt: 'Português',
+		ru: 'Русский',
+		zh: '中文'
 	};
 
 	const localeFlags: Record<SupportedLocale, string> = {
 		en: '🇺🇸',
 		nl: '🇳🇱',
-		es: '🇪🇸'
+		es: '🇪🇸',
+		de: '🇩🇪',
+		fr: '🇫🇷',
+		it: '🇮🇹',
+		ja: '🇯🇵',
+		ko: '🇰🇷',
+		pt: '🇧🇷',
+		ru: '🇷🇺',
+		zh: '🇨🇳'
 	};
 
 	function toggleDropdown() {

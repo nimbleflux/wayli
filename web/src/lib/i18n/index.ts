@@ -6,7 +6,7 @@ import { writable, derived, get } from 'svelte/store';
 import { browser } from '$app/environment';
 
 // Supported locales
-export const SUPPORTED_LOCALES = ['en', 'nl', 'es'] as const;
+export const SUPPORTED_LOCALES = ['en', 'nl', 'es', 'de', 'fr', 'it', 'ja', 'ko', 'pt', 'ru', 'zh'] as const;
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 
 // Default locale

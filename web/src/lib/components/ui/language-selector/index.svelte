@@ -41,6 +41,46 @@
 			code: 'es' as SupportedLocale,
 			name: 'Español',
 			flag: '🇪🇸'
+		},
+		{
+			code: 'de' as SupportedLocale,
+			name: 'Deutsch',
+			flag: '🇩🇪'
+		},
+		{
+			code: 'fr' as SupportedLocale,
+			name: 'Français',
+			flag: '🇫🇷'
+		},
+		{
+			code: 'it' as SupportedLocale,
+			name: 'Italiano',
+			flag: '🇮🇹'
+		},
+		{
+			code: 'ja' as SupportedLocale,
+			name: '日本語',
+			flag: '🇯🇵'
+		},
+		{
+			code: 'ko' as SupportedLocale,
+			name: '한국어',
+			flag: '🇰🇷'
+		},
+		{
+			code: 'pt' as SupportedLocale,
+			name: 'Português',
+			flag: '🇧🇷'
+		},
+		{
+			code: 'ru' as SupportedLocale,
+			name: 'Русский',
+			flag: '🇷🇺'
+		},
+		{
+			code: 'zh' as SupportedLocale,
+			name: '中文',
+			flag: '🇨🇳'
 		}
 	] as const;
 

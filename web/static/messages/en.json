@@ -824,7 +824,6 @@
 		"failedToUpdatePassword": "Failed to update password. Please try again.",
 		"failedToSearchAddress": "Failed to search for address",
 		"noAddressesFound": "No addresses found",
-		"failedToSaveSettings": "Failed to save settings",
 		"trips": "Trips",
 		"tripsDescription": "Configure trip image suggestions and exclusion zones",
 		"twoFactorAuth": "Two-Factor Authentication",

@@ -190,48 +190,79 @@ Columns:
 ### 3. my_place_visits view
 Detected POI visits (restaurants, cafes, golf courses, tennis clubs, museums, schools, etc.)
 This view uses dual-source detection: primary venue (where user IS) + nearby_pois fallback. Refreshed hourly.
-NOTE: Only visits of 15+ minutes are included to filter out passing-by data.
+NOTE: Only visits of 15+ minutes with 2+ GPS points are included to filter out passing-by data.
+Visits are grouped when consecutive points have the same poi_name with gaps < 30 minutes.
 
 Columns:
 - id: UUID (unique visit identifier)
 - started_at: TIMESTAMPTZ (when the visit started)
-- ended_at: TIMESTAMPTZ (when the visit ended)
-- duration_minutes: INTEGER (how long the user was at the POI)
-- longitude, latitude: FLOAT (visit location coordinates)
-- poi_name: TEXT (name of the POI/venue)
-- poi_osm_id: TEXT (OpenStreetMap ID)
-- poi_layer: TEXT (venue, address)
-- poi_amenity: TEXT (the specific venue type - use this for filtering! Values: restaurant, cafe, bar, pub, fast_food, museum, cinema, school, hospital, etc.)
-- poi_cuisine: TEXT (vietnamese, italian, vegan, etc.)
-- poi_sport: TEXT (tennis, golf, swimming, etc.)
-- poi_category: TEXT (HIGH-LEVEL category - food, sports, education, culture, shopping, entertainment, accommodation, healthcare, worship, outdoors, grocery, transport, other)
+- duration_minutes: INTEGER (how long the user was at the POI in minutes)
+- longitude, latitude: FLOAT (visit location - centroid of GPS points)
+- poi_name: TEXT (name of the POI/venue from primary detection)
+- poi_layer: TEXT (geocoding layer: 'venue' or 'address')
+- poi_amenity: TEXT (OSM venue type - COALESCE of amenity, leisure, tourism, shop tags. Use this for filtering! Values include: restaurant, cafe, bar, pub, fast_food, museum, cinema, school, hospital, golf_course, fitness_centre, park, supermarket, etc.)
+- poi_cuisine: TEXT (cuisine type: vietnamese, italian, vegan, japanese, etc.)
+- poi_sport: TEXT (sport type: tennis, golf, swimming, etc.)
+- poi_category: TEXT (HIGH-LEVEL category - see POI Category Reference below)
 
 **IMPORTANT: For restaurant queries, use poi_amenity ILIKE '%restaurant%', NOT poi_category = 'restaurant'!**
 **poi_category = 'food' includes restaurants, cafes, bars, fast_food, etc.**
 **ALWAYS use ILIKE with wildcards for poi_amenity, poi_cuisine, poi_sport, poi_name columns!**
-- confidence_score: NUMERIC (0.0-1.0, how confident we are about this visit)
-- avg_distance_meters: NUMERIC (average distance from GPS points to POI)
-- poi_tags: JSONB (full OSM tags for complex queries)
-- city: TEXT
-- country: TEXT
-- country_code: VARCHAR(2)
+- confidence_score: NUMERIC (0.0-1.0, geocoding confidence score)
+- avg_distance_meters: NUMERIC (average distance from GPS points to POI centroid)
+- poi_tags: JSONB (full OSM tag dictionary for complex queries)
+- city: TEXT (city name from geocoding)
+- country_code: VARCHAR(2) (ISO 2-letter code, e.g., 'NL', 'JP', 'US')
 - gps_points_count: INTEGER (number of GPS points that formed this visit)
 - visit_hour: INTEGER (0-23, hour of day when visit started)
-- visit_time_of_day: TEXT ('morning', 'afternoon', 'evening', 'night')
-- day_of_week: TEXT ('monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday')
+- visit_time_of_day: TEXT ('morning' 5-11h, 'afternoon' 12-17h, 'evening' 18-21h, 'night' 22-4h)
+- day_of_week: TEXT (lowercase: 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday')
 - is_weekend: BOOLEAN (true if Saturday or Sunday)
-- duration_category: TEXT ('short' 15-30min, 'regular' 30-90min, 'extended' >90min)
+- duration_category: TEXT ('short' <30min, 'regular' 30-90min, 'extended' >90min)
 - created_at: TIMESTAMPTZ
+
+**Alternative POI columns (for GPS inaccuracy visibility):**
+When GPS is imprecise, the primary POI may not be the actual venue. These columns show the nearest alternative POI within 75m for comparison:
+- alt_poi_name: TEXT (name of the nearest alternative POI, NULL if none within 75m)
+- alt_poi_amenity: TEXT (OSM type of alternative POI)
+- alt_poi_cuisine: TEXT (cuisine of alternative POI)
+- alt_poi_sport: TEXT (sport type of alternative POI)
+- alt_poi_distance: NUMERIC (distance in meters to alternative POI)
+- alt_poi_tags: JSONB (full OSM tags of alternative POI)
+- alt_poi_confidence: NUMERIC (confidence score of alternative POI)
+
+**POI Category Reference (exact OSM value mappings):**
+- \`food\`: restaurant, cafe, bar, pub, fast_food, food_court, biergarten, ice_cream, bakery
+- \`entertainment\`: cinema, theatre, nightclub, casino, amusement_arcade, bowling_alley
+- \`culture\`: museum, gallery, library, arts_centre, community_centre (or tourism='museum')
+- \`education\`: school, university, college, kindergarten, language_school, music_school, driving_school
+- \`sports\`: golf_course, sports_centre, fitness_centre, swimming_pool, pitch, stadium, tennis, ice_rink (or any poi_sport value)
+- \`accommodation\`: hotel, hostel, guest_house, motel (amenity or tourism)
+- \`healthcare\`: hospital, clinic, doctors, dentist, pharmacy, veterinary, optician
+- \`worship\`: place_of_worship
+- \`outdoors\`: park, garden, nature_reserve, playground, dog_park, beach_resort
+- \`grocery\`: supermarket, convenience, grocery, greengrocer, butcher, bakery, deli
+- \`transport\`: bus_station, train_station, airport, ferry_terminal, taxi, car_rental
+- \`shopping\`: any other shop type
+- \`other\`: fallback for unmatched venues
+
+**Calculating end time (since ended_at doesn't exist):**
+\`\`\`sql
+SELECT poi_name, started_at,
+       started_at + (duration_minutes || ' minutes')::interval as ended_at
+FROM my_place_visits
+\`\`\`
 
 ### 4. my_poi_summary view
 Aggregated POI visit statistics - use for "how many times", "most visited", "favorite" questions.
+Groups visits by (poi_name, poi_amenity, poi_category, city, country_code) for unique POI identification.
 
 Columns:
 - poi_name: TEXT (name of the POI)
-- poi_amenity: TEXT (type: restaurant, cafe, gym, etc.)
+- poi_amenity: TEXT (type: restaurant, cafe, gym, golf_course, etc.)
 - poi_category: TEXT (food, sports, shopping, etc.)
 - city: TEXT
-- country: TEXT
+- country_code: VARCHAR(2) (ISO 2-letter code, e.g., 'NL', 'JP')
 - visit_count: INTEGER (number of times visited)
 - first_visit: TIMESTAMPTZ (when user first visited)
 - last_visit: TIMESTAMPTZ (when user last visited)
@@ -251,6 +282,13 @@ Columns:
 - Friday night visits: SELECT poi_name, poi_amenity, city, started_at FROM my_place_visits WHERE day_of_week = 'friday' AND visit_time_of_day IN ('evening', 'night') ORDER BY started_at DESC
 - Grocery store visits: SELECT poi_name, city, started_at, duration_minutes FROM my_place_visits WHERE poi_category = 'grocery' ORDER BY started_at DESC
 - Park visits: SELECT poi_name, city, started_at, duration_minutes FROM my_place_visits WHERE poi_category = 'outdoors' ORDER BY started_at DESC
+- Calculate end time: SELECT poi_name, started_at, started_at + (duration_minutes || ' minutes')::interval as ended_at, duration_minutes FROM my_place_visits ORDER BY started_at DESC
+
+#### Example queries using alternative POI columns (for GPS inaccuracy analysis):
+- Show visits with nearby alternatives: SELECT poi_name, alt_poi_name, alt_poi_distance, started_at FROM my_place_visits WHERE alt_poi_name IS NOT NULL ORDER BY started_at DESC
+- Visits where alternative POI is very close (may indicate GPS drift): SELECT poi_name, poi_amenity, alt_poi_name, alt_poi_amenity, alt_poi_distance FROM my_place_visits WHERE alt_poi_name IS NOT NULL AND alt_poi_distance < 30 ORDER BY alt_poi_distance
+- Compare primary and alternative restaurant visits: SELECT poi_name, poi_cuisine, alt_poi_name, alt_poi_cuisine, alt_poi_distance FROM my_place_visits WHERE poi_category = 'food' AND alt_poi_name IS NOT NULL ORDER BY started_at DESC
+- Find visits where alternative is a restaurant but primary is not: SELECT poi_name, poi_amenity, alt_poi_name, alt_poi_amenity FROM my_place_visits WHERE alt_poi_amenity ILIKE '%restaurant%' AND poi_amenity NOT ILIKE '%restaurant%' ORDER BY started_at DESC
 
 #### Example my_poi_summary queries (for "how many times", "most visited", "favorite"):
 - Most visited places: SELECT poi_name, poi_amenity, city, visit_count, last_visit FROM my_poi_summary ORDER BY visit_count DESC LIMIT 10

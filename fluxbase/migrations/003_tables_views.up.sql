@@ -138,17 +138,19 @@ COMMENT ON COLUMN "public"."want_to_visit_places"."labels" IS 'Custom labels/tag
 
 -- =============================================================================
 -- Place Visits Materialized View
--- Detects POI visits using dual-source detection:
+-- Detects POI visits using dual-source detection (single table scan):
 --   1. PRIMARY: geocode->properties when layer is 'venue' (user is AT the venue)
 --   2. FALLBACK: nearby_pois array when primary isn't a venue
+-- Both sources are included in output for GPS inaccuracy visibility
 -- =============================================================================
 
 -- Set search_path to include public for PostGIS functions
 SET search_path TO public;
 
+DROP MATERIALIZED VIEW IF EXISTS "public"."place_visits" CASCADE;
 CREATE MATERIALIZED VIEW "public"."place_visits" AS
 WITH venue_points AS (
-    -- SOURCE 1: Primary venue from geocode result (user is AT this place)
+    -- Single table scan with LEFT JOIN LATERAL for nearby POIs
     SELECT
         td.user_id,
         td.recorded_at,
@@ -159,76 +161,79 @@ WITH venue_points AS (
             td.geocode->'properties'->'addendum'->'osm'->>'addr:city'
         ) as city,
         td.country_code,
-        td.geocode->'properties'->'addendum'->'osm'->>'name' as poi_name,
-        td.geocode->'properties'->>'layer' as poi_layer,
-        td.geocode->'properties'->'addendum'->'osm'->>'amenity' as osm_amenity,
-        td.geocode->'properties'->'addendum'->'osm'->>'leisure' as osm_leisure,
-        td.geocode->'properties'->'addendum'->'osm'->>'tourism' as osm_tourism,
-        td.geocode->'properties'->'addendum'->'osm'->>'shop' as osm_shop,
-        td.geocode->'properties'->'addendum'->'osm'->>'sport' as osm_sport,
-        td.geocode->'properties'->'addendum'->'osm'->>'cuisine' as poi_cuisine,
-        td.geocode->'properties'->'addendum'->'osm' as poi_tags,
-        (td.geocode->'properties'->>'confidence')::numeric as poi_confidence,
-        0::numeric as poi_distance,
-        'primary' as source
+
+        -- Flag: is primary venue valid?
+        (
+            td.geocode->'properties'->'addendum'->'osm'->>'name' IS NOT NULL
+            AND td.geocode->'properties'->>'layer' IN ('venue', 'address')
+            AND (
+                td.geocode->'properties'->'addendum'->'osm'->>'amenity' IS NOT NULL
+                OR td.geocode->'properties'->'addendum'->'osm'->>'leisure' IS NOT NULL
+                OR td.geocode->'properties'->'addendum'->'osm'->>'tourism' IS NOT NULL
+                OR td.geocode->'properties'->'addendum'->'osm'->>'shop' IS NOT NULL
+                OR td.geocode->'properties'->'addendum'->'osm'->>'sport' IS NOT NULL
+            )
+        ) as has_primary_venue,
+
+        -- PRIMARY venue fields
+        td.geocode->'properties'->'addendum'->'osm'->>'name' as primary_name,
+        td.geocode->'properties'->>'layer' as primary_layer,
+        td.geocode->'properties'->'addendum'->'osm'->>'amenity' as primary_amenity,
+        td.geocode->'properties'->'addendum'->'osm'->>'leisure' as primary_leisure,
+        td.geocode->'properties'->'addendum'->'osm'->>'tourism' as primary_tourism,
+        td.geocode->'properties'->'addendum'->'osm'->>'shop' as primary_shop,
+        td.geocode->'properties'->'addendum'->'osm'->>'sport' as primary_sport,
+        td.geocode->'properties'->'addendum'->'osm'->>'cuisine' as primary_cuisine,
+        td.geocode->'properties'->'addendum'->'osm' as primary_tags,
+        (td.geocode->'properties'->>'confidence')::numeric as primary_confidence,
+
+        -- NEARBY POI fields (from LATERAL join - nearest one within 75m)
+        nearest_poi.name as nearby_name,
+        nearest_poi.layer as nearby_layer,
+        nearest_poi.amenity as nearby_amenity,
+        nearest_poi.leisure as nearby_leisure,
+        nearest_poi.tourism as nearby_tourism,
+        nearest_poi.shop as nearby_shop,
+        nearest_poi.sport as nearby_sport,
+        nearest_poi.cuisine as nearby_cuisine,
+        nearest_poi.tags as nearby_tags,
+        nearest_poi.confidence as nearby_confidence,
+        nearest_poi.distance as nearby_distance
+
     FROM "public"."tracker_data" td
-    WHERE td.geocode->'properties'->'addendum'->'osm'->>'name' IS NOT NULL
-      AND td.geocode->'properties'->>'layer' IN ('venue', 'address')
-      AND (
-          td.geocode->'properties'->'addendum'->'osm'->>'amenity' IS NOT NULL
-          OR td.geocode->'properties'->'addendum'->'osm'->>'leisure' IS NOT NULL
-          OR td.geocode->'properties'->'addendum'->'osm'->>'tourism' IS NOT NULL
-          OR td.geocode->'properties'->'addendum'->'osm'->>'shop' IS NOT NULL
-          OR td.geocode->'properties'->'addendum'->'osm'->>'sport' IS NOT NULL
-      )
+    LEFT JOIN LATERAL (
+        SELECT
+            poi->>'name' as name,
+            poi->>'layer' as layer,
+            poi->'addendum'->'osm'->>'amenity' as amenity,
+            poi->'addendum'->'osm'->>'leisure' as leisure,
+            poi->'addendum'->'osm'->>'tourism' as tourism,
+            poi->'addendum'->'osm'->>'shop' as shop,
+            poi->'addendum'->'osm'->>'sport' as sport,
+            poi->'addendum'->'osm'->>'cuisine' as cuisine,
+            poi->'addendum'->'osm' as tags,
+            COALESCE((poi->>'confidence')::numeric, 0.8) as confidence,
+            (poi->>'distance_meters')::numeric as distance
+        FROM jsonb_array_elements(td.geocode->'properties'->'nearby_pois') AS poi
+        WHERE poi->>'name' IS NOT NULL
+          AND (poi->>'distance_meters')::numeric < 75
+        ORDER BY (poi->>'distance_meters')::numeric
+        LIMIT 1
+    ) nearest_poi ON true
 
-    UNION ALL
-
-    -- SOURCE 2: Nearby POIs (fallback when primary isn't a venue)
-    SELECT
-        td.user_id,
-        td.recorded_at,
-        td.location,
-        COALESCE(
-            td.geocode->'properties'->>'locality',
-            td.geocode->'properties'->'address'->>'city',
-            td.geocode->'properties'->'addendum'->'osm'->>'addr:city'
-        ) as city,
-        td.country_code,
-        poi->>'name' as poi_name,
-        poi->>'layer' as poi_layer,
-        poi->'addendum'->'osm'->>'amenity' as osm_amenity,
-        poi->'addendum'->'osm'->>'leisure' as osm_leisure,
-        poi->'addendum'->'osm'->>'tourism' as osm_tourism,
-        poi->'addendum'->'osm'->>'shop' as osm_shop,
-        poi->'addendum'->'osm'->>'sport' as osm_sport,
-        poi->'addendum'->'osm'->>'cuisine' as poi_cuisine,
-        poi->'addendum'->'osm' as poi_tags,
-        COALESCE((poi->>'confidence')::numeric, 0.8) as poi_confidence,
-        (poi->>'distance_meters')::numeric as poi_distance,
-        'nearby_pois' as source
-    FROM "public"."tracker_data" td,
-    LATERAL jsonb_array_elements(td.geocode->'properties'->'nearby_pois') AS poi
-    WHERE poi->>'name' IS NOT NULL
-      AND (poi->>'distance_meters')::numeric < 75
-      AND NOT (
-          td.geocode->'properties'->>'layer' IN ('venue', 'address')
-          AND (
-              td.geocode->'properties'->'addendum'->'osm'->>'amenity' IS NOT NULL
-              OR td.geocode->'properties'->'addendum'->'osm'->>'leisure' IS NOT NULL
-              OR td.geocode->'properties'->'addendum'->'osm'->>'tourism' IS NOT NULL
-              OR td.geocode->'properties'->'addendum'->'osm'->>'shop' IS NOT NULL
-              OR td.geocode->'properties'->'addendum'->'osm'->>'sport' IS NOT NULL
-          )
-      )
-),
-deduplicated AS (
-    SELECT *,
-        ROW_NUMBER() OVER (
-            PARTITION BY user_id, recorded_at
-            ORDER BY (source = 'primary') DESC, poi_distance ASC
-        ) as rn
-    FROM venue_points
+    -- Include rows with valid primary venue OR valid nearby POI
+    WHERE (
+        -- Has valid primary venue
+        td.geocode->'properties'->'addendum'->'osm'->>'name' IS NOT NULL
+        AND td.geocode->'properties'->>'layer' IN ('venue', 'address')
+        AND (
+            td.geocode->'properties'->'addendum'->'osm'->>'amenity' IS NOT NULL
+            OR td.geocode->'properties'->'addendum'->'osm'->>'leisure' IS NOT NULL
+            OR td.geocode->'properties'->'addendum'->'osm'->>'tourism' IS NOT NULL
+            OR td.geocode->'properties'->'addendum'->'osm'->>'shop' IS NOT NULL
+            OR td.geocode->'properties'->'addendum'->'osm'->>'sport' IS NOT NULL
+        )
+    ) OR nearest_poi.name IS NOT NULL
 ),
 poi_points AS (
     SELECT
@@ -237,33 +242,78 @@ poi_points AS (
         location,
         city,
         country_code,
-        poi_name,
-        poi_layer,
-        COALESCE(osm_amenity, osm_leisure, osm_tourism, osm_shop) as poi_amenity,
-        poi_cuisine,
-        osm_sport as poi_sport,
+
+        -- "Best" POI for grouping (primary wins, nearby fallback)
+        CASE WHEN has_primary_venue THEN primary_name ELSE nearby_name END as poi_name,
+        CASE WHEN has_primary_venue THEN primary_layer ELSE nearby_layer END as poi_layer,
+        CASE WHEN has_primary_venue
+             THEN COALESCE(primary_amenity, primary_leisure, primary_tourism, primary_shop)
+             ELSE COALESCE(nearby_amenity, nearby_leisure, nearby_tourism, nearby_shop)
+        END as poi_amenity,
+        CASE WHEN has_primary_venue THEN primary_cuisine ELSE nearby_cuisine END as poi_cuisine,
+        CASE WHEN has_primary_venue THEN primary_sport ELSE nearby_sport END as poi_sport,
         CASE
-            WHEN osm_amenity IN ('restaurant','cafe','bar','pub','fast_food','food_court','biergarten','ice_cream','bakery') THEN 'food'
-            WHEN osm_amenity IN ('cinema','theatre','nightclub','casino','amusement_arcade','bowling_alley') THEN 'entertainment'
-            WHEN osm_amenity IN ('museum','gallery','library','arts_centre','community_centre') OR osm_tourism = 'museum' THEN 'culture'
-            WHEN osm_amenity IN ('school','university','college','kindergarten','language_school','music_school','driving_school') THEN 'education'
-            WHEN osm_leisure IN ('golf_course','sports_centre','fitness_centre','swimming_pool','pitch','stadium','tennis','ice_rink') THEN 'sports'
-            WHEN osm_sport IS NOT NULL THEN 'sports'
-            WHEN osm_amenity IN ('hotel','hostel','guest_house','motel') OR osm_tourism IN ('hotel','hostel','guest_house','motel','apartment') THEN 'accommodation'
-            WHEN osm_amenity IN ('hospital','clinic','doctors','dentist','pharmacy','veterinary','optician') THEN 'healthcare'
-            WHEN osm_amenity IN ('place_of_worship') THEN 'worship'
-            WHEN osm_leisure IN ('park','garden','nature_reserve','playground','dog_park','beach_resort') THEN 'outdoors'
-            WHEN osm_shop IN ('supermarket','convenience','grocery','greengrocer','butcher','bakery','deli') THEN 'grocery'
-            WHEN osm_amenity IN ('bus_station','train_station','airport','ferry_terminal','taxi','car_rental') THEN 'transport'
-            WHEN osm_shop IS NOT NULL THEN 'shopping'
+            WHEN COALESCE(
+                CASE WHEN has_primary_venue THEN primary_amenity ELSE nearby_amenity END
+            ) IN ('restaurant','cafe','bar','pub','fast_food','food_court','biergarten','ice_cream','bakery') THEN 'food'
+            WHEN COALESCE(
+                CASE WHEN has_primary_venue THEN primary_amenity ELSE nearby_amenity END
+            ) IN ('cinema','theatre','nightclub','casino','amusement_arcade','bowling_alley') THEN 'entertainment'
+            WHEN COALESCE(
+                CASE WHEN has_primary_venue THEN primary_amenity ELSE nearby_amenity END
+            ) IN ('museum','gallery','library','arts_centre','community_centre')
+                OR COALESCE(
+                    CASE WHEN has_primary_venue THEN primary_tourism ELSE nearby_tourism END
+                ) = 'museum' THEN 'culture'
+            WHEN COALESCE(
+                CASE WHEN has_primary_venue THEN primary_amenity ELSE nearby_amenity END
+            ) IN ('school','university','college','kindergarten','language_school','music_school','driving_school') THEN 'education'
+            WHEN COALESCE(
+                CASE WHEN has_primary_venue THEN primary_leisure ELSE nearby_leisure END
+            ) IN ('golf_course','sports_centre','fitness_centre','swimming_pool','pitch','stadium','tennis','ice_rink') THEN 'sports'
+            WHEN COALESCE(
+                CASE WHEN has_primary_venue THEN primary_sport ELSE nearby_sport END
+            ) IS NOT NULL THEN 'sports'
+            WHEN COALESCE(
+                CASE WHEN has_primary_venue THEN primary_amenity ELSE nearby_amenity END
+            ) IN ('hotel','hostel','guest_house','motel')
+                OR COALESCE(
+                    CASE WHEN has_primary_venue THEN primary_tourism ELSE nearby_tourism END
+                ) IN ('hotel','hostel','guest_house','motel','apartment') THEN 'accommodation'
+            WHEN COALESCE(
+                CASE WHEN has_primary_venue THEN primary_amenity ELSE nearby_amenity END
+            ) IN ('hospital','clinic','doctors','dentist','pharmacy','veterinary','optician') THEN 'healthcare'
+            WHEN COALESCE(
+                CASE WHEN has_primary_venue THEN primary_amenity ELSE nearby_amenity END
+            ) IN ('place_of_worship') THEN 'worship'
+            WHEN COALESCE(
+                CASE WHEN has_primary_venue THEN primary_leisure ELSE nearby_leisure END
+            ) IN ('park','garden','nature_reserve','playground','dog_park','beach_resort') THEN 'outdoors'
+            WHEN COALESCE(
+                CASE WHEN has_primary_venue THEN primary_shop ELSE nearby_shop END
+            ) IN ('supermarket','convenience','grocery','greengrocer','butcher','bakery','deli') THEN 'grocery'
+            WHEN COALESCE(
+                CASE WHEN has_primary_venue THEN primary_amenity ELSE nearby_amenity END
+            ) IN ('bus_station','train_station','airport','ferry_terminal','taxi','car_rental') THEN 'transport'
+            WHEN COALESCE(
+                CASE WHEN has_primary_venue THEN primary_shop ELSE nearby_shop END
+            ) IS NOT NULL THEN 'shopping'
             ELSE 'other'
         END as poi_category,
-        poi_confidence,
-        poi_distance,
-        poi_tags,
-        source
-    FROM deduplicated
-    WHERE rn = 1
+        CASE WHEN has_primary_venue THEN primary_confidence ELSE nearby_confidence END as poi_confidence,
+        CASE WHEN has_primary_venue THEN 0::numeric ELSE nearby_distance END as poi_distance,
+        CASE WHEN has_primary_venue THEN primary_tags ELSE nearby_tags END as poi_tags,
+        CASE WHEN has_primary_venue THEN 'primary' ELSE 'nearby_pois' END as source,
+
+        -- Alternative POI data (for GPS inaccuracy visibility)
+        nearby_name as alt_poi_name,
+        COALESCE(nearby_amenity, nearby_leisure, nearby_tourism, nearby_shop) as alt_poi_amenity,
+        nearby_cuisine as alt_poi_cuisine,
+        nearby_sport as alt_poi_sport,
+        nearby_distance as alt_poi_distance,
+        nearby_tags as alt_poi_tags,
+        nearby_confidence as alt_poi_confidence
+    FROM venue_points
 ),
 with_boundaries AS (
     SELECT *,
@@ -312,6 +362,14 @@ SELECT
         ELSE 'extended'
     END as duration_category,
     to_tsvector('simple', COALESCE(poi_name, '')) as poi_name_search,
+    -- Alternative POI data (for GPS inaccuracy visibility)
+    MODE() WITHIN GROUP (ORDER BY alt_poi_name) as alt_poi_name,
+    MODE() WITHIN GROUP (ORDER BY alt_poi_amenity) as alt_poi_amenity,
+    MODE() WITHIN GROUP (ORDER BY alt_poi_cuisine) as alt_poi_cuisine,
+    MODE() WITHIN GROUP (ORDER BY alt_poi_sport) as alt_poi_sport,
+    ROUND(AVG(alt_poi_distance)::numeric, 2) as alt_poi_distance,
+    MODE() WITHIN GROUP (ORDER BY alt_poi_tags::text)::jsonb as alt_poi_tags,
+    ROUND(AVG(alt_poi_confidence)::numeric, 3) as alt_poi_confidence,
     NOW() as created_at
 FROM visit_groups
 GROUP BY user_id, visit_id, poi_name
@@ -319,7 +377,7 @@ HAVING COUNT(*) >= 2
    AND ROUND(EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) / 60)::integer >= 15
 ORDER BY user_id, MIN(recorded_at);
 
-COMMENT ON MATERIALIZED VIEW "public"."place_visits" IS 'Detected POI visits using dual-source detection (primary venue + nearby_pois). Refreshed hourly.';
+COMMENT ON MATERIALIZED VIEW "public"."place_visits" IS 'Detected POI visits using single-scan dual-source detection. Includes both primary venue and nearby POI alternatives. Refreshed hourly.';
 
 -- =============================================================================
 -- Secure Views for LLM Queries
@@ -351,11 +409,19 @@ SELECT
     day_of_week,
     is_weekend,
     duration_category,
+    -- Alternative POI data (for GPS inaccuracy visibility)
+    alt_poi_name,
+    alt_poi_amenity,
+    alt_poi_cuisine,
+    alt_poi_sport,
+    alt_poi_distance,
+    alt_poi_tags,
+    alt_poi_confidence,
     created_at
 FROM "public"."place_visits"
 WHERE user_id = auth.uid();
 
-COMMENT ON VIEW "public"."my_place_visits" IS 'Secure view of place_visits filtered to current user. Use this for LLM queries.';
+COMMENT ON VIEW "public"."my_place_visits" IS 'Secure view of place_visits filtered to current user. Includes alternative POI for GPS inaccuracy visibility.';
 
 CREATE OR REPLACE VIEW "public"."my_poi_summary"
 WITH (security_barrier = true)

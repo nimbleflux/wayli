@@ -243,6 +243,10 @@ export async function handler(
 			`✅ Trip generation completed: ${detectedTrips.length} trips detected in ${totalTime}ms`
 		);
 
+		// Note: Trip embeddings are synced when trips are APPROVED (not when detected)
+		// The sync-trip-embeddings job should be triggered from the UI/API when
+		// user approves trips, since embeddings only make sense for approved trips.
+
 		return {
 			success: true,
 			result: {

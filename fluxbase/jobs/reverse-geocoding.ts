@@ -261,6 +261,35 @@ export async function handler(
 				// Non-fatal - log but don't fail the job
 				console.warn('⚠️ Failed to refresh place_visits:', refreshError);
 			}
+
+			// Chain: Sync POI embeddings after geocoding completes
+			// POIs now have names/categories from geocoding
+			console.log(`🔗 Queueing sync-poi-embeddings job...`);
+			try {
+				const onBehalfOf = context.user ? {
+					user_id: context.user.id,
+					user_email: context.user.email,
+					user_role: context.user.role
+				} : undefined;
+
+				const { data: embedJob, error: embedError } = await fluxbaseService.jobs.submit(
+					'sync-poi-embeddings',
+					{},
+					{
+						namespace: 'wayli',
+						priority: 5,
+						onBehalfOf
+					}
+				);
+
+				if (embedError) {
+					console.warn(`⚠️ Failed to queue sync-poi-embeddings job: ${embedError.message}`);
+				} else {
+					console.log(`✅ sync-poi-embeddings job queued: ${(embedJob as any)?.job_id || 'unknown'}`);
+				}
+			} catch (embedQueueError) {
+				console.warn(`⚠️ Error queueing sync-poi-embeddings job:`, embedQueueError);
+			}
 		}
 
 		return {

@@ -411,9 +411,6 @@ export class ClientStatisticsService {
 				speed,
 				distance,
 				tz_diff,
-				geocode->properties->>type,
-				geocode->properties->>class,
-				geocode->properties->>addresstype,
 				geocode->properties->>city,
 				geocode->properties->address->>city,
 				geocode->properties->address->>village

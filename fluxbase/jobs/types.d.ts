@@ -64,6 +64,36 @@ interface FluxbaseClient {
 	 * Jobs API for submitting and querying jobs
 	 */
 	jobs: JobsClient;
+
+	/**
+	 * Vector API for embeddings and vector operations
+	 */
+	vector: VectorClient;
+}
+
+/**
+ * Vector client for embedding generation and vector operations
+ */
+interface VectorClient {
+	/**
+	 * Generate embeddings for one or more texts
+	 * @param options - Embedding options
+	 * @returns Embedding vectors
+	 */
+	embed(options: {
+		/** Array of texts to embed */
+		texts: string[];
+		/** Model to use (default: text-embedding-3-small) */
+		model?: string;
+	}): Promise<{
+		data: {
+			embeddings: number[][];
+			model: string;
+			dimensions: number;
+			usage: { prompt_tokens: number; total_tokens: number };
+		} | null;
+		error: Error | null;
+	}>;
 }
 
 /**

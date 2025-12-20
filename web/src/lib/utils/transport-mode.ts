@@ -208,26 +208,13 @@ export function isAtTrainStation(
 			return true;
 		}
 
-		// Building is a train station
-		if (building === 'train_station') {
+		// Building is a train station or transportation building
+		if (building === 'train_station' || building === 'transportation') {
 			return true;
 		}
 	}
 
-	// Legacy Nominatim-style detection for backward compatibility with existing data
-	const hasRailwayClass =
-		props.class === 'railway' || (props.address && props.address.class === 'railway');
-	const hasPlatformType =
-		props.type === 'platform' || (props.address && props.address.type === 'platform');
-
-	return !!(
-		props.type === 'railway_station' ||
-		props.class === 'railway' ||
-		props.type === 'platform' ||
-		props.addresstype === 'railway' ||
-		hasRailwayClass ||
-		hasPlatformType
-	);
+	return false;
 }
 
 // Get train station name from reverse geocode
@@ -279,28 +266,12 @@ export function isAtAirport(reverseGeocode: GeocodeGeoJSONFeature | null | undef
 		}
 
 		// Building is an airport terminal
-		if (building === 'terminal' || building === 'airport') {
+		if (building === 'terminal' || building === 'airport' || building === 'airport_terminal') {
 			return true;
 		}
 	}
 
-	// Legacy Nominatim-style detection for backward compatibility with existing data
-	const airportTypes = ['airport', 'aerodrome', 'runway', 'terminal', 'helipad'];
-	const airportClasses = ['aeroway', 'aerialway'];
-
-	return !!(
-		(props.type && typeof props.type === 'string' && airportTypes.includes(props.type)) ||
-		(props.class && typeof props.class === 'string' && airportClasses.includes(props.class)) ||
-		props.addresstype === 'aeroway' ||
-		(props.address &&
-			props.address.type &&
-			typeof props.address.type === 'string' &&
-			airportTypes.includes(props.address.type)) ||
-		(props.address &&
-			props.address.class &&
-			typeof props.address.class === 'string' &&
-			airportClasses.includes(props.address.class))
-	);
+	return false;
 }
 
 // Get airport name from reverse geocode
@@ -481,7 +452,7 @@ export function isOnHighwayOrMotorway(
 	// OSM highway types that indicate major roads (motorways, trunk roads, primary roads)
 	const majorHighwayTypes = ['motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link'];
 
-	// Pelias addendum/OSM-based detection (preferred for Pelias data)
+	// Pelias addendum/OSM-based detection
 	const osm = getOsmDataFromAddendum(reverseGeocode);
 	if (osm) {
 		const highway = osm.highway as string | undefined;
@@ -490,23 +461,7 @@ export function isOnHighwayOrMotorway(
 		}
 	}
 
-	// Legacy Nominatim-style detection for backward compatibility with existing data
-	const highwayTypes = ['motorway', 'trunk', 'primary', 'highway'];
-	const highwayClasses = ['highway'];
-
-	return !!(
-		(props.type && typeof props.type === 'string' && highwayTypes.includes(props.type)) ||
-		(props.class && typeof props.class === 'string' && highwayClasses.includes(props.class)) ||
-		props.addresstype === 'highway' ||
-		(props.address &&
-			props.address.type &&
-			typeof props.address.type === 'string' &&
-			highwayTypes.includes(props.address.type)) ||
-		(props.address &&
-			props.address.class &&
-			typeof props.class === 'string' &&
-			highwayClasses.includes(props.address.class))
-	);
+	return false;
 }
 
 // Phase 2: Enhanced car vs train distinction based on geographic context, measurement frequency, and road type

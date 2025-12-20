@@ -472,9 +472,13 @@ SELECT
     image_url,
     labels,
     metadata,
-    metadata->>'dataPoints' as data_points,
-    metadata->>'visitedCities' as visited_cities,
-    metadata->>'visitedCountries' as visited_countries,
+    (metadata->>'dataPoints')::integer as data_points,
+    (metadata->>'tripDays')::integer as trip_days,
+    metadata->>'primaryCity' as primary_city,
+    metadata->>'primaryCountryCode' as primary_country_code,
+    -- Arrays as comma-separated text for easy ILIKE searching
+    array_to_string(ARRAY(SELECT jsonb_array_elements_text(metadata->'visitedCities')), ', ') as visited_cities,
+    array_to_string(ARRAY(SELECT jsonb_array_elements_text(metadata->'visitedCountryCodes')), ', ') as visited_country_codes,
     created_at,
     updated_at
 FROM "public"."trips"

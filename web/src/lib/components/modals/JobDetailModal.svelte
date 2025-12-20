@@ -20,7 +20,6 @@
 		getActiveJobsMap,
 		type JobStoreJob
 	} from '$lib/stores/job-store';
-	import type { RealtimeChannel } from '@fluxbase/sdk';
 
 	// Props using Svelte 5 runes
 	interface Props {
@@ -100,7 +99,7 @@
 	// State
 	let logs = $state<ExecutionLog[]>([]);
 	let selectedLevel = $state<LogLevel>('info');
-	let logsChannel: RealtimeChannel | null = null;
+	let logsChannel: { unsubscribe: () => void } | null = null;
 	let logsContainer = $state<HTMLElement | null>(null);
 	let userHasScrolled = $state(false);
 	let isLoadingLogs = $state(false);
@@ -256,26 +255,27 @@
 
 	// Subscribe to realtime log updates
 	function subscribeToLogs(jobId: string) {
-		const channelName = `logs:${jobId}`;
-
 		logsChannel = fluxbase.realtime
-			.channel(channelName)
-			.on(
-				'postgres_changes',
-				{
-					event: 'INSERT',
-					schema: 'jobs',
-					table: 'execution_logs',
-					filter: `job_id=eq.${jobId}`
-				},
-				(payload: any) => {
-					const newLog = (payload.new || payload.payload?.record) as ExecutionLog;
-					if (newLog) {
-						logs = [...logs, newLog].sort((a, b) => a.line_number - b.line_number);
-					}
+			.executionLogs(jobId, 'job')
+			.onLog((log) => {
+				// Convert SDK ExecutionLogEvent to our ExecutionLog format
+				const newLog: ExecutionLog = {
+					id: Date.now() + Math.random(), // Generate unique id for realtime logs
+					job_id: jobId,
+					line_number: log.line_number,
+					level: log.level as LogLevel,
+					message: log.message,
+					created_at: new Date().toISOString()
+				};
+				logs = [...logs, newLog].sort((a, b) => a.line_number - b.line_number);
+			})
+			.subscribe((status, err) => {
+				if (status === 'SUBSCRIBED') {
+					console.log('[JobDetailModal] Connected to job logs');
+				} else if (err) {
+					console.error('[JobDetailModal] Log subscription error:', err);
 				}
-			)
-			.subscribe();
+			});
 	}
 
 	// Handle scroll to detect if user has scrolled up
@@ -306,7 +306,7 @@
 		return () => {
 			// Cleanup on component destroy
 			if (logsChannel) {
-				fluxbase.realtime.removeChannel(logsChannel);
+				logsChannel.unsubscribe();
 				logsChannel = null;
 			}
 		};
@@ -321,7 +321,7 @@
 		if (shouldSubscribe && jobId && jobId !== subscribedJobId) {
 			// Cleanup previous subscription if any
 			if (logsChannel) {
-				fluxbase.realtime.removeChannel(logsChannel);
+				logsChannel.unsubscribe();
 				logsChannel = null;
 				logs = [];
 			}
@@ -335,7 +335,7 @@
 		} else if (!shouldSubscribe && subscribedJobId) {
 			// Modal closed or job cleared - cleanup
 			if (logsChannel) {
-				fluxbase.realtime.removeChannel(logsChannel);
+				logsChannel.unsubscribe();
 				logsChannel = null;
 			}
 			logs = [];

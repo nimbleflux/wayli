@@ -739,6 +739,32 @@ export class ServiceAdapter {
 
 		const result = { results: approvedTrips, approved: approvedTrips.filter((t) => t.success) };
 		console.log('📥 [SERVICE] approveSuggestedTrips result:', result);
+
+		// Trigger sync-trip-embeddings job if any trips were approved successfully
+		const successfullyApproved = approvedTrips.filter((t) => t.success);
+		if (successfullyApproved.length > 0) {
+			try {
+				console.log('🔗 [SERVICE] Queueing sync-trip-embeddings job for approved trips...');
+				const { data: embedJob, error: embedError } = await fluxbase.jobs.submit(
+					'sync-trip-embeddings',
+					{},
+					{
+						namespace: 'wayli',
+						priority: 5
+					}
+				);
+
+				if (embedError) {
+					console.warn('⚠️ [SERVICE] Failed to queue sync-trip-embeddings job:', embedError.message);
+				} else {
+					console.log('✅ [SERVICE] sync-trip-embeddings job queued:', (embedJob as any)?.job_id || 'unknown');
+				}
+			} catch (embedQueueError) {
+				// Non-fatal - log but don't fail the approval
+				console.warn('⚠️ [SERVICE] Error queueing sync-trip-embeddings job:', embedQueueError);
+			}
+		}
+
 		return result;
 	}
 
@@ -1446,8 +1472,10 @@ export class ServiceAdapter {
 			// AI providers not configured yet
 		}
 
-		// Get Email settings from FluxbaseAdmin SDK
-		let emailEnabledValue = false;
+		// Get Email settings directly from appSettings (already fetched above)
+		// Read-only status is indicated by appSettings.overrides?.email
+		const emailEnabledValue = appSettings.email?.enabled ?? false;
+		const emailReadOnlyValue = Object.keys(appSettings.overrides?.email ?? {}).length > 0;
 		let emailSmtpConfig: {
 			host: string;
 			port: number;
@@ -1457,35 +1485,21 @@ export class ServiceAdapter {
 			from_name: string;
 			reply_to_address?: string;
 		} | undefined;
-		let emailReadOnlyValue = false;
-		try {
-			// Fetch email enabled setting using same pattern as AI
-			const emailEnabledSetting = await fluxbase.admin.settings.system.get('app.email.enabled');
-			emailEnabledValue = emailEnabledSetting?.value?.value ?? false;
 
-			// Fetch SMTP configuration
-			const smtpConfig = await fluxbase.admin.settings.system.get('app.email.smtp');
-			if (smtpConfig?.value?.value) {
-				const smtp = smtpConfig.value.value;
-				emailSmtpConfig = {
-					host: smtp.host ?? '',
-					port: smtp.port ?? 587,
-					username: smtp.username ?? '',
-					use_tls: smtp.use_tls ?? true,
-					from_address: smtp.from_address ?? '',
-					from_name: smtp.from_name ?? 'Wayli',
-					reply_to_address: smtp.reply_to_address
-				};
-			}
-
-			// Check if read-only (configured via env/yaml)
-			const readOnlySetting = await fluxbase.admin.settings.system.get('app.email.read_only');
-			emailReadOnlyValue = readOnlySetting?.value?.value ?? false;
-		} catch {
-			// Settings don't exist yet - use defaults from appSettings if available
-			emailEnabledValue = appSettings.email?.enabled ?? false;
-			emailSmtpConfig = appSettings.email?.smtp;
-			emailReadOnlyValue = appSettings.email?.read_only ?? false;
+		// Build email config whenever email is configured (enabled or has a provider)
+		// Common fields (from_address, from_name, reply_to_address) are at top level of email
+		// Provider-specific fields (host, port, etc.) are nested in smtp/sendgrid/etc.
+		if (appSettings.email?.enabled || appSettings.email?.provider) {
+			const smtp = appSettings.email?.smtp as any;
+			emailSmtpConfig = {
+				host: smtp?.host ?? '',
+				port: smtp?.port ?? 587,
+				username: smtp?.username ?? '',
+				use_tls: smtp?.tls ?? smtp?.use_tls ?? true,
+				from_address: appSettings.email?.from_address ?? '',
+				from_name: appSettings.email?.from_name ?? 'Wayli',
+				reply_to_address: appSettings.email?.reply_to_address
+			};
 		}
 
 		// Build settings with AI and Email from SDK data
@@ -1493,7 +1507,7 @@ export class ServiceAdapter {
 			...appSettings,
 			email: {
 				enabled: emailEnabledValue,
-				provider: 'smtp' as const,
+				provider: appSettings.email?.provider ?? 'smtp',
 				smtp: emailSmtpConfig,
 				read_only: emailReadOnlyValue
 			},

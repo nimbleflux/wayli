@@ -1059,6 +1059,7 @@
     "refreshPlaceVisitsDescription": "Régénérer les données de visites de lieux à partir des points de suivi. Ceci est fait automatiquement après les importations.",
     "refresh": "Actualiser",
     "refreshing": "Actualisation...",
+    "refreshPlaceVisitsQueued": "Tâche d'actualisation des visites en file d'attente",
     "refreshPlaceVisitsSuccess": "Visites de lieux actualisées avec succès",
     "refreshPlaceVisitsFailed": "Échec de l'actualisation des visites de lieux"
   },

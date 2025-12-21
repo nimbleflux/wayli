@@ -1059,6 +1059,7 @@
     "refreshPlaceVisitsDescription": "추적 지점에서 방문 장소 데이터를 다시 생성합니다. 데이터 가져오기 후 자동으로 수행됩니다.",
     "refresh": "새로고침",
     "refreshing": "새로고침 중...",
+    "refreshPlaceVisitsQueued": "방문 장소 새로고침 작업이 대기열에 추가됨",
     "refreshPlaceVisitsSuccess": "방문 장소가 성공적으로 새로고침되었습니다",
     "refreshPlaceVisitsFailed": "방문 장소 새로고침 실패"
   },

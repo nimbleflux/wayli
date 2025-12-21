@@ -1,4 +1,8 @@
 # Wayli with Fluxbase - Simplified Backend
+#
+# Secret Generation:
+#   Run ./generate-secrets.sh to generate required secrets (.env file)
+#
 # Usage:
 #   Start:    docker compose -f docker-compose.fluxbase.yml up
 #   Stop:     docker compose -f docker-compose.fluxbase.yml down
@@ -102,6 +106,16 @@ services:
 
       # Wayli-specific environment variables for edge functions
       PELIAS_ENDPOINT: ${PELIAS_ENDPOINT:-https://pelias.wayli.app}
+
+      # Logging Configuration
+      FLUXBASE_LOGGING_CONSOLE_ENABLED: "${FLUXBASE_LOGGING_CONSOLE_ENABLED:-true}"
+      FLUXBASE_LOGGING_CONSOLE_LEVEL: "${FLUXBASE_LOGGING_CONSOLE_LEVEL:-info}"
+      FLUXBASE_LOGGING_BACKEND: "${FLUXBASE_LOGGING_BACKEND:-postgres}"
+      FLUXBASE_LOGGING_PUBSUB_ENABLED: "${FLUXBASE_LOGGING_PUBSUB_ENABLED:-true}"
+      FLUXBASE_LOGGING_RETENTION_ENABLED: "${FLUXBASE_LOGGING_RETENTION_ENABLED:-true}"
+
+      # Admin UI Configuration (disabled by default)
+      FLUXBASE_FEATURES_ADMIN_UI_ENABLED: "${FLUXBASE_FEATURES_ADMIN_UI_ENABLED:-false}"
 
     volumes:
       # Mount user migrations (Fluxbase format: NNN_name.{up,down}.sql)

@@ -247,24 +247,10 @@ export async function handler(
 			`✅ Reverse geocoding completed: ${totalSuccess} successful, ${totalErrors} errors out of ${totalProcessed} total`
 		);
 
-		// Refresh place_visits materialized view if any points were successfully geocoded
+		// Chain: Refresh place_visits and sync POI embeddings after geocoding completes
+		// The refresh-place-visits job handles both the MV refresh and chains to sync-poi-embeddings
 		if (totalSuccess > 0) {
-			try {
-				console.log('📊 Refreshing place_visits materialized view...');
-				const { error: refreshError } = await fluxbaseService.rpc('refresh_place_visits');
-				if (refreshError) {
-					console.warn('⚠️ Failed to refresh place_visits:', refreshError.message);
-				} else {
-					console.log('✅ Place visits refreshed');
-				}
-			} catch (refreshError) {
-				// Non-fatal - log but don't fail the job
-				console.warn('⚠️ Failed to refresh place_visits:', refreshError);
-			}
-
-			// Chain: Sync POI embeddings after geocoding completes
-			// POIs now have names/categories from geocoding
-			console.log(`🔗 Queueing sync-poi-embeddings job...`);
+			console.log(`🔗 Queueing refresh-place-visits job (chains to sync-poi-embeddings)...`);
 			try {
 				const onBehalfOf = context.user ? {
 					user_id: context.user.id,
@@ -272,8 +258,8 @@ export async function handler(
 					user_role: context.user.role
 				} : undefined;
 
-				const { data: embedJob, error: embedError } = await fluxbaseService.jobs.submit(
-					'sync-poi-embeddings',
+				const { data: refreshJob, error: refreshError } = await fluxbaseService.jobs.submit(
+					'refresh-place-visits',
 					{},
 					{
 						namespace: 'wayli',
@@ -282,13 +268,13 @@ export async function handler(
 					}
 				);
 
-				if (embedError) {
-					console.warn(`⚠️ Failed to queue sync-poi-embeddings job: ${embedError.message}`);
+				if (refreshError) {
+					console.warn(`⚠️ Failed to queue refresh-place-visits job: ${refreshError.message}`);
 				} else {
-					console.log(`✅ sync-poi-embeddings job queued: ${(embedJob as any)?.job_id || 'unknown'}`);
+					console.log(`✅ refresh-place-visits job queued: ${(refreshJob as any)?.job_id || 'unknown'}`);
 				}
-			} catch (embedQueueError) {
-				console.warn(`⚠️ Error queueing sync-poi-embeddings job:`, embedQueueError);
+			} catch (refreshQueueError) {
+				console.warn(`⚠️ Error queueing refresh-place-visits job:`, refreshQueueError);
 			}
 		}
 

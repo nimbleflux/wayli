@@ -445,6 +445,10 @@
 				processedContent = processedContent.replace(/(?:Image:\s*)?!\[([^\]]*)\]\([^)]+\)/gi, '');
 				// Remove lines that are just "Image:" or similar labels left behind
 				processedContent = processedContent.replace(/^(?:Image|Photo|Picture|Cover):\s*$/gim, '');
+				// Remove empty bullet points (bullet with only whitespace after)
+				// Handles: "- ", "* ", "1. ", "2. ", etc. on their own line
+				processedContent = processedContent.replace(/^[\t ]*[-*]\s*$/gm, '');
+				processedContent = processedContent.replace(/^[\t ]*\d+\.\s*$/gm, '');
 				// Remove any leftover empty lines (more than 2 newlines become 2)
 				processedContent = processedContent.replace(/\n{3,}/g, '\n\n').trim();
 			}

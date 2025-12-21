@@ -104,6 +104,7 @@
 	let userHasScrolled = $state(false);
 	let isLoadingLogs = $state(false);
 	let showLevelDropdown = $state(false);
+	let lastLineNumber = $state(0);
 
 	// Filtered logs based on selected level
 	let filteredLogs = $derived(
@@ -204,48 +205,30 @@
 		return t('jobProgress.hoursRemaining', { hours: Math.ceil(seconds / 3600) });
 	}
 
-	// Fetch existing logs from jobs.execution_logs table
+	// Fetch existing logs (backfill) using the Fluxbase SDK
 	async function fetchExistingLogs(jobId: string) {
 		console.log('[JobDetailModal] Fetching existing logs for job:', jobId);
 		isLoadingLogs = true;
 		try {
-			// Try the jobs.logs() method first if available, fall back to schema query
-			let data: ExecutionLog[] | null = null;
-			let error: { message: string } | null = null;
-
-			if (typeof (fluxbase.jobs as any).logs === 'function') {
-				// Use SDK method if available
-				const result = await (fluxbase.jobs as any).logs(jobId);
-				data = result.data;
-				error = result.error;
-				console.log('[JobDetailModal] Using fluxbase.jobs.logs() method');
-			} else {
-				// Fall back to direct schema query
-				const result = await fluxbase
-					.schema('jobs')
-					.from('execution_logs')
-					.select('*')
-					.eq('job_id', jobId)
-					.order('line_number');
-				data = result.data as ExecutionLog[] | null;
-				error = result.error;
-				console.log('[JobDetailModal] Using schema query method');
-			}
+			const { data, error } = await fluxbase.jobs.getLogs(jobId);
 
 			if (error) {
-				// Schema query not supported on this backend - rely on realtime only
-				console.warn('[JobDetailModal] Could not fetch existing logs (will use realtime only):', error);
+				console.warn('[JobDetailModal] Could not fetch existing logs:', error);
 				return;
 			}
 
-			console.log('[JobDetailModal] Fetched logs count:', data?.length ?? 0);
-			const fetchedLogs = (data || []) as ExecutionLog[];
-			// Merge with any logs that came in via realtime during the fetch
-			// Deduplicate by id to avoid duplicates
-			const fetchedIds = new Set(fetchedLogs.map((l) => l.id));
-			const realtimeLogs = logs.filter((l) => !fetchedIds.has(l.id));
-			logs = [...fetchedLogs, ...realtimeLogs].sort((a, b) => a.line_number - b.line_number);
-			console.log('[JobDetailModal] Total logs after merge:', logs.length);
+			const entries = (data || []) as ExecutionLog[];
+			console.log('[JobDetailModal] Fetched logs count:', entries.length);
+
+			// Merge backfill logs with any realtime logs that arrived during fetch
+			// Use line_number for deduplication
+			const existingLineNumbers = new Set(logs.map((l) => l.line_number));
+			const newLogs = entries.filter((e) => !existingLineNumbers.has(e.line_number));
+			logs = [...newLogs, ...logs].sort((a, b) => a.line_number - b.line_number);
+
+			// Update lastLineNumber to the highest we've seen
+			lastLineNumber = Math.max(...(logs.map((l) => l.line_number) ?? []), lastLineNumber);
+			console.log('[JobDetailModal] Last line number after backfill:', lastLineNumber);
 		} catch (err) {
 			console.error('[JobDetailModal] Exception fetching logs:', err);
 		} finally {
@@ -258,16 +241,19 @@
 		logsChannel = fluxbase.realtime
 			.executionLogs(jobId, 'job')
 			.onLog((log) => {
-				// Convert SDK ExecutionLogEvent to our ExecutionLog format
-				const newLog: ExecutionLog = {
-					id: Date.now() + Math.random(), // Generate unique id for realtime logs
-					job_id: jobId,
-					line_number: log.line_number,
-					level: log.level as LogLevel,
-					message: log.message,
-					created_at: new Date().toISOString()
-				};
-				logs = [...logs, newLog].sort((a, b) => a.line_number - b.line_number);
+				// Deduplicate by line number (in case of overlap with backfill)
+				if (log.line_number > lastLineNumber) {
+					const newLog: ExecutionLog = {
+						id: Date.now() + Math.random(), // Generate unique id for realtime logs
+						job_id: jobId,
+						line_number: log.line_number,
+						level: log.level as LogLevel,
+						message: log.message,
+						created_at: new Date().toISOString()
+					};
+					logs = [...logs, newLog].sort((a, b) => a.line_number - b.line_number);
+					lastLineNumber = log.line_number;
+				}
 			})
 			.subscribe((status, err) => {
 				if (status === 'SUBSCRIBED') {
@@ -327,10 +313,11 @@
 			}
 			// Subscribe to new job
 			subscribedJobId = jobId;
+			lastLineNumber = 0;
 			// First subscribe to realtime updates, then fetch existing logs
 			// This ensures we don't miss any logs that arrive during the fetch
 			subscribeToLogs(jobId);
-			// Fetch existing logs (async) - must run after subscription is set up
+			// Fetch existing logs (backfill) - must run after subscription is set up
 			fetchExistingLogs(jobId);
 		} else if (!shouldSubscribe && subscribedJobId) {
 			// Modal closed or job cleared - cleanup
@@ -341,6 +328,7 @@
 			logs = [];
 			userHasScrolled = false;
 			subscribedJobId = null;
+			lastLineNumber = 0;
 		}
 	});
 

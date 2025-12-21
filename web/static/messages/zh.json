@@ -1059,6 +1059,7 @@
     "refreshPlaceVisitsDescription": "从跟踪器点重新生成地点访问数据。这会在数据导入后自动完成。",
     "refresh": "刷新",
     "refreshing": "正在刷新...",
+    "refreshPlaceVisitsQueued": "地点访问刷新任务已加入队列",
     "refreshPlaceVisitsSuccess": "地点访问刷新成功",
     "refreshPlaceVisitsFailed": "刷新地点访问失败"
   },

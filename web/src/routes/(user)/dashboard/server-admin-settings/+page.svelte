@@ -92,6 +92,8 @@
 
 	// Database Maintenance
 	let isRefreshingPlaceVisits = $state(false);
+	let isSyncingPoiEmbeddings = $state(false);
+	let isSyncingTripEmbeddings = $state(false);
 
 	// AI Settings - provider-based model
 	let aiEnabled = $state(false);
@@ -394,9 +396,17 @@
 
 		isRefreshingPlaceVisits = true;
 		try {
-			const { error } = await fluxbase.rpc('refresh_place_visits');
+			// Submit the refresh-place-visits job which has service_role access to the RPC
+			const { error } = await fluxbase.jobs.submit(
+				'refresh-place-visits',
+				{},
+				{
+					namespace: 'wayli',
+					priority: 5
+				}
+			);
 			if (error) throw error;
-			toast.success(t('serverAdmin.refreshPlaceVisitsSuccess'));
+			toast.success(t('serverAdmin.refreshPlaceVisitsQueued'));
 		} catch (error: any) {
 			console.error('❌ Failed to refresh place visits:', error);
 			toast.error(t('serverAdmin.refreshPlaceVisitsFailed'), {
@@ -404,6 +414,56 @@
 			});
 		} finally {
 			isRefreshingPlaceVisits = false;
+		}
+	}
+
+	async function syncPoiEmbeddingsForAllUsers() {
+		if (isSyncingPoiEmbeddings) return;
+
+		isSyncingPoiEmbeddings = true;
+		try {
+			const { error } = await fluxbase.jobs.submit(
+				'scheduled-refresh-place-visits',
+				{},
+				{
+					namespace: 'wayli',
+					priority: 5
+				}
+			);
+			if (error) throw error;
+			toast.success(t('serverAdmin.syncPoiEmbeddingsQueued'));
+		} catch (error: any) {
+			console.error('❌ Failed to sync POI embeddings:', error);
+			toast.error(t('serverAdmin.syncPoiEmbeddingsFailed'), {
+				description: error?.message
+			});
+		} finally {
+			isSyncingPoiEmbeddings = false;
+		}
+	}
+
+	async function syncTripEmbeddingsForAllUsers() {
+		if (isSyncingTripEmbeddings) return;
+
+		isSyncingTripEmbeddings = true;
+		try {
+			const { error } = await fluxbase.jobs.submit(
+				'scheduled-sync-trip-embeddings',
+				{},
+				{
+					namespace: 'wayli',
+					priority: 5
+				}
+			);
+			if (error) throw error;
+			toast.success(t('serverAdmin.syncTripEmbeddingsQueued'));
+		} catch (error: any) {
+			console.error('❌ Failed to sync trip embeddings:', error);
+			toast.error(t('serverAdmin.syncTripEmbeddingsFailed'), {
+				description: error?.message
+			});
+		} finally {
+			isSyncingTripEmbeddings = false;
 		}
 	}
 
@@ -1537,6 +1597,44 @@
 							>
 								<RefreshCw class={`h-4 w-4 ${isRefreshingPlaceVisits ? 'animate-spin' : ''}`} />
 								{isRefreshingPlaceVisits ? t('serverAdmin.refreshing') : t('serverAdmin.refresh')}
+							</button>
+						</div>
+
+						<div class="flex items-center justify-between">
+							<div>
+								<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+									{t('serverAdmin.syncPoiEmbeddings')}
+								</span>
+								<p class="text-xs text-gray-500 dark:text-gray-400">
+									{t('serverAdmin.syncPoiEmbeddingsDescription')}
+								</p>
+							</div>
+							<button
+								onclick={syncPoiEmbeddingsForAllUsers}
+								disabled={isSyncingPoiEmbeddings}
+								class="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								<RefreshCw class={`h-4 w-4 ${isSyncingPoiEmbeddings ? 'animate-spin' : ''}`} />
+								{isSyncingPoiEmbeddings ? t('serverAdmin.syncing') : t('serverAdmin.sync')}
+							</button>
+						</div>
+
+						<div class="flex items-center justify-between">
+							<div>
+								<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+									{t('serverAdmin.syncTripEmbeddings')}
+								</span>
+								<p class="text-xs text-gray-500 dark:text-gray-400">
+									{t('serverAdmin.syncTripEmbeddingsDescription')}
+								</p>
+							</div>
+							<button
+								onclick={syncTripEmbeddingsForAllUsers}
+								disabled={isSyncingTripEmbeddings}
+								class="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								<RefreshCw class={`h-4 w-4 ${isSyncingTripEmbeddings ? 'animate-spin' : ''}`} />
+								{isSyncingTripEmbeddings ? t('serverAdmin.syncing') : t('serverAdmin.sync')}
 							</button>
 						</div>
 					</div>

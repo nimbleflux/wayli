@@ -482,6 +482,6 @@ SELECT
     created_at,
     updated_at
 FROM "public"."trips"
-WHERE user_id = auth.uid();
+WHERE user_id = auth.uid() AND status IN ('active', 'planned', 'completed');
 
 COMMENT ON VIEW "public"."my_trips" IS 'Secure view of trips filtered to current user. Use this for LLM queries.';

@@ -190,7 +190,6 @@ export class ClientStatisticsService {
 	 * Get total count of tracker data points for a user
 	 */
 	async getTotalCount(userId: string, startDate?: string, endDate?: string): Promise<number> {
-		console.log('📊 Getting total count for user:', userId);
 
 		let query = this.fluxbase
 			.from('tracker_data')
@@ -212,9 +211,7 @@ export class ClientStatisticsService {
 			throw new Error(`Failed to get total count: ${error.message}`);
 		}
 
-		const total = count || 0;
-		console.log(`📊 Total count: ${total.toLocaleString()} points`);
-		return total;
+		return count || 0;
 	}
 
 	/**
@@ -780,7 +777,6 @@ export class ClientStatisticsService {
 	 * Finalize statistics calculations
 	 */
 	private finalizeStatistics(): void {
-		console.log('🔧 Finalizing statistics...');
 
 		// Calculate geocoding success rate
 		this.statistics.geocodingStats.successRate =
@@ -807,7 +803,6 @@ export class ClientStatisticsService {
 		const MIN_VISIT_TIME = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 		// Filter unique cities
-		const originalCitiesCount = this.statistics.uniqueCities.size;
 		const filteredCities = new Map<string, VisitData>();
 
 		for (const [cityKey, cityData] of this.statistics.uniqueCities.entries()) {
@@ -819,7 +814,6 @@ export class ClientStatisticsService {
 		this.statistics.uniqueCities = filteredCities;
 
 		// Filter unique countries
-		const originalCountriesCount = this.statistics.uniqueCountries.size;
 		const filteredCountries = new Map<string, VisitData>();
 
 		for (const [countryCode, countryData] of this.statistics.uniqueCountries.entries()) {
@@ -829,11 +823,6 @@ export class ClientStatisticsService {
 		}
 
 		this.statistics.uniqueCountries = filteredCountries;
-
-		console.log(`🔍 Filtered cities: ${filteredCities.size} (from ${originalCitiesCount})`);
-		console.log(
-			`🔍 Filtered countries: ${filteredCountries.size} (from ${originalCountriesCount})`
-		);
 	}
 
 	/**

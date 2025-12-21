@@ -1059,6 +1059,7 @@
     "refreshPlaceVisitsDescription": "Regenere os dados de visitas a lugares a partir dos pontos do rastreador. Isso é feito automaticamente após importações de dados.",
     "refresh": "Atualizar",
     "refreshing": "Atualizando...",
+    "refreshPlaceVisitsQueued": "Tarefa de atualização de visitas em fila",
     "refreshPlaceVisitsSuccess": "Visitas a lugares atualizadas com sucesso",
     "refreshPlaceVisitsFailed": "Falha ao atualizar visitas a lugares"
   },

@@ -1059,6 +1059,7 @@
     "refreshPlaceVisitsDescription": "Ortsbesuchsdaten aus Trackerpunkten neu generieren. Dies geschieht automatisch nach Datenimporten.",
     "refresh": "Aktualisieren",
     "refreshing": "Wird aktualisiert...",
+    "refreshPlaceVisitsQueued": "Ortsbesuche-Aktualisierungsauftrag in Warteschlange",
     "refreshPlaceVisitsSuccess": "Ortsbesuche erfolgreich aktualisiert",
     "refreshPlaceVisitsFailed": "Aktualisierung der Ortsbesuche fehlgeschlagen"
   },

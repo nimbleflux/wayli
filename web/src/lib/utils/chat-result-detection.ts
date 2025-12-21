@@ -16,7 +16,7 @@ export interface ResultTypeDetection {
 }
 
 // Field signatures for each result type
-const TRIP_FIELDS = ['title', 'start_date', 'end_date', 'image_url', 'visited_countries', 'labels'];
+const TRIP_FIELDS = ['title', 'start_date', 'end_date', 'image_url', 'visited_country_codes', 'labels'];
 const PLACE_VISIT_FIELDS = [
 	'poi_name',
 	'poi_amenity',

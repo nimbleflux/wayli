@@ -1056,8 +1056,19 @@
 		"refreshPlaceVisitsDescription": "Regenereer plaatsbezoekgegevens uit trackerpunten. Dit gebeurt automatisch na data-imports.",
 		"refresh": "Vernieuwen",
 		"refreshing": "Vernieuwen...",
+		"refreshPlaceVisitsQueued": "Plaatsbezoeken vernieuwingstaak in wachtrij",
 		"refreshPlaceVisitsSuccess": "Plaatsbezoeken succesvol vernieuwd",
-		"refreshPlaceVisitsFailed": "Kan plaatsbezoeken niet vernieuwen"
+		"refreshPlaceVisitsFailed": "Kan plaatsbezoeken niet vernieuwen",
+		"syncPoiEmbeddings": "POI Embeddings Synchroniseren",
+		"syncPoiEmbeddingsDescription": "Vernieuw plaatsbezoeken en genereer POI-embeddings voor alle gebruikers. Werkt ook gebruikersvoorkeuren bij.",
+		"syncTripEmbeddings": "Reis Embeddings Synchroniseren",
+		"syncTripEmbeddingsDescription": "Genereer reis-embeddings voor alle gebruikers met goedgekeurde reizen.",
+		"sync": "Sync",
+		"syncing": "Synchroniseren...",
+		"syncPoiEmbeddingsQueued": "POI-embeddings synchronisatietaken in wachtrij voor alle gebruikers",
+		"syncPoiEmbeddingsFailed": "Kan POI-embeddings synchronisatie niet starten",
+		"syncTripEmbeddingsQueued": "Reis-embeddings synchronisatietaken in wachtrij voor alle gebruikers",
+		"syncTripEmbeddingsFailed": "Kan reis-embeddings synchronisatie niet starten"
 	},
 	"wantToVisit": {
 		"addNewPlace": "Nieuwe plaats toevoegen",

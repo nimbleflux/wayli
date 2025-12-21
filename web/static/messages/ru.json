@@ -1059,6 +1059,7 @@
     "refreshPlaceVisitsDescription": "Пересоздать данные о посещениях мест из точек трекера. Это делается автоматически после импорта данных.",
     "refresh": "Обновить",
     "refreshing": "Обновление...",
+    "refreshPlaceVisitsQueued": "Задача обновления посещений добавлена в очередь",
     "refreshPlaceVisitsSuccess": "Посещения мест успешно обновлены",
     "refreshPlaceVisitsFailed": "Не удалось обновить посещения мест"
   },

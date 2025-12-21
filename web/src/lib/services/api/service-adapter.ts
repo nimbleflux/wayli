@@ -740,9 +740,10 @@ export class ServiceAdapter {
 		const result = { results: approvedTrips, approved: approvedTrips.filter((t) => t.success) };
 		console.log('📥 [SERVICE] approveSuggestedTrips result:', result);
 
-		// Trigger sync-trip-embeddings job if any trips were approved successfully
+		// Trigger jobs if any trips were approved successfully
 		const successfullyApproved = approvedTrips.filter((t) => t.success);
 		if (successfullyApproved.length > 0) {
+			// 1. Queue sync-trip-embeddings job for the approved trips
 			try {
 				console.log('🔗 [SERVICE] Queueing sync-trip-embeddings job for approved trips...');
 				const { data: embedJob, error: embedError } = await fluxbase.jobs.submit(
@@ -762,6 +763,25 @@ export class ServiceAdapter {
 			} catch (embedQueueError) {
 				// Non-fatal - log but don't fail the approval
 				console.warn('⚠️ [SERVICE] Error queueing sync-trip-embeddings job:', embedQueueError);
+			}
+
+			// 2. Queue refresh-place-visits job to update POI data
+			// This chains to sync-poi-embeddings -> compute-user-preferences
+			try {
+				console.log('🔗 [SERVICE] Queueing refresh-place-visits job...');
+				fluxbase.jobs.submit(
+					'refresh-place-visits',
+					{},
+					{
+						namespace: 'wayli',
+						priority: 4
+					}
+				).catch(err =>
+					console.warn('⚠️ [SERVICE] Failed to queue refresh-place-visits job:', err)
+				);
+			} catch (refreshError) {
+				// Non-fatal - log but don't fail the approval
+				console.warn('⚠️ [SERVICE] Error queueing refresh-place-visits job:', refreshError);
 			}
 		}
 

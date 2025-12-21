@@ -1,5 +1,4 @@
 <script lang="ts">
-	console.log('🚀 New Statistics page script loaded');
 
 	import { format } from 'date-fns';
 	import {
@@ -210,7 +209,6 @@
 			statisticsService = null;
 		}
 
-		console.log('✅ Statistics page cleanup complete');
 	});
 
 	// Initialize the statistics service
@@ -276,7 +274,6 @@
 			const endDate = formatLocalDate(appState.filtersEndDate);
 
 			if (!startDate && !endDate) {
-				console.log('📅 No date range set, skipping data fetch');
 				return;
 			}
 
@@ -285,7 +282,6 @@
 				throw new Error('User not authenticated');
 			}
 
-			console.log('📊 Starting client-side statistics processing...');
 
 			// Load and process data with progress tracking
 			const statistics = await statisticsService!.loadAndProcessData(
@@ -296,7 +292,6 @@
 				(progress) => {
 					loadingStage = progress.stage;
 					animateProgress(progress.percentage);
-					console.log(`📊 Progress: ${progress.percentage}% - ${progress.stage}`);
 				},
 				// Error callback
 				(error, canRetry) => {
@@ -343,7 +338,6 @@
 	async function handleDateRangeChange() {
 		// Prevent concurrent calls
 		if (isHandlingDateChange || isLoading) {
-			console.log('⏭️ Skipping handleDateRangeChange - already processing');
 			return;
 		}
 
@@ -565,8 +559,6 @@
 	function drawDataPointsOnMap(dataPoints: any[]) {
 		if (!map || !L || !dataPoints.length) return;
 
-		console.log('🗺️ Drawing', dataPoints.length, 'data points on map');
-
 		// Clear existing markers
 		clearMapMarkers();
 
@@ -721,7 +713,6 @@
 			// Use dates from URL params
 			appState.filtersStartDate = new Date(startParam);
 			appState.filtersEndDate = new Date(endParam);
-			console.log('📅 Set date range from URL params:', { start: startParam, end: endParam });
 		} else if (!appState.filtersStartDate && !appState.filtersEndDate) {
 			// Set default date range to past 7 days if no date range is set
 			const endDate = new SvelteDate();
@@ -730,7 +721,6 @@
 
 			appState.filtersStartDate = startDate;
 			appState.filtersEndDate = endDate;
-			console.log('📅 Set default date range:', { start: startDate, end: endDate });
 		}
 
 		// Don't call handleDateRangeChange() here - the $effect will handle it
@@ -756,7 +746,6 @@
 		// Only trigger if dates actually changed and we're not initializing
 		if (!isInitializing && (startDate || endDate)) {
 			if (startStr !== lastStartStr || endStr !== lastEndStr) {
-				console.log('📅 Date range changed, triggering data load');
 				lastProcessedStart = startDate;
 				lastProcessedEnd = endDate;
 				handleDateRangeChange();
@@ -824,8 +813,6 @@
 
 			// Initial theme sync
 			updateMapTheme();
-
-			console.log('🗺️ Map initialized successfully');
 		} catch (error) {
 			console.error('❌ Error initializing map:', error);
 		}

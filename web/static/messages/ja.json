@@ -1051,6 +1051,7 @@
 		"refreshPlaceVisitsDescription": "トラッカーポイントから訪問場所データを再生成します。これはデータインポート後に自動的に行われます。",
 		"refresh": "更新",
 		"refreshing": "更新中...",
+		"refreshPlaceVisitsQueued": "訪問場所更新ジョブがキューに追加されました",
 		"refreshPlaceVisitsSuccess": "訪問場所が正常に更新されました",
 		"refreshPlaceVisitsFailed": "訪問場所の更新に失敗しました"
 	},

@@ -11,7 +11,6 @@
  * @fluxbase:timeout 3600
  * @fluxbase:allow-net true
  * @fluxbase:allow-env true
- * @fluxbase:schedule 0 5 * * *
  */
 
 import type { FluxbaseClient, JobUtils } from './types';

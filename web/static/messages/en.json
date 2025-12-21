@@ -1051,8 +1051,19 @@
 		"refreshPlaceVisitsDescription": "Regenerate the place visits data from tracker points. This is done automatically after data imports.",
 		"refresh": "Refresh",
 		"refreshing": "Refreshing...",
+		"refreshPlaceVisitsQueued": "Place visits refresh job queued",
 		"refreshPlaceVisitsSuccess": "Place visits refreshed successfully",
-		"refreshPlaceVisitsFailed": "Failed to refresh place visits"
+		"refreshPlaceVisitsFailed": "Failed to refresh place visits",
+		"syncPoiEmbeddings": "Sync POI Embeddings",
+		"syncPoiEmbeddingsDescription": "Refresh place visits and generate POI embeddings for all users. Also updates user preference vectors.",
+		"syncTripEmbeddings": "Sync Trip Embeddings",
+		"syncTripEmbeddingsDescription": "Generate trip embeddings for all users with approved trips.",
+		"sync": "Sync",
+		"syncing": "Syncing...",
+		"syncPoiEmbeddingsQueued": "POI embeddings sync jobs queued for all users",
+		"syncPoiEmbeddingsFailed": "Failed to queue POI embeddings sync",
+		"syncTripEmbeddingsQueued": "Trip embeddings sync jobs queued for all users",
+		"syncTripEmbeddingsFailed": "Failed to queue trip embeddings sync"
 	},
 	"wantToVisit": {
 		"addNewPlace": "Add new place",

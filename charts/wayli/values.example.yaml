@@ -1,3 +1,11 @@
+# Wayli Helm Chart - Example Values
+#
+# Secret Generation:
+#   Run ./generate-secrets.sh to generate Kubernetes secrets for Fluxbase
+#
+# Documentation:
+#   See charts/wayli/README.md for full configuration options
+
 global:
   ## Shared secret name anchor for Fluxbase
   fluxbaseSecretName: &fluxbaseSecret fluxbase-secret
@@ -144,3 +152,15 @@ fluxbase:
         nginx.ingress.kubernetes.io/proxy-read-timeout: '3600'
         nginx.ingress.kubernetes.io/proxy-send-timeout: '3600'
       tls: []
+
+  # Logging configuration
+  logging:
+    console_enabled: true
+    console_level: 'info'
+    backend: 'postgres'
+    pubsub_enabled: true
+    retention_enabled: true
+
+  # Admin UI configuration (disabled by default)
+  admin:
+    enabled: false

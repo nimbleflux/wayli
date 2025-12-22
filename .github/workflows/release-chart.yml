@@ -96,12 +96,26 @@ jobs:
 
           echo "📦 Chart version bumped to $NEW_VERSION"
 
+      - name: Detect if RC release
+        if: steps.chart_changes.outputs.changed == 'true'
+        id: detect_rc
+        run: |
+          APP_VERSION=$(grep '^appVersion:' charts/wayli/Chart.yaml | awk '{print $2}' | tr -d '"')
+          if [[ "$APP_VERSION" == *"-rc."* ]]; then
+            echo "is_rc=true" >> $GITHUB_OUTPUT
+            echo "App version $APP_VERSION is an RC release"
+          else
+            echo "is_rc=false" >> $GITHUB_OUTPUT
+            echo "App version $APP_VERSION is a stable release"
+          fi
+
       - name: Run chart-releaser
         if: steps.chart_changes.outputs.changed == 'true'
         uses: helm/chart-releaser-action@v1.6.0
         with:
           charts_dir: charts
           config: .github/cr.yaml
+          mark_as_latest: ${{ steps.detect_rc.outputs.is_rc != 'true' }}
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           CR_SKIP_EXISTING: "true"

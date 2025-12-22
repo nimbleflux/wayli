@@ -2,17 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
     branches: [main]
 
-# Required permissions for semantic-release and Docker operations
 permissions:
-  packages: write      # For npm package publishing (if needed)
-  contents: write      # For creating tags and commits
-  id-token: write     # For Docker registry authentication
-  issues: write       # For semantic-release GitHub plugin
-  pull-requests: write # For semantic-release GitHub plugin
+  contents: read
 
 jobs:
   build:

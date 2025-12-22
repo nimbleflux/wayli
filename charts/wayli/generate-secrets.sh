@@ -80,6 +80,35 @@ prompt_with_default() {
     echo "$value"
 }
 
+# Prompt for a password (hidden input with * characters)
+prompt_password() {
+    local prompt=$1
+    local password=""
+    local char=""
+
+    echo -ne "${CYAN}${prompt}${NC}: " >&2
+
+    while IFS= read -r -s -n1 char; do
+        # Check for enter key (empty char)
+        if [[ -z "$char" ]]; then
+            break
+        fi
+        # Check for backspace
+        if [[ "$char" == $'\x7f' ]] || [[ "$char" == $'\x08' ]]; then
+            if [[ -n "$password" ]]; then
+                password="${password%?}"
+                echo -ne "\b \b" >&2
+            fi
+        else
+            password+="$char"
+            echo -n "*" >&2
+        fi
+    done
+    echo "" >&2
+
+    echo "$password"
+}
+
 # Generate a secure random password (URL-safe, alphanumeric only)
 generate_password() {
     local length=${1:-32}
@@ -103,12 +132,13 @@ generate_jwt_secret() {
 }
 
 # Generate JWT tokens using Node.js crypto via Docker
+# Outputs: ANON_KEY=... and SERVICE_ROLE_KEY=... on stdout
 generate_jwt_tokens() {
     local jwt_secret=$1
 
-    echo ""
-    print_info "Attempting to generate JWT tokens using Docker..."
-    echo ""
+    echo "" >&2
+    print_info "Attempting to generate JWT tokens using Docker..." >&2
+    echo "" >&2
 
     # Try to use Node.js via Docker to generate JWT tokens using built-in crypto
     local jwt_output
@@ -159,26 +189,23 @@ generate_jwt_tokens() {
     " 2>&1); then
         # Check if output contains tokens (not error messages)
         if echo "$jwt_output" | grep -q "^ANON_KEY=eyJ"; then
-            print_success "JWT tokens generated successfully"
-
-            # Extract tokens
-            ANON_KEY=$(echo "$jwt_output" | grep "^ANON_KEY=" | cut -d'=' -f2-)
-            SERVICE_ROLE_KEY=$(echo "$jwt_output" | grep "^SERVICE_ROLE_KEY=" | cut -d'=' -f2-)
-
+            print_success "JWT tokens generated successfully" >&2
+            # Output the tokens to stdout for capture
+            echo "$jwt_output"
             return 0
         else
-            print_warning "Could not generate JWT tokens automatically"
-            echo "Docker output: $jwt_output"
-            echo ""
-            echo "Please generate JWT tokens manually using your JWT secret"
-            echo ""
+            print_warning "Could not generate JWT tokens automatically" >&2
+            echo "Docker output: $jwt_output" >&2
+            echo "" >&2
+            echo "Please generate JWT tokens manually using your JWT secret" >&2
+            echo "" >&2
             return 1
         fi
     else
-        print_warning "Could not generate JWT tokens automatically (Docker not available?)"
-        echo ""
-        echo "Please generate JWT tokens manually using your JWT secret"
-        echo ""
+        print_warning "Could not generate JWT tokens automatically (Docker not available?)" >&2
+        echo "" >&2
+        echo "Please generate JWT tokens manually using your JWT secret" >&2
+        echo "" >&2
         return 1
     fi
 }
@@ -230,12 +257,15 @@ main() {
     print_success "JWT_SECRET: Generated (base64, 48 bytes)"
 
     # Generate JWT tokens
-    if generate_jwt_tokens "$JWT_SECRET"; then
+    ANON_KEY=""
+    SERVICE_ROLE_KEY=""
+    jwt_output=$(generate_jwt_tokens "$JWT_SECRET")
+    if [ $? -eq 0 ]; then
         JWT_TOKENS_GENERATED=true
+        ANON_KEY=$(echo "$jwt_output" | grep "^ANON_KEY=" | cut -d'=' -f2-)
+        SERVICE_ROLE_KEY=$(echo "$jwt_output" | grep "^SERVICE_ROLE_KEY=" | cut -d'=' -f2-)
     else
         JWT_TOKENS_GENERATED=false
-        ANON_KEY=""
-        SERVICE_ROLE_KEY=""
     fi
 
     # Ask for SMTP credentials (optional)
@@ -243,17 +273,17 @@ main() {
     echo -e "${BLUE}SMTP Configuration (optional):${NC}"
     print_info "Configure SMTP for sending real emails (password reset, invites, etc.)"
     echo ""
-    read -p "$(echo -e ${CYAN}'Do you want to configure SMTP?'${NC}) (y/N): " -n 1 -r
-    echo
+    read -p "$(echo -e ${CYAN}'Do you want to configure SMTP?'${NC}) (y/N): " REPLY
 
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         SMTP_USERNAME=$(prompt_with_default "SMTP username" "")
-        SMTP_PASSWORD=$(prompt_with_default "SMTP password" "")
-        CREATE_SMTP_SECRET=true
-        SMTP_SECRET_NAME=$(prompt_with_default "SMTP secret name" "smtp-secret")
+        SMTP_PASSWORD=$(prompt_password "SMTP password")
+        CONFIGURE_SMTP=true
     else
-        CREATE_SMTP_SECRET=false
-        print_info "Skipped SMTP configuration"
+        CONFIGURE_SMTP=false
+        SMTP_USERNAME="fake_mail_user"
+        SMTP_PASSWORD="fake_mail_password"
+        print_info "Skipped SMTP configuration (using placeholder values)"
     fi
 
     # Create secrets
@@ -267,28 +297,15 @@ metadata:
   namespace: ${NAMESPACE}
 type: Opaque
 data:
-  jwt-secret: $(echo -n "$JWT_SECRET" | base64)
-  anon-key: $(echo -n "$ANON_KEY" | base64)
-  service-role-key: $(echo -n "$SERVICE_ROLE_KEY" | base64)
-  db-password: $(echo -n "$DB_PASSWORD" | base64)
-  db-enc-key: $(echo -n "$DB_ENC_KEY" | base64)
-  vault-enc-key: $(echo -n "$VAULT_ENC_KEY" | base64)
-  secret-key-base: $(echo -n "$SECRET_KEY_BASE" | base64)
-  username: $(echo -n "fake_mail_user" | base64)
-  password: $(echo -n "fake_mail_password" | base64)"
-
-    # Create SMTP secret YAML if requested
-    if [ "$CREATE_SMTP_SECRET" = true ]; then
-        SMTP_SECRET_YAML="apiVersion: v1
-kind: Secret
-metadata:
-  name: ${SMTP_SECRET_NAME}
-  namespace: ${NAMESPACE}
-type: Opaque
-data:
-  username: $(echo -n "$SMTP_USERNAME" | base64)
-  password: $(echo -n "$SMTP_PASSWORD" | base64)"
-    fi
+  jwt-secret: $(echo -n "$JWT_SECRET" | base64 -w 0)
+  anon-key: $(echo -n "$ANON_KEY" | base64 -w 0)
+  service-role-key: $(echo -n "$SERVICE_ROLE_KEY" | base64 -w 0)
+  db-password: $(echo -n "$DB_PASSWORD" | base64 -w 0)
+  db-enc-key: $(echo -n "$DB_ENC_KEY" | base64 -w 0)
+  vault-enc-key: $(echo -n "$VAULT_ENC_KEY" | base64 -w 0)
+  secret-key-base: $(echo -n "$SECRET_KEY_BASE" | base64 -w 0)
+  smtp-username: $(echo -n "$SMTP_USERNAME" | base64 -w 0)
+  smtp-password: $(echo -n "$SMTP_PASSWORD" | base64 -w 0)"
 
     # Deploy or save secrets
     if [ "$deploy_option" = "1" ]; then
@@ -300,11 +317,6 @@ data:
         else
             echo "$FLUXBASE_SECRET_YAML" | kubectl apply -f -
             print_success "Fluxbase secret created in cluster: ${NAMESPACE}/${SECRET_NAME}"
-
-            if [ "$CREATE_SMTP_SECRET" = true ]; then
-                echo "$SMTP_SECRET_YAML" | kubectl apply -f -
-                print_success "SMTP secret created in cluster: ${NAMESPACE}/${SMTP_SECRET_NAME}"
-            fi
         fi
     fi
 
@@ -313,17 +325,9 @@ data:
         echo "$FLUXBASE_SECRET_YAML" > "${SECRET_NAME}.yaml"
         print_success "Fluxbase secret saved to: ${SECRET_NAME}.yaml"
 
-        if [ "$CREATE_SMTP_SECRET" = true ]; then
-            echo "$SMTP_SECRET_YAML" > "${SMTP_SECRET_NAME}.yaml"
-            print_success "SMTP secret saved to: ${SMTP_SECRET_NAME}.yaml"
-        fi
-
         echo ""
         print_info "To apply the secrets to your cluster, run:"
         echo "  kubectl apply -f ${SECRET_NAME}.yaml"
-        if [ "$CREATE_SMTP_SECRET" = true ]; then
-            echo "  kubectl apply -f ${SMTP_SECRET_NAME}.yaml"
-        fi
     fi
 
     # Summary
@@ -332,9 +336,11 @@ data:
     echo "Secrets generated for namespace: ${NAMESPACE}"
     echo ""
     echo "Summary:"
-    echo "  • Fluxbase secret name: ${SECRET_NAME}"
-    if [ "$CREATE_SMTP_SECRET" = true ]; then
-        echo "  • SMTP secret name: ${SMTP_SECRET_NAME}"
+    echo "  • Secret name: ${SECRET_NAME}"
+    if [ "$CONFIGURE_SMTP" = true ]; then
+        echo "  • SMTP credentials: configured"
+    else
+        echo "  • SMTP credentials: placeholder values (configure later)"
     fi
     echo ""
 
@@ -348,11 +354,8 @@ data:
     fi
 
     echo "Next steps:"
-    echo "  1. Update your values.yaml to reference these secrets:"
+    echo "  1. Update your values.yaml to reference this secret:"
     echo "     fluxbase.global.fluxbase.existingSecret: ${SECRET_NAME}"
-    if [ "$CREATE_SMTP_SECRET" = true ]; then
-        echo "     fluxbase.global.fluxbase.auth.smtp.existingSecret: ${SMTP_SECRET_NAME}"
-    fi
     echo "  2. Deploy Wayli using: helm install wayli ./wayli -n ${NAMESPACE}"
     echo ""
 }

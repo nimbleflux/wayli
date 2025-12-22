@@ -1,5 +1,33 @@
 name: Release
 
+# This workflow handles all release types: stable releases and release candidates (RC)
+#
+# Triggers:
+#   1. Manual workflow_dispatch - Create a new release by specifying bump type
+#
+# How to create an RC release:
+#   1. Go to Actions → Release → Run workflow
+#   2. Select branch (usually 'main')
+#   3. Choose 'rc' as bump_type
+#   4. Select which components to publish (all enabled by default)
+#   5. Click "Run workflow"
+#
+# Component Toggles:
+#   - Publish Docker image: Build and push the Wayli Docker image to Docker Hub
+#   - Publish Helm chart: Package and publish Helm chart to GitHub Pages
+#
+# RC Release behavior:
+#   - Version format: vMAJOR.MINOR.PATCH-rc.N (e.g., v1.0.0-rc.1, v1.0.0-rc.2)
+#   - Marked as GitHub pre-release
+#   - Docker images tagged with version and 'rc' (NOT 'latest')
+#   - Helm charts published with prerelease annotation
+#
+# Stable Release behavior (patch/minor/major):
+#   - Version format: vMAJOR.MINOR.PATCH (e.g., v1.0.11)
+#   - Marked as GitHub release (not pre-release)
+#   - Docker images tagged with version and 'latest'
+#   - Helm charts published normally
+
 on:
   workflow_dispatch:
     inputs:
@@ -18,10 +46,21 @@ on:
         required: false
         default: false
         type: boolean
+      publish_docker:
+        description: 'Publish Docker image'
+        required: false
+        type: boolean
+        default: true
+      publish_helm:
+        description: 'Publish Helm chart'
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   packages: write
   contents: write
+  pages: write
   id-token: write
 
 jobs:
@@ -135,22 +174,22 @@ jobs:
           echo "Updated package.json to version ${{ env.VERSION }}"
 
       - name: Set up Docker Buildx
-        if: inputs.dry_run == false
+        if: inputs.dry_run == false && inputs.publish_docker
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
-        if: inputs.dry_run == false
+        if: inputs.dry_run == false && inputs.publish_docker
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract short SHA
-        if: inputs.dry_run == false
+        if: inputs.dry_run == false && inputs.publish_docker
         run: echo "SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
 
       - name: Build and push Docker image
-        if: inputs.dry_run == false
+        if: inputs.dry_run == false && inputs.publish_docker
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -200,3 +239,100 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-helm-chart:
+    name: Publish Helm Chart
+    runs-on: ubuntu-latest
+    needs: [get-version, release]
+    if: inputs.dry_run == false && inputs.publish_helm
+    env:
+      VERSION: ${{ needs.get-version.outputs.version }}
+      IS_RC: ${{ needs.get-version.outputs.is_rc }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main  # Checkout main to get the latest committed changes from release job
+
+      - name: Pull latest changes
+        run: git pull origin main
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Add Helm repositories
+        run: |
+          helm repo add fluxbase https://fluxbase-eu.github.io/fluxbase
+          helm repo update
+
+      - name: Update chart dependencies
+        run: |
+          helm dependency update charts/wayli
+
+      - name: Bump chart version
+        run: |
+          # Get current version
+          CURRENT_VERSION=$(grep '^version:' charts/wayli/Chart.yaml | awk '{print $2}')
+          echo "📦 Current chart version: $CURRENT_VERSION"
+
+          # Bump patch version
+          NEW_VERSION=$(echo $CURRENT_VERSION | awk -F. '{$NF = $NF + 1;} 1' | sed 's/ /./g')
+          echo "📦 Bumping to version: $NEW_VERSION"
+
+          # Update Chart.yaml
+          sed -i "s/^version: .*/version: $NEW_VERSION/" charts/wayli/Chart.yaml
+
+          # Commit the version bump
+          git add charts/wayli/Chart.yaml
+          git commit -m "chore(chart): Bump version to $NEW_VERSION [skip ci]"
+          git push
+
+          echo "📦 Chart version bumped to $NEW_VERSION"
+          echo "CHART_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+      - name: Add prerelease annotation for RC versions
+        if: env.IS_RC == 'true'
+        run: |
+          cat >> charts/wayli/Chart.yaml << EOF
+          annotations:
+            artifacthub.io/prerelease: "true"
+          EOF
+
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@v1.6.0
+        with:
+          charts_dir: charts
+          config: .github/cr.yaml
+          mark_as_latest: ${{ env.IS_RC != 'true' }}
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          CR_SKIP_EXISTING: "true"
+
+      - name: Deploy index.yaml to gh-pages
+        run: |
+          # Check if index.yaml was generated
+          if [ ! -f .cr-index/index.yaml ]; then
+            echo "⚠️ No index.yaml found in .cr-index directory"
+            exit 1
+          fi
+
+          # Copy the generated index.yaml to a temporary location
+          cp .cr-index/index.yaml /tmp/index.yaml
+
+          # Checkout gh-pages branch
+          git fetch origin gh-pages:gh-pages || git checkout --orphan gh-pages
+          git checkout gh-pages
+
+          # Copy the index.yaml from temp to root
+          cp /tmp/index.yaml index.yaml
+          git add index.yaml
+          git commit -m "Update Helm repository index [skip ci]" || echo "No changes to commit"
+          git push origin gh-pages

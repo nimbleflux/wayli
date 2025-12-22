@@ -1,7 +1,10 @@
 import path from 'path';
+import { sveltekit } from '@sveltejs/kit/vite';
+import { svelteTesting } from '@testing-library/svelte/vite';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+	plugins: [sveltekit(), svelteTesting()],
 	test: {
 		include: ['tests/**/*.{test,spec}.{js,ts}', 'src/**/*.{test,spec}.{js,ts}'],
 		exclude: [
@@ -54,7 +57,9 @@ export default defineConfig({
 			$stores: path.resolve(__dirname, './src/lib/stores'),
 			$utils: path.resolve(__dirname, './src/lib/utils'),
 			$services: path.resolve(__dirname, './src/lib/services'),
-			$types: path.resolve(__dirname, './src/lib/types')
+			$types: path.resolve(__dirname, './src/lib/types'),
+			// Alias @fluxbase/sdk to mock for CI - ensures tests work regardless of npm install
+			'@fluxbase/sdk': path.resolve(__dirname, './tests/mocks/fluxbase-sdk.ts')
 		}
 	}
 });

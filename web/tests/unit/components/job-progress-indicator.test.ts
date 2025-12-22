@@ -11,15 +11,18 @@ vi.mock('$lib/stores/job-store', () => ({
 				'1',
 				{
 					id: '1',
-					type: 'data_import',
+					job_name: 'data_import',
 					status: 'running',
-					progress: 50,
-					updated_at: new Date().toISOString()
+					progress_percent: 50,
+					updated_at: new Date().toISOString(),
+					created_at: new Date().toISOString(),
+					created_by: 'test-user'
 				}
 			]
 		]),
 	subscribe: () => () => {},
-	fetchAndPopulateJobs: vi.fn().mockResolvedValue(undefined)
+	fetchAndPopulateJobs: vi.fn().mockResolvedValue(undefined),
+	removeJobFromStore: vi.fn()
 }));
 
 vi.mock('$lib/fluxbase', () => ({
@@ -30,6 +33,11 @@ vi.mock('$lib/fluxbase', () => ({
 }));
 
 vi.mock('svelte-sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+vi.mock('$lib/stores/upload-store', () => ({
+	activeUploads: new Map(),
+	subscribe: () => () => {}
+}));
 
 vi.mock('$lib/i18n', async () => {
 	const { readable } = await import('svelte/store');

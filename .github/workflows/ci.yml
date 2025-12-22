@@ -53,7 +53,7 @@ jobs:
 
       - name: Run unit tests
         working-directory: web
-        run: npm run test
+        run: npx vitest --run --config vitest.ci.config.ts
 
       - name: Build app
         working-directory: web

@@ -413,140 +413,184 @@ serviceAccount:
   automountServiceAccountToken: true
 
 ## Fluxbase dependency configuration
+## See: https://github.com/fluxbase-eu/fluxbase/blob/main/deploy/helm/fluxbase/values.yaml
 fluxbase:
   enabled: true
 
+  ## Global parameters
   global:
-    # Global default storage class
-    defaultStorageClass: "standard"
-    # Global storage class
     storageClass: "standard"
-    # Fluxbase global configuration
-    fluxbase:
-      # Public URL of the Fluxbase instance (API endpoint)
-      publicUrl: "https://flux.wayli.app"
-      # Site URL for auth redirects
-      siteUrl: "https://wayli.app"
-      # JWT token expiry (e.g., 15m, 1h, 24h)
-      jwtExpiry: "1h"
-      # Auth configuration
-      auth:
-        # Authentication settings
-        disableSignup: false
-        # Enable email signup
-        enableEmailSignup: true
-        # Enable email autoconfirm (set to true if SMTP is not configured)
-        enableEmailAutoconfirm: false
-        # SMTP configuration
-        smtp:
-          # SMTP admin email
-          adminEmail: ""
-          # SMTP host
-          host: ""
-          # SMTP port
-          port: 587
-          # SMTP sender name
-          senderName: "Wayli"
-          # Existing secret containing SMTP credentials
-          existingSecret: ""
-          # Secret keys configuration for existing secret
-          secretKeys:
-            # SMTP user key in the secret
-            userKey: username
-            # SMTP password key in the secret
-            passwordKey: password
-      existingSecret: ""
-      secretKeys:
-        # JWT secret key in the secret
-        jwtSecret: jwt-secret
-        # Anonymous key in the secret
-        anonKey: anon-key
-        # Service role key in the secret
-        serviceRoleKey: service-role-key
-        # Secret key base in the secret
-        secretKeyBase: secret-key-base
-        # Vault encryption key in the secret
-        vaultEncKey: vault-enc-key
-        # Database encryption key in the secret
-        dbEncKey: db-enc-key
-      # Direct values (when existingSecret is empty - for non-production only)
-      values:
-        anonKey: ""
-        serviceRoleKey: ""
-        jwtSecret: ""
-        dbPassword: ""
-        dbEncKey: ""
-        vaultEncKey: ""
-        secretKeyBase: ""
-        username: ""
-        password: ""
 
-  # Database configuration (PostgreSQL)
-  db:
-    postgres:
-      enabled: true
-      existingSecret: ""
-      secretKeys:
-        userPasswordKey: db-password
-      resources:
-        requests:
-          memory: 512Mi
-          cpu: "250m"
-        limits:
-          memory: 2Gi
-          cpu: "2"
-      persistence:
-        size: 20Gi
+  ## Fluxbase application configuration
+  ## All settings under fluxbase.* are passed as environment variables with FLUXBASE_ prefix
+  fluxbase:
+    ## Public base URL for the application
+    base_url: "https://flux.wayli.app"
 
-  # Storage configuration (MinIO/S3)
-  storage:
-    enabled: true
-    config:
-      fileSizeLimit: 1073741824
-      storageBucket: trip-images
-      region: local
-    persistence:
-      size: 50Gi
-      storageClass: ~
+    ## Server configuration
+    server:
+      address: ":8080"
+      read_timeout: "300s"
+      write_timeout: "300s"
+      idle_timeout: "120s"
+      body_limit: 2147483648
 
-  # Fluxbase server configuration
-  server:
-    enabled: true
-    resources:
-      requests:
-        memory: 256Mi
-        cpu: "100m"
-      limits:
-        memory: 512Mi
-        cpu: "500m"
-    # Realtime configuration
+    ## Database configuration
+    ## Note: host, port, user are auto-determined from postgresql.* section
+    database:
+      ssl_mode: "disable"
+      max_connections: 25
+      min_connections: 5
+      max_conn_lifetime: "1h"
+      max_conn_idle_time: "30m"
+      health_check_period: "1m"
+
+    ## Authentication configuration
+    auth:
+      jwt_secret: ""  # Use existingSecret in production
+      anon_key: ""    # Pre-signed JWT for client apps
+      jwt_expiry: "1h"
+      refresh_expiry: "168h"
+      magic_link_expiry: "15m"
+      password_reset_expiry: "1h"
+      password_min_length: 8
+      bcrypt_cost: 10
+      enable_signup: true
+      enable_magic_link: true
+      totp_issuer: "Wayli"
+
+    ## Security configuration
+    security:
+      enable_global_rate_limit: false
+      setup_token: ""  # Use existingSecret in production
+      admin_setup_rate_limit: 5
+      admin_setup_rate_window: "1m"
+      auth_login_rate_limit: 10
+      auth_login_rate_window: "1m"
+
+    ## CORS configuration
+    cors:
+      allowed_origins:
+        - "https://wayli.app"
+      allowed_methods:
+        - "GET"
+        - "POST"
+        - "PUT"
+        - "DELETE"
+        - "PATCH"
+        - "OPTIONS"
+      allowed_headers:
+        - "*"
+      allow_credentials: true
+      max_age: 86400
+
+    ## Storage configuration
+    storage:
+      provider: "local"
+      local_path: "/data/storage"
+      max_upload_size: 1073741824
+      default_buckets:
+        - "trip-images"
+
+    ## Realtime/WebSocket configuration
     realtime:
       enabled: true
-    # Functions/Edge Functions configuration
+      max_connections: 1000
+      ping_interval: "30s"
+      pong_timeout: "60s"
+
+    ## Email configuration
+    email:
+      enabled: false
+      provider: "smtp"
+      from_address: "noreply@wayli.app"
+      from_name: "Wayli"
+      reply_to_address: ""
+      smtp_host: ""
+      smtp_port: 587
+      smtp_username: ""
+      smtp_password: ""  # Use existingSecret in production
+      smtp_tls: true
+
+    ## Edge Functions configuration
     functions:
       enabled: true
-      # Path to edge functions directory
-      functionsPath: /app/functions
-    # Ingress configuration for Fluxbase API
-    ingress:
+      functions_dir: "/app/functions"
+      auto_load_on_boot: true
+      default_timeout: 30
+      max_timeout: 300
+
+    ## Background Jobs configuration
+    jobs:
+      enabled: true
+      jobs_dir: "/app/jobs"
+      auto_load_on_boot: true
+      worker_mode: "embedded"
+      embedded_worker_count: 4
+
+    ## Logging configuration
+    logging:
+      console_enabled: true
+      console_level: "info"
+      console_format: "json"
+      backend: "postgres"
+      pubsub_enabled: true
+      retention_enabled: true
+
+    ## Admin dashboard configuration
+    admin:
       enabled: false
-      ingressClassName: nginx
-      hostname: ""
-      annotations:
-        nginx.ingress.kubernetes.io/ssl-redirect: "true"
-        nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-        nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
-        nginx.ingress.kubernetes.io/proxy-body-size: "1g"
-      tls: []
 
-  # Logging configuration
-  logging:
-    console_enabled: true
-    console_level: "info"
-    backend: "postgres"
-    pubsub_enabled: true
-    retention_enabled: true
+  ## Existing secret for sensitive configuration
+  ## Should contain keys: jwt-secret, setup-token, database-password, smtp-password, etc.
+  existingSecret: ""
 
-  # Admin UI configuration (disabled by default)
-  admin:
+  ## Custom key names for existingSecret
+  existingSecretKeyRef:
+    jwtSecret: "jwt-secret"
+    setupToken: "setup-token"
+    databasePassword: "database-password"
+    smtpPassword: "smtp-password"
+
+  ## Deployment configuration
+  replicaCount: 1
+
+  ## Resource configuration
+  resourcesPreset: "small"
+  resources: {}
+
+  ## Persistence configuration
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 50Gi
+
+  ## Service configuration
+  service:
+    type: ClusterIP
+    ports:
+      http: 8080
+
+  ## Ingress configuration
+  ingress:
     enabled: false
+    ingressClassName: nginx
+    hostname: ""
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+      nginx.ingress.kubernetes.io/proxy-body-size: "1g"
+    tls: []
+
+  ## PostgreSQL configuration (bundled)
+  postgresql:
+    enabled: true
+    auth:
+      database: fluxbase
+      username: fluxbase
+      password: ""  # Use existingSecret in production
+      existingSecret: ""
+    primary:
+      persistence:
+        size: 20Gi

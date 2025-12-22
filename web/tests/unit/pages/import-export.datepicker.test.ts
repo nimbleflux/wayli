@@ -21,8 +21,18 @@ vi.mock('$lib/i18n', async () => {
 vi.mock('$lib/stores/auth', () => ({
 	sessionStore: {
 		subscribe: (fn: any) => {
-			fn({});
-			return () => { };
+			fn({ user: { id: 'test-user-id' } });
+			return () => {};
+		}
+	}
+}));
+
+vi.mock('$lib/fluxbase', () => ({
+	fluxbase: {
+		auth: {
+			getSession: vi.fn().mockResolvedValue({
+				data: { session: { user: { id: 'test-user-id' } } }
+			})
 		}
 	}
 }));

@@ -105,7 +105,12 @@ describe('Transport Mode Detection', () => {
 			it('should detect train journey with station visits', () => {
 				const trainStationGeocode = {
 					properties: {
-						type: 'railway_station',
+						addendum: {
+							osm: {
+								railway: 'station',
+								name: 'Central Station'
+							}
+						},
 						address: { name: 'Central Station', city: 'Amsterdam' }
 					}
 				};
@@ -172,18 +177,42 @@ describe('Transport Mode Detection', () => {
 		});
 
 		describe('isAtTrainStation', () => {
-			it('should detect railway station geocode', () => {
-				const geocode = { properties: { type: 'railway_station' } };
+			it('should detect railway station from OSM addendum', () => {
+				const geocode = {
+					properties: {
+						addendum: {
+							osm: {
+								railway: 'station'
+							}
+						}
+					}
+				};
 				expect(isAtTrainStation(geocode)).toBe(true);
 			});
 
-			it('should detect railway class', () => {
-				const geocode = { properties: { class: 'railway' } };
+			it('should detect railway platform from OSM addendum', () => {
+				const geocode = {
+					properties: {
+						addendum: {
+							osm: {
+								railway: 'platform'
+							}
+						}
+					}
+				};
 				expect(isAtTrainStation(geocode)).toBe(true);
 			});
 
-			it('should detect platform type', () => {
-				const geocode = { properties: { type: 'platform' } };
+			it('should detect public transport station from OSM addendum', () => {
+				const geocode = {
+					properties: {
+						addendum: {
+							osm: {
+								public_transport: 'station'
+							}
+						}
+					}
+				};
 				expect(isAtTrainStation(geocode)).toBe(true);
 			});
 

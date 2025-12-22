@@ -7,27 +7,38 @@ vi.mock('./external/pexels.service', () => ({
 	getTripBannerImageWithAttribution: vi.fn()
 }));
 
-// Mock the worker client
-vi.mock('../../worker/client', () => ({
-	createWorkerClient: vi.fn(() => ({
-		from: vi.fn().mockReturnValue({
-			select: vi.fn().mockReturnValue({
-				eq: vi.fn().mockReturnValue({
-					gte: vi.fn().mockReturnValue({
-						lte: vi.fn().mockReturnValue({
-							not: vi.fn().mockReturnValue({
-								order: vi.fn().mockResolvedValue({
-									data: [],
-									error: null
-								})
+// Use vi.hoisted to create a mock that can be referenced in vi.mock factory
+const hoisted = vi.hoisted(() => {
+	const mockFrom = vi.fn();
+	return { mockFrom };
+});
+
+// Mock the fluxbase module using the hoisted mock
+vi.mock('$lib/fluxbase', () => ({
+	fluxbase: {
+		from: hoisted.mockFrom
+	}
+}));
+
+// Helper function to create mock query chain
+function createMockQueryChain(mockData: any[] = [], mockError: any = null) {
+	return {
+		select: vi.fn().mockReturnValue({
+			eq: vi.fn().mockReturnValue({
+				gte: vi.fn().mockReturnValue({
+					lte: vi.fn().mockReturnValue({
+						not: vi.fn().mockReturnValue({
+							order: vi.fn().mockResolvedValue({
+								data: mockData,
+								error: mockError
 							})
 						})
 					})
 				})
 			})
 		})
-	}))
-}));
+	};
+}
 
 describe('Trip Image Suggestion Service - City Dominance Logic', () => {
 	let service: TripImageSuggestionService;
@@ -78,28 +89,8 @@ describe('Trip Image Suggestion Service - City Dominance Logic', () => {
 				}
 			];
 
-			// Mock the Fluxbase query to return our test data
-			const mockFluxbase = {
-				from: vi.fn().mockReturnValue({
-					select: vi.fn().mockReturnValue({
-						eq: vi.fn().mockReturnValue({
-							gte: vi.fn().mockReturnValue({
-								lte: vi.fn().mockReturnValue({
-									not: vi.fn().mockReturnValue({
-										order: vi.fn().mockResolvedValue({
-											data: mockTrackerData,
-											error: null
-										})
-									})
-								})
-							})
-						})
-					})
-				})
-			};
-
-			// Replace the mock with our test data
-			vi.mocked(service.fluxbase).from = mockFluxbase.from;
+			// Set up the mock to return our test data
+			hoisted.mockFrom.mockReturnValue(createMockQueryChain(mockTrackerData, null));
 
 			const result = await service.analyzeTripLocations('user123', '2024-01-01', '2024-01-01');
 
@@ -162,26 +153,8 @@ describe('Trip Image Suggestion Service - City Dominance Logic', () => {
 				}
 			];
 
-			const mockFluxbase = {
-				from: vi.fn().mockReturnValue({
-					select: vi.fn().mockReturnValue({
-						eq: vi.fn().mockReturnValue({
-							gte: vi.fn().mockReturnValue({
-								lte: vi.fn().mockReturnValue({
-									not: vi.fn().mockReturnValue({
-										order: vi.fn().mockResolvedValue({
-											data: mockTrackerData,
-											error: null
-										})
-									})
-								})
-							})
-						})
-					})
-				})
-			};
-
-			vi.mocked(service.fluxbase).from = mockFluxbase.from;
+			// Set up the mock to return our test data
+			hoisted.mockFrom.mockReturnValue(createMockQueryChain(mockTrackerData, null));
 
 			const result = await service.analyzeTripLocations('user123', '2024-01-01', '2024-01-01');
 
@@ -195,26 +168,8 @@ describe('Trip Image Suggestion Service - City Dominance Logic', () => {
 				{ country_code: 'NL', geocode: null, recorded_at: '2024-01-01T11:00:00Z' }
 			];
 
-			const mockFluxbase = {
-				from: vi.fn().mockReturnValue({
-					select: vi.fn().mockReturnValue({
-						eq: vi.fn().mockReturnValue({
-							gte: vi.fn().mockReturnValue({
-								lte: vi.fn().mockReturnValue({
-									not: vi.fn().mockReturnValue({
-										order: vi.fn().mockResolvedValue({
-											data: mockTrackerData,
-											error: null
-										})
-									})
-								})
-							})
-						})
-					})
-				})
-			};
-
-			vi.mocked(service.fluxbase).from = mockFluxbase.from;
+			// Set up the mock to return our test data
+			hoisted.mockFrom.mockReturnValue(createMockQueryChain(mockTrackerData, null));
 
 			const result = await service.analyzeTripLocations('user123', '2024-01-01', '2024-01-01');
 

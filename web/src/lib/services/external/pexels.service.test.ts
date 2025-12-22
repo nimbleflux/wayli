@@ -1,6 +1,27 @@
 // web/src/lib/services/external/pexels.service.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getTripBannerImageWithAttribution } from './pexels.service';
+
+// Mock the Fluxbase SDK BEFORE importing anything that uses it
+vi.mock('@fluxbase/sdk', () => ({
+	createClient: vi.fn(() => ({
+		storage: {
+			from: vi.fn().mockReturnValue({
+				upload: vi.fn().mockResolvedValue({ error: null }),
+				getPublicUrl: vi
+					.fn()
+					.mockReturnValue({ data: { publicUrl: 'https://storage.example.com/image.jpg' } })
+			})
+		}
+	}))
+}));
+
+// Mock the config module
+vi.mock('../../config', () => ({
+	config: {
+		fluxbaseUrl: 'https://test.fluxbase.co',
+		fluxbaseAnonKey: 'test-anon-key'
+	}
+}));
 
 // Mock the country name cleaner
 vi.mock('../../utils/country-name-cleaner', () => ({
@@ -15,6 +36,9 @@ vi.mock('../../utils/country-name-cleaner', () => ({
 
 // Mock fetch globally
 global.fetch = vi.fn();
+
+// Import the service AFTER all mocks are defined (Vitest hoists vi.mock calls)
+import { getTripBannerImageWithAttribution } from './pexels.service';
 
 describe('Pexels Service with Country Name Cleaner', () => {
 	beforeEach(() => {
@@ -35,27 +59,27 @@ describe('Pexels Service with Country Name Cleaner', () => {
 			]
 		};
 
-		(global.fetch as any).mockResolvedValueOnce({
-			ok: true,
-			json: async () => mockPexelsResponse
-		});
+		// Mock image data as ArrayBuffer (must be > 1000 bytes to pass size check)
+		const mockImageBuffer = new ArrayBuffer(2000);
 
-		// Mock Fluxbase storage upload
-		const mockFluxbaseClient = {
-			storage: {
-				from: vi.fn().mockReturnValue({
-					upload: vi.fn().mockResolvedValue({ error: null }),
-					getPublicUrl: vi
-						.fn()
-						.mockReturnValue({ data: { publicUrl: 'https://storage.example.com/image.jpg' } })
-				})
+		// Use mockResolvedValue (not Once) since the service may make multiple fetch calls
+		// The service makes two types of fetch calls: Pexels API (json) and image download (arrayBuffer)
+		(global.fetch as any).mockImplementation((url: string) => {
+			if (url.includes('api.pexels.com')) {
+				return Promise.resolve({
+					ok: true,
+					json: async () => mockPexelsResponse
+				});
 			}
-		};
-
-		// Mock the createClient function
-		vi.doMock('@fluxbase/sdk', () => ({
-			createClient: vi.fn(() => mockFluxbaseClient)
-		}));
+			// Image download request
+			return Promise.resolve({
+				ok: true,
+				arrayBuffer: async () => mockImageBuffer,
+				headers: {
+					get: (name: string) => (name === 'content-type' ? 'image/jpeg' : null)
+				}
+			});
+		});
 
 		// Test with city and country
 		const result = await getTripBannerImageWithAttribution(
@@ -85,27 +109,26 @@ describe('Pexels Service with Country Name Cleaner', () => {
 			]
 		};
 
-		(global.fetch as any).mockResolvedValueOnce({
-			ok: true,
-			json: async () => mockPexelsResponse
-		});
+		// Mock image data as ArrayBuffer (must be > 1000 bytes to pass size check)
+		const mockImageBuffer = new ArrayBuffer(2000);
 
-		// Mock Fluxbase storage upload
-		const mockFluxbaseClient = {
-			storage: {
-				from: vi.fn().mockReturnValue({
-					upload: vi.fn().mockResolvedValue({ error: null }),
-					getPublicUrl: vi
-						.fn()
-						.mockReturnValue({ data: { publicUrl: 'https://storage.example.com/image.jpg' } })
-				})
+		// Use mockImplementation to handle both Pexels API and image download requests
+		(global.fetch as any).mockImplementation((url: string) => {
+			if (url.includes('api.pexels.com')) {
+				return Promise.resolve({
+					ok: true,
+					json: async () => mockPexelsResponse
+				});
 			}
-		};
-
-		// Mock the createClient function
-		vi.doMock('@fluxbase/sdk', () => ({
-			createClient: vi.fn(() => mockFluxbaseClient)
-		}));
+			// Image download request
+			return Promise.resolve({
+				ok: true,
+				arrayBuffer: async () => mockImageBuffer,
+				headers: {
+					get: (name: string) => (name === 'content-type' ? 'image/jpeg' : null)
+				}
+			});
+		});
 
 		// Test with just city name
 		const result = await getTripBannerImageWithAttribution(

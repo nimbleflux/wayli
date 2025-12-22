@@ -333,7 +333,10 @@ SELECT
     gen_random_uuid() as id,
     user_id,
     MIN(recorded_at) as started_at,
-    ROUND(EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) / 60)::integer as duration_minutes,
+    LEAST(
+        ROUND(EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) / 60)::integer,
+        720  -- 12 hours maximum
+    ) as duration_minutes,
     ST_Centroid(ST_Collect(location)) as location,
     poi_name,
     MODE() WITHIN GROUP (ORDER BY poi_layer) as poi_layer,

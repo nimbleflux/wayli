@@ -343,6 +343,35 @@ ingress:
   # Additional TLS configurations
   extraTls: []
 
+## Gateway API configuration (HTTPRoute)
+## Requires Gateway API CRDs and a GatewayClass/Gateway to be installed
+## See: https://gateway-api.sigs.k8s.io/
+gateway:
+  # Enable Gateway API HTTPRoute (disabled by default)
+  enabled: false
+  # Additional HTTPRoute labels
+  labels: {}
+  # Additional HTTPRoute annotations
+  annotations: {}
+  # Parent Gateway reference (required when enabled)
+  # The Gateway must already exist and have a matching listener
+  parentRefs:
+    - name: ""
+      # Namespace of the Gateway (optional, defaults to HTTPRoute namespace)
+      namespace: ""
+      # Specific listener name on the Gateway (optional)
+      sectionName: ""
+  # Hostname for the HTTPRoute
+  hostname: ""
+  # Additional hostnames
+  extraHostnames: []
+  # Path match type: PathPrefix, Exact, or RegularExpression
+  pathType: PathPrefix
+  # Path value
+  path: /
+  # Additional routing rules (for advanced use cases like traffic splitting)
+  extraRules: []
+
 ## External Fluxbase configuration
 ## Only set these if using an external/managed Fluxbase instance (not the subchart)
 externalFluxbase:

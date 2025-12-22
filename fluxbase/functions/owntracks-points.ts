@@ -155,7 +155,9 @@ async function reverseGeocode(lat: number, lon: number): Promise<any | null> {
 				neighbourhood: props.neighbourhood,
 				borough: props.borough,
 				geocoded_at: new Date().toISOString(),
-				geocoding_provider: 'pelias'
+				geocoding_provider: 'pelias',
+				import_source: 'owntracks',
+				imported_at: new Date().toISOString()
 			}
 		};
 	} catch (error) {

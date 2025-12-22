@@ -1,6 +1,6 @@
 dependencies:
 - name: fluxbase
-  repository: oci://ghcr.io/wayli-app/charts
-  version: 0.0.1-rc.14
-digest: sha256:bf2b8a4a3eb42801f819de99b8083f49e36153b960aa6dcd641036a5638bea30
-generated: "2025-11-15T08:49:34.613026+01:00"
+  repository: oci://ghcr.io/fluxbase-eu/charts
+  version: 0.0.1-rc.52
+digest: sha256:6b85576fd8582053660fe19b1055f95e6e3a9bccd3f525723d94b5caf5aa7c7f
+generated: "2025-12-22T20:10:01.906479+01:00"

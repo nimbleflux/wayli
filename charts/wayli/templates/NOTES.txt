@@ -23,6 +23,27 @@ Console/App URL:
   http://{{ .Values.ingress.hostname }}
   {{- end }}
 
+{{- else if .Values.gateway.enabled }}
+
+===================
+ACCESSING WAYLI
+===================
+
+Gateway API HTTPRoute configured:
+{{- range .Values.gateway.parentRefs }}
+{{- if .name }}
+  Gateway: {{ .name }}{{- if .namespace }} (namespace: {{ .namespace }}){{- end }}
+{{- end }}
+{{- end }}
+{{- if .Values.gateway.hostname }}
+  Hostname: {{ .Values.gateway.hostname }}
+{{- end }}
+
+Note: Ensure your Gateway resource has:
+  - A matching listener for your hostname(s)
+  - TLS termination configured (if HTTPS is required)
+  - Appropriate ReferenceGrant (if Gateway is in a different namespace)
+
 {{- else }}
 
 Wayli is not exposed via Ingress. To access it:

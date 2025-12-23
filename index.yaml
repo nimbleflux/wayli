@@ -5,6 +5,35 @@ entries:
       artifacthub.io/prerelease: "true"
     apiVersion: v2
     appVersion: v1.0.10
+    created: "2025-12-23T15:17:40.023147731Z"
+    dependencies:
+    - condition: supabase.enabled
+      name: supabase
+      repository: https://wayli-app.github.io/supabase-helm
+      version: 0.0.22
+    description: A privacy-first location analysis and trip tracking application
+    digest: b56eed8a25a2748ae01873a2330d7b9545004b79cd7991a5efd78784d5b93275
+    home: https://github.com/wayli-app/wayli
+    keywords:
+    - location
+    - tracking
+    - privacy
+    - trip-analysis
+    - gps
+    maintainers:
+    - name: wayli-app
+      url: https://github.com/wayli-app/wayli
+    name: wayli
+    sources:
+    - https://github.com/wayli-app/wayli
+    type: application
+    urls:
+    - https://github.com/wayli-app/wayli/releases/download/chart-2.0.0-rc.4/wayli-2.0.0-rc.4.tgz
+    version: 2.0.0-rc.4
+  - annotations:
+      artifacthub.io/prerelease: "true"
+    apiVersion: v2
+    appVersion: v1.0.10
     created: "2025-12-23T10:40:20.827118311Z"
     dependencies:
     - condition: supabase.enabled
@@ -975,4 +1004,4 @@ entries:
     urls:
     - https://github.com/wayli-app/wayli/releases/download/chart-0.0.1/wayli-0.0.1.tgz
     version: 0.0.1
-generated: "2025-12-23T10:40:20.827332331Z"
+generated: "2025-12-23T15:17:40.023403698Z"

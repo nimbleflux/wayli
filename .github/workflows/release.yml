@@ -381,12 +381,49 @@ jobs:
           CURRENT_VERSION=$(grep '^version:' charts/wayli/Chart.yaml | awk '{print $2}')
           echo "📦 Current chart version: $CURRENT_VERSION"
 
-          # Bump patch version
-          NEW_VERSION=$(echo $CURRENT_VERSION | awk -F. '{$NF = $NF + 1;} 1' | sed 's/ /./g')
+          IS_RC="${{ env.IS_RC }}"
+
+          # Parse current version (handles both stable and RC versions)
+          if [[ "$CURRENT_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-rc\.([0-9]+))?$ ]]; then
+            MAJOR="${BASH_REMATCH[1]}"
+            MINOR="${BASH_REMATCH[2]}"
+            PATCH="${BASH_REMATCH[3]}"
+            RC_NUM="${BASH_REMATCH[5]:-0}"
+          else
+            echo "Error: Cannot parse chart version $CURRENT_VERSION"
+            exit 1
+          fi
+
+          if [ "$IS_RC" = "true" ]; then
+            # RC release: bump patch and add/increment RC suffix
+            if [[ "$CURRENT_VERSION" == *"-rc."* ]]; then
+              # Already an RC, increment RC number
+              NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}-rc.$((RC_NUM + 1))"
+            else
+              # First RC for next patch version
+              NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))-rc.1"
+            fi
+          else
+            # Stable release: bump patch version (strip any RC suffix)
+            NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          fi
+
           echo "📦 Bumping to version: $NEW_VERSION"
 
           # Update Chart.yaml
           sed -i "s/^version: .*/version: $NEW_VERSION/" charts/wayli/Chart.yaml
+
+          # Add prerelease annotation for RC versions
+          if [ "$IS_RC" = "true" ]; then
+            # Check if annotations section exists
+            if grep -q "^annotations:" charts/wayli/Chart.yaml; then
+              # Add to existing annotations
+              sed -i '/^annotations:/a\  artifacthub.io/prerelease: "true"' charts/wayli/Chart.yaml
+            else
+              # Add new annotations section
+              echo -e "\nannotations:\n  artifacthub.io/prerelease: \"true\"" >> charts/wayli/Chart.yaml
+            fi
+          fi
 
           # Commit the version bump
           git add charts/wayli/Chart.yaml
@@ -395,14 +432,6 @@ jobs:
 
           echo "📦 Chart version bumped to $NEW_VERSION"
           echo "CHART_VERSION=$NEW_VERSION" >> $GITHUB_ENV
-
-      - name: Add prerelease annotation for RC versions
-        if: env.IS_RC == 'true'
-        run: |
-          cat >> charts/wayli/Chart.yaml << EOF
-          annotations:
-            artifacthub.io/prerelease: "true"
-          EOF
 
       - name: Package Helm chart
         run: |

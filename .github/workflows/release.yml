@@ -14,12 +14,14 @@ name: Release
 #   6. Click "Run workflow"
 #
 # Version Examples:
-#   - patch + stable: 1.0.10 → 1.0.11
-#   - minor + stable: 1.0.10 → 1.1.0
-#   - major + stable: 1.0.10 → 2.0.0
-#   - patch + rc:     1.0.10 → 1.0.11-rc.1 (or 1.0.11-rc.1 → 1.0.11-rc.2)
-#   - minor + rc:     1.0.10 → 1.1.0-rc.1
-#   - major + rc:     1.0.10 → 2.0.0-rc.1
+#   - patch + stable:    1.0.10 → 1.0.11
+#   - minor + stable:    1.0.10 → 1.1.0
+#   - major + stable:    1.0.10 → 2.0.0
+#   - patch + rc:        1.0.10 → 1.0.11-rc.1
+#   - minor + rc:        1.0.10 → 1.1.0-rc.1
+#   - major + rc:        1.0.10 → 2.0.0-rc.1
+#   - continue + rc:     1.0.11-rc.1 → 1.0.11-rc.2 (increment RC number)
+#   - continue + stable: 1.0.11-rc.1 → 1.0.11 (promote RC to stable)
 #
 # Component Toggles:
 #   - Publish Docker image: Build and push the Wayli Docker image to Docker Hub
@@ -48,6 +50,7 @@ on:
           - patch
           - minor
           - major
+          - continue
         default: patch
       release_type:
         description: 'Release type'

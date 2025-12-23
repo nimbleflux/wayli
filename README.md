@@ -6,6 +6,8 @@
 
 > ⚠️ **Pre-Release Software**: Wayli is currently in pre-release development (v0.x.x). The API and database schema may change between versions. Not recommended for production use until v1.0.0 release.
 
+**IMPORTANT NOTE:** I'm currently actively working on moving a way from Supabase to a different backend. There will not be a convenient upgrade path other than exporting and importing data again. Hold on for a bit before deploying Wayli at this moment. I can already tell the next release of Wayli is going to be _significantly_ better.
+
 [![CI](https://github.com/wayli-app/wayli/actions/workflows/ci.yml/badge.svg)](https://github.com/wayli-app/wayli/actions/workflows/ci.yml)
 [![Release](https://github.com/wayli-app/wayli/actions/workflows/release.yml/badge.svg)](https://github.com/wayli-app/wayli/actions/workflows/release.yml)
 [![Release Chart](https://github.com/wayli-app/wayli/actions/workflows/release-chart.yml/badge.svg)](https://github.com/wayli-app/wayli/actions/workflows/release-chart.yml)

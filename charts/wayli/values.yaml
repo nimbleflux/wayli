@@ -439,7 +439,7 @@ fluxbase:
       read_timeout: "300s"
       write_timeout: "300s"
       idle_timeout: "120s"
-      body_limit: 2147483648
+      body_limit: "2147483648"
 
     ## Database configuration
     ## Note: host, port, user are auto-determined from postgresql.* section
@@ -501,7 +501,7 @@ fluxbase:
     storage:
       provider: "local"
       local_path: "/data/storage"
-      max_upload_size: 1073741824
+      max_upload_size: "1073741824"
       default_buckets:
         - "trip-images"
       s3_endpoint: ""
@@ -519,7 +519,7 @@ fluxbase:
       pong_timeout: "60s"
       write_buffer_size: 1024
       read_buffer_size: 1024
-      message_size_limit: 524288
+      message_size_limit: "524288"
       channel_buffer_size: 100
 
     ## Email configuration
@@ -589,8 +589,8 @@ fluxbase:
       enabled: true
       procedures_dir: "/app/procedures"
       auto_load_on_boot: true
-      default_max_execution_time: 30
-      max_max_execution_time: 300
+      default_max_execution_time: 30s
+      max_max_execution_time: 300s
       default_max_rows: 1000
       sync_allowed_ip_ranges: []
 

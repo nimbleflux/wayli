@@ -5,7 +5,7 @@ type: application
 
 # This is the chart version. This version number should be incremented each time you make changes
 # to the chart and its templates, including the app version.
-version: 2.0.0-rc.4
+version: 2.0.0-rc.5
 
 # This is the version number of the application being deployed. This version number should be
 # incremented each time you make changes to the application. Versions are expected to follow Semantic Versioning (https://semver.org/)
@@ -32,3 +32,6 @@ dependencies:
     version: '0.0.1-rc.54'
     repository: 'oci://ghcr.io/fluxbase-eu/charts'
     condition: fluxbase.enabled
+
+annotations:
+  artifacthub.io/prerelease: "true"

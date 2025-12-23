@@ -364,9 +364,16 @@ jobs:
 
       - name: Update chart dependencies
         run: |
+          # Clean existing dependencies and lock file to avoid stale cache issues
+          rm -rf charts/wayli/charts/*
+          rm -f charts/wayli/Chart.lock
+
+          # Clear Helm cache
+          rm -rf ~/.cache/helm
+
           # OCI-based dependencies don't need helm repo add
-          # Just build the dependencies directly
-          helm dependency build charts/wayli
+          # Update dependencies (regenerates Chart.lock and downloads deps)
+          helm dependency update charts/wayli
 
       - name: Bump chart version
         run: |

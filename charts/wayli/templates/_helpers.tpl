@@ -205,6 +205,8 @@ Return the Fluxbase database host
 {{- .Values.externalFluxbase.dbHost -}}
 {{- else if not .Values.fluxbase.postgresql.enabled -}}
 {{- .Values.fluxbase.externalDatabase.host -}}
+{{- else if .Values.fluxbase.fullnameOverride -}}
+{{- printf "%s-postgresql" .Values.fluxbase.fullnameOverride -}}
 {{- else -}}
 {{- printf "%s-fluxbase-postgresql" .Release.Name -}}
 {{- end -}}

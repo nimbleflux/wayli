@@ -54,7 +54,7 @@ web:
       enabled: true
       image:
         repository: postgres
-        tag: "16-alpine"
+        tag: "18-alpine"
         pullPolicy: IfNotPresent
     waitForFluxbase:
       enabled: true

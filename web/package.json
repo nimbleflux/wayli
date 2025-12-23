@@ -1,7 +1,7 @@
 {
 	"name": "web",
 	"private": true,
-	"version": "2.0.1-rc.2",
+	"version": "2.0.0-rc.10",
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
@@ -75,7 +75,7 @@
 		"vitest": "^3.2.4"
 	},
 	"dependencies": {
-		"@fluxbase/sdk": "^0.0.1-rc.58",
+		"@fluxbase/sdk": "^0.0.1-rc.59",
 		"@melt-ui/svelte": "^0.86.6",
 		"@svelte-plugins/datepicker": "^1.0.11",
 		"@sveltejs/adapter-auto": "^6.1.0",

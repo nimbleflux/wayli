@@ -784,7 +784,6 @@ fluxbase:
     image:
       registry: ghcr.io
       repository: fluxbase-eu/fluxbase-postgres
-      tag: "18.1-0.0.1-rc.53"
       pullPolicy: IfNotPresent
     persistence:
       enabled: true

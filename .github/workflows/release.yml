@@ -362,14 +362,11 @@ jobs:
         with:
           version: v3.14.0
 
-      - name: Add Helm repositories
-        run: |
-          helm repo add fluxbase https://fluxbase-eu.github.io/fluxbase
-          helm repo update
-
       - name: Update chart dependencies
         run: |
-          helm dependency update charts/wayli
+          # OCI-based dependencies don't need helm repo add
+          # Just build the dependencies directly
+          helm dependency build charts/wayli
 
       - name: Bump chart version
         run: |
@@ -400,24 +397,49 @@ jobs:
             artifacthub.io/prerelease: "true"
           EOF
 
-      - name: Run chart-releaser
-        uses: helm/chart-releaser-action@v1.6.0
-        with:
-          charts_dir: charts
-          config: .github/cr.yaml
-          mark_as_latest: ${{ env.IS_RC != 'true' }}
+      - name: Package Helm chart
+        run: |
+          mkdir -p .cr-release-packages
+          helm package charts/wayli -d .cr-release-packages
+
+      - name: Install chart-releaser
+        run: |
+          curl -sSLo cr.tar.gz "https://github.com/helm/chart-releaser/releases/download/v1.6.1/chart-releaser_1.6.1_linux_amd64.tar.gz"
+          tar -xzf cr.tar.gz
+          sudo mv cr /usr/local/bin/cr
+
+      - name: Upload chart to GitHub Release
         env:
-          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-          CR_SKIP_EXISTING: "true"
+          CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cr upload \
+            --owner wayli-app \
+            --git-repo wayli \
+            --package-path .cr-release-packages \
+            --release-name-template "chart-{{ .Version }}" \
+            --skip-existing
+
+      - name: Update Helm repository index
+        env:
+          CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p .cr-index
+
+          # Fetch existing index from gh-pages if it exists
+          if git fetch origin gh-pages:gh-pages 2>/dev/null; then
+            git show gh-pages:index.yaml > .cr-index/index.yaml 2>/dev/null || true
+          fi
+
+          # Generate/update index
+          cr index \
+            --owner wayli-app \
+            --git-repo wayli \
+            --charts-repo https://wayli-app.github.io/wayli \
+            --package-path .cr-release-packages \
+            --index-path .cr-index/index.yaml
 
       - name: Deploy index.yaml to gh-pages
         run: |
-          # Check if index.yaml was generated
-          if [ ! -f .cr-index/index.yaml ]; then
-            echo "⚠️ No index.yaml found in .cr-index directory"
-            exit 1
-          fi
-
           # Copy the generated index.yaml to a temporary location
           cp .cr-index/index.yaml /tmp/index.yaml
 

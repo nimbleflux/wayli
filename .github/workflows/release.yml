@@ -3,14 +3,23 @@ name: Release
 # This workflow handles all release types: stable releases and release candidates (RC)
 #
 # Triggers:
-#   1. Manual workflow_dispatch - Create a new release by specifying bump type
+#   1. Manual workflow_dispatch - Create a new release by specifying version and release type
 #
-# How to create an RC release:
+# How to create a release:
 #   1. Go to Actions → Release → Run workflow
 #   2. Select branch (usually 'main')
-#   3. Choose 'rc' as bump_type
-#   4. Select which components to publish (all enabled by default)
-#   5. Click "Run workflow"
+#   3. Choose version_type (patch/minor/major)
+#   4. Choose release_type (stable/rc)
+#   5. Select which components to publish (all enabled by default)
+#   6. Click "Run workflow"
+#
+# Version Examples:
+#   - patch + stable: 1.0.10 → 1.0.11
+#   - minor + stable: 1.0.10 → 1.1.0
+#   - major + stable: 1.0.10 → 2.0.0
+#   - patch + rc:     1.0.10 → 1.0.11-rc.1 (or 1.0.11-rc.1 → 1.0.11-rc.2)
+#   - minor + rc:     1.0.10 → 1.1.0-rc.1
+#   - major + rc:     1.0.10 → 2.0.0-rc.1
 #
 # Component Toggles:
 #   - Publish Docker image: Build and push the Wayli Docker image to Docker Hub
@@ -22,7 +31,7 @@ name: Release
 #   - Docker images tagged with version and 'rc' (NOT 'latest')
 #   - Helm charts published with prerelease annotation
 #
-# Stable Release behavior (patch/minor/major):
+# Stable Release behavior:
 #   - Version format: vMAJOR.MINOR.PATCH (e.g., v1.0.11)
 #   - Marked as GitHub release (not pre-release)
 #   - Docker images tagged with version and 'latest'
@@ -31,7 +40,7 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      bump_type:
+      version_type:
         description: 'Version bump type'
         required: true
         type: choice
@@ -39,8 +48,15 @@ on:
           - patch
           - minor
           - major
-          - rc
         default: patch
+      release_type:
+        description: 'Release type'
+        required: true
+        type: choice
+        options:
+          - stable
+          - rc
+        default: stable
       dry_run:
         description: 'Dry run (no actual release)'
         required: false
@@ -82,7 +98,8 @@ jobs:
           CURRENT_VERSION=$(node -p "require('./web/package.json').version")
           echo "Current version: $CURRENT_VERSION"
 
-          BUMP_TYPE="${{ inputs.bump_type }}"
+          VERSION_TYPE="${{ inputs.version_type }}"
+          RELEASE_TYPE="${{ inputs.release_type }}"
 
           # Parse current version (handles both stable and RC versions)
           if [[ "$CURRENT_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-rc\.([0-9]+))?$ ]]; then
@@ -90,34 +107,48 @@ jobs:
             MINOR="${BASH_REMATCH[2]}"
             PATCH="${BASH_REMATCH[3]}"
             RC_NUM="${BASH_REMATCH[5]:-0}"
+            IS_CURRENT_RC=$([[ -n "${BASH_REMATCH[4]}" ]] && echo "true" || echo "false")
           else
             echo "Error: Cannot parse version $CURRENT_VERSION"
             exit 1
           fi
 
           IS_RC="false"
+          if [ "$RELEASE_TYPE" = "rc" ]; then
+            IS_RC="true"
+          fi
 
-          case "$BUMP_TYPE" in
+          # Calculate base version based on version_type
+          case "$VERSION_TYPE" in
             major)
-              NEW_VERSION="$((MAJOR + 1)).0.0"
+              BASE_VERSION="$((MAJOR + 1)).0.0"
               ;;
             minor)
-              NEW_VERSION="${MAJOR}.$((MINOR + 1)).0"
+              BASE_VERSION="${MAJOR}.$((MINOR + 1)).0"
               ;;
             patch)
-              NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
-              ;;
-            rc)
-              IS_RC="true"
-              if [[ "$CURRENT_VERSION" == *"-rc."* ]]; then
-                # Already an RC, increment RC number
-                NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}-rc.$((RC_NUM + 1))"
+              # For patch, check if we're continuing an RC series or starting fresh
+              if [ "$IS_CURRENT_RC" = "true" ] && [ "$IS_RC" = "true" ]; then
+                # Continue RC series (same base version, increment RC number)
+                BASE_VERSION="${MAJOR}.${MINOR}.${PATCH}"
               else
-                # First RC for next patch version
-                NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))-rc.1"
+                BASE_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
               fi
               ;;
           esac
+
+          # Apply RC suffix if needed
+          if [ "$IS_RC" = "true" ]; then
+            if [ "$IS_CURRENT_RC" = "true" ] && [ "$VERSION_TYPE" = "patch" ]; then
+              # Continuing an RC series - increment RC number
+              NEW_VERSION="${BASE_VERSION}-rc.$((RC_NUM + 1))"
+            else
+              # Starting a new RC series
+              NEW_VERSION="${BASE_VERSION}-rc.1"
+            fi
+          else
+            NEW_VERSION="$BASE_VERSION"
+          fi
 
           echo "New version: $NEW_VERSION"
           echo "Is RC: $IS_RC"

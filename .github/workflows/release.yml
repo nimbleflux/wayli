@@ -373,6 +373,7 @@ jobs:
     env:
       VERSION: ${{ needs.get-version.outputs.version }}
       IS_RC: ${{ needs.get-version.outputs.is_rc }}
+      VERSION_TYPE: ${{ inputs.version_type }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -413,6 +414,7 @@ jobs:
           echo "📦 Current chart version: $CURRENT_VERSION"
 
           IS_RC="${{ env.IS_RC }}"
+          VERSION_TYPE="${{ env.VERSION_TYPE }}"
 
           # Parse current version (handles both stable and RC versions)
           if [[ "$CURRENT_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-rc\.([0-9]+))?$ ]]; then
@@ -420,23 +422,42 @@ jobs:
             MINOR="${BASH_REMATCH[2]}"
             PATCH="${BASH_REMATCH[3]}"
             RC_NUM="${BASH_REMATCH[5]:-0}"
+            IS_CURRENT_RC=$([[ -n "${BASH_REMATCH[4]}" ]] && echo "true" || echo "false")
           else
             echo "Error: Cannot parse chart version $CURRENT_VERSION"
             exit 1
           fi
 
+          # Calculate base version based on version_type
+          case "$VERSION_TYPE" in
+            major)
+              BASE_VERSION="$((MAJOR + 1)).0.0"
+              ;;
+            minor)
+              BASE_VERSION="${MAJOR}.$((MINOR + 1)).0"
+              ;;
+            patch)
+              # For patch, check if we're continuing an RC series or starting fresh
+              if [ "$IS_CURRENT_RC" = "true" ] && [ "$IS_RC" = "true" ]; then
+                # Continue RC series (same base version, increment RC number)
+                BASE_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+              else
+                BASE_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+              fi
+              ;;
+          esac
+
+          # Apply RC suffix if needed
           if [ "$IS_RC" = "true" ]; then
-            # RC release: bump patch and add/increment RC suffix
-            if [[ "$CURRENT_VERSION" == *"-rc."* ]]; then
-              # Already an RC, increment RC number
-              NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}-rc.$((RC_NUM + 1))"
+            if [ "$IS_CURRENT_RC" = "true" ] && [ "$VERSION_TYPE" = "patch" ]; then
+              # Continuing an RC series - increment RC number
+              NEW_VERSION="${BASE_VERSION}-rc.$((RC_NUM + 1))"
             else
-              # First RC for next patch version
-              NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))-rc.1"
+              # Starting a new RC series
+              NEW_VERSION="${BASE_VERSION}-rc.1"
             fi
           else
-            # Stable release: bump patch version (strip any RC suffix)
-            NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+            NEW_VERSION="$BASE_VERSION"
           fi
 
           echo "📦 Bumping to version: $NEW_VERSION"

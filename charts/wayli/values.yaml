@@ -349,6 +349,8 @@ ingress:
 gateway:
   # Enable Gateway API HTTPRoute (disabled by default)
   enabled: false
+  # Name of the HTTPRoute resource (defaults to release fullname)
+  routeName: ""
   # Additional HTTPRoute labels
   labels: {}
   # Additional HTTPRoute annotations

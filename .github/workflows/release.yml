@@ -109,48 +109,64 @@ jobs:
             MAJOR="${BASH_REMATCH[1]}"
             MINOR="${BASH_REMATCH[2]}"
             PATCH="${BASH_REMATCH[3]}"
+            RC_SUFFIX="${BASH_REMATCH[4]}"
             RC_NUM="${BASH_REMATCH[5]:-0}"
-            IS_CURRENT_RC=$([[ -n "${BASH_REMATCH[4]}" ]] && echo "true" || echo "false")
+            if [ -n "$RC_SUFFIX" ]; then
+              IS_CURRENT_RC="true"
+            else
+              IS_CURRENT_RC="false"
+            fi
           else
             echo "Error: Cannot parse version $CURRENT_VERSION"
             exit 1
           fi
+
+          echo "Parsed: MAJOR=$MAJOR, MINOR=$MINOR, PATCH=$PATCH, RC_SUFFIX=$RC_SUFFIX, RC_NUM=$RC_NUM, IS_CURRENT_RC=$IS_CURRENT_RC"
 
           IS_RC="false"
           if [ "$RELEASE_TYPE" = "rc" ]; then
             IS_RC="true"
           fi
 
-          # Calculate base version based on version_type
-          case "$VERSION_TYPE" in
-            major)
-              BASE_VERSION="$((MAJOR + 1)).0.0"
-              ;;
-            minor)
-              BASE_VERSION="${MAJOR}.$((MINOR + 1)).0"
-              ;;
-            patch)
-              # For patch, check if we're continuing an RC series or starting fresh
-              if [ "$IS_CURRENT_RC" = "true" ] && [ "$IS_RC" = "true" ]; then
-                # Continue RC series (same base version, increment RC number)
-                BASE_VERSION="${MAJOR}.${MINOR}.${PATCH}"
-              else
-                BASE_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
-              fi
-              ;;
-          esac
-
-          # Apply RC suffix if needed
-          if [ "$IS_RC" = "true" ]; then
-            if [ "$IS_CURRENT_RC" = "true" ] && [ "$VERSION_TYPE" = "patch" ]; then
-              # Continuing an RC series - increment RC number
+          # Handle 'continue' specially - it requires current version to be an RC
+          if [ "$VERSION_TYPE" = "continue" ]; then
+            if [ "$IS_CURRENT_RC" != "true" ]; then
+              echo "Error: 'continue' requires current version to be an RC (current: $CURRENT_VERSION)"
+              echo "Use patch/minor/major to create a new version instead."
+              exit 1
+            fi
+            BASE_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+            if [ "$IS_RC" = "true" ]; then
+              # Continue RC series: increment RC number
               NEW_VERSION="${BASE_VERSION}-rc.$((RC_NUM + 1))"
             else
-              # Starting a new RC series
-              NEW_VERSION="${BASE_VERSION}-rc.1"
+              # Promote RC to stable: strip RC suffix
+              NEW_VERSION="${BASE_VERSION}"
             fi
           else
-            NEW_VERSION="$BASE_VERSION"
+            # Calculate base version based on version_type
+            case "$VERSION_TYPE" in
+              major)
+                BASE_VERSION="$((MAJOR + 1)).0.0"
+                ;;
+              minor)
+                BASE_VERSION="${MAJOR}.$((MINOR + 1)).0"
+                ;;
+              patch)
+                BASE_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+                ;;
+              *)
+                echo "Error: Unknown version_type '$VERSION_TYPE'"
+                exit 1
+                ;;
+            esac
+
+            # Apply RC suffix if needed
+            if [ "$IS_RC" = "true" ]; then
+              NEW_VERSION="${BASE_VERSION}-rc.1"
+            else
+              NEW_VERSION="$BASE_VERSION"
+            fi
           fi
 
           echo "New version: $NEW_VERSION"
@@ -424,43 +440,59 @@ jobs:
             MAJOR="${BASH_REMATCH[1]}"
             MINOR="${BASH_REMATCH[2]}"
             PATCH="${BASH_REMATCH[3]}"
+            RC_SUFFIX="${BASH_REMATCH[4]}"
             RC_NUM="${BASH_REMATCH[5]:-0}"
-            IS_CURRENT_RC=$([[ -n "${BASH_REMATCH[4]}" ]] && echo "true" || echo "false")
+            if [ -n "$RC_SUFFIX" ]; then
+              IS_CURRENT_RC="true"
+            else
+              IS_CURRENT_RC="false"
+            fi
           else
             echo "Error: Cannot parse chart version $CURRENT_VERSION"
             exit 1
           fi
 
-          # Calculate base version based on version_type
-          case "$VERSION_TYPE" in
-            major)
-              BASE_VERSION="$((MAJOR + 1)).0.0"
-              ;;
-            minor)
-              BASE_VERSION="${MAJOR}.$((MINOR + 1)).0"
-              ;;
-            patch)
-              # For patch, check if we're continuing an RC series or starting fresh
-              if [ "$IS_CURRENT_RC" = "true" ] && [ "$IS_RC" = "true" ]; then
-                # Continue RC series (same base version, increment RC number)
-                BASE_VERSION="${MAJOR}.${MINOR}.${PATCH}"
-              else
-                BASE_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
-              fi
-              ;;
-          esac
+          echo "📦 Parsed: MAJOR=$MAJOR, MINOR=$MINOR, PATCH=$PATCH, RC_SUFFIX=$RC_SUFFIX, RC_NUM=$RC_NUM, IS_CURRENT_RC=$IS_CURRENT_RC"
 
-          # Apply RC suffix if needed
-          if [ "$IS_RC" = "true" ]; then
-            if [ "$IS_CURRENT_RC" = "true" ] && [ "$VERSION_TYPE" = "patch" ]; then
-              # Continuing an RC series - increment RC number
+          # Handle 'continue' specially - it requires current version to be an RC
+          if [ "$VERSION_TYPE" = "continue" ]; then
+            if [ "$IS_CURRENT_RC" != "true" ]; then
+              echo "Error: 'continue' requires current chart version to be an RC (current: $CURRENT_VERSION)"
+              echo "Use patch/minor/major to create a new version instead."
+              exit 1
+            fi
+            BASE_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+            if [ "$IS_RC" = "true" ]; then
+              # Continue RC series: increment RC number
               NEW_VERSION="${BASE_VERSION}-rc.$((RC_NUM + 1))"
             else
-              # Starting a new RC series
-              NEW_VERSION="${BASE_VERSION}-rc.1"
+              # Promote RC to stable: strip RC suffix
+              NEW_VERSION="${BASE_VERSION}"
             fi
           else
-            NEW_VERSION="$BASE_VERSION"
+            # Calculate base version based on version_type
+            case "$VERSION_TYPE" in
+              major)
+                BASE_VERSION="$((MAJOR + 1)).0.0"
+                ;;
+              minor)
+                BASE_VERSION="${MAJOR}.$((MINOR + 1)).0"
+                ;;
+              patch)
+                BASE_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+                ;;
+              *)
+                echo "Error: Unknown version_type '$VERSION_TYPE'"
+                exit 1
+                ;;
+            esac
+
+            # Apply RC suffix if needed
+            if [ "$IS_RC" = "true" ]; then
+              NEW_VERSION="${BASE_VERSION}-rc.1"
+            else
+              NEW_VERSION="$BASE_VERSION"
+            fi
           fi
 
           echo "📦 Bumping to version: $NEW_VERSION"

@@ -13,8 +13,7 @@
 [![Release Chart](https://github.com/wayli-app/wayli/actions/workflows/release-chart.yml/badge.svg)](https://github.com/wayli-app/wayli/actions/workflows/release-chart.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version](https://img.shields.io/github/v/release/wayli-app/wayli)](https://github.com/wayli-app/wayli/releases)
-[![Docker](https://img.shields.io/docker/v/zehbart/wayli?label=docker&sort=semver)](https://hub.docker.com/r/zehbart/wayli)
-[![Docker Pulls](https://img.shields.io/docker/pulls/zehbart/wayli)](https://hub.docker.com/r/zehbart/wayli)
+[![GHCR](https://img.shields.io/badge/ghcr.io-wayli--app%2Fwayli-blue)](https://github.com/wayli-app/wayli/pkgs/container/wayli)
 [![Code Coverage](https://img.shields.io/badge/coverage-85%25-brightgreen)](web/README.md)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://conventionalcommits.org)
 
@@ -154,9 +153,9 @@ BREAKING CHANGE: The user endpoint now returns user data in a different format."
 ### 🐳 Docker Images
 
 Docker images are automatically tagged with:
-- `zehbart/wayli:v1.2.3` - Semantic version
-- `zehbart/wayli:latest` - Latest stable version
-- `zehbart/wayli:abc1234` - Git commit SHA
+- `ghcr.io/wayli-app/wayli:v1.2.3` - Semantic version
+- `ghcr.io/wayli-app/wayli:latest` - Latest stable version
+- `ghcr.io/wayli-app/wayli:abc1234` - Git commit SHA
 
 ## 📦 Deployment
 

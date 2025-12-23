@@ -152,7 +152,7 @@ To update to a new version of Wayli:
 
 Version tags follow semantic versioning (e.g., `v0.0.1`). Available versions can be found at:
 - [GitHub Releases](https://github.com/wayli-app/wayli/releases)
-- [Docker Hub](https://hub.docker.com/r/zehbart/wayli/tags)
+- [GitHub Container Registry](https://github.com/wayli-app/wayli/pkgs/container/wayli)
 
 ## Data Persistence
 

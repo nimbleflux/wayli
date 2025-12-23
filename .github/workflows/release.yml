@@ -24,8 +24,8 @@ name: Release
 #   - continue + stable: 1.0.11-rc.1 → 1.0.11 (promote RC to stable)
 #
 # Component Toggles:
-#   - Publish Docker image: Build and push the Wayli Docker image to Docker Hub
-#   - Publish Helm chart: Package and publish Helm chart to GitHub Pages
+#   - Publish Docker image: Build and push the Wayli Docker image to GitHub Container Registry (GHCR)
+#   - Publish Helm chart: Package and publish Helm chart to GHCR (OCI) and GitHub Pages
 #
 # RC Release behavior:
 #   - Version format: vMAJOR.MINOR.PATCH-rc.N (e.g., v1.0.0-rc.1, v1.0.0-rc.2)
@@ -231,7 +231,7 @@ jobs:
           echo "Updated Helm chart appVersion to v${{ env.VERSION }}"
 
           # Update Supabase functions init container image in values.yaml
-          sed -i "s|image: zehbart/wayli:.*|image: zehbart/wayli:v${{ env.VERSION }}|" charts/wayli/values.yaml
+          sed -i "s|image: ghcr.io/wayli-app/wayli:.*|image: ghcr.io/wayli-app/wayli:v${{ env.VERSION }}|" charts/wayli/values.yaml
           echo "Updated init container image to v${{ env.VERSION }}"
 
           # Update docker-compose .env.example with new version
@@ -287,11 +287,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push AMD64 image
         uses: docker/build-push-action@v5
@@ -299,7 +300,7 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64
-          tags: zehbart/wayli:v${{ env.VERSION }}-amd64
+          tags: ghcr.io/wayli-app/wayli:v${{ env.VERSION }}-amd64
           cache-from: type=gha,scope=amd64
           cache-to: type=gha,mode=max,scope=amd64
 
@@ -323,11 +324,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push ARM64 image
         uses: docker/build-push-action@v5
@@ -335,7 +337,7 @@ jobs:
           context: .
           push: true
           platforms: linux/arm64
-          tags: zehbart/wayli:v${{ env.VERSION }}-arm64
+          tags: ghcr.io/wayli-app/wayli:v${{ env.VERSION }}-arm64
           cache-from: type=gha,scope=arm64
           cache-to: type=gha,mode=max,scope=arm64
 
@@ -348,11 +350,12 @@ jobs:
       VERSION: ${{ needs.get-version.outputs.version }}
       IS_RC: ${{ needs.get-version.outputs.is_rc }}
     steps:
-      - name: Log in to Docker Hub
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract short SHA
         run: echo "SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
@@ -360,25 +363,25 @@ jobs:
       - name: Create and push multi-arch manifest
         run: |
           # Create manifest for version tag
-          docker buildx imagetools create -t zehbart/wayli:v${{ env.VERSION }} \
-            zehbart/wayli:v${{ env.VERSION }}-amd64 \
-            zehbart/wayli:v${{ env.VERSION }}-arm64
+          docker buildx imagetools create -t ghcr.io/wayli-app/wayli:v${{ env.VERSION }} \
+            ghcr.io/wayli-app/wayli:v${{ env.VERSION }}-amd64 \
+            ghcr.io/wayli-app/wayli:v${{ env.VERSION }}-arm64
 
           # Create manifest for latest/rc tag
           if [ "${{ env.IS_RC }}" = "true" ]; then
-            docker buildx imagetools create -t zehbart/wayli:rc \
-              zehbart/wayli:v${{ env.VERSION }}-amd64 \
-              zehbart/wayli:v${{ env.VERSION }}-arm64
+            docker buildx imagetools create -t ghcr.io/wayli-app/wayli:rc \
+              ghcr.io/wayli-app/wayli:v${{ env.VERSION }}-amd64 \
+              ghcr.io/wayli-app/wayli:v${{ env.VERSION }}-arm64
           else
-            docker buildx imagetools create -t zehbart/wayli:latest \
-              zehbart/wayli:v${{ env.VERSION }}-amd64 \
-              zehbart/wayli:v${{ env.VERSION }}-arm64
+            docker buildx imagetools create -t ghcr.io/wayli-app/wayli:latest \
+              ghcr.io/wayli-app/wayli:v${{ env.VERSION }}-amd64 \
+              ghcr.io/wayli-app/wayli:v${{ env.VERSION }}-arm64
           fi
 
           # Create manifest for short SHA tag
-          docker buildx imagetools create -t zehbart/wayli:${{ env.SHORT_SHA }} \
-            zehbart/wayli:v${{ env.VERSION }}-amd64 \
-            zehbart/wayli:v${{ env.VERSION }}-arm64
+          docker buildx imagetools create -t ghcr.io/wayli-app/wayli:${{ env.SHORT_SHA }} \
+            ghcr.io/wayli-app/wayli:v${{ env.VERSION }}-amd64 \
+            ghcr.io/wayli-app/wayli:v${{ env.VERSION }}-arm64
 
   # ==========================================================================
   # Helm Chart Publishing
@@ -467,6 +470,18 @@ jobs:
         run: |
           mkdir -p .cr-release-packages
           helm package charts/wayli -d .cr-release-packages
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push Helm chart to GHCR (OCI)
+        run: |
+          helm push .cr-release-packages/wayli-${{ env.VERSION }}.tgz oci://ghcr.io/wayli-app/charts
+          echo "📦 Helm chart pushed to ghcr.io/wayli-app/charts/wayli:${{ env.VERSION }}"
 
       - name: Install chart-releaser
         run: |

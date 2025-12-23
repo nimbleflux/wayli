@@ -22,7 +22,12 @@ See [docker-compose/README.md](docker-compose/README.md) for detailed instructio
 
 The Helm chart provides a production-ready Kubernetes deployment with automatic scaling, health checks, and rolling updates.
 
-**Quick Start:**
+**Quick Start (OCI - Recommended):**
+```bash
+helm install wayli oci://ghcr.io/wayli-app/charts/wayli -n wayli --create-namespace
+```
+
+**Alternative (Helm Repository):**
 ```bash
 helm repo add wayli https://wayli-app.github.io/wayli
 helm repo update
@@ -42,7 +47,7 @@ Both deployment methods require:
 ## Updates
 
 Both deployment methods support semantic versioning:
-- Docker images: `zehbart/wayli:v1.2.3`, `zehbart/wayli:latest`
+- Docker images: `ghcr.io/wayli-app/wayli:v1.2.3`, `ghcr.io/wayli-app/wayli:latest`
 - Helm chart: Automatically tracks application versions
 
 To update to the latest version:

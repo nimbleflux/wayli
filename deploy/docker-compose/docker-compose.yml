@@ -141,7 +141,7 @@ services:
   # Wayli web application
   wayli-web:
     container_name: wayli-web
-    image: zehbart/wayli:${WAYLI_VERSION:-latest}
+    image: ghcr.io/wayli-app/wayli:${WAYLI_VERSION:-latest}
     restart: unless-stopped
     ports:
       - "${WAYLI_WEB_PORT:-4000}:80"
@@ -188,7 +188,7 @@ services:
   #############################################
   # wayli:
   #   container_name: wayli
-  #   image: zehbart/wayli:${WAYLI_VERSION:-latest}
+  #   image: ghcr.io/wayli-app/wayli:${WAYLI_VERSION:-latest}
   #   restart: unless-stopped
   #   ports:
   #     - "${WAYLI_WEB_PORT:-4000}:80"

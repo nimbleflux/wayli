@@ -20,7 +20,7 @@ secrets:
 
 ## Image configuration
 image:
-  repository: zehbart/wayli
+  repository: ghcr.io/wayli-app/wayli
   pullPolicy: IfNotPresent
   tag: ""  # Defaults to .Chart.AppVersion
   ## Optional image pull secrets

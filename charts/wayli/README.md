@@ -10,16 +10,29 @@ A Helm chart for deploying Wayli - a privacy-first location analysis and trip tr
 
 ## Installation
 
-### Add the Wayli Helm repository
+### Option A: Install from OCI Registry (Recommended)
 
 ```bash
-helm repo add wayli https://wayli-app.github.io/wayli
-helm repo update
+# Create a namespace for Wayli
+kubectl create namespace wayli
+
+# Install with default values
+helm install wayli oci://ghcr.io/wayli-app/charts/wayli -n wayli
+
+# Install with custom values
+helm install wayli oci://ghcr.io/wayli-app/charts/wayli -n wayli -f custom-values.yaml
+
+# Install a specific version
+helm install wayli oci://ghcr.io/wayli-app/charts/wayli --version 1.2.3 -n wayli
 ```
 
-### Install the chart
+### Option B: Install from Helm Repository
 
 ```bash
+# Add the Wayli Helm repository
+helm repo add wayli https://wayli-app.github.io/wayli
+helm repo update
+
 # Create a namespace for Wayli
 kubectl create namespace wayli
 
@@ -38,7 +51,7 @@ The following table lists the main configurable parameters of the Wayli chart an
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `image.repository` | Wayli image repository | `zehbart/wayli` |
+| `image.repository` | Wayli image repository | `ghcr.io/wayli-app/wayli` |
 | `image.tag` | Wayli image tag (overrides Chart.yaml appVersion) | `""` |
 | `image.pullPolicy` | Image pull policy | `IfNotPresent` |
 | `web.enabled` | Enable web deployment | `true` |
@@ -203,6 +216,19 @@ Options for Fluxbase deployment:
 
 ### Upgrade to a new version
 
+**OCI Registry:**
+```bash
+# Upgrade to latest version
+helm upgrade wayli oci://ghcr.io/wayli-app/charts/wayli -n wayli
+
+# Upgrade to specific version
+helm upgrade wayli oci://ghcr.io/wayli-app/charts/wayli --version 1.2.3 -n wayli
+
+# Upgrade with custom values
+helm upgrade wayli oci://ghcr.io/wayli-app/charts/wayli -n wayli -f custom-values.yaml
+```
+
+**Helm Repository:**
 ```bash
 # Update repository
 helm repo update
@@ -245,8 +271,9 @@ This Helm chart is automatically versioned and released via GitHub Actions:
 - **Docker Images**: Tagged with semantic versions (e.g., `v0.0.1`)
 
 Available versions:
-- [Helm Chart Releases](https://github.com/wayli-app/wayli/releases)
-- [Docker Hub Tags](https://hub.docker.com/r/zehbart/wayli/tags)
+- [Helm Chart (OCI)](https://github.com/wayli-app/wayli/pkgs/container/charts%2Fwayli) - `oci://ghcr.io/wayli-app/charts/wayli`
+- [Helm Chart Releases](https://github.com/wayli-app/wayli/releases) - GitHub Pages repository
+- [Docker Images](https://github.com/wayli-app/wayli/pkgs/container/wayli) - `ghcr.io/wayli-app/wayli`
 
 ## Examples
 

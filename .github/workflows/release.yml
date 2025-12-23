@@ -392,7 +392,6 @@ jobs:
     env:
       VERSION: ${{ needs.get-version.outputs.version }}
       IS_RC: ${{ needs.get-version.outputs.is_rc }}
-      VERSION_TYPE: ${{ inputs.version_type }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -428,88 +427,32 @@ jobs:
 
       - name: Bump chart version
         run: |
-          # Get current version
-          CURRENT_VERSION=$(grep '^version:' charts/wayli/Chart.yaml | awk '{print $2}')
-          echo "📦 Current chart version: $CURRENT_VERSION"
-
+          # Use the same version as the app (already calculated by get-version job)
+          NEW_VERSION="${{ env.VERSION }}"
           IS_RC="${{ env.IS_RC }}"
-          VERSION_TYPE="${{ env.VERSION_TYPE }}"
 
-          # Parse current version (handles both stable and RC versions)
-          if [[ "$CURRENT_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-rc\.([0-9]+))?$ ]]; then
-            MAJOR="${BASH_REMATCH[1]}"
-            MINOR="${BASH_REMATCH[2]}"
-            PATCH="${BASH_REMATCH[3]}"
-            RC_SUFFIX="${BASH_REMATCH[4]}"
-            RC_NUM="${BASH_REMATCH[5]:-0}"
-            if [ -n "$RC_SUFFIX" ]; then
-              IS_CURRENT_RC="true"
-            else
-              IS_CURRENT_RC="false"
-            fi
-          else
-            echo "Error: Cannot parse chart version $CURRENT_VERSION"
-            exit 1
-          fi
+          echo "📦 Setting chart version to: $NEW_VERSION"
 
-          echo "📦 Parsed: MAJOR=$MAJOR, MINOR=$MINOR, PATCH=$PATCH, RC_SUFFIX=$RC_SUFFIX, RC_NUM=$RC_NUM, IS_CURRENT_RC=$IS_CURRENT_RC"
-
-          # Handle 'continue' specially - it requires current version to be an RC
-          if [ "$VERSION_TYPE" = "continue" ]; then
-            if [ "$IS_CURRENT_RC" != "true" ]; then
-              echo "Error: 'continue' requires current chart version to be an RC (current: $CURRENT_VERSION)"
-              echo "Use patch/minor/major to create a new version instead."
-              exit 1
-            fi
-            BASE_VERSION="${MAJOR}.${MINOR}.${PATCH}"
-            if [ "$IS_RC" = "true" ]; then
-              # Continue RC series: increment RC number
-              NEW_VERSION="${BASE_VERSION}-rc.$((RC_NUM + 1))"
-            else
-              # Promote RC to stable: strip RC suffix
-              NEW_VERSION="${BASE_VERSION}"
-            fi
-          else
-            # Calculate base version based on version_type
-            case "$VERSION_TYPE" in
-              major)
-                BASE_VERSION="$((MAJOR + 1)).0.0"
-                ;;
-              minor)
-                BASE_VERSION="${MAJOR}.$((MINOR + 1)).0"
-                ;;
-              patch)
-                BASE_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
-                ;;
-              *)
-                echo "Error: Unknown version_type '$VERSION_TYPE'"
-                exit 1
-                ;;
-            esac
-
-            # Apply RC suffix if needed
-            if [ "$IS_RC" = "true" ]; then
-              NEW_VERSION="${BASE_VERSION}-rc.1"
-            else
-              NEW_VERSION="$BASE_VERSION"
-            fi
-          fi
-
-          echo "📦 Bumping to version: $NEW_VERSION"
-
-          # Update Chart.yaml
+          # Update Chart.yaml version
           sed -i "s/^version: .*/version: $NEW_VERSION/" charts/wayli/Chart.yaml
 
           # Add prerelease annotation for RC versions
           if [ "$IS_RC" = "true" ]; then
             # Check if annotations section exists
             if grep -q "^annotations:" charts/wayli/Chart.yaml; then
-              # Add to existing annotations
-              sed -i '/^annotations:/a\  artifacthub.io/prerelease: "true"' charts/wayli/Chart.yaml
+              # Add to existing annotations (only if not already present)
+              if ! grep -q "artifacthub.io/prerelease" charts/wayli/Chart.yaml; then
+                sed -i '/^annotations:/a\  artifacthub.io/prerelease: "true"' charts/wayli/Chart.yaml
+              fi
             else
               # Add new annotations section
               echo -e "\nannotations:\n  artifacthub.io/prerelease: \"true\"" >> charts/wayli/Chart.yaml
             fi
+          else
+            # Remove prerelease annotation for stable releases
+            sed -i '/artifacthub.io\/prerelease/d' charts/wayli/Chart.yaml
+            # Remove empty annotations section if it exists
+            sed -i '/^annotations:$/{ N; /^annotations:\n$/d }' charts/wayli/Chart.yaml
           fi
 
           # Commit the version bump
@@ -517,7 +460,7 @@ jobs:
           git commit -m "chore(chart): Bump version to $NEW_VERSION [skip ci]"
           git push
 
-          echo "📦 Chart version bumped to $NEW_VERSION"
+          echo "📦 Chart version set to $NEW_VERSION"
           echo "CHART_VERSION=$NEW_VERSION" >> $GITHUB_ENV
 
       - name: Package Helm chart

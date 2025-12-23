@@ -12,12 +12,9 @@ export const CLIENT_ENVIRONMENT = {
 	IS_SERVER: false,
 	IS_WORKER: false,
 
-	// Supabase URLs (safe for client-side)
-	SUPABASE_URL: process.env.SUPABASE_URL || '',
-	PUBLIC_SUPABASE_URL: process.env.PUBLIC_SUPABASE_URL || '',
-	SUPABASE_FUNCTIONS_URL: process.env.SUPABASE_FUNCTIONS_URL || '',
-	SUPABASE_STORAGE_URL: process.env.SUPABASE_STORAGE_URL || '',
-	SUPABASE_GRAPHQL_URL: process.env.SUPABASE_GRAPHQL_URL || '',
+	// Fluxbase URLs (safe for client-side)
+	FLUXBASE_BASE_URL: process.env.FLUXBASE_BASE_URL || '',
+	PUBLIC_FLUXBASE_BASE_URL: process.env.PUBLIC_FLUXBASE_BASE_URL || '',
 
 	// Client-side feature flags
 	ENABLE_ANALYTICS: process.env.NODE_ENV === 'production',
@@ -28,7 +25,7 @@ export const CLIENT_ENVIRONMENT = {
 	ANIMATION_DURATION: 300, // 300ms for UI animations
 
 	// Client-side limits
-	MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
+	MAX_FILE_SIZE: 1024 * 1024 * 1024, // 1GB (chunked uploads support large files)
 	MAX_UPLOAD_FILES: 5
 } as const;
 

@@ -1,0 +1,118 @@
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ..:/workspace:cached
+      - ~/Dev/fluxbase/sdk:/fluxbase-sdk:cached
+      - ~/Dev/fluxbase/sdk-react:/fluxbase-sdk-react:cached
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: /bin/sh -c "while sleep 1000; do :; done"
+    # When developing with local Fluxbase: comment out depends_on and use fluxbase-dev-network
+    # When developing Wayli standalone: uncomment depends_on and comment out networks
+    # depends_on:
+    #   - postgres
+    #   - fluxbase
+    environment:
+      # For local Fluxbase development (shared network):
+      - DATABASE_URL=postgresql://fluxbase_app:fluxbase_app_password@fluxbase-postgres-dev:5432/fluxbase_dev
+      - FLUXBASE_BASE_URL=http://fluxbase-dev:8080
+      - JWT_SECRET=dev-secret-key-change-in-production
+      # For standalone Wayli development (uncomment these, comment above):
+      # - DATABASE_URL=postgresql://fluxbase:postgres@postgres:5432/fluxbase
+      # - FLUXBASE_BASE_URL=http://fluxbase-dev:8080
+      # - JWT_SECRET=super-secret-jwt-token-with-at-least-32-characters-long
+    ports:
+      - "4000:4000"
+    networks:
+      - fluxbase-dev-network
+
+  # ============================================================================
+  # STANDALONE SERVICES (for Wayli-only development)
+  # Uncomment these services if developing Wayli without local Fluxbase source.
+  # Also comment out the 'networks' section at the bottom and add this to 'dev':
+  #   depends_on:
+  #     - postgres
+  #     - fluxbase
+  # ============================================================================
+
+  # postgres:
+  #   image: postgis/postgis:18-3.6
+  #   restart: unless-stopped
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql
+  #   environment:
+  #     POSTGRES_USER: fluxbase
+  #     POSTGRES_PASSWORD: postgres
+  #     POSTGRES_DB: fluxbase
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U fluxbase"]
+  #     interval: 5s
+  #     timeout: 3s
+  #     retries: 10
+  #     start_period: 30s
+  #   ports:
+  #     - "5432:5432"
+
+  # storage-init:
+  #   image: alpine:latest
+  #   volumes:
+  #     - storage-data:/storage
+  #   command: sh -c "chmod -R 755 /storage && chown -R 1000:1000 /storage"
+
+  # fluxbase:
+  #   image: ghcr.io/wayli-app/fluxbase:0.0.1-rc.42
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     storage-init:
+  #       condition: service_completed_successfully
+  #   volumes:
+  #     - storage-data:/storage
+  #     - ../fluxbase/functions:/functions
+  #     - ../fluxbase/migrations:/migrations/user
+  #   environment:
+  #     # Database
+  #     FLUXBASE_DATABASE_HOST: postgres
+  #     FLUXBASE_DATABASE_PORT: 5432
+  #     FLUXBASE_DATABASE_USER: fluxbase
+  #     FLUXBASE_DATABASE_PASSWORD: postgres
+  #     FLUXBASE_DATABASE_DATABASE: fluxbase
+  #     FLUXBASE_DATABASE_SSL_MODE: disable
+  #     FLUXBASE_DATABASE_USER_MIGRATIONS_PATH: /migrations/user
+  #     # Auth
+  #     FLUXBASE_AUTH_JWT_SECRET: dev-secret-key-change-in-production
+  #     FLUXBASE_AUTH_JWT_EXPIRY: 1h
+  #     FLUXBASE_AUTH_ENABLE_SIGNUP: true
+  #     FLUXBASE_AUTH_ENABLE_RLS: true
+  #     # Storage
+  #     FLUXBASE_STORAGE_PROVIDER: local
+  #     FLUXBASE_STORAGE_LOCAL_PATH: /storage
+  #     # Edge Functions
+  #     FLUXBASE_FUNCTIONS_ENABLED: true
+  #     FLUXBASE_FUNCTIONS_FUNCTIONS_DIR: /functions
+  #     # Edge Functions need these API keys to be available
+  #     FLUXBASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6ImZsdXhiYXNlIiwiaWF0IjoxNjQxNzY5MjAwLCJleHAiOjE3OTk1MzU2MDB9.peoT2zMOvonCJSM4ohHFKiHqJ0-TsjAF8tKU-aZfjAA
+  #     FLUXBASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoiZmx1eGJhc2UiLCJpYXQiOjE2NDE3NjkyMDAsImV4cCI6MTc5OTUzNTYwMH0.eyERh0zpGDlsWzjINl0gfyBy1JVWtJ83jtiPbefs2Xo
+  #     # Server
+  #     FLUXBASE_BASE_URL: http://localhost:8080
+  #     FLUXBASE_DEBUG: true
+  #     FLUXBASE_SECURITY_SETUP_TOKEN: test
+  #     # CORS Configuration
+  #     FLUXBASE_CORS_ALLOW_ORIGIN: "*"
+  #     FLUXBASE_CORS_ALLOW_HEADERS: "authorization, x-client-info, apikey, content-type, prefer, x-requested-with, accept"
+  #     FLUXBASE_CORS_ALLOW_METHODS: "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+  #     FLUXBASE_CORS_MAX_AGE: "86400"
+  #   ports:
+  #     - "8080:8080"
+
+# For local Fluxbase development (shared network):
+networks:
+  fluxbase-dev-network:
+    external: true
+
+# For standalone Wayli development (uncomment these, comment out networks above):
+# volumes:
+#   postgres-data:
+#   storage-data:

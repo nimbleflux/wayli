@@ -5,7 +5,7 @@
 
 	import { translate } from '$lib/i18n';
 	import { userStore } from '$lib/stores/auth';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -27,13 +27,20 @@
 	let isFirstUser = $state(false);
 	let hasRedirected = false; // Guard to prevent multiple redirects
 
-	// Password validation
+	// Password requirements from server (defaults match current behavior)
+	let passwordMinLength = $state(8);
+	let requireUppercase = $state(true);
+	let requireLowercase = $state(true);
+	let requireNumber = $state(true);
+	let requireSpecial = $state(true);
+
+	// Password validation - dynamically checks based on server requirements
 	let passwordValidation = $derived({
-		minLength: password.length >= 8,
-		hasUppercase: /[A-Z]/.test(password),
-		hasLowercase: /[a-z]/.test(password),
-		hasNumber: /\d/.test(password),
-		hasSpecial: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+		minLength: password.length >= passwordMinLength,
+		hasUppercase: !requireUppercase || /[A-Z]/.test(password),
+		hasLowercase: !requireLowercase || /[a-z]/.test(password),
+		hasNumber: !requireNumber || /\d/.test(password),
+		hasSpecial: !requireSpecial || /[!@#$%^&*(),.?":{}|<>]/.test(password)
 	});
 
 	let isPasswordValid = $derived(Object.values(passwordValidation).every(Boolean));
@@ -42,33 +49,57 @@
 	async function checkServerSettings() {
 		isLoadingSettings = true;
 		try {
-			// Use Supabase client to invoke edge function with anon key
-			const { data, error } = await supabase.functions.invoke('server-settings', {
-				method: 'GET'
-			});
+			// Read public Wayli settings from app.settings (RLS allows anonymous read)
+			const publicSettings = await fluxbase.settings.getMany([
+				'wayli.is_setup_complete',
+				'wayli.server_name',
+				'wayli.password_min_length',
+				'wayli.password_require_uppercase',
+				'wayli.password_require_lowercase',
+				'wayli.password_require_number',
+				'wayli.password_require_special'
+			]);
 
-			console.log('🔧 [SIGNUP] Raw response:', { data, error });
+			// The value is wrapped in an object: {"value": false}
+			const is_setup_complete = publicSettings['wayli.is_setup_complete']?.value === true
+				|| publicSettings['wayli.is_setup_complete']?.value === 'true';
 
-			if (!error && data) {
-				// Handle the response - data might already be unwrapped or might be wrapped in { data: ... }
-				const settings = data.data || data;
-				console.log('🔧 [SIGNUP] Settings extracted:', settings);
+			// First user can always sign up
+			isFirstUser = !is_setup_complete;
 
-				// Registration enabled/disabled is now handled by Supabase Auth config
-				// We only need to check setup status for first user flow
-				registrationDisabled = false;
-				isFirstUser = !settings.is_setup_complete;
-				console.log('🔧 [SIGNUP] Server settings applied:', {
-					is_setup_complete: settings.is_setup_complete,
-					registrationDisabled,
-					isFirstUser
-				});
-			} else {
-				console.error('Failed to fetch server settings:', error);
-				// Default to allowing registration if we can't fetch settings
-				registrationDisabled = false;
-				isFirstUser = false;
+			// Read password requirements from public settings
+			if (publicSettings['wayli.password_min_length']?.value !== undefined) {
+				passwordMinLength = publicSettings['wayli.password_min_length'].value;
 			}
+			if (publicSettings['wayli.password_require_uppercase']?.value !== undefined) {
+				requireUppercase = publicSettings['wayli.password_require_uppercase'].value;
+			}
+			if (publicSettings['wayli.password_require_lowercase']?.value !== undefined) {
+				requireLowercase = publicSettings['wayli.password_require_lowercase'].value;
+			}
+			if (publicSettings['wayli.password_require_number']?.value !== undefined) {
+				requireNumber = publicSettings['wayli.password_require_number'].value;
+			}
+			if (publicSettings['wayli.password_require_special']?.value !== undefined) {
+				requireSpecial = publicSettings['wayli.password_require_special'].value;
+			}
+
+			// Don't check signup_enabled from admin settings - that requires authentication
+			// If signup is disabled via app settings, the backend will reject the attempt
+			registrationDisabled = false;
+
+			console.log('🔧 [SIGNUP] Server settings applied:', {
+				is_setup_complete,
+				registrationDisabled,
+				isFirstUser,
+				passwordRequirements: {
+					minLength: passwordMinLength,
+					requireUppercase,
+					requireLowercase,
+					requireNumber,
+					requireSpecial
+				}
+			});
 		} catch (error) {
 			console.error('Error checking server settings:', error);
 			// Default to allowing registration if we can't fetch settings
@@ -89,7 +120,7 @@
 		(async () => {
 			const {
 				data: { user }
-			} = await supabase.auth.getUser();
+			} = await fluxbase.auth.getUser();
 			console.log('🔐 [SIGNUP] User check:', user ? `Found - ${user.email}` : 'None');
 
 			if (user) {
@@ -110,7 +141,7 @@
 				hasRedirected = true;
 
 				// Check if this is a new user who needs onboarding
-				const { data: profile } = await supabase
+				const { data: profile } = await fluxbase
 					.from('user_profiles')
 					.select('onboarding_completed, first_login_at')
 					.eq('id', user.id)
@@ -119,7 +150,7 @@
 				// If first-time user, redirect to onboarding
 				if (!profile?.onboarding_completed) {
 					if (!profile?.first_login_at) {
-						await supabase
+						await fluxbase
 							.from('user_profiles')
 							.update({ first_login_at: new Date().toISOString() })
 							.eq('id', user.id);
@@ -171,7 +202,7 @@
 		loading = true;
 
 		try {
-			const { data, error } = await supabase.auth.signUp({
+			const { data, error } = await fluxbase.auth.signUp({
 				email,
 				password,
 				options: {
@@ -179,14 +210,13 @@
 						first_name: firstName.trim(),
 						last_name: lastName.trim(),
 						full_name: `${firstName.trim()} ${lastName.trim()}`.trim()
-					},
-					emailRedirectTo: `${window.location.origin}/auth/callback`
+					}
 				}
 			});
 
 			if (error) throw error;
 
-			// Check if email verification is required based on Supabase Auth's response
+			// Check if email verification is required based on Fluxbase Auth's response
 			// If there's no session, email verification is required
 			// If there's a session, the user is auto-confirmed and logged in
 			if (!data.session && data.user && !data.user.email_confirmed_at) {
@@ -196,8 +226,39 @@
 				goto('/auth/verify-email');
 			} else if (data.session) {
 				// User is auto-confirmed and logged in
-				// Redirect will happen via userStore.subscribe
 				toast.success(t('auth.signUpSuccess'));
+
+				// Explicitly check profile and redirect (don't rely only on store subscription)
+				try {
+					const { data: profile } = await fluxbase
+						.from('user_profiles')
+						.select('onboarding_completed, first_login_at')
+						.eq('id', data.user.id)
+						.single();
+
+					// Update first_login_at if needed
+					if (!profile?.first_login_at) {
+						await fluxbase
+							.from('user_profiles')
+							.update({ first_login_at: new Date().toISOString() })
+							.eq('id', data.user.id);
+					}
+
+					// Redirect based on onboarding status
+					if (!profile?.onboarding_completed) {
+						console.log('🔄 [SIGNUP] First-time user, redirecting to onboarding');
+						goto('/dashboard/account-settings?onboarding=true');
+					} else {
+						const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/statistics';
+						console.log('🔄 [SIGNUP] User authenticated, redirecting to', redirectTo);
+						goto(redirectTo);
+					}
+				} catch (profileError) {
+					console.error('Error fetching profile after signup:', profileError);
+					// Fallback to default redirect
+					const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/statistics';
+					goto(redirectTo);
+				}
 			}
 		} catch (error: any) {
 			toast.error(error.message || t('auth.signUpFailed'));
@@ -219,7 +280,7 @@
 	<title>{t('auth.signUp')} - Wayli</title>
 </svelte:head>
 
-<div class="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-gray-900">
+<div class="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100 px-4 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
 	<div class="w-full max-w-md">
 		<!-- Back to home (hidden during initial setup) -->
 		{#if !isFirstUser}
@@ -238,21 +299,21 @@
 		{#if isFirstUser && !isLoadingSettings}
 			<div class="mb-8">
 				<div
-					class="rounded-xl border-2 border-blue-200 bg-blue-50 p-6 dark:border-blue-800 dark:bg-blue-900/20"
+					class="rounded-xl border-2 border-[rgb(34,51,95)]/20 bg-primary/5 p-6 dark:border-[rgb(34,51,95)]/30 dark:bg-primary/20"
 				>
 					<div class="flex items-start gap-3">
 						<div class="flex-shrink-0">
 							<div
-								class="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-2xl dark:bg-blue-900/40"
+								class="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-2xl dark:bg-primary/40"
 							>
 								🎉
 							</div>
 						</div>
 						<div class="flex-1">
-							<h3 class="mb-2 text-lg font-semibold text-blue-900 dark:text-blue-100">
+							<h3 class="mb-2 text-lg font-semibold text-primary dark:text-gray-100">
 								{t('signup.firstUserWelcome')}
 							</h3>
-							<p class="text-sm text-blue-700 dark:text-blue-300">
+							<p class="text-sm text-primary dark:text-gray-300">
 								{t('signup.firstUserAdminInfo')}
 							</p>
 						</div>
@@ -274,17 +335,17 @@
 
 			{#if isLoadingSettings}
 				<div
-					class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20"
+					class="mb-6 rounded-lg border border-[rgb(34,51,95)]/20 bg-primary/5 p-4 dark:border-[rgb(34,51,95)]/30 dark:bg-primary/20"
 				>
 					<div class="flex items-center">
 						<div
-							class="mr-2 h-5 w-5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"
+							class="mr-2 h-5 w-5 animate-spin rounded-full border-2 border-[rgb(34,51,95)] border-t-transparent"
 						></div>
 						<div>
-							<h3 class="text-sm font-medium text-blue-800 dark:text-blue-200">
+							<h3 class="text-sm font-medium text-primary dark:text-gray-200">
 								{t('auth.loadingSettings')}
 							</h3>
-							<p class="mt-1 text-sm text-blue-700 dark:text-blue-300">
+							<p class="mt-1 text-sm text-primary dark:text-gray-300">
 								{t('auth.checkingRegistrationStatus')}
 							</p>
 						</div>
@@ -339,7 +400,7 @@
 									bind:value={firstName}
 									required
 									disabled={registrationDisabled}
-									class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-4 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(37,140,244)] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+									class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-4 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 									placeholder={t('auth.firstName')}
 								/>
 							</div>
@@ -357,7 +418,7 @@
 								bind:value={lastName}
 								required
 								disabled={registrationDisabled}
-								class="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(37,140,244)] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+								class="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 								placeholder={t('auth.lastName')}
 							/>
 						</div>
@@ -381,7 +442,7 @@
 								bind:value={email}
 								required
 								disabled={registrationDisabled}
-								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-4 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(37,140,244)] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-4 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 								placeholder={t('auth.enterYourEmail')}
 							/>
 						</div>
@@ -405,7 +466,7 @@
 								bind:value={password}
 								required
 								disabled={registrationDisabled}
-								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-12 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(37,140,244)] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-12 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 								placeholder={t('auth.createPassword')}
 							/>
 							<button
@@ -440,65 +501,73 @@
 												? 'text-green-600 dark:text-green-400'
 												: 'text-red-600 dark:text-red-400'}
 										>
-											{t('auth.atLeast8Characters')}
+											At least {passwordMinLength} characters
 										</span>
 									</div>
-									<div class="flex items-center text-xs">
-										{#if passwordValidation.hasUppercase}
-											<Check class="mr-2 h-3 w-3 text-green-500" />
-										{:else}
-											<X class="mr-2 h-3 w-3 text-red-500" />
-										{/if}
-										<span
-											class={passwordValidation.hasUppercase
-												? 'text-green-600 dark:text-green-400'
-												: 'text-red-600 dark:text-red-400'}
-										>
-											{t('auth.oneUppercaseLetter')}
-										</span>
-									</div>
-									<div class="flex items-center text-xs">
-										{#if passwordValidation.hasLowercase}
-											<Check class="mr-2 h-3 w-3 text-green-500" />
-										{:else}
-											<X class="mr-2 h-3 w-3 text-red-500" />
-										{/if}
-										<span
-											class={passwordValidation.hasLowercase
-												? 'text-green-600 dark:text-green-400'
-												: 'text-red-600 dark:text-red-400'}
-										>
-											{t('auth.oneLowercaseLetter')}
-										</span>
-									</div>
-									<div class="flex items-center text-xs">
-										{#if passwordValidation.hasNumber}
-											<Check class="mr-2 h-3 w-3 text-green-500" />
-										{:else}
-											<X class="mr-2 h-3 w-3 text-red-500" />
-										{/if}
-										<span
-											class={passwordValidation.hasNumber
-												? 'text-green-600 dark:text-green-400'
-												: 'text-red-600 dark:text-red-400'}
-										>
-											{t('auth.oneNumber')}
-										</span>
-									</div>
-									<div class="flex items-center text-xs">
-										{#if passwordValidation.hasSpecial}
-											<Check class="mr-2 h-3 w-3 text-green-500" />
-										{:else}
-											<X class="mr-2 h-3 w-3 text-red-500" />
-										{/if}
-										<span
-											class={passwordValidation.hasSpecial
-												? 'text-green-600 dark:text-green-400'
-												: 'text-red-600 dark:text-red-400'}
-										>
-											{t('auth.oneSpecialCharacter')}
-										</span>
-									</div>
+									{#if requireUppercase}
+										<div class="flex items-center text-xs">
+											{#if passwordValidation.hasUppercase}
+												<Check class="mr-2 h-3 w-3 text-green-500" />
+											{:else}
+												<X class="mr-2 h-3 w-3 text-red-500" />
+											{/if}
+											<span
+												class={passwordValidation.hasUppercase
+													? 'text-green-600 dark:text-green-400'
+													: 'text-red-600 dark:text-red-400'}
+											>
+												{t('auth.oneUppercaseLetter')}
+											</span>
+										</div>
+									{/if}
+									{#if requireLowercase}
+										<div class="flex items-center text-xs">
+											{#if passwordValidation.hasLowercase}
+												<Check class="mr-2 h-3 w-3 text-green-500" />
+											{:else}
+												<X class="mr-2 h-3 w-3 text-red-500" />
+											{/if}
+											<span
+												class={passwordValidation.hasLowercase
+													? 'text-green-600 dark:text-green-400'
+													: 'text-red-600 dark:text-red-400'}
+											>
+												{t('auth.oneLowercaseLetter')}
+											</span>
+										</div>
+									{/if}
+									{#if requireNumber}
+										<div class="flex items-center text-xs">
+											{#if passwordValidation.hasNumber}
+												<Check class="mr-2 h-3 w-3 text-green-500" />
+											{:else}
+												<X class="mr-2 h-3 w-3 text-red-500" />
+											{/if}
+											<span
+												class={passwordValidation.hasNumber
+													? 'text-green-600 dark:text-green-400'
+													: 'text-red-600 dark:text-red-400'}
+											>
+												{t('auth.oneNumber')}
+											</span>
+										</div>
+									{/if}
+									{#if requireSpecial}
+										<div class="flex items-center text-xs">
+											{#if passwordValidation.hasSpecial}
+												<Check class="mr-2 h-3 w-3 text-green-500" />
+											{:else}
+												<X class="mr-2 h-3 w-3 text-red-500" />
+											{/if}
+											<span
+												class={passwordValidation.hasSpecial
+													? 'text-green-600 dark:text-green-400'
+													: 'text-red-600 dark:text-red-400'}
+											>
+												{t('auth.oneSpecialCharacter')}
+											</span>
+										</div>
+									{/if}
 								</div>
 							</div>
 						{/if}
@@ -522,7 +591,7 @@
 								bind:value={confirmPassword}
 								required
 								disabled={registrationDisabled}
-								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-12 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(37,140,244)] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-400 {!doPasswordsMatch &&
+								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-12 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-400 {!doPasswordsMatch &&
 								confirmPassword.length > 0
 									? 'border-red-500'
 									: ''}"
@@ -552,7 +621,7 @@
 					<button
 						type="submit"
 						disabled={loading || !isPasswordValid || !doPasswordsMatch || registrationDisabled}
-						class="w-full cursor-pointer rounded-lg bg-[rgb(37,140,244)] px-4 py-3 font-medium text-white transition-colors hover:bg-[rgb(37,140,244)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+						class="w-full cursor-pointer rounded-lg bg-primary px-4 py-3 font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-primary-dark dark:hover:bg-primary-dark/90"
 					>
 						{loading
 							? t('auth.creatingAccount')
@@ -567,7 +636,7 @@
 						{t('auth.alreadyHaveAccount')}
 						<a
 							href="/auth/signin"
-							class="cursor-pointer font-medium text-[rgb(37,140,244)] transition-colors hover:text-[rgb(37,140,244)]/80"
+							class="cursor-pointer font-medium text-primary transition-colors hover:text-primary/80 dark:text-primary-dark dark:hover:text-primary-dark/80"
 						>
 							{t('auth.signIn')}
 						</a>

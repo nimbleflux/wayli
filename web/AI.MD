@@ -2,7 +2,7 @@
 
 ## 🎯 Project Overview
 
-Wayli is a privacy-first, open-source location tracking and trip management application built with SvelteKit and Supabase. This document provides comprehensive guidelines for AI-assisted development and project-specific practices.
+Wayli is a privacy-first, open-source location tracking and trip management application built with SvelteKit and Fluxbase. This document provides comprehensive guidelines for AI-assisted development and project-specific practices.
 
 ## 🏗️ Architecture Patterns
 
@@ -67,7 +67,7 @@ src/
 │   ├── components/          # Reusable UI components
 │   ├── core/
 │   │   ├── config/          # Environment configuration
-│   │   └── supabase/        # Supabase clients
+│   │   └── fluxbase/        # Fluxbase clients
 │   ├── services/           # Business logic services
 │   ├── stores/             # Svelte stores
 │   ├── types/              # TypeScript type definitions
@@ -473,7 +473,7 @@ When updating environment configuration:
 ## 📖 Resources
 
 - [SvelteKit Documentation](https://kit.svelte.dev/)
-- [Supabase Documentation](https://supabase.com/docs)
+- [Fluxbase Documentation](https://fluxbase.eu/docs)
 - [WCAG 2.1 Guidelines](https://www.w3.org/WAI/WCAG21/quickref/)
 - [Vitest Testing Framework](https://vitest.dev/)
 - [Zod Validation](https://zod.dev/)

@@ -9,8 +9,8 @@ vi.mock('@svelte-plugins/datepicker', async () => {
 });
 
 vi.mock('$env/static/public', () => ({
-	PUBLIC_SUPABASE_URL: 'http://localhost',
-	PUBLIC_SUPABASE_ANON_KEY: 'anon'
+	PUBLIC_FLUXBASE_BASE_URL: 'http://localhost',
+	PUBLIC_FLUXBASE_ANON_KEY: 'anon'
 }));
 
 vi.mock('$lib/i18n', async () => {
@@ -21,8 +21,18 @@ vi.mock('$lib/i18n', async () => {
 vi.mock('$lib/stores/auth', () => ({
 	sessionStore: {
 		subscribe: (fn: any) => {
-			fn({});
+			fn({ user: { id: 'test-user-id' } });
 			return () => {};
+		}
+	}
+}));
+
+vi.mock('$lib/fluxbase', () => ({
+	fluxbase: {
+		auth: {
+			getSession: vi.fn().mockResolvedValue({
+				data: { session: { user: { id: 'test-user-id' } } }
+			})
 		}
 	}
 }));

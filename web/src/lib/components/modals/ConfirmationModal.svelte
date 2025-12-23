@@ -26,9 +26,9 @@
 			buttonClass: 'bg-yellow-600 hover:bg-yellow-700 text-white'
 		},
 		info: {
-			iconClass: 'text-blue-600 dark:text-blue-400',
-			bgClass: 'bg-blue-100 dark:bg-blue-900/20',
-			buttonClass: 'bg-blue-600 hover:bg-blue-700 text-white'
+			iconClass: 'text-primary dark:text-gray-300',
+			bgClass: 'bg-primary/10 dark:bg-primary/20',
+			buttonClass: 'bg-primary hover:bg-primary/90 text-white'
 		}
 	};
 

@@ -5,6 +5,8 @@ import {
 	haversine,
 	getSpeedBracket,
 	isAtTrainStation,
+	isAtAirport,
+	isOnHighwayOrMotorway,
 	isModeSwitchPossible
 } from './transport-mode';
 
@@ -103,7 +105,12 @@ describe('Transport Mode Detection', () => {
 			it('should detect train journey with station visits', () => {
 				const trainStationGeocode = {
 					properties: {
-						type: 'railway_station',
+						addendum: {
+							osm: {
+								railway: 'station',
+								name: 'Central Station'
+							}
+						},
 						address: { name: 'Central Station', city: 'Amsterdam' }
 					}
 				};
@@ -170,18 +177,42 @@ describe('Transport Mode Detection', () => {
 		});
 
 		describe('isAtTrainStation', () => {
-			it('should detect railway station geocode', () => {
-				const geocode = { properties: { type: 'railway_station' } };
+			it('should detect railway station from OSM addendum', () => {
+				const geocode = {
+					properties: {
+						addendum: {
+							osm: {
+								railway: 'station'
+							}
+						}
+					}
+				};
 				expect(isAtTrainStation(geocode)).toBe(true);
 			});
 
-			it('should detect railway class', () => {
-				const geocode = { properties: { class: 'railway' } };
+			it('should detect railway platform from OSM addendum', () => {
+				const geocode = {
+					properties: {
+						addendum: {
+							osm: {
+								railway: 'platform'
+							}
+						}
+					}
+				};
 				expect(isAtTrainStation(geocode)).toBe(true);
 			});
 
-			it('should detect platform type', () => {
-				const geocode = { properties: { type: 'platform' } };
+			it('should detect public transport station from OSM addendum', () => {
+				const geocode = {
+					properties: {
+						addendum: {
+							osm: {
+								public_transport: 'station'
+							}
+						}
+					}
+				};
 				expect(isAtTrainStation(geocode)).toBe(true);
 			});
 
@@ -220,5 +251,234 @@ describe('isModeSwitchPossible', () => {
 	it('should allow car to train at station', () => {
 		expect(isModeSwitchPossible('car', 'train', true)).toBe(true);
 		expect(isModeSwitchPossible('car', 'train', false)).toBe(false);
+	});
+});
+
+describe('Pelias Geocode Format Detection', () => {
+	describe('isAtTrainStation with Pelias OSM data', () => {
+		it('should detect train station from OSM railway tag', () => {
+			const geocode = {
+				type: 'Feature',
+				geometry: { type: 'Point', coordinates: [4.9, 52.37] },
+				properties: {
+					label: 'Amsterdam Centraal',
+					layer: 'venue',
+					addendum: {
+						osm: {
+							railway: 'station',
+							name: 'Amsterdam Centraal'
+						}
+					}
+				}
+			};
+			expect(isAtTrainStation(geocode)).toBe(true);
+		});
+
+		it('should detect train station from OSM public_transport tag', () => {
+			const geocode = {
+				type: 'Feature',
+				properties: {
+					label: 'Platform 1',
+					addendum: {
+						osm: {
+							public_transport: 'platform'
+						}
+					}
+				}
+			};
+			expect(isAtTrainStation(geocode)).toBe(true);
+		});
+
+		it('should detect train station from Pelias category', () => {
+			const geocode = {
+				type: 'Feature',
+				properties: {
+					label: 'Central Station',
+					category: ['transport:rail', 'transport:station']
+				}
+			};
+			expect(isAtTrainStation(geocode)).toBe(true);
+		});
+	});
+
+	describe('isAtAirport with Pelias OSM data', () => {
+		it('should detect airport from OSM aeroway tag', () => {
+			const geocode = {
+				type: 'Feature',
+				properties: {
+					label: 'Schiphol Airport',
+					addendum: {
+						osm: {
+							aeroway: 'aerodrome',
+							name: 'Amsterdam Airport Schiphol'
+						}
+					}
+				}
+			};
+			expect(isAtAirport(geocode)).toBe(true);
+		});
+
+		it('should detect airport terminal from OSM data', () => {
+			const geocode = {
+				type: 'Feature',
+				properties: {
+					label: 'Terminal 1',
+					addendum: {
+						osm: {
+							aeroway: 'terminal'
+						}
+					}
+				}
+			};
+			expect(isAtAirport(geocode)).toBe(true);
+		});
+
+		it('should detect airport from Pelias category', () => {
+			const geocode = {
+				type: 'Feature',
+				properties: {
+					label: 'Schiphol',
+					category: ['transport:air']
+				}
+			};
+			expect(isAtAirport(geocode)).toBe(true);
+		});
+	});
+
+	describe('isOnHighwayOrMotorway with Pelias OSM data', () => {
+		it('should detect motorway from OSM highway tag', () => {
+			const geocode = {
+				type: 'Feature',
+				properties: {
+					label: 'A10',
+					layer: 'street',
+					addendum: {
+						osm: {
+							highway: 'motorway',
+							ref: 'A10'
+						}
+					}
+				}
+			};
+			expect(isOnHighwayOrMotorway(geocode)).toBe(true);
+		});
+
+		it('should detect trunk road from OSM highway tag', () => {
+			const geocode = {
+				type: 'Feature',
+				properties: {
+					label: 'N200',
+					addendum: {
+						osm: {
+							highway: 'trunk'
+						}
+					}
+				}
+			};
+			expect(isOnHighwayOrMotorway(geocode)).toBe(true);
+		});
+
+		it('should detect primary road from OSM highway tag', () => {
+			const geocode = {
+				type: 'Feature',
+				properties: {
+					label: 'Main Road',
+					addendum: {
+						osm: {
+							highway: 'primary'
+						}
+					}
+				}
+			};
+			expect(isOnHighwayOrMotorway(geocode)).toBe(true);
+		});
+
+		it('should NOT detect residential street as highway', () => {
+			const geocode = {
+				type: 'Feature',
+				properties: {
+					label: 'Residential Street',
+					layer: 'street',
+					addendum: {
+						osm: {
+							highway: 'residential'
+						}
+					}
+				}
+			};
+			expect(isOnHighwayOrMotorway(geocode)).toBe(false);
+		});
+
+		it('should NOT detect regular address as highway', () => {
+			// This is the exact format from the user's example
+			const geocode = {
+				type: 'Feature',
+				geometry: { coordinates: [4.851864, 52.38353], type: 'Point' },
+				properties: {
+					addendum: {
+						osm: {
+							'addr:city': 'Amsterdam',
+							'addr:housenumber': '47-1',
+							'addr:postcode': '1055NJ',
+							'addr:street': 'Gibraltarstraat',
+							source: 'BAG',
+							'source:date': '2014-03-24'
+						}
+					},
+					address: { house_number: '47-1', postcode: '1055NJ', road: 'Gibraltarstraat' },
+					city: null,
+					confidence: 0.9,
+					country: null,
+					display_name: '47-1 Gibraltarstraat',
+					geocoded_at: '2025-12-02T08:37:19.490Z',
+					geocoding_provider: 'pelias',
+					import_source: 'geojson',
+					imported_at: '2025-12-01T20:52:15.801Z',
+					label: '47-1 Gibraltarstraat',
+					layer: 'address'
+				}
+			};
+			expect(isOnHighwayOrMotorway(geocode)).toBe(false);
+		});
+	});
+
+	describe('Regular address should not trigger special detection', () => {
+		it('should NOT detect regular address as train station', () => {
+			const geocode = {
+				type: 'Feature',
+				geometry: { coordinates: [4.851864, 52.38353], type: 'Point' },
+				properties: {
+					addendum: {
+						osm: {
+							'addr:city': 'Amsterdam',
+							'addr:housenumber': '47-1',
+							'addr:postcode': '1055NJ',
+							'addr:street': 'Gibraltarstraat'
+						}
+					},
+					address: { house_number: '47-1', postcode: '1055NJ', road: 'Gibraltarstraat' },
+					label: '47-1 Gibraltarstraat',
+					layer: 'address'
+				}
+			};
+			expect(isAtTrainStation(geocode)).toBe(false);
+		});
+
+		it('should NOT detect regular address as airport', () => {
+			const geocode = {
+				type: 'Feature',
+				properties: {
+					addendum: {
+						osm: {
+							'addr:city': 'Amsterdam',
+							'addr:street': 'Some Street'
+						}
+					},
+					label: '123 Some Street',
+					layer: 'address'
+				}
+			};
+			expect(isAtAirport(geocode)).toBe(false);
+		});
 	});
 });

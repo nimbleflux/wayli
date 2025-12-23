@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -15,7 +15,7 @@
 		console.log('🔄 [CALLBACK] Page mounted');
 		try {
 			// Handle OAuth callback - use getUser() for security
-			const { data: userData, error: userError } = await supabase.auth.getUser();
+			const { data: userData, error: userError } = await fluxbase.auth.getUser();
 			console.log(
 				'🔄 [CALLBACK] User check:',
 				userData.user ? `Found - ${userData.user.email}` : 'None'
@@ -28,7 +28,7 @@
 
 			if (userData.user) {
 				// Check onboarding status
-				const { data: profile } = await supabase
+				const { data: profile } = await fluxbase
 					.from('user_profiles')
 					.select('onboarding_completed, first_login_at')
 					.eq('id', userData.user.id)
@@ -37,7 +37,7 @@
 				// If first-time user, update first_login_at and redirect to onboarding
 				if (!profile?.onboarding_completed) {
 					if (!profile?.first_login_at) {
-						await supabase
+						await fluxbase
 							.from('user_profiles')
 							.update({ first_login_at: new Date().toISOString() })
 							.eq('id', userData.user.id);
@@ -67,10 +67,10 @@
 	});
 </script>
 
-<div class="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+<div class="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
 	<div class="text-center">
 		{#if loading}
-			<Loader2 class="mx-auto mb-4 h-8 w-8 animate-spin text-[rgb(37,140,244)]" />
+			<Loader2 class="mx-auto mb-4 h-8 w-8 animate-spin text-primary dark:text-primary-dark" />
 			<h2 class="mb-2 text-xl font-semibold text-gray-900 dark:text-gray-100">
 				Completing authentication...
 			</h2>

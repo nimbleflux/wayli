@@ -3,9 +3,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
 	detectEnhancedMode,
-	createEnhancedModeContext
+	createEnhancedModeContext,
+	type EnhancedModeContext
 } from '../../src/lib/utils/enhanced-transport-mode';
-import type { EnhancedModeContext } from '../../src/lib/types/transport-detection.types';
 
 describe('Enhanced Transport Mode Detection Integration', () => {
 	let context: EnhancedModeContext;
@@ -597,12 +597,18 @@ function createTrainStationGeocode(stationName: string) {
 	return {
 		type: 'Feature',
 		properties: {
-			type: 'railway_station',
-			class: 'railway',
+			label: stationName,
+			addendum: {
+				osm: {
+					railway: 'station',
+					name: stationName
+				}
+			},
 			address: {
 				name: stationName,
 				city: 'Amsterdam'
-			}
+			},
+			category: ['transport:rail', 'transport:station']
 		},
 		geometry: {
 			type: 'Point',
@@ -615,8 +621,13 @@ function createHighwayGeocode() {
 	return {
 		type: 'Feature',
 		properties: {
-			type: 'motorway',
-			class: 'highway'
+			layer: 'street',
+			addendum: {
+				osm: {
+					highway: 'motorway',
+					ref: 'A10'
+				}
+			}
 		},
 		geometry: {
 			type: 'Point',

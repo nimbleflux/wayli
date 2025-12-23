@@ -26,12 +26,14 @@ export interface UserPreferences {
 	notifications_enabled: boolean;
 	timezone?: string;
 	pexels_api_key?: string;
+	owntracks_api_key?: string;
+	trip_exclusions?: unknown[];
+	preferences?: Record<string, unknown>;
 	created_at: string;
 	updated_at: string;
 }
 
 export interface UserSecurity {
-	twoFactorEnabled: boolean;
 	lastPasswordChange?: string;
 }
 
@@ -51,23 +53,28 @@ export interface UpdatePreferencesRequest {
 	pexels_api_key?: string;
 }
 
-export interface TwoFactorSetupRequest {
-	password: string;
+export interface UpdatePasswordRequest {
+	currentPassword: string;
+	newPassword: string;
 }
 
-export interface TwoFactorSetupResponse {
+export interface UpdatePasswordResponse {
 	success: boolean;
-	qrCodeUrl: string;
-	secret: string;
 	message?: string;
 }
 
-export interface TwoFactorVerifyRequest {
+export interface TwoFactorSetupResponse {
+	qr_code: string;
+	secret: string;
+	uri: string;
+}
+
+export interface TwoFactorEnableRequest {
 	code: string;
 }
 
-export interface TwoFactorVerifyResponse {
-	success: boolean;
+export interface TwoFactorEnableResponse {
+	backup_codes: string[];
 	message?: string;
 }
 
@@ -80,12 +87,6 @@ export interface TwoFactorDisableResponse {
 	message?: string;
 }
 
-export interface UpdatePasswordRequest {
-	currentPassword: string;
-	newPassword: string;
-}
-
-export interface UpdatePasswordResponse {
-	success: boolean;
-	message?: string;
+export interface TwoFactorStatusResponse {
+	totp_enabled: boolean;
 }

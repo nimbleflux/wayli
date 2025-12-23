@@ -4,7 +4,7 @@
 	import { toast } from 'svelte-sonner';
 
 	import { translate } from '$lib/i18n';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
 
@@ -17,13 +17,13 @@
 	let cooldownInterval: ReturnType<typeof setInterval> | null = null;
 
 	onMount(() => {
-		// Get email from sessionStorage or Supabase session
+		// Get email from sessionStorage or Fluxbase session
 		const pendingEmail = sessionStorage.getItem('pending_verification_email');
 
 		(async () => {
 			const {
 				data: { user }
-			} = await supabase.auth.getUser();
+			} = await fluxbase.auth.getUser();
 
 			if (user && user.email_confirmed_at) {
 				// User is already verified, redirect to dashboard
@@ -60,7 +60,7 @@
 		resendLoading = true;
 
 		try {
-			const { error } = await supabase.auth.resend({
+			const { error } = await fluxbase.auth.resend({
 				type: 'signup',
 				email: email,
 				options: {
@@ -113,8 +113,8 @@
 		>
 			<div class="mb-6 text-center">
 				<!-- Email Icon -->
-				<div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
-					<Mail class="h-8 w-8 text-blue-600 dark:text-blue-400" />
+				<div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 dark:bg-primary/30">
+					<Mail class="h-8 w-8 text-primary dark:text-gray-400" />
 				</div>
 
 				<h1 class="mb-2 text-2xl font-bold text-gray-900 dark:text-gray-100">
@@ -137,19 +137,19 @@
 			<!-- Instructions -->
 			<div class="mb-6 space-y-3">
 				<div class="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-400">
-					<div class="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+					<div class="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary dark:bg-primary/30 dark:text-gray-300">
 						1
 					</div>
 					<p>{t('auth.checkInboxForEmail')}</p>
 				</div>
 				<div class="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-400">
-					<div class="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+					<div class="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary dark:bg-primary/30 dark:text-gray-300">
 						2
 					</div>
 					<p>{t('auth.clickVerificationLink')}</p>
 				</div>
 				<div class="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-400">
-					<div class="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+					<div class="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary dark:bg-primary/30 dark:text-gray-300">
 						3
 					</div>
 					<p>{t('auth.youWillBeRedirected')}</p>
@@ -193,7 +193,7 @@
 				{t('auth.needHelp')}
 				<a
 					href="mailto:support@wayli.app"
-					class="cursor-pointer font-medium text-[rgb(37,140,244)] transition-colors hover:text-[rgb(37,140,244)]/80"
+					class="cursor-pointer font-medium text-primary transition-colors hover:text-primary/80"
 				>
 					{t('auth.contactSupport')}
 				</a>

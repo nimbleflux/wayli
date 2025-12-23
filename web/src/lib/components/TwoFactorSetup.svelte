@@ -1,373 +1,396 @@
 <script lang="ts">
-	import { X, QrCode, Smartphone, Shield, CheckCircle, Copy, Download } from 'lucide-svelte';
-	import QRCode from 'qrcode';
-	import { onMount } from 'svelte';
+	import { createEventDispatcher, onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
-
+	import { Shield, Copy, CheckCircle, AlertCircle, X } from 'lucide-svelte';
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
-	import { supabase } from '$lib/supabase';
+	import { sessionStore } from '$lib/stores/auth';
+	import { translate } from '$lib/i18n';
+	import type { TwoFactorSetupResponse, TwoFactorEnableResponse } from '$lib/types/user.types';
 
-	export let open = false;
-	export let onEnabled: (() => void) | undefined = undefined;
-	export let onClose: (() => void) | undefined = undefined;
+	// Use the reactive translation function
+	let t = $derived($translate);
 
-	// Types
-	interface TwoFASetupResponse {
-		secret: string;
-		qrCodeUrl: string;
-		email?: string;
-	}
+	let { open = $bindable(false) } = $props();
 
-	interface TwoFAVerifyResponse {
-		recoveryCodes: string[];
-	}
+	const dispatch = createEventDispatcher();
 
-	let currentStep = 1;
-	let qrCodeUrl = '';
-	let secret = '';
-	let verificationCode = '';
-	let password = '';
-	let isGenerating = false;
-	let isVerifying = false;
-	let qrCodeError = false;
-	let recoveryCodes: string[] = [];
-	let email = '';
+	// Steps: 'setup', 'verify', 'complete'
+	let currentStep = $state<'setup' | 'verify' | 'complete'>('setup');
+	let isLoading = $state(false);
+	let error = $state<string | null>(null);
 
-	// Watch for changes to the open prop
-	$: if (open && !qrCodeUrl && !qrCodeError) {
-		// Don't auto-generate, wait for user to enter password
-	}
+	// Setup data
+	let setupData = $state<TwoFactorSetupResponse | null>(null);
+	let qrCodeSrc = $state<string>('');
+	let secret = $state<string>('');
+	let manualEntryKey = $state<string>('');
 
-	onMount(() => {
-		console.log('TwoFactorSetup mounted, open:', open);
-		// Don't auto-generate on mount
+	// Verification data
+	let verificationCode = $state('');
+	let backupCodes = $state<string[]>([]);
+
+	// State for copied feedback
+	let secretCopied = $state(false);
+	let backupCodesCopied = $state(false);
+
+	$effect(() => {
+		if (open && currentStep === 'setup') {
+			initializeSetup();
+		}
 	});
 
-	async function generateSecret() {
-		console.log('Generating 2FA secret...');
-		isGenerating = true;
-		qrCodeError = false;
+	async function initializeSetup() {
+		isLoading = true;
+		error = null;
+
 		try {
-			// Get current session and use ServiceAdapter
-			const {
-				data: { session }
-			} = await supabase.auth.getSession();
-			if (!session) throw new Error('No session found');
+			const session = $sessionStore;
+			if (!session) {
+				throw new Error('No session found');
+			}
 
 			const serviceAdapter = new ServiceAdapter({ session });
-			const responseData = (await serviceAdapter.setup2FA('generate', '')) as TwoFASetupResponse; // Action: generate, no token needed
+			const data = await serviceAdapter.setup2FA();
 
-			secret = responseData.secret;
-			// Generate QR code image from the otpauth URL
-			qrCodeUrl = await QRCode.toDataURL(responseData.qrCodeUrl);
-			email = responseData.email || '';
-		} catch (error) {
-			console.error('Error generating 2FA secret:', error);
-			qrCodeError = true;
-			toast.error(
-				'Failed to generate 2FA setup: ' +
-					(error instanceof Error ? error.message : 'Unknown error')
-			);
+			setupData = data as TwoFactorSetupResponse;
+			qrCodeSrc = data.qr_code;
+			secret = data.secret;
+			manualEntryKey = data.secret;
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to initialize 2FA setup';
+			toast.error(error);
 		} finally {
-			isGenerating = false;
+			isLoading = false;
 		}
 	}
 
-	async function verifyAndEnable() {
-		if (!verificationCode) {
-			toast.error('Please enter the verification code');
+	async function handleVerifyCode() {
+		if (!verificationCode || verificationCode.length !== 6) {
+			error = '2FA code must be 6 digits';
 			return;
 		}
-		isVerifying = true;
+
+		isLoading = true;
+		error = null;
+
 		try {
-			// Get current session and use ServiceAdapter
-			const {
-				data: { session }
-			} = await supabase.auth.getSession();
-			if (!session) throw new Error('No session found');
+			const session = $sessionStore;
+			if (!session) {
+				throw new Error('No session found');
+			}
 
 			const serviceAdapter = new ServiceAdapter({ session });
-			const responseData = (await serviceAdapter.setup2FA(
-				'verify',
-				verificationCode
-			)) as TwoFAVerifyResponse; // Action: verify, token as verification code
+			const result = (await serviceAdapter.enable2FA(verificationCode)) as TwoFactorEnableResponse;
 
-			recoveryCodes = responseData.recoveryCodes || [];
-			if (recoveryCodes.length > 0) {
-				nextStep();
-			} else {
-				toast.success('Two-factor authentication enabled successfully!');
-				if (onEnabled) {
-					onEnabled();
-				}
-				closeModal();
-			}
-		} catch (error) {
-			console.error('Error verifying 2FA:', error);
-			toast.error(
-				'Failed to verify 2FA: ' + (error instanceof Error ? error.message : 'Unknown error')
-			);
+			backupCodes = result.backup_codes || [];
+			currentStep = 'complete';
+			toast.success('Two-factor authentication enabled successfully!');
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to verify code';
+			toast.error(error);
 		} finally {
-			isVerifying = false;
+			isLoading = false;
 		}
 	}
 
-	function nextStep() {
-		currentStep++;
-	}
-
-	function prevStep() {
-		currentStep--;
-	}
-
-	function closeModal() {
-		open = false;
-		currentStep = 1;
-		qrCodeUrl = '';
-		secret = '';
-		verificationCode = '';
-		password = '';
-		qrCodeError = false;
-		recoveryCodes = [];
-		email = '';
-		if (onClose) {
-			onClose();
-		}
-	}
-
-	function finishSetup() {
-		toast.success('Two-factor authentication setup completed!');
-		if (onEnabled) {
-			onEnabled();
-		}
-		closeModal();
-	}
-
-	function copyCodes() {
-		const codesText = recoveryCodes.join('\n');
-		navigator.clipboard.writeText(codesText).then(() => {
-			toast.success('Recovery codes copied to clipboard');
+	function copyToClipboard(text: string, type: 'secret' | 'backupCodes') {
+		navigator.clipboard.writeText(text).then(() => {
+			if (type === 'secret') {
+				secretCopied = true;
+				setTimeout(() => (secretCopied = false), 2000);
+				toast.success('Secret copied to clipboard');
+			} else {
+				backupCodesCopied = true;
+				setTimeout(() => (backupCodesCopied = false), 2000);
+				toast.success('Backup codes copied to clipboard');
+			}
 		});
 	}
 
-	function downloadCodes() {
-		const codesText = recoveryCodes.join('\n');
-		const blob = new Blob([codesText], { type: 'text/plain' });
+	function handleClose() {
+		if (currentStep === 'complete') {
+			dispatch('success');
+		}
+		open = false;
+		// Reset state
+		currentStep = 'setup';
+		setupData = null;
+		qrCodeSrc = '';
+		secret = '';
+		verificationCode = '';
+		backupCodes = [];
+		error = null;
+	}
+
+	function handleBackupCodesDownload() {
+		const content = backupCodes.join('\n');
+		const blob = new Blob([content], { type: 'text/plain' });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
 		a.href = url;
-		a.download = 'recovery-codes.txt';
-		document.body.appendChild(a);
+		a.download = 'wayli-2fa-backup-codes.txt';
 		a.click();
-		document.body.removeChild(a);
 		URL.revokeObjectURL(url);
-		toast.success('Recovery codes downloaded');
+		toast.success('Backup codes downloaded');
 	}
 </script>
 
-<svelte:window onkeydown={(event) => event.key === 'Escape' && closeModal()} />
-
 {#if open}
+	<!-- Modal Overlay -->
 	<div
-		class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
-		onclick={closeModal}
-		role="presentation"
-		aria-hidden="true"
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+		onclick={handleClose}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') handleClose();
+		}}
+		role="button"
+		tabindex="0"
+		aria-label="Close modal"
 	>
+		<!-- Modal Box -->
 		<div
-			class="relative mx-4 flex max-h-[100vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-gray-800"
+			class="animate-fade-in relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-8 shadow-2xl dark:border-gray-700 dark:bg-gray-900"
 			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => {
-				if (e.key === 'Escape') closeModal();
-			}}
+			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
 			tabindex="-1"
 		>
-			<!-- Modal Header -->
-			<div
-				class="flex flex-shrink-0 items-start justify-between border-b border-gray-200 p-6 dark:border-gray-700"
+			<!-- Close Button -->
+			<button
+				onclick={handleClose}
+				class="absolute right-4 top-4 rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+				aria-label="Close"
 			>
+				<X class="h-5 w-5" />
+			</button>
+
+			<!-- Header -->
+			<div class="mb-6 flex items-center gap-3">
+				<div
+					class="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 dark:bg-primary/30"
+				>
+					<Shield class="h-6 w-6 text-primary dark:text-gray-300" />
+				</div>
 				<div>
-					<h2
-						id="two-factor-setup-modal-title"
-						class="text-2xl font-bold text-gray-900 dark:text-gray-100"
-					>
-						Set Up Two-Factor Authentication
+					<h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+						{currentStep === 'setup'
+							? 'Set Up Two-Factor Authentication'
+							: currentStep === 'verify'
+								? 'Verify Your Code'
+								: 'Backup Codes'}
 					</h2>
-					<p class="text-gray-500 dark:text-gray-400">
-						Secure your account with an authenticator app
+					<p class="text-sm text-gray-600 dark:text-gray-400">
+						{currentStep === 'setup'
+							? 'Step 1 of 3: Scan QR code'
+							: currentStep === 'verify'
+								? 'Step 2 of 3: Enter verification code'
+								: 'Step 3 of 3: Save your backup codes'}
 					</p>
 				</div>
-				<button
-					onclick={closeModal}
-					class="rounded-full p-1 text-gray-400 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700"
-					aria-label="Close modal"
-				>
-					<X class="h-6 w-6" />
-				</button>
 			</div>
 
-			<!-- Modal Content -->
-			<div class="flex-1 overflow-y-auto p-6">
-				{#if currentStep === 1}
-					<!-- Step 1: Password Entry and QR Code Generation -->
-					<div class="pb-4 text-center">
-						<div class="mb-6">
-							<Shield class="mx-auto mb-4 h-12 w-12 text-[rgb(37,140,244)]" />
-							<h3 class="mb-2 text-lg font-medium text-gray-900 dark:text-gray-100">
-								Enter Your Password
-							</h3>
-							<p class="text-gray-600 dark:text-gray-400">
-								Enter your password to generate a QR code for your authenticator app
-							</p>
-						</div>
+			{#if error}
+				<div
+					class="mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20"
+				>
+					<AlertCircle class="mt-0.5 h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400" />
+					<p class="text-sm text-red-700 dark:text-red-300">{error}</p>
+				</div>
+			{/if}
 
-						<div class="mb-6">
-							<input
-								type="password"
-								bind:value={password}
-								placeholder="Enter your password"
-								class="w-full rounded-md border border-gray-300 bg-white px-4 py-3 text-gray-900 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-							/>
-						</div>
-
-						{#if !qrCodeUrl && !qrCodeError}
-							<button
-								onclick={generateSecret}
-								disabled={isGenerating || !password}
-								class="w-full cursor-pointer rounded-md bg-[rgb(37,140,244)] px-4 py-2 font-medium text-white hover:bg-[rgb(37,140,244)]/90 disabled:cursor-not-allowed disabled:opacity-50"
-							>
-								{isGenerating ? 'Generating...' : 'Generate QR Code'}
-							</button>
-						{:else if qrCodeError}
-							<div
-								class="mb-4 rounded-md bg-red-50 p-3 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-							>
-								Failed to generate QR code. Please try again.
-							</div>
-							<button
-								onclick={generateSecret}
-								disabled={isGenerating || !password}
-								class="w-full cursor-pointer rounded-md bg-[rgb(37,140,244)] px-4 py-2 font-medium text-white hover:bg-[rgb(37,140,244)]/90 disabled:cursor-not-allowed disabled:opacity-50"
-							>
-								{isGenerating ? 'Generating...' : 'Retry'}
-							</button>
-						{:else if qrCodeUrl}
-							<div class="mb-6">
-								<div class="mb-4">
-									<QrCode class="mx-auto h-32 w-32" />
-								</div>
-								<div class="mb-4">
-									<img src={qrCodeUrl} alt="QR Code" class="mx-auto h-32 w-32" />
-								</div>
-								<p class="text-sm text-gray-600 dark:text-gray-400">
-									Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
-								</p>
-								{#if email}
-									<p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-										Or manually enter the secret: <code
-											class="rounded bg-gray-100 px-1 py-0.5 dark:bg-gray-700">{secret}</code
-										>
-									</p>
-								{/if}
-							</div>
-
-							<button
-								onclick={nextStep}
-								class="w-full cursor-pointer rounded-md bg-[rgb(37,140,244)] px-4 py-2 font-medium text-white hover:bg-[rgb(37,140,244)]/90"
-							>
-								Next: Verify Code
-							</button>
-						{/if}
-					</div>
-				{:else if currentStep === 2}
-					<!-- Step 2: Verification -->
-					<div class="pb-4 text-center">
-						<div class="mb-6">
-							<Smartphone class="mx-auto mb-4 h-12 w-12 text-[rgb(37,140,244)]" />
-							<h3 class="mb-2 text-lg font-medium text-gray-900 dark:text-gray-100">
-								Enter Verification Code
-							</h3>
-							<p class="text-gray-600 dark:text-gray-400">
-								Enter the 6-digit code from your authenticator app
-							</p>
-						</div>
-
-						<div class="mb-6">
-							<input
-								type="text"
-								bind:value={verificationCode}
-								placeholder="000000"
-								maxlength="6"
-								class="w-full rounded-md border border-gray-300 bg-white px-4 py-3 text-center font-mono text-2xl tracking-widest text-gray-900 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-							/>
-						</div>
-
-						<div class="flex gap-3">
-							<button
-								onclick={prevStep}
-								class="flex-1 cursor-pointer rounded-md bg-gray-200 px-4 py-2 font-medium text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-							>
-								Back
-							</button>
-							<button
-								onclick={verifyAndEnable}
-								disabled={isVerifying || verificationCode.length !== 6}
-								class="flex-1 cursor-pointer rounded-md bg-[rgb(37,140,244)] px-4 py-2 font-medium text-white hover:bg-[rgb(37,140,244)]/90 disabled:cursor-not-allowed disabled:opacity-50"
-							>
-								{isVerifying ? 'Verifying...' : 'Enable 2FA'}
-							</button>
-						</div>
-					</div>
-				{:else if currentStep === 3}
-					<!-- Step 3: Recovery Codes -->
-					<div class="pb-4 text-center">
-						<div class="mb-6">
-							<CheckCircle class="mx-auto mb-4 h-12 w-12 text-green-500" />
-							<h3 class="mb-2 text-lg font-medium text-gray-900 dark:text-gray-100">
-								2FA Enabled! Save Your Recovery Codes
-							</h3>
-							<p class="text-sm text-gray-600 dark:text-gray-400">
-								Store these codes in a safe place. They can be used to access your account if you
-								lose your device.
-							</p>
-						</div>
-
+			<!-- Setup Step -->
+			{#if currentStep === 'setup'}
+				{#if isLoading}
+					<div class="flex flex-col items-center justify-center py-12">
 						<div
-							class="mb-6 grid grid-cols-2 gap-4 rounded-lg bg-gray-100 p-4 text-center font-mono text-gray-800 dark:bg-gray-900/50 dark:text-gray-200"
-						>
-							{#each recoveryCodes as code (code)}
-								<p>{code}</p>
-							{/each}
+							class="h-12 w-12 animate-spin rounded-full border-4 border-[rgb(34,51,95)] border-t-transparent"
+						></div>
+						<p class="mt-4 text-sm text-gray-600 dark:text-gray-400">
+							Generating QR code...
+						</p>
+					</div>
+				{:else if qrCodeSrc}
+					<div class="space-y-6">
+						<!-- QR Code -->
+						<div class="flex justify-center">
+							<div class="rounded-lg border-4 border-gray-200 bg-white p-4 dark:border-gray-700">
+								<img src={qrCodeSrc} alt="2FA QR Code" class="h-48 w-48" />
+							</div>
 						</div>
 
-						<div class="mb-4 flex gap-3">
-							<button
-								onclick={copyCodes}
-								class="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-md bg-gray-200 px-4 py-2 font-medium text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-							>
-								<Copy class="h-4 w-4" />
-								Copy
-							</button>
-							<button
-								onclick={downloadCodes}
-								class="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-md bg-gray-200 px-4 py-2 font-medium text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-							>
-								<Download class="h-4 w-4" />
-								Download
-							</button>
+						<!-- Instructions -->
+						<div class="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+							<p class="font-semibold">Scan this QR code with your authenticator app:</p>
+							<ul class="list-inside list-disc space-y-1 text-gray-600 dark:text-gray-400">
+								<li>Google Authenticator</li>
+								<li>Microsoft Authenticator</li>
+								<li>Authy</li>
+								<li>Or any TOTP-compatible app</li>
+							</ul>
 						</div>
 
+						<!-- Manual Entry -->
+						<div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
+							<p class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+								Or enter this code manually:
+							</p>
+							<div class="flex items-center gap-2">
+								<code
+									class="flex-1 rounded bg-white px-3 py-2 font-mono text-sm text-gray-900 dark:bg-gray-900 dark:text-gray-100"
+								>
+									{manualEntryKey}
+								</code>
+								<button
+									onclick={() => copyToClipboard(manualEntryKey, 'secret')}
+									class="rounded-lg p-2 text-gray-600 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-700"
+									aria-label="Copy secret"
+								>
+									{#if secretCopied}
+										<CheckCircle class="h-5 w-5 text-green-600" />
+									{:else}
+										<Copy class="h-5 w-5" />
+									{/if}
+								</button>
+							</div>
+						</div>
+
+						<!-- Next Button -->
 						<button
-							onclick={finishSetup}
-							class="w-full cursor-pointer rounded-md bg-[rgb(37,140,244)] px-4 py-2 font-medium text-white hover:bg-[rgb(37,140,244)]/90"
+							onclick={() => (currentStep = 'verify')}
+							class="w-full rounded-lg bg-primary px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-primary/90"
 						>
-							Finish Setup
+							Continue to Verification
 						</button>
 					</div>
 				{/if}
-			</div>
+			{/if}
+
+			<!-- Verify Step -->
+			{#if currentStep === 'verify'}
+				<div class="space-y-6">
+					<div>
+						<p class="mb-4 text-sm text-gray-700 dark:text-gray-300">
+							Enter the 6-digit code from your authenticator app to complete setup:
+						</p>
+						<input
+							type="text"
+							bind:value={verificationCode}
+							placeholder="000000"
+							maxlength="6"
+							pattern="[0-9]*"
+							inputmode="numeric"
+							class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 text-center font-mono text-2xl tracking-widest text-gray-900 transition focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-2 focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+							oninput={(e) => {
+								const target = e.target as HTMLInputElement;
+								target.value = target.value.replace(/[^0-9]/g, '');
+								verificationCode = target.value;
+							}}
+						/>
+					</div>
+
+					<div class="flex gap-3">
+						<button
+							onclick={() => (currentStep = 'setup')}
+							class="flex-1 rounded-lg border border-gray-300 bg-white px-6 py-3 font-semibold text-gray-700 shadow transition-all duration-200 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+						>
+							Back
+						</button>
+						<button
+							onclick={handleVerifyCode}
+							disabled={isLoading || verificationCode.length !== 6}
+							class="flex-1 rounded-lg bg-primary px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							{isLoading ? 'Verifying...' : 'Verify & Enable'}
+						</button>
+					</div>
+				</div>
+			{/if}
+
+			<!-- Complete Step -->
+			{#if currentStep === 'complete'}
+				<div class="space-y-6">
+					<!-- Success Message -->
+					<div
+						class="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20"
+					>
+						<CheckCircle class="mt-0.5 h-5 w-5 flex-shrink-0 text-green-600 dark:text-green-400" />
+						<div>
+							<p class="font-semibold text-green-900 dark:text-green-100">
+								Two-factor authentication enabled!
+							</p>
+							<p class="mt-1 text-sm text-green-700 dark:text-green-300">
+								Your account is now more secure.
+							</p>
+						</div>
+					</div>
+
+					<!-- Backup Codes -->
+					<div>
+						<p class="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">
+							Save your backup codes:
+						</p>
+						<div
+							class="mb-3 rounded-lg border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-800 dark:bg-yellow-900/20"
+						>
+							<p class="text-xs text-yellow-800 dark:text-yellow-200">
+								<strong>Important:</strong> Keep these codes in a safe place. You can use them to access
+								your account if you lose your authenticator device.
+							</p>
+						</div>
+						<div
+							class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800"
+						>
+							<div class="grid grid-cols-2 gap-2 font-mono text-sm">
+								{#each backupCodes as code}
+									<div class="rounded bg-white px-3 py-2 text-gray-900 dark:bg-gray-700 dark:text-gray-100">{code}</div>
+								{/each}
+							</div>
+						</div>
+					</div>
+
+					<!-- Action Buttons -->
+					<div class="flex gap-3">
+						<button
+							onclick={() => copyToClipboard(backupCodes.join('\n'), 'backupCodes')}
+							class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-3 font-semibold text-gray-700 shadow transition-all duration-200 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+						>
+							{backupCodesCopied ? 'Copied!' : 'Copy Codes'}
+						</button>
+						<button
+							onclick={handleBackupCodesDownload}
+							class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-3 font-semibold text-gray-700 shadow transition-all duration-200 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+						>
+							Download
+						</button>
+					</div>
+
+					<!-- Finish Button -->
+					<button
+						onclick={handleClose}
+						class="w-full rounded-lg bg-primary px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-primary/90"
+					>
+						Done
+					</button>
+				</div>
+			{/if}
 		</div>
 	</div>
 {/if}
+
+<style>
+	.animate-fade-in {
+		animation: fadeIn 0.2s ease-in-out;
+	}
+
+	@keyframes fadeIn {
+		from {
+			opacity: 0;
+			transform: scale(0.95);
+		}
+		to {
+			opacity: 1;
+			transform: scale(1);
+		}
+	}
+</style>

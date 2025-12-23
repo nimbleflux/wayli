@@ -106,8 +106,8 @@ describe('Speed Pattern Analysis', () => {
 			const now = Date.now();
 			const modeHistory = [
 				{ speed: 100, timestamp: now - 12 * 60 * 1000 },
-				{ speed: 80, timestamp: now - 10 * 60 * 1000 }, // Below minimum
-				{ speed: 110, timestamp: now - 8 * 60 * 1000 }
+				{ speed: 80, timestamp: now - 8 * 60 * 1000 }, // Below minimum, within window
+				{ speed: 110, timestamp: now - 4 * 60 * 1000 }
 			];
 
 			expect(hasSustainedSpeed(modeHistory, 90, 10 * 60 * 1000)).toBe(false);

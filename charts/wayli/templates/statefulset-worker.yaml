@@ -1,4 +1,4 @@
-{{- if .Values.worker.enabled }}
+{{- if and .Values.worker.enabled (eq .Values.deploymentMode "split") }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -73,38 +73,42 @@ spec:
               value: {{ .Values.worker.env.nodeEnv | quote }}
             - name: APP_MODE
               value: {{ .Values.worker.env.appMode | quote }}
-            - name: SUPABASE_URL
-              value: {{ include "wayli.supabase.url" . | quote }}
-            - name: SUPABASE_ANON_KEY
+            - name: FLUXBASE_BASE_URL
+              value: {{ include "wayli.fluxbase.url" . | quote }}
+            - name: FLUXBASE_ANON_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "wayli.supabaseSecretName" . }}
-                  key: {{ .Values.supabase.global.supabase.secretKeys.anonKey }}
-            - name: SUPABASE_SERVICE_ROLE_KEY
+                  name: {{ include "wayli.fluxbaseSecretName" . }}
+                  key: {{ .Values.fluxbase.existingSecretKeyRef.jwtSecret }}
+            - name: FLUXBASE_SERVICE_ROLE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "wayli.supabaseSecretName" . }}
-                  key: {{ .Values.supabase.global.supabase.secretKeys.serviceRoleKey }}
+                  name: {{ include "wayli.fluxbaseSecretName" . }}
+                  key: {{ .Values.fluxbase.existingSecretKeyRef.jwtSecret }}
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "wayli.supabaseSecretName" . }}
-                  key: {{ .Values.supabase.global.supabase.secretKeys.jwtSecret }}
-            - name: SUPABASE_DB_USERNAME
-              value: {{ include "wayli.supabase.dbUser" . | quote }}
-            - name: SUPABASE_DB_PASSWORD
+                  name: {{ include "wayli.fluxbaseSecretName" . }}
+                  key: {{ .Values.fluxbase.existingSecretKeyRef.jwtSecret }}
+            - name: FLUXBASE_DB_USERNAME
+              value: {{ include "wayli.fluxbase.dbUser" . | quote }}
+            - name: FLUXBASE_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "wayli.supabaseSecretName" . }}
-                  key: {{ .Values.supabase.db.postgres.secretKeys.userPasswordKey }}
-            - name: INTERNAL_SUPABASE_URL
-              value: "http://{{ include "wayli.supabase.kongHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ include "wayli.supabase.kongPort" . }}"
-            - name: WORKER_SUPABASE_URL
-              value: "http://{{ include "wayli.supabase.kongHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ include "wayli.supabase.kongPort" . }}"
-            - name: PUBLIC_SUPABASE_URL
-              value: {{ include "wayli.supabase.url" . | quote }}
-            - name: NOMINATIM_ENDPOINT
-              value: {{ .Values.worker.env.nominatim.endpoint | quote }}
+                  name: {{ include "wayli.fluxbaseSecretName" . }}
+                  key: {{ .Values.fluxbase.existingSecretKeyRef.databasePassword }}
+            - name: INTERNAL_FLUXBASE_BASE_URL
+              value: "http://{{ include "wayli.fluxbase.serviceHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ include "wayli.fluxbase.servicePort" . }}"
+            - name: WORKER_FLUXBASE_BASE_URL
+              value: "http://{{ include "wayli.fluxbase.serviceHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ include "wayli.fluxbase.servicePort" . }}"
+            - name: PUBLIC_FLUXBASE_BASE_URL
+              value: {{ include "wayli.fluxbase.url" . | quote }}
+            - name: PELIAS_ENDPOINT
+              value: {{ .Values.worker.env.pelias.endpoint | quote }}
+            - name: MAX_CONCURRENT_JOBS
+              value: {{ .Values.worker.env.maxConcurrentJobs | default 3 | quote }}
+            - name: MAX_JOB_RETRIES
+              value: {{ .Values.worker.env.maxJobRetries | default 3 | quote }}
             {{- if .Values.worker.extraEnvVars }}
             {{- toYaml .Values.worker.extraEnvVars | nindent 12 }}
             {{- end }}

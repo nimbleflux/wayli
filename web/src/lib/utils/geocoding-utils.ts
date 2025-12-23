@@ -86,7 +86,7 @@ export function isRetryableError(geocode: unknown): boolean {
 		'address not found',
 		'invalid address',
 		'unable to geocode',
-		'all nominatim endpoints failed'
+		'all pelias endpoints failed'
 	];
 
 	const lowerError = errorMessage.toLowerCase();

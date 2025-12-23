@@ -1,5 +1,4 @@
-import { createWorkerClient } from '../../worker/client';
-
+import { fluxbase } from '$lib/fluxbase';
 import { getTripBannerImageWithAttribution } from './external/pexels.service';
 
 export interface TripLocationAnalysis {
@@ -22,8 +21,6 @@ export interface TripImageSuggestion {
 }
 
 export class TripImageSuggestionService {
-	private supabase = createWorkerClient();
-
 	/**
 	 * Analyze tracker data for a specific date range to determine the most visited country and city
 	 */
@@ -34,7 +31,7 @@ export class TripImageSuggestionService {
 	): Promise<TripLocationAnalysis> {
 		try {
 			// Fetch tracker data for the date range
-			const { data: trackerData, error } = await this.supabase
+			const { data: trackerData, error } = await fluxbase
 				.from('tracker_data')
 				.select('country_code, geocode, recorded_at')
 				.eq('user_id', userId)

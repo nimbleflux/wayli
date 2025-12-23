@@ -10,7 +10,7 @@ version: 2.0.0-rc.4
 # This is the version number of the application being deployed. This version number should be
 # incremented each time you make changes to the application. Versions are expected to follow Semantic Versioning (https://semver.org/)
 # This will be automatically updated by CI/CD pipeline after each release
-appVersion: "v1.0.10"
+appVersion: "v2.0.0-rc.4"
 
 maintainers:
   - name: wayli-app
@@ -28,11 +28,7 @@ keywords:
   - gps
 
 dependencies:
-  - name: supabase
-    version: "0.0.22"
-    repository: "https://wayli-app.github.io/supabase-helm"
-    condition: supabase.enabled
-
-annotations:
-  artifacthub.io/prerelease: "true"
-  artifacthub.io/prerelease: "true"
+  - name: fluxbase
+    version: '0.0.1-rc.54'
+    repository: 'oci://ghcr.io/fluxbase-eu/charts'
+    condition: fluxbase.enabled

@@ -6,7 +6,7 @@ A Helm chart for deploying Wayli - a privacy-first location analysis and trip tr
 
 - Kubernetes 1.19+
 - Helm 3.2.0+
-- PersistentVolume provisioner support in the underlying infrastructure (for Supabase)
+- PersistentVolume provisioner support in the underlying infrastructure (for Fluxbase)
 
 ## Installation
 
@@ -50,8 +50,8 @@ The following table lists the main configurable parameters of the Wayli chart an
 | `worker.replicaCount` | Number of worker replicas | `2` |
 | `ingress.enabled` | Enable ingress controller resource | `true` |
 | `ingress.hostname` | Ingress hostname | `console.wayli.app` |
-| `supabase.enabled` | Enable Supabase subchart | `true` |
-| `supabase.global.supabase.publicUrl` | Supabase API endpoint URL | `https://supa.wayli.app` |
+| `fluxbase.enabled` | Enable Fluxbase subchart | `true` |
+| `fluxbase.global.fluxbase.publicUrl` | Fluxbase API endpoint URL | `https://supa.wayli.app` |
 
 ### Environment Variables
 
@@ -66,13 +66,13 @@ web:
 worker:
   env:
     nodeEnv: production
-    nominatim:
-      endpoint: "http://nominatim.nominatim.svc.cluster.local:8088"
+    pelias:
+      endpoint: "http://pelias.pelias.svc.cluster.local:4000"
 
-supabase:
+fluxbase:
   global:
-    supabase:
-      publicUrl: "https://supa.wayli.app"  # Supabase API endpoint
+    fluxbase:
+      publicUrl: "https://fluxbase.wayli.app"  # Fluxbase API endpoint
       siteUrl: "https://wayli.app"  # For auth redirects
 ```
 
@@ -100,8 +100,8 @@ This interactive script will:
 Create Kubernetes secrets manually:
 
 ```bash
-# Create Supabase secret
-kubectl create secret generic supabase-secret \
+# Create Fluxbase secret
+kubectl create secret generic fluxbase-secret \
   --from-literal=jwt-secret=$(openssl rand -base64 48) \
   --from-literal=anon-key=<your-anon-key> \
   --from-literal=service-role-key=<your-service-role-key> \
@@ -121,10 +121,10 @@ kubectl create secret generic smtp-secret \
 Then configure your `values.yaml` to reference the secrets:
 
 ```yaml
-supabase:
+fluxbase:
   global:
-    supabase:
-      existingSecret: supabase-secret
+    fluxbase:
+      existingSecret: fluxbase-secret
       auth:
         smtp:
           existingSecret: smtp-secret  # Optional
@@ -190,14 +190,14 @@ web:
     targetCPUUtilizationPercentage: 80
 ```
 
-## Supabase Integration
+## Fluxbase Integration
 
-> **Note:** Supabase will be added as a Helm chart dependency in a future update. For now, you'll need to deploy Supabase separately or use a managed Supabase instance.
+> **Note:** Fluxbase is included as a Helm chart dependency. You can also use a managed Fluxbase instance if preferred.
 
-Options for Supabase deployment:
-1. **Managed Supabase**: Use [Supabase Cloud](https://supabase.com) (recommended for production)
-2. **Self-hosted**: Deploy Supabase separately using their [official Helm chart](https://github.com/supabase-community/supabase-kubernetes)
-3. **Chart dependency**: Coming in a future release
+Options for Fluxbase deployment:
+1. **Chart dependency**: Enabled by default (recommended for self-hosted)
+2. **Managed Fluxbase**: Use [Fluxbase Cloud](https://fluxbase.eu) (recommended for production)
+3. **Self-hosted**: Deploy Fluxbase separately using the official Helm chart
 
 ## Upgrading
 
@@ -263,8 +263,8 @@ ingress:
           pathType: Prefix
 
 env:
-  PUBLIC_SUPABASE_URL: "https://your-project.supabase.co"
-  PUBLIC_SUPABASE_ANON_KEY: "your-anon-key"
+  PUBLIC_FLUXBASE_BASE_URL: "https://your-project.fluxbase.eu"
+  PUBLIC_FLUXBASE_ANON_KEY: "your-anon-key"
 ```
 
 ```bash

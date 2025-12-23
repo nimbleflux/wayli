@@ -1,0 +1,188 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: geojson-backup
+  namespace: wayli
+  labels:
+    app: geojson-backup
+spec:
+  restartPolicy: Never
+  containers:
+    - name: backup
+      image: node:20-alpine
+      workingDir: /app
+      env:
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: supabase-secret
+              key: db-password
+        - name: DATABASE_URL
+          value: 'postgres://postgres:$(DB_PASSWORD)@wayli-supabase-pgbouncer:6432/postgres'
+      volumeMounts:
+        - name: backup-volume
+          mountPath: /backup
+      command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "Installing pg package..."
+          npm init -y > /dev/null 2>&1
+          npm install pg --save > /dev/null 2>&1
+
+          echo "Running backup script..."
+          node << 'SCRIPT'
+          const { Pool } = require('pg');
+          const fs = require('fs');
+
+          const OUTPUT_FILE = '/backup/locations.geojson';
+          const BATCH_SIZE = 1000;
+
+          async function main() {
+            const pool = new Pool({
+              connectionString: process.env.DATABASE_URL,
+            });
+
+            console.log('Connecting to database...');
+
+            const client = await pool.connect();
+
+            try {
+              // Set search_path to include public schema for PostGIS functions
+              await client.query("SET search_path TO public, gis, extensions");
+
+              // Get total count for progress reporting
+              const countResult = await client.query('SELECT COUNT(*) FROM public.tracker_data');
+              const totalRows = parseInt(countResult.rows[0].count, 10);
+              console.log(`Total rows to export: ${totalRows}`);
+
+              // Open file and write GeoJSON header
+              const writeStream = fs.createWriteStream(OUTPUT_FILE);
+              writeStream.write('{"type":"FeatureCollection","features":[');
+
+              let offset = 0;
+              let firstFeature = true;
+              let exportedCount = 0;
+
+              while (true) {
+                const query = `
+                  SELECT
+                    ST_X(location) as longitude,
+                    ST_Y(location) as latitude,
+                    recorded_at,
+                    altitude,
+                    accuracy,
+                    speed,
+                    heading,
+                    battery_level,
+                    is_charging,
+                    activity_type,
+                    country_code,
+                    geocode
+                  FROM tracker_data
+                  WHERE location IS NOT NULL
+                  ORDER BY recorded_at ASC
+                  LIMIT $1 OFFSET $2
+                `;
+
+                const result = await client.query(query, [BATCH_SIZE, offset]);
+
+                if (result.rows.length === 0) {
+                  break;
+                }
+
+                for (const row of result.rows) {
+                  // Extract geocode properties if it's in GeoJSON format
+                  let geocodeProperties = null;
+                  if (row.geocode) {
+                    if (row.geocode.type === 'Feature' && row.geocode.properties) {
+                      geocodeProperties = row.geocode.properties;
+                    } else {
+                      geocodeProperties = row.geocode;
+                    }
+                  }
+
+                  const feature = {
+                    type: 'Feature',
+                    geometry: {
+                      type: 'Point',
+                      coordinates: [row.longitude, row.latitude]
+                    },
+                    properties: {
+                      recorded_at: row.recorded_at,
+                      altitude: row.altitude,
+                      accuracy: row.accuracy,
+                      speed: row.speed,
+                      heading: row.heading,
+                      battery_level: row.battery_level,
+                      is_charging: row.is_charging,
+                      activity_type: row.activity_type,
+                      country_code: row.country_code,
+                      geocode: geocodeProperties
+                    }
+                  };
+
+                  if (!firstFeature) {
+                    writeStream.write(',');
+                  }
+                  writeStream.write(JSON.stringify(feature));
+                  firstFeature = false;
+                  exportedCount++;
+                }
+
+                offset += BATCH_SIZE;
+                const progress = Math.min(100, Math.round((exportedCount / totalRows) * 100));
+                console.log(`Progress: ${progress}% (${exportedCount}/${totalRows} rows)`);
+
+                if (result.rows.length < BATCH_SIZE) {
+                  break;
+                }
+              }
+
+              // Close GeoJSON
+              writeStream.write(']}');
+              writeStream.end();
+
+              // Wait for write to complete
+              await new Promise((resolve, reject) => {
+                writeStream.on('finish', resolve);
+                writeStream.on('error', reject);
+              });
+
+              const stats = fs.statSync(OUTPUT_FILE);
+              console.log(`\nBackup complete!`);
+              console.log(`File: ${OUTPUT_FILE}`);
+              console.log(`Size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
+              console.log(`Features: ${exportedCount}`);
+
+            } finally {
+              client.release();
+              await pool.end();
+            }
+          }
+
+          main().catch(err => {
+            console.error('Backup failed:', err);
+            process.exit(1);
+          });
+          SCRIPT
+
+          echo ""
+          echo "Backup file is ready at /backup/locations.geojson"
+          echo "Use: kubectl cp geojson-backup:/backup/locations.geojson ./locations.geojson"
+
+          # Keep pod running so user can copy the file
+          echo "Pod will stay running for 1 hour to allow file retrieval..."
+          sleep 3600
+      resources:
+        requests:
+          memory: '256Mi'
+          cpu: '100m'
+        limits:
+          memory: '512Mi'
+          cpu: '500m'
+  volumes:
+    - name: backup-volume
+      emptyDir:
+        sizeLimit: 1Gi

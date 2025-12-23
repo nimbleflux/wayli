@@ -5,8 +5,8 @@
 
 	import { translate } from '$lib/i18n';
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
-	import { JobRealtimeService, type JobUpdate } from '$lib/services/job-realtime.service';
 	import { sessionStore } from '$lib/stores/auth';
+	import { exportJobs as exportJobsStore, type JobStoreJob } from '$lib/stores/job-store';
 
 	// Use the reactive translation function
 	let t = $derived($translate);
@@ -15,7 +15,7 @@
 
 	interface ExportJob {
 		id: string;
-		status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+		status: 'pending' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 		type: string;
 		progress: number;
 		data?: {
@@ -43,7 +43,7 @@
 	let exportJobs = $state<ExportJob[]>([]);
 	let filteredExportJobs = $state<ExportJob[]>([]);
 	let loading = $state(true);
-	let realtimeService = $state<JobRealtimeService | null>(null);
+	let unsubscribe: (() => void) | null = null;
 
 	// Track jobs by ID to ensure uniqueness
 	let jobsById = $state<Map<string, ExportJob>>(new Map());
@@ -60,50 +60,49 @@
 	// Component automatically refreshes via Realtime updates - no reload flag needed
 
 	onDestroy(() => {
-		if (realtimeService) {
-			realtimeService.disconnect();
+		if (unsubscribe) {
+			unsubscribe();
+			unsubscribe = null;
 		}
 	});
 
 	function updateJobById(job: ExportJob) {
 		const existing = jobsById.get(job.id);
+
 		if (existing) {
-			// Merge with existing job, preferring the one with download info
-			const hasDownload = (j: ExportJob) => j.result?.file_path || j.result?.downloadUrl;
-			if (hasDownload(job) && !hasDownload(existing)) {
-				jobsById.set(job.id, { ...existing, ...job });
-			} else if (!hasDownload(job) && hasDownload(existing)) {
-				// Keep existing if it has download info
-			} else {
-				// Otherwise, prefer the most recently updated
-				const existingTime = new Date(existing.updated_at || existing.created_at).getTime();
-				const newTime = new Date(job.updated_at || job.created_at).getTime();
-				if (newTime > existingTime) {
-					jobsById.set(job.id, { ...existing, ...job });
-				}
-			}
+			// Always merge, preserving important fields from both
+			// Prefer result/data from whichever has it (existing or new)
+			const mergedJob: ExportJob = {
+				...existing,
+				...job,
+				// Preserve result - use new if it has file_path, otherwise keep existing
+				result: getFilePath(job.result) ? job.result : (existing.result ?? job.result),
+				// Preserve data/payload
+				data: job.data ?? existing.data,
+				// Use the higher progress value
+				progress: Math.max(job.progress || 0, existing.progress || 0)
+			};
+			console.log(`🔄 Job ${job.id}: merged (new status=${job.status}, existing status=${existing.status})`);
+			jobsById.set(job.id, mergedJob);
 		} else {
+			console.log(`🔄 Job ${job.id}: new job added`);
 			jobsById.set(job.id, job);
 		}
-		console.log(`🔄 Updated job ${job.id}:`, $state.snapshot({
-			status: job.status,
-			hasDownload: !!(job.result?.file_path || job.result?.downloadUrl)
+
+		const finalJob = jobsById.get(job.id)!;
+		console.log(`🔄 Job ${job.id} final state:`, $state.snapshot({
+			status: finalJob.status,
+			hasDownload: !!getFilePath(finalJob.result),
+			filePath: getFilePath(finalJob.result),
+			resultKeys: finalJob.result ? Object.keys(finalJob.result as object) : null
 		}));
 	}
 
 	function updateExportJobs(newJobs: ExportJob[]) {
-		// Safety check: only process export jobs
-		const exportOnlyJobs = newJobs.filter((job) => job.type === 'data_export');
-		if (exportOnlyJobs.length !== newJobs.length) {
-			console.log(
-				'🔒 Filtered out non-export jobs:',
-				newJobs.length - exportOnlyJobs.length,
-				'jobs filtered'
-			);
-		}
+		console.log('📥 updateExportJobs called with', newJobs.length, 'jobs');
 
-		// Update each job by ID
-		exportOnlyJobs.forEach(updateJobById);
+		// Update each job by ID (jobs are already filtered by getExportJobs)
+		newJobs.forEach(updateJobById);
 
 		// Convert map back to array
 		exportJobs = Array.from(jobsById.values());
@@ -112,76 +111,123 @@
 		updateFilteredJobs();
 	}
 
+	// Parse result if it's a JSON string (API returns stringified JSON for result/progress fields)
+	function parseResultIfString(result: any): Record<string, any> | undefined {
+		if (!result) return undefined;
+		if (typeof result === 'string') {
+			try {
+				return JSON.parse(result);
+			} catch {
+				return undefined;
+			}
+		}
+		return result;
+	}
+
+	function getFilePath(result: ExportJob['result']): string | undefined {
+		if (!result) return undefined;
+		// Parse if it's a JSON string
+		const r = parseResultIfString(result) as Record<string, any>;
+		if (!r) return undefined;
+		// Handle various result structures:
+		// 1. file_path at top level: { file_path: "..." }
+		// 2. Nested in result: { result: { file_path: "..." } }
+		// 3. downloadUrl at top level
+		if (r.file_path && typeof r.file_path === 'string') return r.file_path;
+		if (r.result?.file_path && typeof r.result.file_path === 'string') return r.result.file_path;
+		if (r.downloadUrl && typeof r.downloadUrl === 'string') return r.downloadUrl;
+		return undefined;
+	}
+
 	function updateFilteredJobs() {
 		const now = new Date();
+		const sevenDaysAgo = now.getTime() - 7 * 24 * 60 * 60 * 1000;
 
-		// Filter jobs: only show completed jobs with download links, or non-completed jobs
+		// Filter jobs: show completed jobs with download links (within 7 days), or active/recent failed jobs
 		filteredExportJobs = exportJobs
 			.filter((job) => {
 				const created = new Date(job.created_at);
-				const isRecent = now.getTime() - created.getTime() <= 7 * 24 * 60 * 60 * 1000;
+				const isRecent = created.getTime() > sevenDaysAgo;
 
 				if (job.status === 'completed') {
-					// Only show completed jobs if they have a download available
-					const hasDownload = job.result && (job.result.file_path || job.result.downloadUrl);
-					return isRecent && hasDownload;
+					// Show completed jobs that have a download and are within 7 days (download expires)
+					const filePath = getFilePath(job.result);
+					const hasDownload = !!filePath;
+					const hasValidLink = isRecent && hasDownload;
+					console.log(`📋 Job ${job.id}: completed=${job.status === 'completed'}, hasDownload=${hasDownload}, filePath=${filePath}, isRecent=${isRecent}, showing=${hasValidLink}, result=`, job.result);
+					return hasValidLink;
 				}
 
-				// Show running/queued/failed/cancelled jobs
+				// Show running/queued jobs regardless of age
+				if (job.status === 'running' || job.status === 'queued' || job.status === 'pending') {
+					return true;
+				}
+
+				// Show failed/cancelled jobs only if recent
 				return isRecent;
 			})
 			.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+		console.log(`📋 Filtered export jobs: ${filteredExportJobs.length} of ${exportJobs.length}`);
 	}
 
-	function convertJobUpdateToExportJob(jobUpdate: JobUpdate): ExportJob {
+	// Helper to extract progress percent from job data
+	// Handles: progress_percent (SDK format), progress.percent (JSONB object), progress as JSON string
+	function extractProgressPercent(job: any): number {
+		if (typeof job.progress_percent === 'number') return job.progress_percent;
+		if (job.progress) {
+			if (typeof job.progress === 'number') return job.progress;
+			if (typeof job.progress === 'object' && typeof job.progress.percent === 'number') {
+				return job.progress.percent;
+			}
+			if (typeof job.progress === 'string') {
+				try {
+					const parsed = JSON.parse(job.progress);
+					if (typeof parsed.percent === 'number') return parsed.percent;
+				} catch {
+					// Ignore parse errors
+				}
+			}
+		}
+		return 0;
+	}
+
+	function convertJobStoreJobToExportJob(job: JobStoreJob): ExportJob {
+		// Parse result if it's a JSON string, then normalize
+		let normalizedResult = parseResultIfString(job.result) as ExportJob['result'];
+		// Handle old format with nested result
+		if (normalizedResult && (normalizedResult as any).result?.file_path && !normalizedResult.file_path) {
+			normalizedResult = {
+				...(normalizedResult as any).result,
+				...normalizedResult
+			} as ExportJob['result'];
+			if (normalizedResult) delete (normalizedResult as any).result;
+		}
+
 		return {
-			id: jobUpdate.id,
-			status: jobUpdate.status,
-			type: jobUpdate.type,
-			progress: jobUpdate.progress,
-			error: jobUpdate.error || undefined, // Convert null to undefined
-			result: jobUpdate.result as ExportJob['result'],
-			created_at: jobUpdate.created_at,
-			updated_at: jobUpdate.updated_at,
-			// Add missing optional fields with defaults
-			data: undefined,
-			started_at: undefined,
-			completed_at: undefined
+			id: job.id,
+			status: job.status as ExportJob['status'],
+			type: job.job_name,
+			progress: extractProgressPercent(job),
+			error: job.error || undefined,
+			result: normalizedResult,
+			created_at: job.created_at,
+			updated_at: job.updated_at || job.created_at,
+			data: job.payload as ExportJob['data'],
+			started_at: job.started_at,
+			completed_at: job.completed_at
 		};
 	}
 
 	function startRealtimeMonitoring() {
-		// Create Realtime service for export job monitoring
-		realtimeService = new JobRealtimeService({
-			onConnected: () => {
-				console.log('🔗 Realtime connected for export jobs');
-			},
-			onDisconnected: () => {
-				console.log('🔌 Realtime disconnected for export jobs');
-			},
-			onError: (error: string) => {
-				console.error('❌ Export jobs Realtime error:', error);
-				toast.error(`Export monitoring error: ${error}`);
-			},
-			onJobUpdate: (job: JobUpdate) => {
-				// Filter to only include export jobs, not import jobs
-				if (job.type === 'data_export') {
-					console.log('📡 Export job update received:', job.id, job.status, job.progress);
-					const exportJob = convertJobUpdateToExportJob(job);
-					updateExportJobs([exportJob]);
-				}
-			},
-			onJobCompleted: (job: JobUpdate) => {
-				// Filter to only include export jobs, not import jobs
-				if (job.type === 'data_export') {
-					console.log('✅ Export job completed:', job.id);
-					const exportJob = convertJobUpdateToExportJob(job);
-					updateExportJobs([exportJob]);
-				}
+		// Subscribe to pre-filtered export jobs derived store
+		// No manual filtering needed - the store handles it
+		unsubscribe = exportJobsStore.subscribe((jobs) => {
+			const exportJobUpdates = jobs.map((job) => convertJobStoreJobToExportJob(job));
+			if (exportJobUpdates.length > 0) {
+				updateExportJobs(exportJobUpdates);
 			}
 		});
-
-		realtimeService.connect();
 	}
 
 	async function loadExportJobs() {
@@ -193,11 +239,47 @@
 			}
 
 			const serviceAdapter = new ServiceAdapter({ session });
-			const result = (await serviceAdapter.getExportJobs()) as ExportJob[] | null;
+			const result = await serviceAdapter.getExportJobs();
 
-			// The service adapter returns the data directly, not wrapped in a success object
+			// The service adapter returns jobs in API format (job_name, progress_percent, etc.)
+			// Convert to ExportJob format (type, progress, etc.)
 			if (Array.isArray(result)) {
-				updateExportJobs(result);
+				console.log('📋 Raw API jobs:', result.map((j: any) => ({
+					id: j.id,
+					status: j.status,
+					hasResult: !!j.result,
+					resultType: j.result ? typeof j.result : 'undefined',
+					resultKeys: j.result && typeof j.result === 'object' ? Object.keys(j.result) : null,
+					file_path: j.result?.file_path
+				})));
+				const convertedJobs = result.map((job: any) => {
+					// Parse result if it's a JSON string (API returns stringified JSON)
+					let normalizedResult = parseResultIfString(job.result);
+					// Also handle old format with nested result
+					if (normalizedResult?.result?.file_path && !normalizedResult.file_path) {
+						normalizedResult = {
+							...normalizedResult.result,
+							...normalizedResult
+						};
+						delete normalizedResult.result;
+					}
+
+					return {
+						id: job.id,
+						status: job.status,
+						type: job.job_name, // API returns job_name, we use type
+						progress: extractProgressPercent(job),
+						data: job.payload,
+						result: normalizedResult,
+						error: job.error || undefined,
+						created_at: job.created_at,
+						updated_at: job.updated_at || job.created_at,
+						started_at: job.started_at,
+						completed_at: job.completed_at
+					};
+				}) as ExportJob[];
+				console.log('📋 Loaded export jobs:', convertedJobs.length, convertedJobs);
+				updateExportJobs(convertedJobs);
 			} else {
 				console.error('Failed to load export jobs: Invalid response format', result);
 			}
@@ -269,7 +351,7 @@
 
 	{#if loading}
 		<div class="flex items-center justify-center py-8">
-			<div class="h-6 w-6 animate-spin rounded-full border-b-2 border-blue-600"></div>
+			<div class="h-6 w-6 animate-spin rounded-full border-b-2 border-primary dark:border-primary-dark"></div>
 		</div>
 	{:else if filteredExportJobs.length === 0}
 		<div class="py-8 text-center text-gray-500 dark:text-gray-400">
@@ -285,9 +367,9 @@
 						<div class="flex items-center gap-3">
 							<!-- Status icon -->
 							<div
-								class="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/20"
+								class="flex h-8 w-8 items-center justify-center rounded-full {job.status === 'completed' ? 'bg-green-100 dark:bg-green-900/20' : job.status === 'failed' ? 'bg-red-100 dark:bg-red-900/20' : 'bg-primary/10 dark:bg-primary-dark/20'}"
 							>
-								<Check class="h-4 w-4 text-green-600 dark:text-green-400" />
+								<Check class="h-4 w-4 {job.status === 'completed' ? 'text-green-600 dark:text-green-400' : job.status === 'failed' ? 'text-red-600 dark:text-red-400' : 'text-primary dark:text-primary-dark'}" />
 							</div>
 
 							<!-- Job info -->
@@ -317,11 +399,11 @@
 							</div>
 						</div>
 
-						<!-- Download button -->
+						<!-- Download button - always show for completed jobs within 7 days -->
 						{#if job.status === 'completed' && new Date(new Date(job.created_at).getTime() + 7 * 24 * 60 * 60 * 1000) > new Date()}
 							<button
 								onclick={() => downloadExport(job.id)}
-								class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+								class="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-blue-600"
 							>
 								<Download class="h-4 w-4" />
 								{t('exportJobs.download')}
@@ -330,7 +412,7 @@
 					</div>
 
 					<!-- Progress bar for running jobs -->
-					{#if job.status === 'running' || job.status === 'queued'}
+					{#if job.status === 'running' || job.status === 'queued' || job.status === 'pending'}
 						<div class="mb-3">
 							<div class="mb-1 flex justify-between text-sm text-gray-600 dark:text-gray-400">
 								<span>{t('exportJobs.progress')}</span>
@@ -338,7 +420,7 @@
 							</div>
 							<div class="h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700">
 								<div
-									class="h-2 rounded-full bg-blue-600 transition-all duration-300"
+									class="h-2 rounded-full bg-primary transition-all duration-300 dark:bg-primary-dark"
 									style="width: {job.progress}%"
 								></div>
 							</div>
@@ -351,7 +433,7 @@
 							<div class="flex flex-wrap gap-2">
 								{#if job.data.includeLocationData}
 									<span
-										class="inline-flex items-center rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+										class="inline-flex items-center rounded-full bg-primary/10 px-2 py-1 text-xs text-primary dark:bg-primary-dark/20 dark:text-primary-dark"
 									>
 										{t('exportJobs.locationData')}
 									</span>

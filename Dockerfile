@@ -58,9 +58,9 @@ COPY --from=builder /app/static ./static
 # Copy source code (needed for worker mode with tsx)
 COPY web/src ./src
 
-# Copy Supabase functions and migrations (needed for Kubernetes deployments)
-COPY web/supabase/functions ./supabase/functions
-COPY web/supabase/migrations ./supabase/migrations
+# Copy Fluxbase functions and migrations (needed for Kubernetes deployments)
+COPY fluxbase/functions ./fluxbase/functions
+COPY fluxbase/migrations ./fluxbase/migrations
 
 # Copy nginx config and serve static files
 COPY web/nginx.conf /etc/nginx/nginx.conf

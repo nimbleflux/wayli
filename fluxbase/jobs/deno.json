@@ -1,0 +1,9 @@
+{
+  "imports": {
+    "@streamparser/json": "npm:@streamparser/json@^0.0.21"
+  },
+  "compilerOptions": {
+    "lib": ["deno.window", "deno.ns"],
+    "strict": true
+  }
+}

@@ -79,21 +79,12 @@ export const passwordChangeSchema = z.object({
 		.max(128, 'New password too long')
 });
 
-// 2FA schemas
-export const twoFactorSetupSchema = z.object({
-	password: z.string().min(1, 'Password is required')
-});
-
-export const twoFactorVerifySchema = z.object({
+// Two-Factor Authentication schemas
+export const twoFactorEnableSchema = z.object({
 	code: z
 		.string()
-		.length(6, 'Verification code must be 6 digits')
-		.regex(/^\d{6}$/, 'Code must contain only digits')
-});
-
-export const twoFactorRecoverySchema = z.object({
-	email: emailSchema,
-	recoveryCode: z.string().min(8, 'Recovery code must be at least 8 characters')
+		.length(6, '2FA code must be exactly 6 digits')
+		.regex(/^\d{6}$/, '2FA code must contain only digits')
 });
 
 export const twoFactorDisableSchema = z.object({

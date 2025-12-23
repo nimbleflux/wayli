@@ -1,0 +1,36 @@
+{
+  "$schema": "https://deno.land/x/deno/cli/schemas/config-file.v1.json",
+  "// NOTICE": "This is the PRODUCTION configuration. For local development, use deno.dev.json",
+  "imports": {
+    "@fluxbase/sdk": "npm:@fluxbase/sdk@0.1.0",
+    "@fluxbase/sdk/": "npm:@fluxbase/sdk@0.1.0/",
+    "_shared/": "./_shared/",
+    "cross-fetch": "npm:cross-fetch@4.0.0"
+  },
+  "compilerOptions": {
+    "lib": ["deno.window", "deno.unstable"],
+    "strict": true,
+    "allowJs": true,
+    "checkJs": false,
+    "noImplicitAny": false,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictPropertyInitialization": true
+  },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 100,
+    "indentWidth": 2,
+    "semiColons": false,
+    "singleQuote": true,
+    "proseWrap": "preserve"
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"],
+      "exclude": ["no-unused-vars"]
+    }
+  }
+}

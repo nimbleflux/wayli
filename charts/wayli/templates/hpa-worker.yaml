@@ -1,4 +1,4 @@
-{{- if .Values.worker.autoscaling.enabled }}
+{{- if and .Values.worker.autoscaling.enabled (eq .Values.deploymentMode "split") }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:

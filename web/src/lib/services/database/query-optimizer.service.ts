@@ -1,6 +1,6 @@
 import { errorHandler } from '../error-handler.service';
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { FluxbaseClient } from '@fluxbase/sdk';
 
 interface QueryCacheEntry<T> {
 	data: T;
@@ -19,15 +19,15 @@ class QueryOptimizerService {
 	private cache = new Map<string, QueryCacheEntry<unknown>>();
 	private batchQueries = new Map<string, BatchQuery<unknown>[]>();
 	private batchTimeouts = new Map<string, NodeJS.Timeout>();
-	private supabase: SupabaseClient | null = null;
+	private fluxbase: FluxbaseClient | null = null;
 
 	// Cache configuration
 	private readonly DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
 	private readonly MAX_CACHE_SIZE = 1000;
 	private readonly BATCH_DELAY = 10; // 10ms batch window
 
-	setSupabaseClient(client: SupabaseClient) {
-		this.supabase = client;
+	setFluxbaseClient(client: FluxbaseClient) {
+		this.fluxbase = client;
 	}
 
 	// Cached query execution
@@ -84,9 +84,9 @@ class QueryOptimizerService {
 		return this.cachedQuery(
 			cacheKey,
 			async () => {
-				if (!this.supabase) throw new Error('Supabase client not initialized');
+				if (!this.fluxbase) throw new Error('Fluxbase client not initialized');
 
-				const { data, error } = await this.supabase
+				const { data, error } = await this.fluxbase
 					.from('user_profiles')
 					.select(
 						`
@@ -115,9 +115,9 @@ class QueryOptimizerService {
 		return this.cachedQuery(
 			cacheKey,
 			async () => {
-				if (!this.supabase) throw new Error('Supabase client not initialized');
+				if (!this.fluxbase) throw new Error('Fluxbase client not initialized');
 
-				let query = this.supabase
+				let query = this.fluxbase
 					.from('trips')
 					.select('*', { count: 'exact' })
 					.eq('user_id', userId)
@@ -162,7 +162,7 @@ class QueryOptimizerService {
 		return this.cachedQuery(
 			cacheKey,
 			async () => {
-				if (!this.supabase) throw new Error('Supabase client not initialized');
+				if (!this.fluxbase) throw new Error('Fluxbase client not initialized');
 
 				// Build date filter
 				let dateFilter = '';
@@ -176,15 +176,15 @@ class QueryOptimizerService {
 
 				// Execute optimized statistics queries
 				const [tripsResult, locationsResult, poiResult] = await Promise.all([
-					this.supabase.rpc('get_user_trip_stats', {
+					this.fluxbase.rpc('get_user_trip_stats', {
 						user_id: userId,
 						date_filter: dateFilter
 					}),
-					this.supabase.rpc('get_user_location_stats', {
+					this.fluxbase.rpc('get_user_location_stats', {
 						user_id: userId,
 						date_filter: dateFilter
 					}),
-					this.supabase.rpc('get_user_poi_stats', {
+					this.fluxbase.rpc('get_user_poi_stats', {
 						user_id: userId,
 						date_filter: dateFilter
 					})
@@ -204,31 +204,8 @@ class QueryOptimizerService {
 		); // 5 minutes cache
 	}
 
-	// Optimized job queries
-	async getJobsWithStatus(userId: string, status?: string) {
-		const cacheKey = `jobs_${userId}_${status}`;
-		return this.cachedQuery(
-			cacheKey,
-			async () => {
-				if (!this.supabase) throw new Error('Supabase client not initialized');
-
-				let query = this.supabase
-					.from('jobs')
-					.select('*')
-					.eq('created_by', userId)
-					.order('created_at', { ascending: false });
-
-				if (status) {
-					query = query.eq('status', status);
-				}
-
-				const { data, error } = await query;
-				if (error) throw error;
-				return data;
-			},
-			30 * 1000
-		); // 30 seconds cache for jobs
-	}
+	// Note: getJobsWithStatus() removed - Jobs are now managed by Fluxbase (jobs.queue)
+	// Use fluxbase.jobs.list() instead via the service adapter
 
 	// Batch location reverse geocoding
 	async batchReverseGeocode(coordinates: Array<{ lat: number; lng: number }>) {
@@ -306,7 +283,7 @@ class QueryOptimizerService {
 	getIndexingRecommendations(): string[] {
 		return [
 			'CREATE INDEX IF NOT EXISTS idx_trips_user_id_created_at ON trips(user_id, created_at DESC);',
-			'CREATE INDEX IF NOT EXISTS idx_jobs_created_by_status ON jobs(created_by, status);',
+			// Note: idx_jobs_created_by_status removed - Jobs are now managed by Fluxbase (jobs.queue)
 			'CREATE INDEX IF NOT EXISTS idx_user_profiles_id ON user_profiles(id);',
 			'CREATE INDEX IF NOT EXISTS idx_trip_exclusions_user_id ON trip_exclusions(user_id);',
 			'CREATE INDEX IF NOT EXISTS idx_poi_visits_user_id_visit_date ON poi_visits(user_id, visit_date DESC);',
@@ -331,8 +308,8 @@ export const optimizedQueries = {
 	getStatistics: (userId: string, startDate?: string, endDate?: string) =>
 		queryOptimizer.getUserStatistics(userId, startDate, endDate),
 
-	// Get jobs
-	getJobs: (userId: string, status?: string) => queryOptimizer.getJobsWithStatus(userId, status),
+	// Note: getJobs removed - Jobs are now managed by Fluxbase (jobs.queue)
+	// Use serviceAdapter.getJobs() instead
 
 	// Batch reverse geocoding
 	batchGeocode: (coordinates: Array<{ lat: number; lng: number }>) =>

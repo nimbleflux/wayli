@@ -1,0 +1,31 @@
+{
+	"compilerOptions": {
+		"checkJs": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"sourceMap": true,
+		"strict": true,
+		"moduleResolution": "bundler",
+		"module": "ESNext",
+		"target": "ESNext",
+		"lib": ["ESNext", "DOM", "DOM.Iterable"],
+		"allowSyntheticDefaultImports": true,
+		"isolatedModules": true,
+		"noEmit": true,
+		"baseUrl": ".",
+		"paths": {
+			"$lib/*": ["src/lib/*"],
+			"$app/*": ["src/app/*"],
+			"$routes/*": ["src/routes/*"],
+			"$components/*": ["src/lib/components/*"],
+			"$stores/*": ["src/lib/stores/*"],
+			"$utils/*": ["src/lib/utils/*"],
+			"$services/*": ["src/lib/services/*"],
+			"$types/*": ["src/lib/types/*"]
+		}
+	},
+	"include": ["src/**/*.ts", "src/**/*.js", "tests/**/*.ts"],
+	"exclude": ["node_modules", "dist", ".svelte-kit"]
+}

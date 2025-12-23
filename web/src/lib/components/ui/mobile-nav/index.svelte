@@ -79,7 +79,7 @@
 <nav bind:this={navElement} class={className}>
 	<!-- Mobile Menu Button -->
 	<button
-		class="min-h-[44px] min-w-[44px] rounded-md p-2 text-gray-400 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none md:hidden dark:hover:text-gray-300"
+		class="min-h-[44px] min-w-[44px] rounded-md p-2 text-gray-400 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-[rgb(34,51,95)] focus-visible:ring-offset-2 focus-visible:outline-none md:hidden dark:hover:text-gray-300"
 		onclick={toggleMenu}
 		aria-expanded={isOpen}
 		aria-controls="mobile-menu"
@@ -120,7 +120,7 @@
 						Navigation
 					</h2>
 					<button
-						class="min-h-[44px] min-w-[44px] rounded-md p-2 text-gray-400 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none dark:hover:text-gray-300"
+						class="min-h-[44px] min-w-[44px] rounded-md p-2 text-gray-400 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-[rgb(34,51,95)] focus-visible:ring-offset-2 focus-visible:outline-none dark:hover:text-gray-300"
 						onclick={closeMenu}
 						aria-label="Close navigation menu"
 					>
@@ -135,7 +135,7 @@
 							{#if item.href}
 								<a
 									href={item.href}
-									class="flex min-h-[44px] w-full items-center rounded-lg px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none dark:text-gray-300 dark:hover:bg-gray-700"
+									class="flex min-h-[44px] w-full items-center rounded-lg px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-[rgb(34,51,95)] focus-visible:ring-offset-2 focus-visible:outline-none dark:text-gray-300 dark:hover:bg-gray-700"
 									onclick={closeMenu}
 								>
 									{#if item.icon}
@@ -145,7 +145,7 @@
 								</a>
 							{:else if item.children}
 								<button
-									class="flex min-h-[44px] w-full items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none dark:text-gray-300 dark:hover:bg-gray-700"
+									class="flex min-h-[44px] w-full items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-[rgb(34,51,95)] focus-visible:ring-offset-2 focus-visible:outline-none dark:text-gray-300 dark:hover:bg-gray-700"
 									onclick={() => toggleDropdown(index)}
 									aria-expanded={activeDropdown === index}
 									aria-controls="dropdown-{index}"
@@ -167,7 +167,7 @@
 										{#each item.children as child (child.label)}
 											<a
 												href={child.href}
-												class="flex min-h-[44px] w-full items-center rounded-lg px-4 py-2 text-sm text-gray-600 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none dark:text-gray-400 dark:hover:bg-gray-700"
+												class="flex min-h-[44px] w-full items-center rounded-lg px-4 py-2 text-sm text-gray-600 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-[rgb(34,51,95)] focus-visible:ring-offset-2 focus-visible:outline-none dark:text-gray-400 dark:hover:bg-gray-700"
 												onclick={closeMenu}
 											>
 												{#if child.icon}
@@ -180,7 +180,7 @@
 								{/if}
 							{:else if item.action}
 								<button
-									class="flex min-h-[44px] w-full items-center rounded-lg px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none dark:text-gray-300 dark:hover:bg-gray-700"
+									class="flex min-h-[44px] w-full items-center rounded-lg px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-[rgb(34,51,95)] focus-visible:ring-offset-2 focus-visible:outline-none dark:text-gray-300 dark:hover:bg-gray-700"
 									onclick={() => handleItemClick(item)}
 								>
 									{#if item.icon}

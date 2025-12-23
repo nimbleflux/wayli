@@ -3,6 +3,9 @@ node_modules/
 .pnp/
 .pnp.js
 
+# Python
+.venv/
+
 # Testing
 coverage/
 
@@ -21,7 +24,6 @@ dist/
 
 # Generated secrets (Docker Compose and Kubernetes)
 *-secret.yaml
-supabase-secret.yaml
 smtp-secret.yaml
 
 # Logs

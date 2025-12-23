@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Import, FileDown, MapPin } from 'lucide-svelte';
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
 	import ExportJobs from '$lib/components/ExportJobs.svelte';
@@ -9,7 +9,6 @@
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
 	import { jobCreationService } from '$lib/services/job-creation.service';
 	import { sessionStore } from '$lib/stores/auth';
-	import { subscribe, getActiveJobsMap } from '$lib/stores/job-store';
 	import { state as appState } from '$lib/stores/app-state.svelte';
 
 	// Use the reactive translation function
@@ -38,9 +37,6 @@
 	let includeTripsExport = $state(true);
 
 	// No reload flag needed - ExportJobs component handles its own updates
-
-	// Job store subscription for monitoring export jobs
-	let unsubscribeJobs: (() => void) | null = null;
 
 	let importFormats = $derived([
 		{
@@ -87,28 +83,14 @@
 		try {
 			isImporting = true;
 
-			const result = await jobCreationService.createImportJob(selectedFile, {
+			await jobCreationService.createImportJob(selectedFile, {
 				format: importFormat,
 				includeLocationData,
 				includeWantToVisit,
 				includeTrips
 			});
 
-			// Immediately add the job to the store so it shows in the sidebar
-			if (result?.id) {
-				const { addJobToStore } = await import('$lib/stores/job-store');
-				addJobToStore({
-					id: result.id,
-					type: 'data_import',
-					status: 'queued',
-					progress: 0,
-					created_at: new Date().toISOString(),
-					updated_at: new Date().toISOString(),
-					result: undefined,
-					error: undefined
-				});
-				console.log('✅ [IMPORT] Job added to store:', result.id);
-			}
+			// Job will appear in sidebar automatically via Realtime subscription
 
 			// Reset form
 			selectedFile = null;
@@ -121,9 +103,6 @@
 			if (fileInputEl) {
 				fileInputEl.value = '';
 			}
-
-			// Refresh the last successful import date after a successful import
-			await fetchLastSuccessfulImport();
 
 			// Show success message
 			toast.success(t('importExport.uploadSuccessful'));
@@ -173,68 +152,27 @@
 	// Fetch last successful import date on mount
 	onMount(async () => {
 		await fetchLastSuccessfulImport();
-		startJobMonitoring();
-
-		// No need for MutationObserver - the bind: directive should handle the syncing automatically
 	});
-
-	// Cleanup job store subscription on destroy
-	onDestroy(() => {
-		if (unsubscribeJobs) {
-			unsubscribeJobs();
-		}
-	});
-
-	// Start job store monitoring for export jobs only
-	function startJobMonitoring() {
-		console.log('🚀 Starting job store monitoring for export jobs only on import/export page');
-
-		// Subscribe to job store updates but filter for export jobs only
-		// This prevents import job progress from triggering export history reloads
-		unsubscribeJobs = subscribe(() => {
-			// Get current jobs from store
-			const activeJobs = getActiveJobsMap();
-			const exportJobs = Array.from(activeJobs.values()).filter(
-				(job: any) => job.type === 'data_export'
-			);
-
-			// ExportJobs component automatically handles updates via Supabase Realtime
-			if (exportJobs.length > 0) {
-				console.log('📊 Export job update detected');
-			}
-		});
-	}
-
-	// ExportJobs component handles its own updates via Supabase Realtime - no manual reload needed
 
 	// Export functions
 	async function handleExport() {
-		if (!exportStartDate || !exportEndDate) {
-			toast.error(t('importExport.pleaseSelectDates'));
-			return;
-		}
-
-		// We know these are Date objects at this point
-		const startDate = exportStartDate;
-		const endDate = exportEndDate;
-
+		// Dates are optional - no date range means "export all data"
 		try {
 			await jobCreationService.createExportJob({
 				format: exportFormat,
 				includeLocationData: includeLocationDataExport,
 				includeWantToVisit: includeWantToVisitExport,
 				includeTrips: includeTripsExport,
-				startDate: startDate,
-				endDate: endDate
+				startDate: exportStartDate,
+				endDate: exportEndDate
 			});
 
-			// Reset form
+			// Reset date range only - preserve checkbox preferences
 			exportFormat = 'JSON';
 			exportStartDate = undefined;
 			exportEndDate = undefined;
-			includeLocationDataExport = true;
-			includeWantToVisitExport = true;
-			includeTripsExport = true;
+			localExportStartDate = undefined;
+			localExportEndDate = undefined;
 		} catch (error) {
 			console.error('Export error:', error);
 		}
@@ -264,10 +202,16 @@
 		if (localExportStartDate instanceof Date) {
 			exportStartDate = localExportStartDate;
 			appState.filtersStartDate = localExportStartDate;
+		} else {
+			exportStartDate = undefined;
+			appState.filtersStartDate = undefined;
 		}
 		if (localExportEndDate instanceof Date) {
 			exportEndDate = localExportEndDate;
 			appState.filtersEndDate = localExportEndDate;
+		} else {
+			exportEndDate = undefined;
+			appState.filtersEndDate = undefined;
 		}
 	}
 </script>
@@ -280,7 +224,7 @@
 	<!-- Header -->
 	<div class="mb-8">
 		<div class="flex items-center gap-3">
-			<Import class="h-8 w-8 text-blue-600 dark:text-gray-400" />
+			<Import class="h-8 w-8 text-primary dark:text-gray-400" />
 			<h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
 				{t('importExport.title')}
 			</h1>
@@ -321,7 +265,7 @@
 							id="fileInput"
 							bind:this={fileInputEl}
 							accept=".geojson,.json"
-							class="block w-full cursor-pointer rounded-md border border-gray-300 text-sm text-gray-500 file:mr-4 file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-blue-600 hover:file:bg-blue-100 dark:border-gray-600 dark:text-gray-300 dark:file:bg-gray-700 dark:file:text-blue-400 dark:hover:file:bg-gray-600"
+							class="block w-full cursor-pointer rounded-md border border-gray-300 text-sm text-gray-500 file:mr-4 file:border-0 file:bg-primary/5 file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary hover:file:bg-primary/10 dark:border-gray-600 dark:text-gray-300 dark:file:bg-gray-700 dark:file:text-gray-300 dark:hover:file:bg-gray-600"
 							onchange={handleFileSelect}
 						/>
 					</div>
@@ -354,7 +298,7 @@
 					type="button"
 					onclick={handleImport}
 					disabled={isImporting || !selectedFile}
-					class="mt-6 flex w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(37,140,244)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+					class="mt-6 flex w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
 				>
 					{#if isImporting}
 						<div class="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
@@ -392,7 +336,7 @@
 							<input
 								type="checkbox"
 								bind:checked={includeLocationDataExport}
-								class="h-4 w-4 rounded border-gray-300 text-[rgb(37,140,244)] focus:ring-[rgb(37,140,244)]"
+								class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-[rgb(34,51,95)]"
 							/>
 							<span class="text-sm text-gray-600 dark:text-gray-300"
 								>{t('importExport.locationData')}</span
@@ -402,7 +346,7 @@
 							<input
 								type="checkbox"
 								bind:checked={includeWantToVisitExport}
-								class="h-4 w-4 rounded border-gray-300 text-[rgb(37,140,244)] focus:ring-[rgb(37,140,244)]"
+								class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-[rgb(34,51,95)]"
 							/>
 							<span class="text-sm text-gray-600 dark:text-gray-300"
 								>{t('importExport.wantToVisit')}</span
@@ -412,7 +356,7 @@
 							<input
 								type="checkbox"
 								bind:checked={includeTripsExport}
-								class="h-4 w-4 rounded border-gray-300 text-[rgb(37,140,244)] focus:ring-[rgb(37,140,244)]"
+								class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-[rgb(34,51,95)]"
 							/>
 							<span class="text-sm text-gray-600 dark:text-gray-300">{t('importExport.trips')}</span
 							>
@@ -429,15 +373,20 @@
 							bind:endDate={localExportEndDate}
 							pickLabel={t('importExport.pickDateRange')}
 							onChange={handleExportDateRangeChange}
-							showClear={false}
+							showClear={true}
 						/>
 					</div>
+					{#if !localExportStartDate && !localExportEndDate}
+						<p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+							{t('importExport.exportAllDataHint')}
+						</p>
+					{/if}
 				</div>
 			</div>
 
 			<button
 				onclick={handleExport}
-				class="mt-6 flex w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(37,140,244)]/90"
+				class="mt-6 flex w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
 			>
 				<FileDown class="h-4 w-4" />
 				{t('importExport.exportDataButton')}

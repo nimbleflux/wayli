@@ -1,5 +1,4 @@
 <script lang="ts">
-	console.log('🚀 New Statistics page script loaded');
 
 	import { format } from 'date-fns';
 	import {
@@ -24,7 +23,7 @@
 	import DateRangePicker from '$lib/components/ui/date-range-picker.svelte';
 	import { getCountryNameReactive, translate } from '$lib/i18n';
 	import { state as appState } from '$lib/stores/app-state.svelte';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 	import { ClientStatisticsService } from '$lib/services/client-statistics.service';
 	import {
 		getTransportDetectionReasonLabel,
@@ -35,6 +34,7 @@
 
 	import type { Map as LeafletMap } from 'leaflet';
 	import { browser } from '$app/environment';
+	import { page } from '$app/stores';
 	import { SvelteDate } from 'svelte/reactivity';
 
 	// Use the reactive translation function
@@ -117,6 +117,11 @@
 	// Service instance
 	let statisticsService = $state<ClientStatisticsService | null>(null);
 
+	// Cleanup tracking for memory leak prevention
+	let themeObserver: MutationObserver | null = null;
+	let mapInitTimeout: NodeJS.Timeout | null = null;
+	let mapInvalidateTimeout: NodeJS.Timeout | null = null;
+
 	// Helper to ensure a value is a Date object
 	function getDateObject(val: any) {
 		if (!val) return null;
@@ -159,9 +164,51 @@
 
 	// Clean up animation on component unmount
 	onDestroy(() => {
+		console.log('🧹 Cleaning up statistics page resources...');
+
+		// Clear animation timeout
 		if (progressAnimationId) {
 			clearTimeout(progressAnimationId);
+			progressAnimationId = null;
 		}
+
+		// Clear map initialization timeouts
+		if (mapInitTimeout) {
+			clearTimeout(mapInitTimeout);
+			mapInitTimeout = null;
+		}
+		if (mapInvalidateTimeout) {
+			clearTimeout(mapInvalidateTimeout);
+			mapInvalidateTimeout = null;
+		}
+
+		// Disconnect theme observer
+		if (themeObserver) {
+			themeObserver.disconnect();
+			themeObserver = null;
+		}
+
+		// Clear map markers and their event listeners
+		if (map && L) {
+			clearMapMarkers();
+
+			// Remove tile layer
+			if (currentTileLayer) {
+				map.removeLayer(currentTileLayer);
+				currentTileLayer = null;
+			}
+
+			// Destroy map instance
+			map.remove();
+			map = null as any;
+		}
+
+		// Reset service to free accumulated data
+		if (statisticsService) {
+			statisticsService.reset();
+			statisticsService = null;
+		}
+
 	});
 
 	// Initialize the statistics service
@@ -180,15 +227,12 @@
 			const startDate = formatLocalDate(appState.filtersStartDate);
 			const endDate = formatLocalDate(appState.filtersEndDate);
 
-			const {
-				data: { session },
-				error: sessionError
-			} = await supabase.auth.getSession();
-			if (sessionError || !session) {
+			const { data, error: sessionError } = await fluxbase.auth.getSession();
+			if (sessionError || !data?.session) {
 				throw new Error('User not authenticated');
 			}
 
-			totalPointsCount = await statisticsService.getTotalCount(session.user.id, startDate, endDate);
+			totalPointsCount = await statisticsService.getTotalCount(data.session.user.id, startDate, endDate);
 
 			if (totalPointsCount > 100000) {
 				showLargeDatasetWarning = true;
@@ -230,30 +274,24 @@
 			const endDate = formatLocalDate(appState.filtersEndDate);
 
 			if (!startDate && !endDate) {
-				console.log('📅 No date range set, skipping data fetch');
 				return;
 			}
 
-			const {
-				data: { session },
-				error: sessionError
-			} = await supabase.auth.getSession();
-			if (sessionError || !session) {
+			const { data, error: sessionError } = await fluxbase.auth.getSession();
+			if (sessionError || !data?.session) {
 				throw new Error('User not authenticated');
 			}
 
-			console.log('📊 Starting client-side statistics processing...');
 
 			// Load and process data with progress tracking
 			const statistics = await statisticsService!.loadAndProcessData(
-				session.user.id,
+				data.session.user.id,
 				startDate,
 				endDate,
 				// Progress callback
 				(progress) => {
 					loadingStage = progress.stage;
 					animateProgress(progress.percentage);
-					console.log(`📊 Progress: ${progress.percentage}% - ${progress.stage}`);
 				},
 				// Error callback
 				(error, canRetry) => {
@@ -300,7 +338,6 @@
 	async function handleDateRangeChange() {
 		// Prevent concurrent calls
 		if (isHandlingDateChange || isLoading) {
-			console.log('⏭️ Skipping handleDateRangeChange - already processing');
 			return;
 		}
 
@@ -508,16 +545,19 @@
 	function clearMapMarkers() {
 		if (!map || !L) return;
 		for (const marker of mapMarkers) {
+			// Remove all event listeners before removing from map
+			if (marker.off) {
+				marker.off();
+			}
 			map.removeLayer(marker);
 		}
 		mapMarkers.length = 0;
+		mapMarkers = [];
 	}
 
 	// Draw data points on map
 	function drawDataPointsOnMap(dataPoints: any[]) {
 		if (!map || !L || !dataPoints.length) return;
-
-		console.log('🗺️ Drawing', dataPoints.length, 'data points on map');
 
 		// Clear existing markers
 		clearMapMarkers();
@@ -665,15 +705,22 @@
 		initializeService();
 		await initializeMap();
 
-		// Set default date range to past 7 days if no date range is set
-		if (!appState.filtersStartDate && !appState.filtersEndDate) {
+		// Check for URL params first (e.g., from trip statistics link)
+		const startParam = $page.url.searchParams.get('start');
+		const endParam = $page.url.searchParams.get('end');
+
+		if (startParam && endParam) {
+			// Use dates from URL params
+			appState.filtersStartDate = new Date(startParam);
+			appState.filtersEndDate = new Date(endParam);
+		} else if (!appState.filtersStartDate && !appState.filtersEndDate) {
+			// Set default date range to past 7 days if no date range is set
 			const endDate = new SvelteDate();
 			const startDate = new SvelteDate();
 			startDate.setDate(endDate.getDate() - 6); // Last 7 days includes today and 6 days before
 
 			appState.filtersStartDate = startDate;
 			appState.filtersEndDate = endDate;
-			console.log('📅 Set default date range:', { start: startDate, end: endDate });
 		}
 
 		// Don't call handleDateRangeChange() here - the $effect will handle it
@@ -699,7 +746,6 @@
 		// Only trigger if dates actually changed and we're not initializing
 		if (!isInitializing && (startDate || endDate)) {
 			if (startStr !== lastStartStr || endStr !== lastEndStr) {
-				console.log('📅 Date range changed, triggering data load');
 				lastProcessedStart = startDate;
 				lastProcessedEnd = endDate;
 				handleDateRangeChange();
@@ -716,6 +762,7 @@
 			if (map) return;
 
 			// Small delay to ensure container is ready
+			mapInitTimeout = setTimeout(() => {}, 100);
 			await new Promise((resolve) => setTimeout(resolve, 100));
 
 			map = L.map(mapContainer, {
@@ -726,7 +773,7 @@
 			});
 
 			// Invalidate map size to ensure proper rendering
-			setTimeout(() => {
+			mapInvalidateTimeout = setTimeout(() => {
 				if (map) {
 					map.invalidateSize();
 				}
@@ -761,13 +808,11 @@
 					currentTileLayer = L.tileLayer(newUrl, { attribution: newAttribution }).addTo(map) as any;
 				}
 			};
-			const observer = new MutationObserver(updateMapTheme);
-			observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+			themeObserver = new MutationObserver(updateMapTheme);
+			themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
 			// Initial theme sync
 			updateMapTheme();
-
-			console.log('🗺️ Map initialized successfully');
 		} catch (error) {
 			console.error('❌ Error initializing map:', error);
 		}
@@ -872,7 +917,7 @@
 				</button>
 				<button
 					onclick={() => handleLargeDatasetConfirmation(true)}
-					class="rounded-md bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600"
+					class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
 				>
 					Proceed Anyway
 				</button>
@@ -885,7 +930,7 @@
 <!-- Header -->
 <div class="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-start">
 	<div class="flex min-w-0 items-center gap-2">
-		<BarChart class="h-8 w-8 flex-shrink-0 text-blue-600 dark:text-gray-400" />
+		<BarChart class="h-8 w-8 flex-shrink-0 text-primary dark:text-gray-400" />
 		<h1 class="text-3xl font-bold whitespace-nowrap text-gray-900 dark:text-gray-100">
 			{t('common.navigation.statistics')}
 		</h1>
@@ -904,7 +949,7 @@
 
 <div class="space-y-6">
 	<!-- Map -->
-	<div class="relative z-0 h-96 w-full rounded-lg bg-gray-100 md:h-[600px] dark:bg-gray-900">
+	<div class="relative h-96 w-full rounded-lg bg-gray-100 md:h-[600px] dark:bg-gray-900">
 		<div
 			bind:this={mapContainer}
 			class="h-full w-full rounded-lg"
@@ -912,7 +957,7 @@
 		></div>
 
 		<!-- Map Legend -->
-		<div class="absolute top-24 left-4 z-10 rounded-lg bg-white p-3 shadow-lg dark:bg-gray-800">
+		<div class="absolute bottom-4 left-4 z-[1001] rounded-lg bg-white p-3 shadow-lg dark:bg-gray-800">
 			<h4 class="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
 				{t('statistics.modeColors')}
 			</h4>
@@ -931,7 +976,7 @@
 		<!-- Point Details Popup -->
 		{#if selectedPoint}
 			<div
-				class="absolute top-4 right-4 z-10 w-80 max-w-sm rounded-lg bg-white p-4 shadow-lg dark:bg-gray-800"
+				class="absolute top-4 right-4 z-[1001] w-80 max-w-sm rounded-lg bg-white p-4 shadow-lg dark:bg-gray-800"
 			>
 				<div class="mb-3 flex items-start justify-between">
 					<h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
@@ -1053,7 +1098,7 @@
 					</p>
 					<a
 						href="/dashboard/import-export"
-						class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+						class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
 					>
 						<Import class="h-4 w-4" />
 						Import Data
@@ -1118,7 +1163,7 @@
 						class="w-full rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"
 					>
 						<div class="mb-3 flex items-center gap-2">
-							<Globe2 class="h-5 w-5 text-blue-500" />
+							<Globe2 class="h-5 w-5 text-primary dark:text-primary-dark" />
 							<span class="text-lg font-semibold text-gray-800 dark:text-gray-100">
 								{t('statistics.countryTimeDistribution')}
 							</span>
@@ -1135,7 +1180,7 @@
 									<div class="relative w-full">
 										<div class="h-4 rounded bg-gray-200 dark:bg-gray-700">
 											<div
-												class="flex h-4 items-center justify-center rounded bg-blue-500 text-xs font-bold text-white transition-all duration-300"
+												class="flex h-4 items-center justify-center rounded bg-primary text-xs font-bold text-white transition-all duration-300"
 												style="width: {country.percent}%; min-width: 2.5rem;"
 											>
 												<span>{country.percent}%</span>
@@ -1158,7 +1203,7 @@
 						class="w-full rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"
 					>
 						<div class="mb-3 flex items-center gap-2">
-							<Route class="h-5 w-5 text-blue-500" />
+							<Route class="h-5 w-5 text-primary dark:text-primary-dark" />
 							<span class="text-lg font-semibold text-gray-800 dark:text-gray-100">
 								{t('statistics.transportModes')}
 							</span>
@@ -1205,7 +1250,7 @@
 											{translateTransportMode(mode.mode)}
 										</td>
 										<td
-											class="px-4 py-2 text-sm font-bold whitespace-nowrap text-blue-700 dark:text-blue-300"
+											class="px-4 py-2 text-sm font-bold whitespace-nowrap text-primary dark:text-gray-300"
 										>
 											{formatDistance(mode.distance)}
 										</td>
@@ -1240,7 +1285,7 @@
 			class="mb-8 w-full rounded-lg border border-gray-200 bg-white p-4 md:w-1/2 dark:border-gray-700 dark:bg-gray-800"
 		>
 			<div class="mb-3 flex items-center gap-2">
-				<Train class="h-5 w-5 text-blue-500" />
+				<Train class="h-5 w-5 text-primary dark:text-primary-dark" />
 				<span class="text-lg font-semibold text-gray-800 dark:text-gray-100">
 					{t('statistics.trainStationVisits')}
 				</span>
@@ -1269,7 +1314,7 @@
 								{station.name}
 							</td>
 							<td
-								class="px-4 py-2 text-sm font-bold whitespace-nowrap text-blue-700 dark:text-blue-300"
+								class="px-4 py-2 text-sm font-bold whitespace-nowrap text-primary dark:text-gray-300"
 							>
 								{station.count}
 							</td>
@@ -1304,7 +1349,7 @@
 		<div
 			class="fixed inset-0 z-[2000] flex flex-col items-center justify-center bg-white/70 dark:bg-gray-900/70"
 		>
-			<Loader2 class="h-16 w-16 animate-spin text-blue-500 dark:text-blue-300" />
+			<Loader2 class="h-16 w-16 animate-spin text-primary dark:text-gray-300" />
 			<div class="mt-4 text-center">
 				<div class="mb-2 text-lg font-medium text-gray-700 dark:text-gray-200">
 					{loadingStage || t('statistics.loading')}
@@ -1312,7 +1357,7 @@
 				{#if loadingProgress > 0}
 					<div class="mb-2 h-2 w-64 rounded-full bg-gray-200 dark:bg-gray-700">
 						<div
-							class="h-2 rounded-full bg-blue-500 transition-all duration-500 ease-out"
+							class="h-2 rounded-full bg-primary transition-all duration-500 ease-out"
 							style="width: {Math.round(loadingProgress)}%"
 						></div>
 					</div>

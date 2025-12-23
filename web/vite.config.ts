@@ -18,16 +18,17 @@ export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
 	define: {
 		// Only expose public environment variables to the client
-		// SECURITY: Never expose SUPABASE_SERVICE_ROLE_KEY to the client!
+		// SECURITY: Never expose FLUXBASE_SERVICE_ROLE_KEY to the client!
 		// It should only be used server-side (in +server.ts files, hooks.server.ts, or workers)
 		'process.env': {
-			SUPABASE_URL:
-				process.env.SUPABASE_URL || process.env.PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321',
-			PUBLIC_SUPABASE_URL: process.env.PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321',
-			PUBLIC_SUPABASE_ANON_KEY:
-				process.env.PUBLIC_SUPABASE_ANON_KEY ||
-				'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0',
-			// REMOVED: SUPABASE_SERVICE_ROLE_KEY - should never be exposed to client
+			// Server-side URL: Use Docker service name when in container, localhost otherwise
+			FLUXBASE_BASE_URL: process.env.FLUXBASE_BASE_URL || 'http://fluxbase-dev:8080',
+			// Client-side URL: Always use localhost for browser access
+			PUBLIC_FLUXBASE_BASE_URL: process.env.PUBLIC_FLUXBASE_BASE_URL || 'http://localhost:8080',
+			PUBLIC_FLUXBASE_ANON_KEY:
+				process.env.PUBLIC_FLUXBASE_ANON_KEY ||
+				'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6ImZsdXhiYXNlIiwiaWF0IjoxNjQxNzY5MjAwLCJleHAiOjE3OTk1MzU2MDB9.iPr9o47ALu9iDLqL9rqq7rlvka9Q8ps2XV049R4l67E',
+			// REMOVED: FLUXBASE_SERVICE_ROLE_KEY - should never be exposed to client
 			NODE_ENV: process.env.NODE_ENV || 'development'
 		}
 	},
@@ -67,8 +68,7 @@ export default defineConfig({
 	optimizeDeps: {
 		include: [
 			'svelte',
-			'@supabase/supabase-js',
-			'@supabase/ssr',
+			'@fluxbase/sdk',
 			'lucide-svelte',
 			'date-fns',
 			'lodash-es',
@@ -82,6 +82,9 @@ export default defineConfig({
 
 	// Server configuration
 	server: {
+		// Bind to 0.0.0.0 to allow access from outside the container
+		host: true,
+		port: 4000,
 		// Enable HMR with optimized settings
 		hmr: {
 			overlay: false

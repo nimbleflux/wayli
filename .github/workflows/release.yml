@@ -1,30 +1,191 @@
 name: Release
 
+# This workflow handles all release types: stable releases and release candidates (RC)
+#
+# Triggers:
+#   1. Manual workflow_dispatch - Create a new release by specifying version and release type
+#
+# How to create a release:
+#   1. Go to Actions → Release → Run workflow
+#   2. Select branch (usually 'main')
+#   3. Choose version_type (patch/minor/major)
+#   4. Choose release_type (stable/rc)
+#   5. Select which components to publish (all enabled by default)
+#   6. Click "Run workflow"
+#
+# Version Examples:
+#   - patch + stable:    1.0.10 → 1.0.11
+#   - minor + stable:    1.0.10 → 1.1.0
+#   - major + stable:    1.0.10 → 2.0.0
+#   - patch + rc:        1.0.10 → 1.0.11-rc.1
+#   - minor + rc:        1.0.10 → 1.1.0-rc.1
+#   - major + rc:        1.0.10 → 2.0.0-rc.1
+#   - continue + rc:     1.0.11-rc.1 → 1.0.11-rc.2 (increment RC number)
+#   - continue + stable: 1.0.11-rc.1 → 1.0.11 (promote RC to stable)
+#
+# Component Toggles:
+#   - Publish Docker image: Build and push the Wayli Docker image to Docker Hub
+#   - Publish Helm chart: Package and publish Helm chart to GitHub Pages
+#
+# RC Release behavior:
+#   - Version format: vMAJOR.MINOR.PATCH-rc.N (e.g., v1.0.0-rc.1, v1.0.0-rc.2)
+#   - Marked as GitHub pre-release
+#   - Docker images tagged with version and 'rc' (NOT 'latest')
+#   - Helm charts published with prerelease annotation
+#
+# Stable Release behavior:
+#   - Version format: vMAJOR.MINOR.PATCH (e.g., v1.0.11)
+#   - Marked as GitHub release (not pre-release)
+#   - Docker images tagged with version and 'latest'
+#   - Helm charts published normally
+
 on:
   workflow_dispatch:
     inputs:
+      version_type:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - continue
+        default: patch
+      release_type:
+        description: 'Release type'
+        required: true
+        type: choice
+        options:
+          - stable
+          - rc
+        default: stable
       dry_run:
         description: 'Dry run (no actual release)'
         required: false
         default: false
         type: boolean
+      publish_docker:
+        description: 'Publish Docker image'
+        required: false
+        type: boolean
+        default: true
+      publish_helm:
+        description: 'Publish Helm chart'
+        required: false
+        type: boolean
+        default: true
 
-# Required permissions for semantic-release and Docker operations
 permissions:
-  packages: write      # For npm package publishing (if needed)
-  contents: write      # For creating tags and commits
-  id-token: write     # For Docker registry authentication
-  issues: write       # For semantic-release GitHub plugin
-  pull-requests: write # For semantic-release GitHub plugin
+  packages: write
+  contents: write
+  pages: write
+  id-token: write
 
 jobs:
-  release:
+  get-version:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.calc_version.outputs.version }}
+      is_rc: ${{ steps.calc_version.outputs.is_rc }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Fetch all history for semantic-release
+          fetch-depth: 0
+
+      - name: Calculate version
+        id: calc_version
+        run: |
+          # Get current version from package.json
+          CURRENT_VERSION=$(node -p "require('./web/package.json').version")
+          echo "Current version: $CURRENT_VERSION"
+
+          VERSION_TYPE="${{ inputs.version_type }}"
+          RELEASE_TYPE="${{ inputs.release_type }}"
+
+          # Parse current version (handles both stable and RC versions)
+          if [[ "$CURRENT_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-rc\.([0-9]+))?$ ]]; then
+            MAJOR="${BASH_REMATCH[1]}"
+            MINOR="${BASH_REMATCH[2]}"
+            PATCH="${BASH_REMATCH[3]}"
+            RC_SUFFIX="${BASH_REMATCH[4]}"
+            RC_NUM="${BASH_REMATCH[5]:-0}"
+            if [ -n "$RC_SUFFIX" ]; then
+              IS_CURRENT_RC="true"
+            else
+              IS_CURRENT_RC="false"
+            fi
+          else
+            echo "Error: Cannot parse version $CURRENT_VERSION"
+            exit 1
+          fi
+
+          echo "Parsed: MAJOR=$MAJOR, MINOR=$MINOR, PATCH=$PATCH, RC_SUFFIX=$RC_SUFFIX, RC_NUM=$RC_NUM, IS_CURRENT_RC=$IS_CURRENT_RC"
+
+          IS_RC="false"
+          if [ "$RELEASE_TYPE" = "rc" ]; then
+            IS_RC="true"
+          fi
+
+          # Handle 'continue' specially - it requires current version to be an RC
+          if [ "$VERSION_TYPE" = "continue" ]; then
+            if [ "$IS_CURRENT_RC" != "true" ]; then
+              echo "Error: 'continue' requires current version to be an RC (current: $CURRENT_VERSION)"
+              echo "Use patch/minor/major to create a new version instead."
+              exit 1
+            fi
+            BASE_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+            if [ "$IS_RC" = "true" ]; then
+              # Continue RC series: increment RC number
+              NEW_VERSION="${BASE_VERSION}-rc.$((RC_NUM + 1))"
+            else
+              # Promote RC to stable: strip RC suffix
+              NEW_VERSION="${BASE_VERSION}"
+            fi
+          else
+            # Calculate base version based on version_type
+            case "$VERSION_TYPE" in
+              major)
+                BASE_VERSION="$((MAJOR + 1)).0.0"
+                ;;
+              minor)
+                BASE_VERSION="${MAJOR}.$((MINOR + 1)).0"
+                ;;
+              patch)
+                BASE_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+                ;;
+              *)
+                echo "Error: Unknown version_type '$VERSION_TYPE'"
+                exit 1
+                ;;
+            esac
+
+            # Apply RC suffix if needed
+            if [ "$IS_RC" = "true" ]; then
+              NEW_VERSION="${BASE_VERSION}-rc.1"
+            else
+              NEW_VERSION="$BASE_VERSION"
+            fi
+          fi
+
+          echo "New version: $NEW_VERSION"
+          echo "Is RC: $IS_RC"
+
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "is_rc=$IS_RC" >> $GITHUB_OUTPUT
+
+  release:
+    runs-on: ubuntu-latest
+    needs: get-version
+    env:
+      VERSION: ${{ needs.get-version.outputs.version }}
+      IS_RC: ${{ needs.get-version.outputs.is_rc }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Use Node.js 20.x
         uses: actions/setup-node@v4
@@ -49,138 +210,318 @@ jobs:
         working-directory: web
         run: npm run build --if-present
 
-      - name: Run semantic-release
+      - name: Display version info
+        run: |
+          echo "Version: ${{ env.VERSION }}"
+          echo "Is RC: ${{ env.IS_RC }}"
+          echo "Dry run: ${{ inputs.dry_run }}"
+
+      - name: Update package.json version
+        if: inputs.dry_run == false
         working-directory: web
+        run: |
+          npm version ${{ env.VERSION }} --no-git-tag-version
+          echo "Updated package.json to version ${{ env.VERSION }}"
+
+      - name: Update deployment files with new version
+        if: inputs.dry_run == false
+        run: |
+          # Update Helm Chart.yaml with new appVersion
+          sed -i "s/^appVersion: .*/appVersion: \"v${{ env.VERSION }}\"/" charts/wayli/Chart.yaml
+          echo "Updated Helm chart appVersion to v${{ env.VERSION }}"
+
+          # Update Supabase functions init container image in values.yaml
+          sed -i "s|image: zehbart/wayli:.*|image: zehbart/wayli:v${{ env.VERSION }}|" charts/wayli/values.yaml
+          echo "Updated init container image to v${{ env.VERSION }}"
+
+          # Update docker-compose .env.example with new version
+          sed -i "s/^WAYLI_VERSION=.*/WAYLI_VERSION=v${{ env.VERSION }}/" deploy/docker-compose/.env.example
+          echo "Updated docker-compose to version v${{ env.VERSION }}"
+
+      - name: Commit and tag release
+        if: inputs.dry_run == false
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add web/package.json web/package-lock.json charts/wayli/Chart.yaml charts/wayli/values.yaml deploy/docker-compose/.env.example
+          git commit -m "chore(release): v${{ env.VERSION }}"
+          git tag v${{ env.VERSION }}
+          git push
+          git push --tags
+
+          echo "Committed and tagged v${{ env.VERSION }}"
+
+      - name: Create GitHub Release
+        if: inputs.dry_run == false
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: v${{ env.VERSION }}
+          prerelease: ${{ env.IS_RC == 'true' }}
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_ENV: production
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        run: |
-          echo "🔍 [semantic-release] Starting release process..."
-          echo "🔍 [semantic-release] Working directory: $(pwd)"
-          echo "🔍 [semantic-release] Node version: $(node --version)"
-          echo "🔍 [semantic-release] NPM version: $(npm --version)"
-          echo "🔍 [semantic-release] Repository: $GITHUB_REPOSITORY"
-          echo "🔍 [semantic-release] Branch: ${{ github.ref }}"
-          echo "🔍 [semantic-release] Commit: ${{ github.sha }}"
 
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            echo "🔍 [semantic-release] Running in DRY RUN mode"
-            npx semantic-release --dry-run --debug
-          else
-            npx semantic-release --debug
-          fi
+  # ==========================================================================
+  # Docker Image Publishing (Split by Architecture)
+  # ==========================================================================
 
-      - name: Get version from semantic-release
-        if: inputs.dry_run == false
-        working-directory: web
-        id: version
-        run: |
-          # Pull the latest changes from semantic-release (which creates a new commit)
-          cd ..
-          git pull origin main
-          cd web
+  publish-docker-amd64:
+    name: Build Docker Image (AMD64)
+    runs-on: ubuntu-latest
+    needs: [get-version, release]
+    if: inputs.dry_run == false && inputs.publish_docker
+    env:
+      VERSION: ${{ needs.get-version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
 
-          # Now read the updated package.json
-          VERSION=$(node -p "require('./package.json').version")
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "📦 Released version: $VERSION"
-
-          # Verify this is actually a new version
-          CURRENT_CHART_VERSION=$(grep '^appVersion:' ../charts/wayli/Chart.yaml | awk '{print $2}' | tr -d '"' | sed 's/^v//')
-          echo "📦 Current Chart appVersion: $CURRENT_CHART_VERSION"
-
-          if [ "$VERSION" == "$CURRENT_CHART_VERSION" ]; then
-            echo "⚠️ WARNING: Version $VERSION matches current Chart appVersion"
-          else
-            echo "✅ Version changed from $CURRENT_CHART_VERSION to $VERSION"
-          fi
+      - name: Pull latest changes
+        run: git pull origin main
 
       - name: Set up Docker Buildx
-        if: inputs.dry_run == false
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
-        if: inputs.dry_run == false
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push AMD64 image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: zehbart/wayli:v${{ env.VERSION }}-amd64
+          cache-from: type=gha,scope=amd64
+          cache-to: type=gha,mode=max,scope=amd64
+
+  publish-docker-arm64:
+    name: Build Docker Image (ARM64)
+    runs-on: ubuntu-24.04-arm
+    needs: [get-version, release]
+    if: inputs.dry_run == false && inputs.publish_docker
+    env:
+      VERSION: ${{ needs.get-version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Pull latest changes
+        run: git pull origin main
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push ARM64 image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          platforms: linux/arm64
+          tags: zehbart/wayli:v${{ env.VERSION }}-arm64
+          cache-from: type=gha,scope=arm64
+          cache-to: type=gha,mode=max,scope=arm64
+
+  publish-docker-manifest:
+    name: Create Docker Multi-arch Manifest
+    runs-on: ubuntu-latest
+    needs: [get-version, publish-docker-amd64, publish-docker-arm64]
+    if: inputs.dry_run == false && inputs.publish_docker
+    env:
+      VERSION: ${{ needs.get-version.outputs.version }}
+      IS_RC: ${{ needs.get-version.outputs.is_rc }}
+    steps:
+      - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract short SHA
-        if: inputs.dry_run == false
-        id: vars
         run: echo "SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
 
-      - name: Build and push Docker image
-        if: inputs.dry_run == false
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: |
-            zehbart/wayli:v${{ env.VERSION }}
-            zehbart/wayli:latest
-            zehbart/wayli:${{ env.SHORT_SHA }}
-
-      # Update deployment files with new version
-      - name: Update deployment files with new version
-        if: inputs.dry_run == false
-        env:
-          VERSION: ${{ env.VERSION }}
+      - name: Create and push multi-arch manifest
         run: |
-          # Update Helm Chart.yaml with new appVersion
-          # Note: Chart version is bumped separately by release-chart.yml workflow
-          sed -i "s/^appVersion: .*/appVersion: \"v$VERSION\"/" charts/wayli/Chart.yaml
+          # Create manifest for version tag
+          docker buildx imagetools create -t zehbart/wayli:v${{ env.VERSION }} \
+            zehbart/wayli:v${{ env.VERSION }}-amd64 \
+            zehbart/wayli:v${{ env.VERSION }}-arm64
 
-          echo "📦 Updated Helm chart appVersion to v$VERSION"
+          # Create manifest for latest/rc tag
+          if [ "${{ env.IS_RC }}" = "true" ]; then
+            docker buildx imagetools create -t zehbart/wayli:rc \
+              zehbart/wayli:v${{ env.VERSION }}-amd64 \
+              zehbart/wayli:v${{ env.VERSION }}-arm64
+          else
+            docker buildx imagetools create -t zehbart/wayli:latest \
+              zehbart/wayli:v${{ env.VERSION }}-amd64 \
+              zehbart/wayli:v${{ env.VERSION }}-arm64
+          fi
 
-          # Update Supabase functions init container image in values.yaml
-          sed -i "s|image: zehbart/wayli:.*|image: zehbart/wayli:v$VERSION|" charts/wayli/values.yaml
+          # Create manifest for short SHA tag
+          docker buildx imagetools create -t zehbart/wayli:${{ env.SHORT_SHA }} \
+            zehbart/wayli:v${{ env.VERSION }}-amd64 \
+            zehbart/wayli:v${{ env.VERSION }}-arm64
 
-          echo "📦 Updated init container image to v$VERSION"
+  # ==========================================================================
+  # Helm Chart Publishing
+  # ==========================================================================
 
-          # Update docker-compose .env.example with new version
-          sed -i "s/^WAYLI_VERSION=.*/WAYLI_VERSION=v$VERSION/" deploy/docker-compose/.env.example
+  publish-helm-chart:
+    name: Publish Helm Chart
+    runs-on: ubuntu-latest
+    needs: [get-version, release]
+    if: inputs.dry_run == false && inputs.publish_helm
+    env:
+      VERSION: ${{ needs.get-version.outputs.version }}
+      IS_RC: ${{ needs.get-version.outputs.is_rc }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main  # Checkout main to get the latest committed changes from release job
 
-          echo "📦 Updated docker-compose to version $VERSION"
+      - name: Pull latest changes
+        run: git pull origin main
 
-      - name: Commit deployment file updates
-        if: inputs.dry_run == false
+      - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Check if there are changes to commit
-          if [[ -n $(git status --porcelain) ]]; then
-            echo "📝 Changes detected in deployment files:"
-            git status --porcelain
-            git add charts/wayli/Chart.yaml charts/wayli/values.yaml deploy/docker-compose/.env.example
-            git commit -m "chore(deploy): Update deployment files to version ${{ env.VERSION }}"
-            git push
-            echo "✅ Deployment files updated and pushed"
-          else
-            echo "ℹ️ No changes to deployment files"
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
 
-            # Double-check: verify versions are actually in sync
-            CHART_VERSION=$(grep '^appVersion:' charts/wayli/Chart.yaml | awk '{print $2}' | tr -d '"')
-            VALUES_VERSION=$(grep 'image: zehbart/wayli:v' charts/wayli/values.yaml | awk '{print $2}' | cut -d: -f2)
-            ENV_VERSION=$(grep '^WAYLI_VERSION=' deploy/docker-compose/.env.example | cut -d= -f2)
+      - name: Update chart dependencies
+        run: |
+          # Clean existing dependencies and lock file to avoid stale cache issues
+          rm -rf charts/wayli/charts/*
+          rm -f charts/wayli/Chart.lock
 
-            echo "🔍 Version verification:"
-            echo "   Chart appVersion: $CHART_VERSION"
-            echo "   Values image: $VALUES_VERSION"
-            echo "   Docker-compose: $ENV_VERSION"
-            echo "   Expected: v${{ env.VERSION }}"
+          # Clear Helm cache
+          rm -rf ~/.cache/helm
 
-            if [ "$CHART_VERSION" != "v${{ env.VERSION }}" ] || [ "$VALUES_VERSION" != "v${{ env.VERSION }}" ] || [ "$ENV_VERSION" != "v${{ env.VERSION }}" ]; then
-              echo "❌ ERROR: Version mismatch detected but no changes in git!"
-              echo "This indicates the sed commands may have failed."
-              exit 1
+          # OCI-based dependencies don't need helm repo add
+          # Update dependencies (regenerates Chart.lock and downloads deps)
+          helm dependency update charts/wayli
+
+      - name: Bump chart version
+        run: |
+          # Use the same version as the app (already calculated by get-version job)
+          NEW_VERSION="${{ env.VERSION }}"
+          IS_RC="${{ env.IS_RC }}"
+
+          echo "📦 Setting chart version to: $NEW_VERSION"
+
+          # Update Chart.yaml version
+          sed -i "s/^version: .*/version: $NEW_VERSION/" charts/wayli/Chart.yaml
+
+          # Add prerelease annotation for RC versions
+          if [ "$IS_RC" = "true" ]; then
+            # Check if annotations section exists
+            if grep -q "^annotations:" charts/wayli/Chart.yaml; then
+              # Add to existing annotations (only if not already present)
+              if ! grep -q "artifacthub.io/prerelease" charts/wayli/Chart.yaml; then
+                sed -i '/^annotations:/a\  artifacthub.io/prerelease: "true"' charts/wayli/Chart.yaml
+              fi
+            else
+              # Add new annotations section
+              echo -e "\nannotations:\n  artifacthub.io/prerelease: \"true\"" >> charts/wayli/Chart.yaml
             fi
+          else
+            # Remove prerelease annotation for stable releases
+            sed -i '/artifacthub.io\/prerelease/d' charts/wayli/Chart.yaml
+            # Remove empty annotations section if it exists
+            sed -i '/^annotations:$/{ N; /^annotations:\n$/d }' charts/wayli/Chart.yaml
           fi
 
-      # Note: GitHub release is automatically created by semantic-release
-      # Helm chart will be released by the release-chart.yml workflow
+          # Commit the version bump
+          git add charts/wayli/Chart.yaml
+          git commit -m "chore(chart): Bump version to $NEW_VERSION [skip ci]"
+          git push
+
+          echo "📦 Chart version set to $NEW_VERSION"
+          echo "CHART_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+      - name: Package Helm chart
+        run: |
+          mkdir -p .cr-release-packages
+          helm package charts/wayli -d .cr-release-packages
+
+      - name: Install chart-releaser
+        run: |
+          curl -sSLo cr.tar.gz "https://github.com/helm/chart-releaser/releases/download/v1.6.1/chart-releaser_1.6.1_linux_amd64.tar.gz"
+          tar -xzf cr.tar.gz
+          sudo mv cr /usr/local/bin/cr
+
+      - name: Upload chart to GitHub Release
+        env:
+          CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cr upload \
+            --owner wayli-app \
+            --git-repo wayli \
+            --package-path .cr-release-packages \
+            --release-name-template "chart-{{ .Version }}" \
+            --skip-existing
+
+      - name: Update Helm repository index
+        env:
+          CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p .cr-index
+
+          # Fetch existing index from gh-pages if it exists
+          if git fetch origin gh-pages:gh-pages 2>/dev/null; then
+            git show gh-pages:index.yaml > .cr-index/index.yaml 2>/dev/null || true
+          fi
+
+          # Generate/update index (must use same release-name-template as upload)
+          cr index \
+            --owner wayli-app \
+            --git-repo wayli \
+            --package-path .cr-release-packages \
+            --index-path .cr-index/index.yaml \
+            --release-name-template "chart-{{ .Version }}"
+
+      - name: Deploy index.yaml to gh-pages
+        run: |
+          # Copy the generated index.yaml to a temporary location
+          cp .cr-index/index.yaml /tmp/index.yaml
+
+          # Stash any local changes before switching branches
+          git stash --include-untracked
+
+          # Checkout gh-pages branch
+          if git fetch origin gh-pages:gh-pages 2>/dev/null; then
+            git checkout gh-pages
+          else
+            git checkout --orphan gh-pages
+            git rm -rf . || true
+          fi
+
+          # Copy the index.yaml from temp to root
+          cp /tmp/index.yaml index.yaml
+          git add index.yaml
+          git commit -m "Update Helm repository index [skip ci]" || echo "No changes to commit"
+          git push origin gh-pages

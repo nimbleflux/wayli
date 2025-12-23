@@ -6,8 +6,8 @@ global:
   annotations: {}
 
 ## Secrets configuration
-## Note: Secret names are configured in supabase.global.supabase.existingSecret
-## and supabase.global.supabase.auth.smtp.existingSecret
+## Note: Secret names are configured in fluxbase.global.fluxbase.existingSecret
+## and fluxbase.global.fluxbase.auth.smtp.existingSecret
 secrets:
   ## SMTP secret keys (for creating secrets from values.yaml in non-production)
   smtp:
@@ -30,6 +30,11 @@ image:
 ## Name overrides
 nameOverride: ""
 fullnameOverride: ""
+
+## Deployment mode configuration
+## - combined: Run web and worker in the same pod (default, simpler for small deployments)
+## - split: Run web and worker as separate deployments (recommended for high-scale production)
+deploymentMode: combined
 
 ## Web deployment
 web:
@@ -57,7 +62,7 @@ web:
         repository: flyway/flyway
         tag: "11-alpine"
         pullPolicy: IfNotPresent
-    waitForSupabase:
+    waitForFluxbase:
       enabled: true
       image:
         repository: busybox
@@ -209,9 +214,16 @@ worker:
   env:
     nodeEnv: production
     appMode: worker
+    ## Worker concurrency configuration
+    ## Maximum number of concurrent jobs per worker pod (default: 3)
+    ## Adjust based on your resource limits and job characteristics
+    ## Recommended: 2-3 for CPU-intensive jobs, 3-5 for I/O-bound jobs
+    maxConcurrentJobs: 3
+    ## Maximum number of job retries before marking as failed (default: 3)
+    maxJobRetries: 3
     ## External service endpoints
-    nominatim:
-      endpoint: "http://nominatim.nominatim.svc.cluster.local:8088"
+    pelias:
+      endpoint: "http://pelias.pelias.svc.cluster.local:4000"
 
   ## Extra environment variables
   extraEnvVars: []
@@ -331,21 +343,47 @@ ingress:
   # Additional TLS configurations
   extraTls: []
 
-## External Supabase configuration
-## Only set these if using an external/managed Supabase instance (not the subchart)
-externalSupabase:
-  ## Set to true to use external Supabase instead of the subchart
+## Gateway API configuration (HTTPRoute)
+## Requires Gateway API CRDs and a GatewayClass/Gateway to be installed
+## See: https://gateway-api.sigs.k8s.io/
+gateway:
+  # Enable Gateway API HTTPRoute (disabled by default)
   enabled: false
-  ## Public Supabase URL (API endpoint)
+  # Additional HTTPRoute labels
+  labels: {}
+  # Additional HTTPRoute annotations
+  annotations: {}
+  # Parent Gateway reference (required when enabled)
+  # The Gateway must already exist and have a matching listener
+  parentRefs:
+    - name: ""
+      # Namespace of the Gateway (optional, defaults to HTTPRoute namespace)
+      namespace: ""
+      # Specific listener name on the Gateway (optional)
+      sectionName: ""
+  # Hostname for the HTTPRoute
+  hostname: ""
+  # Additional hostnames
+  extraHostnames: []
+  # Path match type: PathPrefix, Exact, or RegularExpression
+  pathType: PathPrefix
+  # Path value
+  path: /
+  # Additional routing rules (for advanced use cases like traffic splitting)
+  extraRules: []
+
+## External Fluxbase configuration
+## Only set these if using an external/managed Fluxbase instance (not the subchart)
+externalFluxbase:
+  ## Set to true to use external Fluxbase instead of the subchart
+  enabled: false
+  ## Public Fluxbase URL (API endpoint)
   url: ""
   ## Database connection details (for migrations and workers)
   dbHost: ""
   dbPort: 5432
   dbName: "postgres"
-  dbUser: "supabase_admin"
-  ## Kong API gateway details
-  kongHost: ""
-  kongPort: 8000
+  dbUser: "postgres"
 
 ## Pod Security Context (enabled by default for non-root)
 podSecurityContext:
@@ -374,167 +412,423 @@ serviceAccount:
   ## Auto-mount service account token
   automountServiceAccountToken: true
 
-## Supabase dependency configuration
-supabase:
+## Fluxbase dependency configuration
+## See: https://github.com/fluxbase-eu/fluxbase for full configuration options
+fluxbase:
   enabled: true
 
+  ## Global parameters
   global:
-    # Global default storage class
-    defaultStorageClass: "standard"
-    # Global storage class
+    imageRegistry: ""
+    imagePullSecrets: []
     storageClass: "standard"
-    # Supabase global configuration
-    supabase:
-      # Organization name displayed in Studio
-      organizationName: Wayli
-      # Project name displayed in Studio
-      projectName: Wayli
-      # Public URL of the Supabase instance (API endpoint)
-      publicUrl: "https://supa.wayli.app"
-      # Site URL of the Supabase instance (for auth redirects)
-      siteUrl: "https://wayli.app"
-      # JWT token expiry in seconds
-      jwtExpiry: 3600
-      # Auth configuration
-      auth:
-        # Authentication settings
-        disableSignup: false
-        # Enable email signup
-        enableEmailSignup: true
-        # Enable email autoconfirm (set to true if SMTP is not configured)
-        enableEmailAutoconfirm: false
-        # SMTP configuration
-        smtp:
-          # SMTP admin email
-          adminEmail: ""
-          # SMTP host
-          host: ""
-          # SMTP port
-          port: 587
-          # SMTP sender name
-          senderName: "Wayli"
-          # Existing secret containing SMTP credentials
-          existingSecret: ""
-          # Secret keys configuration for existing secret
-          secretKeys:
-            # SMTP user key in the secret
-            userKey: username
-            # SMTP password key in the secret
-            passwordKey: password
-      existingSecret: ""
-      secretKeys:
-        # JWT secret key in the secret
-        jwtSecret: jwt-secret
-        # Anonymous key in the secret
-        anonKey: anon-key
-        # Service role key in the secret
-        serviceRoleKey: service-role-key
-        # Secret key base in the secret
-        secretKeyBase: secret-key-base
-        # Vault encryption key in the secret
-        vaultEncKey: vault-enc-key
-        # Database encryption key in the secret
-        dbEncKey: db-enc-key
-      # Direct values (when existingSecret is empty - for non-production only)
-      values:
-        anonKey: ""
-        serviceRoleKey: ""
-        jwtSecret: ""
-        dbPassword: ""
-        dbEncKey: ""
-        vaultEncKey: ""
-        secretKeyBase: ""
-        username: ""
-        password: ""
-  db:
-    postgres:
+
+  ## Fluxbase image
+  image:
+    registry: ghcr.io
+    repository: fluxbase-eu/fluxbase
+    tag: ""
+    pullPolicy: IfNotPresent
+
+  ## Fluxbase application configuration
+  ## All settings under config.* are passed as environment variables with FLUXBASE_ prefix
+  config:
+    ## Public base URL for the application
+    base_url: "https://flux.wayli.app"
+    debug: false
+
+    ## Server configuration
+    server:
+      address: ":8080"
+      read_timeout: "300s"
+      write_timeout: "300s"
+      idle_timeout: "120s"
+      body_limit: 2147483648
+
+    ## Database configuration
+    ## Note: host, port, user are auto-determined from postgresql.* section
+    database:
+      ssl_mode: "disable"
+      max_connections: 25
+      min_connections: 5
+      max_conn_lifetime: "1h"
+      max_conn_idle_time: "30m"
+      health_check_period: "1m"
+      user_migrations_path: ""
+
+    ## Authentication configuration
+    auth:
+      jwt_secret: ""  # Use existingSecret in production
+      anon_key: ""    # Pre-signed JWT for client apps
+      jwt_expiry: "1h"
+      refresh_expiry: "168h"
+      magic_link_expiry: "15m"
+      password_reset_expiry: "1h"
+      password_min_length: 8
+      bcrypt_cost: 10
+      enable_signup: true
+      enable_magic_link: true
+      totp_issuer: "Wayli"
+      google_client_id: ""
+      apple_client_id: ""
+      microsoft_client_id: ""
+
+    ## Security configuration
+    security:
+      enable_global_rate_limit: false
+      setup_token: ""  # Use existingSecret in production
+      admin_setup_rate_limit: 5
+      admin_setup_rate_window: "1m"
+      auth_login_rate_limit: 10
+      auth_login_rate_window: "1m"
+      admin_login_rate_limit: 5
+      admin_login_rate_window: "1m"
+
+    ## CORS configuration
+    cors:
+      allowed_origins:
+        - "https://wayli.app"
+      allowed_methods:
+        - "GET"
+        - "POST"
+        - "PUT"
+        - "DELETE"
+        - "PATCH"
+        - "OPTIONS"
+      allowed_headers:
+        - "*"
+      exposed_headers: []
+      allow_credentials: true
+      max_age: 86400
+
+    ## Storage configuration
+    storage:
+      provider: "local"
+      local_path: "/data/storage"
+      max_upload_size: 1073741824
+      default_buckets:
+        - "trip-images"
+      s3_endpoint: ""
+      s3_access_key: ""
+      s3_secret_key: ""
+      s3_bucket: ""
+      s3_region: ""
+      s3_force_path_style: false
+
+    ## Realtime/WebSocket configuration
+    realtime:
       enabled: true
-      existingSecret: ""
-      secretKeys:
-        userPasswordKey: db-password
-      resources:
-        requests:
-          memory: 512Mi
-          cpu: "250m"
-        limits:
-          memory: 2Gi
-          cpu: "2"
-      persistence:
-        size: 20Gi
-    pgbouncer:
-      enabled: true
-      service:
-        port: 6432
+      max_connections: 1000
+      ping_interval: "30s"
+      pong_timeout: "60s"
+      write_buffer_size: 1024
+      read_buffer_size: 1024
+      message_size_limit: 524288
+      channel_buffer_size: 100
 
-  realtime:
-    enabled: true
-
-  vector:
-    enabled: false
-
-  storage:
-    enabled: true
-    config:
-      fileSizeLimit: 1073741824
-      storageBackend: file
-      tenantId: wayli-tenant
-      region: local
-    persistence:
-      size: 50Gi
-      storageClass: ~
-
-  functions:
-    enabled: true
-    config:
-      mainService: /home/supabase/functions/main
-    extraEnvVars:
-      - name: VERIFY_JWT
-        value: "true"
-    initContainers:
-      - name: init-functions
-        # NOTE: This is automatically updated by CI/CD to match appVersion
-        image: zehbart/wayli:v1.0.10
-        imagePullPolicy: Always
-        command:
-          - /bin/sh
-          - -c
-          - cp -Rv /app/supabase/functions/* /functions
-        volumeMounts:
-          - name: functions-main
-            mountPath: /functions
-
-  auth:
-    extraEnvVars: []
-    db:
-      host: ""  # Defaults to supabase-pgbouncer or supabase-db based on pgbouncer.enabled
-      port: ""  # Defaults to 6432 (pgbouncer) or 5432 (postgres)
-
-  rest:
-    enabled: true
-    db:
-      host: ""  # Defaults to supabase-pgbouncer or supabase-db based on pgbouncer.enabled
-      port: ""  # Defaults to 6432 (pgbouncer) or 5432 (postgres)
-
-  studio:
-    enabled: true
-
-  kong:
-    enabled: true
-    ingress:
+    ## Email configuration
+    email:
       enabled: false
-      ingressClassName: nginx
-      hostname: ""
-      annotations:
-        nginx.ingress.kubernetes.io/ssl-redirect: "true"
-        nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-        nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
-        nginx.ingress.kubernetes.io/proxy-body-size: "1g"
-        nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600"
-        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-        nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-      tls: []
+      provider: "smtp"
+      from_address: "noreply@wayli.app"
+      from_name: "Wayli"
+      reply_to_address: ""
+      smtp_host: ""
+      smtp_port: 587
+      smtp_username: ""
+      smtp_password: ""  # Use existingSecret in production
+      smtp_tls: true
+      sendgrid_api_key: ""
+      mailgun_api_key: ""
+      mailgun_domain: ""
+      ses_access_key: ""
+      ses_secret_key: ""
+      ses_region: "us-east-1"
 
-  analytics:
+    ## Edge Functions configuration
+    functions:
+      enabled: true
+      functions_dir: "/app/functions"
+      auto_load_on_boot: true
+      default_timeout: 30
+      max_timeout: 300
+      default_memory_limit: 128
+      max_memory_limit: 1024
+      sync_allowed_ip_ranges: []
+
+    ## Background Jobs configuration
+    jobs:
+      enabled: true
+      jobs_dir: "/app/jobs"
+      auto_load_on_boot: true
+      worker_mode: "embedded"
+      embedded_worker_count: 4
+      max_concurrent_per_worker: 10
+      max_concurrent_per_namespace: 50
+      default_max_duration: "30m"
+      max_max_duration: "24h"
+      default_progress_timeout: "5m"
+      poll_interval: "1s"
+      worker_heartbeat_interval: "10s"
+      worker_timeout: "30s"
+      sync_allowed_ip_ranges: []
+      functions_logs_retention_days: 7
+      rpc_logs_retention_days: 7
+      jobs_logs_retention_days: 7
+
+    ## REST API configuration
+    api:
+      max_page_size: 1000
+      max_total_results: 10000
+      default_page_size: 1000
+
+    ## Migrations configuration
+    migrations:
+      enabled: true
+      allowed_ip_ranges: []
+      require_service_key: false
+
+    ## RPC configuration
+    rpc:
+      enabled: true
+      procedures_dir: "/app/procedures"
+      auto_load_on_boot: true
+      default_max_execution_time: 30
+      max_max_execution_time: 300
+      default_max_rows: 1000
+      sync_allowed_ip_ranges: []
+
+    ## AI/Chatbot configuration
+    ai:
+      enabled: false
+      chatbots_dir: "/app/chatbots"
+      auto_load_on_boot: true
+      default_max_tokens: 4096
+      default_model: ""
+      query_timeout: "30s"
+      max_rows_per_query: 1000
+      conversation_cache_ttl: "1h"
+      max_conversation_turns: 50
+      encryption_key: ""
+      sync_allowed_ip_ranges: []
+      provider_type: ""
+      provider_enabled: false
+      provider_name: ""
+      provider_model: ""
+      openai_api_key: ""
+      openai_organization_id: ""
+      openai_base_url: ""
+      azure_api_key: ""
+      azure_endpoint: ""
+      azure_deployment_name: ""
+      azure_api_version: ""
+      azure_embedding_deployment_name: ""
+      ollama_endpoint: ""
+      ollama_model: ""
+      embedding_enabled: false
+      embedding_provider: ""
+      embedding_model: ""
+      ocr_enabled: false
+      ocr_provider: ""
+      ocr_languages: []
+
+    ## Logging configuration
+    logging:
+      console_enabled: true
+      console_level: "info"
+      console_format: "json"
+      backend: "postgres"
+      s3_bucket: ""
+      s3_prefix: ""
+      local_path: ""
+      batch_size: 100
+      flush_interval: "5s"
+      buffer_size: 1000
+      pubsub_enabled: true
+      system_retention_days: 30
+      http_retention_days: 7
+      security_retention_days: 90
+      execution_retention_days: 7
+      ai_retention_days: 30
+      retention_enabled: true
+      retention_check_interval: "1h"
+
+    ## Tracing configuration (OpenTelemetry)
+    tracing:
+      enabled: false
+      endpoint: "localhost:4317"
+      service_name: "fluxbase"
+      environment: "production"
+      sample_rate: 0.1
+      insecure: false
+
+    ## Admin dashboard configuration
+    admin:
+      enabled: false
+
+  ## Existing secret for sensitive configuration
+  ## Should contain keys: jwt-secret, setup-token, database-password, smtp-password, etc.
+  existingSecret: ""
+
+  ## Custom key names for existingSecret
+  existingSecretKeyRef:
+    jwtSecret: "jwt-secret"
+    setupToken: "setup-token"
+    databasePassword: "database-password"
+    s3AccessKey: "s3-access-key"
+    s3SecretKey: "s3-secret-key"
+    smtpPassword: "smtp-password"
+    sendgridApiKey: "sendgrid-api-key"
+    mailgunApiKey: "mailgun-api-key"
+    sesAccessKey: "ses-access-key"
+    sesSecretKey: "ses-secret-key"
+    aiEncryptionKey: "ai-encryption-key"
+    openaiApiKey: "openai-api-key"
+    azureApiKey: "azure-api-key"
+
+  ## Service Keys Configuration
+  serviceKey:
     enabled: false
+    existingSecret: ""
+    secretKey: "service-key"
+
+  ## Deployment configuration
+  replicaCount: 1
+  updateStrategy:
+    type: RollingUpdate
+
+  ## Resource configuration
+  resourcesPreset: "small"
+  resources: {}
+
+  ## Pod probes
+  startupProbe:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
+    successThreshold: 1
+
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+
+  ## Persistence configuration (for local storage provider)
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 50Gi
+    accessModes:
+      - ReadWriteOnce
+
+  ## Functions persistence
+  functions:
     persistence:
-      size: 10Gi
+      enabled: true
+      storageClass: ""
+      size: 1Gi
+      accessModes:
+        - ReadWriteMany
+
+  ## Service configuration
+  service:
+    type: ClusterIP
+    ports:
+      http: 8080
+
+  ## Ingress configuration
+  ingress:
+    enabled: false
+    ingressClassName: nginx
+    hostname: ""
+    path: /
+    pathType: ImplementationSpecific
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+      nginx.ingress.kubernetes.io/proxy-body-size: "1g"
+    tls: false
+
+  ## Gateway API configuration
+  gateway:
+    enabled: false
+    parentRefs: []
+    hostname: ""
+    path: /
+    pathType: PathPrefix
+
+  ## PostgreSQL configuration (bundled)
+  postgresql:
+    enabled: true
+    auth:
+      database: fluxbase
+      username: fluxbase
+      password: ""  # Use existingSecret in production
+      existingSecret: ""
+    image:
+      registry: ghcr.io
+      repository: fluxbase-eu/fluxbase-postgres
+      tag: "18.1-0.0.1-rc.53"
+      pullPolicy: IfNotPresent
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: ""
+      accessModes:
+        - ReadWriteOnce
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+  ## External Database Configuration (when postgresql.enabled=false)
+  externalDatabase:
+    host: ""
+    port: 5432
+    user: fluxbase
+    password: ""
+    database: fluxbase
+    existingSecret: ""
+    existingSecretPasswordKey: "password"
+
+  ## Horizontal Scaling Parameters
+  scaling:
+    backend: local
+    enableLeaderElection: false
+    redis:
+      enabled: false
+    externalRedis:
+      host: ""
+      port: 6379
+      password: ""
+
+  ## Autoscaling configuration
+  autoscaling:
+    enabled: false
+    minReplicas: 3
+    maxReplicas: 11
+    targetCPU: 80
+    targetMemory: 80
+
+  ## Metrics configuration
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: false

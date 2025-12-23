@@ -135,25 +135,21 @@ imagePullSecrets:
 {{- end }}
 
 {{/*
-Return the Supabase secret name
+Return the Fluxbase secret name
 */}}
-{{- define "wayli.supabaseSecretName" -}}
-{{- if .Values.supabase.global.supabase.existingSecret }}
-{{- .Values.supabase.global.supabase.existingSecret }}
+{{- define "wayli.fluxbaseSecretName" -}}
+{{- if .Values.fluxbase.existingSecret }}
+{{- .Values.fluxbase.existingSecret }}
 {{- else }}
-{{- printf "%s-supabase" (include "wayli.fullname" .) }}
+{{- printf "%s-fluxbase" (include "wayli.fullname" .) }}
 {{- end }}
 {{- end }}
 
 {{/*
-Return the SMTP secret name
+Return the SMTP secret name (now uses the main fluxbase secret)
 */}}
 {{- define "wayli.smtpSecretName" -}}
-{{- if .Values.supabase.global.supabase.auth.smtp.existingSecret }}
-{{- .Values.supabase.global.supabase.auth.smtp.existingSecret }}
-{{- else }}
-{{- printf "%s-smtp" (include "wayli.fullname" .) }}
-{{- end }}
+{{- include "wayli.fluxbaseSecretName" . -}}
 {{- end }}
 
 {{/*
@@ -161,11 +157,11 @@ Compile all warnings into a single message
 */}}
 {{- define "wayli.validateValues" -}}
 {{- $messages := list -}}
-{{- if and (not .Values.supabase.global.supabase.existingSecret) (not .Values.secrets.supabase.values.jwtSecret) -}}
-{{- $messages = append $messages "WARNING: No Supabase JWT secret configured. Set supabase.global.supabase.existingSecret or secrets.supabase.values.jwtSecret" -}}
+{{- if and (not .Values.fluxbase.existingSecret) (not .Values.fluxbase.config.auth.jwt_secret) -}}
+{{- $messages = append $messages "WARNING: No Fluxbase JWT secret configured. Set fluxbase.existingSecret or fluxbase.config.auth.jwt_secret" -}}
 {{- end -}}
-{{- if and (not .Values.supabase.global.supabase.existingSecret) (not .Values.secrets.supabase.values.dbPassword) -}}
-{{- $messages = append $messages "WARNING: No database password configured. Set supabase.global.supabase.existingSecret or secrets.supabase.values.dbPassword" -}}
+{{- if and (not .Values.fluxbase.existingSecret) (not .Values.fluxbase.postgresql.auth.password) (not .Values.fluxbase.postgresql.auth.existingSecret) -}}
+{{- $messages = append $messages "WARNING: No database password configured. Set fluxbase.existingSecret, fluxbase.postgresql.auth.password, or fluxbase.postgresql.auth.existingSecret" -}}
 {{- end -}}
 {{- if $messages -}}
 {{- printf "\nVALIDATION WARNINGS:\n%s" (join "\n" $messages) | fail -}}
@@ -176,113 +172,123 @@ Compile all warnings into a single message
 Return the database URL for init containers
 */}}
 {{- define "wayli.databaseUrl" -}}
-{{- $dbHost := printf "%s.%s.svc.cluster.local" (include "wayli.supabase.dbHost" .) .Release.Namespace -}}
-{{- $dbPort := include "wayli.supabase.dbPort" . -}}
-{{- $dbName := include "wayli.supabase.dbName" . -}}
-{{- $dbUser := include "wayli.supabase.dbUser" . -}}
+{{- $dbHost := printf "%s.%s.svc.cluster.local" (include "wayli.fluxbase.dbHost" .) .Release.Namespace -}}
+{{- $dbPort := include "wayli.fluxbase.dbPort" . -}}
+{{- $dbName := include "wayli.fluxbase.dbName" . -}}
+{{- $dbUser := include "wayli.fluxbase.dbUser" . -}}
 {{- printf "postgresql://%s:%s@%s:%v/%s?prepareThreshold=0" $dbUser "$(FLYWAY_PASSWORD)" $dbHost $dbPort $dbName -}}
 {{- end -}}
 
 {{/*
-Return the Supabase database URL for workers (conditionally uses pgbouncer from supabase chart)
+Return the Fluxbase database URL for workers
 */}}
-{{- define "wayli.supabase.dbUrl" -}}
-{{- if and .Values.supabase.db .Values.supabase.db.pgbouncer.enabled -}}
-{{- $pgHost := printf "%s.%s.svc.cluster.local" .Values.supabase.db.pgbouncer.service.name .Release.Namespace -}}
-{{- $pgPort := .Values.supabase.db.pgbouncer.service.port -}}
-{{- $dbName := include "wayli.supabase.dbName" . -}}
-{{- $dbUser := include "wayli.supabase.dbUser" . -}}
-{{- printf "postgresql://%s:$(SUPABASE_DB_PASSWORD)@%s:%v/%s" $dbUser $pgHost $pgPort $dbName -}}
+{{- define "wayli.fluxbase.dbUrl" -}}
+{{- $dbHost := printf "%s.%s.svc.cluster.local" (include "wayli.fluxbase.dbHost" .) .Release.Namespace -}}
+{{- $dbPort := include "wayli.fluxbase.dbPort" . -}}
+{{- $dbName := include "wayli.fluxbase.dbName" . -}}
+{{- $dbUser := include "wayli.fluxbase.dbUser" . -}}
+{{- printf "postgresql://%s:$(FLUXBASE_DB_PASSWORD)@%s:%v/%s" $dbUser $dbHost $dbPort $dbName -}}
+{{- end -}}
+
+{{/*
+Return the Fluxbase public URL
+*/}}
+{{- define "wayli.fluxbase.url" -}}
+{{- if .Values.externalFluxbase.enabled -}}
+{{- .Values.externalFluxbase.url -}}
+{{- else if .Values.fluxbase.config.base_url -}}
+{{- .Values.fluxbase.config.base_url -}}
 {{- else -}}
-{{- $dbHost := printf "%s-supabase-db.%s.svc.cluster.local" .Release.Name .Release.Namespace -}}
-{{- $dbPort := include "wayli.supabase.dbPort" . -}}
-{{- $dbName := include "wayli.supabase.dbName" . -}}
-{{- $dbUser := include "wayli.supabase.dbUser" . -}}
-{{- printf "postgresql://%s:$(SUPABASE_DB_PASSWORD)@%s:%v/%s" $dbUser $dbHost $dbPort $dbName -}}
+{{- fail "Either externalFluxbase.url or fluxbase.config.base_url must be set" -}}
 {{- end -}}
 {{- end -}}
 
 {{/*
-Return the Supabase public URL
+Return the Fluxbase database host
 */}}
-{{- define "wayli.supabase.url" -}}
-{{- if .Values.externalSupabase.enabled -}}
-{{- .Values.externalSupabase.url -}}
-{{- else if .Values.supabase.global.supabase.publicUrl -}}
-{{- .Values.supabase.global.supabase.publicUrl -}}
+{{- define "wayli.fluxbase.dbHost" -}}
+{{- if .Values.externalFluxbase.enabled -}}
+{{- .Values.externalFluxbase.dbHost -}}
+{{- else if not .Values.fluxbase.postgresql.enabled -}}
+{{- .Values.fluxbase.externalDatabase.host -}}
 {{- else -}}
-{{- fail "Either externalSupabase.url or supabase.global.supabase.publicUrl must be set" -}}
+{{- printf "%s-fluxbase-postgresql" .Release.Name -}}
 {{- end -}}
 {{- end -}}
 
 {{/*
-Return the Supabase database host (uses pgbouncer if enabled)
+Return the Fluxbase database port
 */}}
-{{- define "wayli.supabase.dbHost" -}}
-{{- if .Values.externalSupabase.enabled -}}
-{{- .Values.externalSupabase.dbHost -}}
-{{- else if and .Values.supabase.db .Values.supabase.db.pgbouncer.enabled -}}
-{{- printf "%s-supabase-pgbouncer" .Release.Name -}}
-{{- else -}}
-{{- printf "%s-supabase-db" .Release.Name -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
-Return the Supabase database port
-*/}}
-{{- define "wayli.supabase.dbPort" -}}
-{{- if .Values.externalSupabase.enabled -}}
-{{- .Values.externalSupabase.dbPort -}}
-{{- else if and .Values.supabase.db .Values.supabase.db.pgbouncer.enabled -}}
-{{- .Values.supabase.db.pgbouncer.service.port | default 6432 -}}
+{{- define "wayli.fluxbase.dbPort" -}}
+{{- if .Values.externalFluxbase.enabled -}}
+{{- .Values.externalFluxbase.dbPort -}}
+{{- else if not .Values.fluxbase.postgresql.enabled -}}
+{{- .Values.fluxbase.externalDatabase.port | default 5432 -}}
 {{- else -}}
 5432
 {{- end -}}
 {{- end -}}
 
 {{/*
-Return the Supabase database name
+Return the Fluxbase database name
 */}}
-{{- define "wayli.supabase.dbName" -}}
-{{- if .Values.externalSupabase.enabled -}}
-{{- .Values.externalSupabase.dbName -}}
+{{- define "wayli.fluxbase.dbName" -}}
+{{- if .Values.externalFluxbase.enabled -}}
+{{- .Values.externalFluxbase.dbName -}}
+{{- else if not .Values.fluxbase.postgresql.enabled -}}
+{{- .Values.fluxbase.externalDatabase.database | default "fluxbase" -}}
 {{- else -}}
-postgres
+{{- .Values.fluxbase.postgresql.auth.database | default "fluxbase" -}}
 {{- end -}}
 {{- end -}}
 
 {{/*
-Return the Supabase database user
+Return the Fluxbase database user
 */}}
-{{- define "wayli.supabase.dbUser" -}}
-{{- if .Values.externalSupabase.enabled -}}
-{{- .Values.externalSupabase.dbUser -}}
+{{- define "wayli.fluxbase.dbUser" -}}
+{{- if .Values.externalFluxbase.enabled -}}
+{{- .Values.externalFluxbase.dbUser -}}
+{{- else if not .Values.fluxbase.postgresql.enabled -}}
+{{- .Values.fluxbase.externalDatabase.user | default "fluxbase" -}}
 {{- else -}}
-supabase_admin
+{{- .Values.fluxbase.postgresql.auth.username | default "fluxbase" -}}
 {{- end -}}
 {{- end -}}
 
 {{/*
-Return the Supabase Kong host
+Return the Fluxbase service host (replaces Kong host)
 */}}
-{{- define "wayli.supabase.kongHost" -}}
-{{- if .Values.externalSupabase.enabled -}}
-{{- .Values.externalSupabase.kongHost -}}
+{{- define "wayli.fluxbase.serviceHost" -}}
+{{- if .Values.externalFluxbase.enabled -}}
+{{- .Values.externalFluxbase.host | default .Values.externalFluxbase.url -}}
 {{- else -}}
-{{- printf "%s-supabase-kong" .Release.Name -}}
+{{- printf "%s-fluxbase" .Release.Name -}}
 {{- end -}}
 {{- end -}}
 
 {{/*
-Return the Supabase Kong port
+Return the Fluxbase service port (replaces Kong port)
 */}}
-{{- define "wayli.supabase.kongPort" -}}
-{{- if .Values.externalSupabase.enabled -}}
-{{- .Values.externalSupabase.kongPort -}}
+{{- define "wayli.fluxbase.servicePort" -}}
+{{- if .Values.externalFluxbase.enabled -}}
+{{- .Values.externalFluxbase.port | default 8080 -}}
 {{- else -}}
-8000
+{{- .Values.fluxbase.service.ports.http | default 8080 -}}
 {{- end -}}
+{{- end -}}
+
+{{/*
+Return the Fluxbase Kong host (deprecated - use wayli.fluxbase.serviceHost)
+*/}}
+{{- define "wayli.fluxbase.kongHost" -}}
+{{- include "wayli.fluxbase.serviceHost" . -}}
+{{- end -}}
+
+{{/*
+Return the Fluxbase Kong port (deprecated - use wayli.fluxbase.servicePort)
+*/}}
+{{- define "wayli.fluxbase.kongPort" -}}
+{{- include "wayli.fluxbase.servicePort" . -}}
 {{- end -}}
 
 {{/*
@@ -293,44 +299,27 @@ Return the site URL
 {{- end -}}
 
 {{/*
-Common initContainers for waiting for Supabase services and database
+Common initContainers for waiting for Fluxbase services and database
 */}}
 {{- define "wayli.initContainers.waitForInfrastructure" -}}
-{{- if .Values.web.initContainers.waitForSupabase.enabled }}
-- name: wait-for-supabase
-  image: {{ .Values.web.initContainers.waitForSupabase.image.repository }}:{{ .Values.web.initContainers.waitForSupabase.image.tag }}
-  imagePullPolicy: {{ .Values.web.initContainers.waitForSupabase.image.pullPolicy }}
+{{- if .Values.web.initContainers.waitForFluxbase.enabled }}
+- name: wait-for-fluxbase
+  image: {{ .Values.web.initContainers.waitForFluxbase.image.repository }}:{{ .Values.web.initContainers.waitForFluxbase.image.tag }}
+  imagePullPolicy: {{ .Values.web.initContainers.waitForFluxbase.image.pullPolicy }}
   env:
-    - name: KONG_SERVICE
-      value: "{{ include "wayli.supabase.kongHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ include "wayli.supabase.kongPort" . }}"
-    - name: SUPABASE_ANON_KEY
-      valueFrom:
-        secretKeyRef:
-          name: {{ include "wayli.supabaseSecretName" . }}
-          key: {{ .Values.supabase.global.supabase.secretKeys.anonKey }}
+    - name: FLUXBASE_SERVICE
+      value: "{{ include "wayli.fluxbase.serviceHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ include "wayli.fluxbase.servicePort" . }}"
   command:
     - /bin/sh
     - -c
     - |
-      echo "Waiting for Supabase Auth service to be ready via Kong..."
-      until wget --header="apikey: ${SUPABASE_ANON_KEY}" \
-        --header="Authorization: Bearer ${SUPABASE_ANON_KEY}" \
-        -O /dev/null --timeout=5 --tries=1 -q \
-        "http://${KONG_SERVICE}/auth/v1/health"; do
-        echo "Auth service not ready, waiting..."
+      echo "Waiting for Fluxbase health endpoint to be ready..."
+      until wget -O /dev/null --timeout=5 --tries=1 -q \
+        "http://${FLUXBASE_SERVICE}/health"; do
+        echo "Fluxbase not ready, waiting..."
         sleep 2
       done
-      echo "Supabase Auth service is ready"
-
-      echo "Waiting for Supabase Storage service to be ready via Kong..."
-      until wget --header="apikey: ${SUPABASE_ANON_KEY}" \
-        --header="Authorization: Bearer ${SUPABASE_ANON_KEY}" \
-        -O /dev/null --timeout=5 --tries=1 -q \
-        "http://${KONG_SERVICE}/storage/v1/status"; do
-        echo "Storage service not ready, waiting..."
-        sleep 2
-      done
-      echo "Supabase Storage service is ready"
+      echo "Fluxbase is ready"
 {{- end }}
 {{- if .Values.web.initContainers.waitForDb.enabled }}
 - name: wait-for-db
@@ -338,35 +327,35 @@ Common initContainers for waiting for Supabase services and database
   imagePullPolicy: {{ .Values.web.initContainers.waitForDb.image.pullPolicy }}
   env:
     - name: DB_HOST
-      value: "{{ include "wayli.supabase.dbHost" . }}.{{ .Release.Namespace }}.svc.cluster.local"
+      value: "{{ include "wayli.fluxbase.dbHost" . }}.{{ .Release.Namespace }}.svc.cluster.local"
     - name: DB_PORT
-      value: {{ include "wayli.supabase.dbPort" . | quote }}
+      value: {{ include "wayli.fluxbase.dbPort" . | quote }}
     - name: FLYWAY_USER
-      value: {{ include "wayli.supabase.dbUser" . | quote }}
+      value: {{ include "wayli.fluxbase.dbUser" . | quote }}
     - name: FLYWAY_PASSWORD
       valueFrom:
         secretKeyRef:
-          name: {{ include "wayli.supabaseSecretName" . }}
-          key: {{ .Values.supabase.db.postgres.secretKeys.userPasswordKey }}
+          name: {{ include "wayli.fluxbaseSecretName" . }}
+          key: {{ .Values.fluxbase.existingSecretKeyRef.databasePassword }}
     - name: DB_NAME
-      value: {{ include "wayli.supabase.dbName" . | quote }}
+      value: {{ include "wayli.fluxbase.dbName" . | quote }}
     - name: FLYWAY_URL
-      value: jdbc:postgresql://$(DB_HOST):{{ include "wayli.supabase.dbPort" . }}/$(DB_NAME)
+      value: jdbc:postgresql://$(DB_HOST):{{ include "wayli.fluxbase.dbPort" . }}/$(DB_NAME)
     - name: DATABASE_URL
       value: {{ include "wayli.databaseUrl" . | quote }}
     - name: PGHOST
-      value: "{{ include "wayli.supabase.dbHost" . }}.{{ .Release.Namespace }}.svc.cluster.local"
+      value: "{{ include "wayli.fluxbase.dbHost" . }}.{{ .Release.Namespace }}.svc.cluster.local"
     - name: PGPORT
-      value: {{ include "wayli.supabase.dbPort" . | quote }}
+      value: {{ include "wayli.fluxbase.dbPort" . | quote }}
     - name: PGUSER
-      value: {{ include "wayli.supabase.dbUser" . | quote }}
+      value: {{ include "wayli.fluxbase.dbUser" . | quote }}
     - name: PGPASSWORD
       valueFrom:
         secretKeyRef:
-          name: {{ include "wayli.supabaseSecretName" . }}
-          key: {{ .Values.supabase.db.postgres.secretKeys.userPasswordKey }}
+          name: {{ include "wayli.fluxbaseSecretName" . }}
+          key: {{ .Values.fluxbase.existingSecretKeyRef.databasePassword }}
     - name: PGDATABASE
-      value: {{ include "wayli.supabase.dbName" . | quote }}
+      value: {{ include "wayli.fluxbase.dbName" . | quote }}
   command:
     - /bin/bash
     - -c
@@ -377,12 +366,5 @@ Common initContainers for waiting for Supabase services and database
         sleep 1
       done
       echo "Database is ready"
-
-      echo "Waiting for Supabase Storage migrations to complete..."
-      until [ "$(psql -tAc "SELECT COUNT(*) FROM storage.migrations;" 2>/dev/null || echo 0)" -ge 44 ]; do
-        echo "Storage migrations not complete yet, waiting..."
-        sleep 2
-      done
-      echo "Supabase Storage migrations are complete."
 {{- end }}
 {{- end -}}

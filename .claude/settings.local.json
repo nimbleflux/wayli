@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh run list --workflow=release.yml --limit 5)",
+      "Bash(docker compose logs wayli-worker --tail 100)",
+      "Bash(for:*)",
+      "Bash(do echo \"File: $file\")",
+      "Bash(done)",
+      "Bash(find:*)",
+      "Bash(npx tsc:*)",
+      "Bash(psql:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm run sync-jobs:*)",
+      "Bash(grep:*)",
+      "Bash(cat:*)",
+      "Bash(npx svelte-check:*)",
+      "Bash(xargs:*)",
+      "Bash(npm test:*)",
+      "Bash(npx vitest:*)",
+      "Bash(ls:*)",
+      "Bash(PGPASSWORD=postgres psql:*)",
+      "Bash(PGPASSWORD=fluxbase_app_password psql:*)",
+      "Bash(tree:*)",
+      "Bash(npm run test)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

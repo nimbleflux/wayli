@@ -55,47 +55,6 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
         {{- include "wayli.initContainers.waitForInfrastructure" . | nindent 8 }}
-        {{- if .Values.web.initContainers.migrations.enabled }}
-        - name: prepare-init-db
-          image: {{ include "wayli.image" . }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command:
-            - /bin/sh
-            - -c
-          args:
-            - |
-              for file in supabase/migrations/*; do
-                filename=$(basename "$file")
-                cp -v "$file" "/sql/V${filename}"
-              done
-          volumeMounts:
-            - name: ephemeral
-              mountPath: /sql
-        - name: prepare-migrate-db
-          image: {{ include "wayli.initContainer.flyway.image" . }}
-          imagePullPolicy: {{ .Values.web.initContainers.migrations.flywayImage.pullPolicy }}
-          env:
-            - name: FLYWAY_USER
-              value: {{ include "wayli.supabase.dbUser" . | quote }}
-            - name: FLYWAY_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "wayli.supabaseSecretName" . }}
-                  key: {{ .Values.supabase.db.postgres.secretKeys.userPasswordKey }}
-            - name: DB_HOST
-              value: "{{ include "wayli.supabase.dbHost" . }}.{{ .Release.Namespace }}.svc.cluster.local"
-            - name: FLYWAY_URL
-              value: jdbc:postgresql://$(DB_HOST):{{ include "wayli.supabase.dbPort" . }}/{{ include "wayli.supabase.dbName" . }}
-          args:
-            - migrate
-            - -locations=filesystem:/flyway/sql
-            - -schemas=public
-            - -baselineOnMigrate=false
-            - -validateOnMigrate=false
-          volumeMounts:
-            - name: ephemeral
-              mountPath: /flyway/sql
-        {{- end }}
       containers:
         - name: wayli-web
           image: {{ include "wayli.image" . }}
@@ -119,30 +78,43 @@ spec:
             - name: NODE_ENV
               value: {{ .Values.web.env.nodeEnv | quote }}
             - name: APP_MODE
+              {{- if eq .Values.deploymentMode "combined" }}
+              value: "combined"
+              {{- else }}
               value: {{ .Values.web.env.appMode | quote }}
+              {{- end }}
             - name: PUBLIC_TRUSTED_ORIGINS
               value: {{ include "wayli.siteUrl" . | quote }}
             - name: HOST
               value: {{ .Values.web.env.host | quote }}
             - name: PORT
               value: {{ .Values.web.env.port | quote }}
-            - name: SUPABASE_URL
-              value: {{ include "wayli.supabase.url" . | quote }}
-            - name: SUPABASE_ANON_KEY
+            - name: FLUXBASE_BASE_URL
+              value: {{ include "wayli.fluxbase.url" . | quote }}
+            - name: FLUXBASE_ANON_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "wayli.supabaseSecretName" . }}
-                  key: {{ .Values.supabase.global.supabase.secretKeys.anonKey }}
-            - name: SUPABASE_SERVICE_ROLE_KEY
+                  name: {{ include "wayli.fluxbaseSecretName" . }}
+                  key: {{ .Values.fluxbase.existingSecretKeyRef.jwtSecret }}
+            - name: FLUXBASE_SERVICE_ROLE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "wayli.supabaseSecretName" . }}
-                  key: {{ .Values.supabase.global.supabase.secretKeys.serviceRoleKey }}
+                  name: {{ include "wayli.fluxbaseSecretName" . }}
+                  key: {{ .Values.fluxbase.existingSecretKeyRef.jwtSecret }}
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "wayli.supabaseSecretName" . }}
-                  key: {{ .Values.supabase.global.supabase.secretKeys.jwtSecret }}
+                  name: {{ include "wayli.fluxbaseSecretName" . }}
+                  key: {{ .Values.fluxbase.existingSecretKeyRef.jwtSecret }}
+            {{- /* Include worker-specific env vars in combined mode */}}
+            {{- if eq .Values.deploymentMode "combined" }}
+            - name: PELIAS_ENDPOINT
+              value: {{ .Values.worker.env.pelias.endpoint | quote }}
+            - name: MAX_CONCURRENT_JOBS
+              value: {{ .Values.worker.env.maxConcurrentJobs | default 3 | quote }}
+            - name: MAX_JOB_RETRIES
+              value: {{ .Values.worker.env.maxJobRetries | default 3 | quote }}
+            {{- end }}
             {{- if .Values.web.extraEnvVars }}
             {{- toYaml .Values.web.extraEnvVars | nindent 12 }}
             {{- end }}

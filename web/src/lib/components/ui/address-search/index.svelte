@@ -179,14 +179,14 @@
 		{required}
 		oninput={handleInput}
 		onkeydown={handleKeydown}
-		class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+		class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:ring-2 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
 	/>
 
 	{#if showClearButton && inputValue}
 		<button
 			type="button"
 			aria-label="Clear address"
-			class="absolute top-2 right-2 rounded p-1 text-gray-500 hover:bg-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-gray-300 dark:hover:bg-gray-700"
+			class="absolute top-2 right-2 rounded p-1 text-gray-500 hover:bg-gray-200 focus:ring-2 focus:ring-[rgb(34,51,95)] focus:outline-none dark:text-gray-300 dark:hover:bg-gray-700"
 			onclick={clearAddress}
 		>
 			✕

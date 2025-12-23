@@ -1,4 +1,10 @@
+<div align="center">
+<img src="logo-icon.svg" alt="Wayli Logo" width="128" height="128">
+
 # Wayli 🗺️
+</div>
+
+> ⚠️ **Pre-Release Software**: Wayli is currently in pre-release development (v0.x.x). The API and database schema may change between versions. Not recommended for production use until v1.0.0 release.
 
 **IMPORTANT NOTE:** I'm currently actively working on moving a way from Supabase to a different backend. There will not be a convenient upgrade path other than exporting and importing data again. Hold on for a bit before deploying Wayli at this moment. I can already tell the next release of Wayli is going to be _significantly_ better.
 
@@ -14,7 +20,7 @@
 
 [![SvelteKit](https://img.shields.io/badge/SvelteKit-FF3E00?logo=svelte&logoColor=white)](https://kit.svelte.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com/)
+[![Fluxbase](https://img.shields.io/badge/Fluxbase-3ECF8E?logoColor=white)](https://fluxbase.eu/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 
 Alright, so... Wayli is basically a privacy-first location analysis app. The whole thing is kind of a love letter to people who want to track their travels without selling their soul to big tech.
@@ -48,7 +54,7 @@ Alright, so... Wayli is basically a privacy-first location analysis app. The who
 ## The vibe-coded stack
 
 - **Frontend**: SvelteKit + TypeScript + Tailwind (because who doesn't love a good component framework)
-- **Backend**: Supabase doing the heavy lifting (PostgreSQL, auth, storage, the works)
+- **Backend**: Fluxbase doing the heavy lifting (PostgreSQL, auth, storage, realtime, the works)
 - **Architecture**: Got this whole layered thing going on - services, stores, API handlers, the full shebang. It's actually pretty well organized... for something mostly vibe-coded
 
 **Fun facts:**
@@ -154,7 +160,7 @@ Docker images are automatically tagged with:
 
 ## 📦 Deployment
 
-Wayli can be deployed using Docker Compose or Kubernetes (via Helm chart). Both deployment methods require Supabase configuration.
+Wayli can be deployed using Docker Compose or Kubernetes (via Helm chart). Both deployment methods use Fluxbase as the backend.
 
 **Choose your deployment method:**
 - **Docker Compose**: Perfect for development, testing, and small self-hosted installations

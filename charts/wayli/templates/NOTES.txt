@@ -23,6 +23,27 @@ Console/App URL:
   http://{{ .Values.ingress.hostname }}
   {{- end }}
 
+{{- else if .Values.gateway.enabled }}
+
+===================
+ACCESSING WAYLI
+===================
+
+Gateway API HTTPRoute configured:
+{{- range .Values.gateway.parentRefs }}
+{{- if .name }}
+  Gateway: {{ .name }}{{- if .namespace }} (namespace: {{ .namespace }}){{- end }}
+{{- end }}
+{{- end }}
+{{- if .Values.gateway.hostname }}
+  Hostname: {{ .Values.gateway.hostname }}
+{{- end }}
+
+Note: Ensure your Gateway resource has:
+  - A matching listener for your hostname(s)
+  - TLS termination configured (if HTTPS is required)
+  - Appropriate ReferenceGrant (if Gateway is in a different namespace)
+
 {{- else }}
 
 Wayli is not exposed via Ingress. To access it:
@@ -52,10 +73,10 @@ COMPONENTS DEPLOYED
 {{- end }}
 {{- end }}
 
-{{- if .Values.supabase.enabled }}
-✓ Supabase (subchart)
-{{- if .Values.supabase.db.pgbouncer.enabled }}
-  - PgBouncer enabled
+{{- if .Values.fluxbase.enabled }}
+✓ Fluxbase (subchart)
+{{- if .Values.fluxbase.postgresql.enabled }}
+  - PostgreSQL enabled
 {{- end }}
 {{- end }}
 
@@ -78,26 +99,26 @@ Describe deployments:
 CONFIGURATION
 ===================
 
-Supabase URL: {{ include "wayli.supabase.url" . }}
-Database: {{ include "wayli.supabase.dbHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ include "wayli.supabase.dbPort" . }}
+Fluxbase URL: {{ include "wayli.fluxbase.url" . }}
+Database: {{ include "wayli.fluxbase.dbHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ include "wayli.fluxbase.dbPort" . }}
 
-{{- if not .Values.supabase.global.supabase.existingSecret }}
+{{- if not .Values.fluxbase.existingSecret }}
 
 ⚠️  WARNING: Secrets are created from values.yaml
-    For production, use supabase.global.supabase.existingSecret to reference an external secret.
+    For production, use fluxbase.existingSecret to reference an external secret.
 {{- end }}
 
-{{- if and (not .Values.supabase.global.supabase.existingSecret) (not .Values.secrets.supabase.values.jwtSecret) }}
+{{- if and (not .Values.fluxbase.existingSecret) (not .Values.fluxbase.config.auth.jwt_secret) }}
 
 ⚠️  SECURITY WARNING: No JWT secret configured!
-    Set supabase.global.supabase.existingSecret or secrets.supabase.values.jwtSecret
+    Set fluxbase.existingSecret or fluxbase.config.auth.jwt_secret
 {{- end }}
 
 ===================
 NEXT STEPS
 ===================
 
-1. Configure your Supabase instance
+1. Configure your Fluxbase instance
 2. Set up DNS records for your ingress hostnames
 3. Configure TLS certificates (if using cert-manager)
 4. Monitor your deployment:

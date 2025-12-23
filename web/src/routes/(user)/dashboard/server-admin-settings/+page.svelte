@@ -11,20 +11,25 @@
 		ChevronRight,
 		X,
 		Mail,
-		Lock
+		Lock,
+		Bot,
+		Database,
+		RefreshCw
 	} from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
 	import RoleSelector from '$lib/components/RoleSelector.svelte';
+	import Switch from '$lib/components/ui/Switch.svelte';
 	import UserAvatar from '$lib/components/ui/UserAvatar.svelte';
 	import UserEditModal from '$lib/components/UserEditModal.svelte';
 	import { translate } from '$lib/i18n';
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
 	import { sessionStore } from '$lib/stores/auth';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import type { UserProfile } from '$lib/types/user.types';
+	import type { AdminSettingsResponse } from '$lib/types/settings.types';
 
 	import { browser } from '$app/environment';
 	import { invalidateAll } from '$app/navigation';
@@ -50,6 +55,59 @@
 	let userToDelete = $state<UserProfile | null>(null);
 	let searchTimeout: ReturnType<typeof setTimeout>;
 	let activeTab = $state('settings'); // Add tab state - default to settings tab
+
+	// Authentication Settings
+	let enableSignup = $state(false);
+	let enableMagicLink = $state(false);
+	let passwordMinLength = $state(8);
+	let requireEmailVerification = $state(false);
+	let requireUppercase = $state(false);
+	let requireLowercase = $state(false);
+	let requireNumber = $state(false);
+	let requireSpecial = $state(false);
+	let sessionTimeout = $state(15);
+	let maxSessions = $state(5);
+	let authReadOnly = $state(false);
+
+	// Email Settings
+	let emailEnabled = $state(false);
+	let emailProvider = $state('smtp');
+	let smtpHost = $state('');
+	let smtpPort = $state(587);
+	let smtpUsername = $state('');
+	let smtpPassword = $state('');
+	let smtpUseTls = $state(true);
+	let smtpFromAddress = $state('');
+	let smtpFromName = $state('Wayli');
+	let smtpReplyTo = $state('');
+	let emailReadOnly = $state(false);
+
+	// Feature Toggles
+	let enableRealtime = $state(true);
+	let enableStorage = $state(true);
+	let enableFunctions = $state(true);
+
+	// Security
+	let enableRateLimiting = $state(false);
+
+	// Database Maintenance
+	let isRefreshingPlaceVisits = $state(false);
+	let isSyncingPoiEmbeddings = $state(false);
+	let isSyncingTripEmbeddings = $state(false);
+
+	// AI Settings - provider-based model
+	let aiEnabled = $state(false);
+	let aiAllowUserOverride = $state(false);
+	let providerName = $state('openai-main');
+	let providerDisplayName = $state('OpenAI (Production)');
+	let providerType = $state('openai');
+	let providerModel = $state('gpt-4-turbo');
+	let providerApiKey = $state('');
+	let providerApiEndpoint = $state('');
+	let providerMaxTokens = $state(4096);
+	let providerTemperature = $state(0.7);
+	let providerIsDefault = $state(true);
+	let providerReadOnly = $state(false);
 
 	// Handle Escape key for modals
 	$effect(() => {
@@ -86,9 +144,6 @@
 
 	// Fetch initial data on mount
 	onMount(async () => {
-		// Set admin flag since this is an admin-only page
-		isAdmin = true;
-
 		// Debug: Show current user info
 		const session = $sessionStore;
 		if (session?.user) {
@@ -143,8 +198,7 @@
 				hasPrev: false
 			};
 
-			// Check if current user is admin (assuming admin users can access this page)
-			isAdmin = true;
+			// Admin check handled by layout - isAdmin initialized to true
 		} catch (error: any) {
 			console.error('Error fetching filtered users:', error);
 			const errorMessage = error?.message || error?.error || 'Failed to fetch users';
@@ -196,30 +250,220 @@
 		);
 	}
 
-	async function saveSettings() {
+	async function saveWayliSettings() {
 		try {
 			const session = $sessionStore;
 			if (!session) throw new Error('No session found');
 
-			const settings: any = {
-				server_name: serverName
-			};
+			const serviceAdapter = new ServiceAdapter({ session });
 
-			// Only include the Pexels API key if it's been provided
+			await serviceAdapter.updateCustomSetting(
+				'wayli.server_name',
+				serverName,
+				'Wayli server name for branding'
+			);
+
 			if (serverPexelsApiKey) {
-				settings.server_pexels_api_key = serverPexelsApiKey;
+				await serviceAdapter.updateCustomSetting(
+					'wayli.server_pexels_api_key',
+					serverPexelsApiKey,
+					'Server-level Pexels API key'
+				);
 			}
 
-			console.log('🔧 [ADMIN] Saving server settings:', { ...settings, server_pexels_api_key: settings.server_pexels_api_key ? '[REDACTED]' : undefined });
+			toast.success(t('serverAdmin.wayliSettingsSaved'));
+		} catch (error: any) {
+			console.error('❌ Failed to save Wayli settings:', error);
+			toast.error(t('serverAdmin.failedToUpdateSettings'), {
+				description: error?.message
+			});
+		}
+	}
+
+	async function saveAuthSettings() {
+		try {
+			const session = $sessionStore;
+			if (!session) throw new Error('No session found');
 
 			const serviceAdapter = new ServiceAdapter({ session });
-			await serviceAdapter.updateServerSettings(settings);
 
-			toast.success('Settings saved successfully');
+			// Update signup
+			await serviceAdapter.updateAppSetting(enableSignup ? 'enableSignup' : 'disableSignup');
+
+			// Update email verification
+			await serviceAdapter.updateAppSetting('setEmailVerificationRequired', {
+				required: requireEmailVerification
+			});
+
+			// Update password min length
+			await serviceAdapter.updateAppSetting('setPasswordMinLength', {
+				length: passwordMinLength
+			});
+
+			// Update password complexity
+			await serviceAdapter.updateAppSetting('setPasswordComplexity', {
+				require_uppercase: requireUppercase,
+				require_lowercase: requireLowercase,
+				require_number: requireNumber,
+				require_special: requireSpecial
+			});
+
+			toast.success(t('serverAdmin.authSettingsSaved'));
 		} catch (error: any) {
-			console.error('Error saving settings:', error);
-			const errorMessage = error?.message || error?.error || 'An unexpected error occurred.';
-			toast.error('Failed to save settings', { description: errorMessage });
+			console.error('❌ Failed to save auth settings:', error);
+			toast.error(t('serverAdmin.failedToUpdateSettings'), {
+				description: error?.message
+			});
+		}
+	}
+
+	async function saveEmailSettings() {
+		try {
+			const session = $sessionStore;
+			if (!session) throw new Error('No session found');
+
+			const serviceAdapter = new ServiceAdapter({ session });
+
+			// Update email enabled
+			await serviceAdapter.updateAppSetting('setEmailEnabled', {
+				enabled: emailEnabled
+			});
+
+			// Configure SMTP if enabled and provider is smtp
+			if (emailEnabled && emailProvider === 'smtp') {
+				await serviceAdapter.updateAppSetting('configureSMTP', {
+					host: smtpHost,
+					port: smtpPort,
+					username: smtpUsername,
+					password: smtpPassword,
+					use_tls: smtpUseTls,
+					from_address: smtpFromAddress,
+					from_name: smtpFromName,
+					reply_to_address: smtpReplyTo || undefined
+				});
+			}
+
+			toast.success(t('serverAdmin.emailSettingsSaved'));
+		} catch (error: any) {
+			console.error('❌ Failed to save email settings:', error);
+			toast.error(t('serverAdmin.failedToUpdateSettings'), {
+				description: error?.message
+			});
+		}
+	}
+
+	async function saveAISettings() {
+		try {
+			const session = $sessionStore;
+			if (!session) throw new Error('No session found');
+
+			const serviceAdapter = new ServiceAdapter({ session });
+
+			await serviceAdapter.updateAppSetting('setAIConfig', {
+				enabled: aiEnabled,
+				allow_user_provider_override: aiAllowUserOverride,
+				provider: aiEnabled
+					? {
+							name: providerName,
+							display_name: providerDisplayName,
+							provider_type: providerType,
+							is_default: providerIsDefault,
+							config: {
+								api_key: providerApiKey || undefined,
+								model: providerModel,
+								api_endpoint: providerApiEndpoint || undefined,
+								max_tokens: providerMaxTokens,
+								temperature: providerTemperature
+							}
+						}
+					: undefined
+			});
+
+			toast.success(t('serverAdmin.aiSettingsSaved'));
+
+			// Reload settings to get updated provider list
+			await loadAllSettings();
+		} catch (error: any) {
+			console.error('❌ Failed to save AI settings:', error);
+			toast.error(t('serverAdmin.failedToUpdateSettings'), {
+				description: error?.message
+			});
+		}
+	}
+
+	async function refreshPlaceVisits() {
+		if (isRefreshingPlaceVisits) return;
+
+		isRefreshingPlaceVisits = true;
+		try {
+			// Submit the refresh-place-visits job which has service_role access to the RPC
+			const { error } = await fluxbase.jobs.submit(
+				'refresh-place-visits',
+				{},
+				{
+					namespace: 'wayli',
+					priority: 5
+				}
+			);
+			if (error) throw error;
+			toast.success(t('serverAdmin.refreshPlaceVisitsQueued'));
+		} catch (error: any) {
+			console.error('❌ Failed to refresh place visits:', error);
+			toast.error(t('serverAdmin.refreshPlaceVisitsFailed'), {
+				description: error?.message
+			});
+		} finally {
+			isRefreshingPlaceVisits = false;
+		}
+	}
+
+	async function syncPoiEmbeddingsForAllUsers() {
+		if (isSyncingPoiEmbeddings) return;
+
+		isSyncingPoiEmbeddings = true;
+		try {
+			const { error } = await fluxbase.jobs.submit(
+				'scheduled-refresh-place-visits',
+				{},
+				{
+					namespace: 'wayli',
+					priority: 5
+				}
+			);
+			if (error) throw error;
+			toast.success(t('serverAdmin.syncPoiEmbeddingsQueued'));
+		} catch (error: any) {
+			console.error('❌ Failed to sync POI embeddings:', error);
+			toast.error(t('serverAdmin.syncPoiEmbeddingsFailed'), {
+				description: error?.message
+			});
+		} finally {
+			isSyncingPoiEmbeddings = false;
+		}
+	}
+
+	async function syncTripEmbeddingsForAllUsers() {
+		if (isSyncingTripEmbeddings) return;
+
+		isSyncingTripEmbeddings = true;
+		try {
+			const { error } = await fluxbase.jobs.submit(
+				'scheduled-sync-trip-embeddings',
+				{},
+				{
+					namespace: 'wayli',
+					priority: 5
+				}
+			);
+			if (error) throw error;
+			toast.success(t('serverAdmin.syncTripEmbeddingsQueued'));
+		} catch (error: any) {
+			console.error('❌ Failed to sync trip embeddings:', error);
+			toast.error(t('serverAdmin.syncTripEmbeddingsFailed'), {
+				description: error?.message
+			});
+		} finally {
+			isSyncingTripEmbeddings = false;
 		}
 	}
 
@@ -303,7 +547,7 @@
 		const updatedUser = event.detail;
 
 		try {
-			const { data, error } = await supabase.functions.invoke('admin-users', {
+			const { data, error } = await fluxbase.functions.invoke('admin-users', {
 				method: 'POST',
 				body: {
 					action: 'updateUser',
@@ -331,43 +575,94 @@
 			}
 		} catch (error: any) {
 			console.error('Error updating user:', error);
-			const errorDescription = error?.message || error?.error || t('serverAdmin.failedToUpdateUser');
+			const errorDescription =
+				error?.message || error?.error || t('serverAdmin.failedToUpdateUser');
 			toast.error(t('serverAdmin.failedToUpdateUser'), {
 				description: errorDescription
 			});
 		}
 	}
 
-	async function loadServerSettings() {
+	async function loadAllSettings() {
 		try {
 			const session = $sessionStore;
 			if (!session) return;
 
 			const serviceAdapter = new ServiceAdapter({ session });
-			const result = (await serviceAdapter.getServerSettings()) as any;
+			const result: AdminSettingsResponse = await serviceAdapter.getAllSettings();
 
-			// Edge Functions return { success: true, data: ... }
-			const settings = result.data || result;
+			// App settings - result is already typed correctly
+			const { app, custom } = result;
 
-			console.log('🔧 [ADMIN] Loaded server settings:', settings);
+			// Authentication
+			enableSignup = app.authentication.enable_signup;
+			enableMagicLink = app.authentication.enable_magic_link;
+			passwordMinLength = app.authentication.password_min_length;
+			requireEmailVerification = app.authentication.require_email_verification;
+			authReadOnly = app.authentication.read_only ?? false;
 
-			serverName = settings.server_name || '';
-			serverPexelsApiKey = settings.server_pexels_api_key || '';
+			// Email
+			emailEnabled = app.email.enabled;
+			emailProvider = app.email.provider;
+			emailReadOnly = app.email.read_only ?? false;
 
-			console.log('🔧 [ADMIN] Processed settings:', {
-				serverName,
-				hasPexelsKey: !!settings.server_pexels_api_key
-			});
+			// Load SMTP configuration if available
+			if (app.email.smtp) {
+				smtpHost = app.email.smtp.host ?? '';
+				smtpPort = app.email.smtp.port ?? 587;
+				smtpUsername = app.email.smtp.username ?? '';
+				smtpUseTls = app.email.smtp.use_tls ?? true;
+				smtpFromAddress = app.email.smtp.from_address ?? '';
+				smtpFromName = app.email.smtp.from_name ?? 'Wayli';
+				smtpReplyTo = app.email.smtp.reply_to_address ?? '';
+				// Note: SMTP password is not returned for security reasons
+			}
+
+			// Features
+			enableRealtime = app.features.enable_realtime;
+			enableStorage = app.features.enable_storage;
+			enableFunctions = app.features.enable_functions;
+
+			// Security
+			enableRateLimiting = app.security.enable_global_rate_limit;
+
+			// AI Settings - load from provider-based model
+			if (app.ai) {
+				aiEnabled = app.ai.enabled ?? false;
+				aiAllowUserOverride = app.ai.allow_user_provider_override ?? false;
+
+				// Load default provider into form if available
+				const defaultProvider = app.ai.default_provider;
+				if (defaultProvider) {
+					providerName = defaultProvider.name ?? 'openai-main';
+					providerDisplayName = defaultProvider.display_name ?? 'OpenAI (Production)';
+					providerType = defaultProvider.provider_type ?? 'openai';
+					providerModel = defaultProvider.config?.model ?? 'gpt-4-turbo';
+					providerApiEndpoint = defaultProvider.config?.api_endpoint ?? '';
+					providerMaxTokens = defaultProvider.config?.max_tokens ?? 4096;
+					providerTemperature = defaultProvider.config?.temperature ?? 0.7;
+					providerIsDefault = defaultProvider.is_default ?? true;
+					providerReadOnly = defaultProvider.read_only ?? false;
+					// Note: API key is not returned for security reasons
+				}
+			}
+
+			// Custom Wayli settings
+			serverName = custom['wayli.server_name']?.value || '';
+			serverPexelsApiKey = custom['wayli.server_pexels_api_key']?.value || '';
+
+			console.log('✅ Settings loaded successfully');
 		} catch (error: any) {
-			console.error('Error loading server settings:', error);
-			const errorMessage = error?.message || error?.error || 'Failed to load server settings';
-			toast.error('Failed to load server settings', { description: errorMessage });
+			console.error('❌ Failed to load settings:', error);
+			toast.error(t('serverAdmin.failedToLoadSettings'), {
+				description: error?.message || 'Unknown error'
+			});
 		}
 	}
 
 	onMount(() => {
-		// Load server settings when component mounts
-		loadServerSettings();
+		// Load all settings when component mounts
+		loadAllSettings();
 	});
 
 	// Add User Modal State
@@ -378,8 +673,8 @@
 	let newUserConfirmPassword = $state('');
 	let newUserRole = $state<'admin' | 'user'>('user');
 
-	// Admin state
-	let isAdmin = $state(false);
+	// Admin state - initialized to true since layout already protects this route
+	let isAdmin = $state(true);
 
 	function handleCloseAddUserModal() {
 		showAddUserModal = false;
@@ -408,7 +703,7 @@
 		}
 
 		try {
-			const { data, error } = await supabase.functions.invoke('admin-users', {
+			const { data, error } = await fluxbase.functions.invoke('admin-users', {
 				method: 'POST',
 				body: {
 					action: 'addUser',
@@ -504,12 +799,12 @@
 							>First Name *</label
 						>
 						<div class="relative">
-							<UserIcon class="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 text-gray-400" />
+							<UserIcon class="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
 							<input
 								type="text"
 								id="newUserFirstName"
 								bind:value={newUserFirstName}
-								class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-500"
+								class="focus:border-primary focus:ring-primary dark:focus:border-primary dark:focus:ring-primary w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pl-10 pr-4 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 								placeholder="e.g. Jane"
 								required
 							/>
@@ -523,12 +818,12 @@
 							>Last Name *</label
 						>
 						<div class="relative">
-							<UserIcon class="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 text-gray-400" />
+							<UserIcon class="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
 							<input
 								type="text"
 								id="newUserLastName"
 								bind:value={newUserLastName}
-								class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-500"
+								class="focus:border-primary focus:ring-primary dark:focus:border-primary dark:focus:ring-primary w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pl-10 pr-4 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 								placeholder="e.g. Doe"
 								required
 							/>
@@ -543,12 +838,12 @@
 						>Email Address *</label
 					>
 					<div class="relative">
-						<Mail class="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 text-gray-400" />
+						<Mail class="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
 						<input
 							type="email"
 							id="newUserEmail"
 							bind:value={newUserEmail}
-							class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-500"
+							class="focus:border-primary focus:ring-primary dark:focus:border-primary dark:focus:ring-primary w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pl-10 pr-4 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 							placeholder="e.g. jane.doe@example.com"
 							required
 						/>
@@ -563,12 +858,12 @@
 							>Password *</label
 						>
 						<div class="relative">
-							<Lock class="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 text-gray-400" />
+							<Lock class="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
 							<input
 								type="password"
 								id="newUserPassword"
 								bind:value={newUserPassword}
-								class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-500"
+								class="focus:border-primary focus:ring-primary dark:focus:border-primary dark:focus:ring-primary w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pl-10 pr-4 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 								placeholder="Min. 6 characters"
 								required
 							/>
@@ -582,12 +877,12 @@
 							>Confirm Password *</label
 						>
 						<div class="relative">
-							<Lock class="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 text-gray-400" />
+							<Lock class="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
 							<input
 								type="password"
 								id="newUserConfirmPassword"
 								bind:value={newUserConfirmPassword}
-								class="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pr-4 pl-10 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-500"
+								class="focus:border-primary focus:ring-primary dark:focus:border-primary dark:focus:ring-primary w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pl-10 pr-4 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 								placeholder="Confirm password"
 								required
 							/>
@@ -611,7 +906,7 @@
 				</button>
 				<button
 					onclick={handleAddUser}
-					class="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+					class="bg-primary hover:bg-primary/90 rounded-lg px-5 py-2.5 text-sm font-medium text-white"
 				>
 					Add User
 				</button>
@@ -699,7 +994,7 @@
 		<!-- Header -->
 		<div class="mb-8">
 			<div class="flex items-center gap-3">
-				<Settings class="h-7 w-7 text-[rgb(37,140,244)]" />
+				<Settings class="text-primary dark:text-primary-dark h-7 w-7" />
 				<h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
 					{t('serverAdmin.title')}
 				</h1>
@@ -711,7 +1006,7 @@
 			<nav class="-mb-px flex space-x-8">
 				<button
 					class="cursor-pointer border-b-2 px-1 py-2 text-sm font-medium {activeTab === 'settings'
-						? 'border-[rgb(37,140,244)] text-[rgb(37,140,244)]'
+						? 'border-primary text-primary dark:border-primary-dark dark:text-primary-dark'
 						: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
 					onclick={() => (activeTab = 'settings')}
 				>
@@ -722,7 +1017,7 @@
 				</button>
 				<button
 					class="cursor-pointer border-b-2 px-1 py-2 text-sm font-medium {activeTab === 'users'
-						? 'border-[rgb(37,140,244)] text-[rgb(37,140,244)]'
+						? 'border-primary text-primary dark:border-primary-dark dark:text-primary-dark'
 						: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
 					onclick={() => (activeTab = 'users')}
 				>
@@ -752,12 +1047,12 @@
 				<div class="mb-6 flex items-center justify-between">
 					<div class="flex items-center gap-2">
 						<div class="relative">
-							<Search class="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+							<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
 							<input
 								type="text"
 								bind:value={searchQuery}
 								placeholder="Search users..."
-								class="w-64 rounded-md border border-[rgb(218,218,221)] bg-white py-2 pr-4 pl-9 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-500"
+								class="focus:border-primary focus:ring-primary w-64 rounded-md border border-[rgb(218,218,221)] bg-white py-2 pl-9 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-500"
 								oninput={handleSearchInput}
 							/>
 						</div>
@@ -765,7 +1060,7 @@
 						<select
 							bind:value={itemsPerPage}
 							onchange={handleItemsPerPageChange}
-							class="rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
+							class="focus:border-primary focus:ring-primary rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
 						>
 							<option value={5}>5 per page</option>
 							<option value={10}>10 per page</option>
@@ -774,7 +1069,7 @@
 						</select>
 					</div>
 					<button
-						class="flex cursor-pointer items-center gap-2 rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(37,140,244)]/90"
+						class="bg-primary hover:bg-primary/90 flex cursor-pointer items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white"
 						onclick={() => (showAddUserModal = true)}
 					>
 						<UserPlus class="h-4 w-4" />
@@ -803,25 +1098,25 @@
 								<tr>
 									<th
 										scope="col"
-										class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-300"
+										class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
 									>
 										User
 									</th>
 									<th
 										scope="col"
-										class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-300"
+										class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
 									>
 										Role
 									</th>
 									<th
 										scope="col"
-										class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-300"
+										class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
 									>
 										Created
 									</th>
 									<th
 										scope="col"
-										class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-300"
+										class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
 									>
 										Status
 									</th>
@@ -835,7 +1130,7 @@
 							>
 								{#each users as user (user.id)}
 									<tr>
-										<td class="px-6 py-4 whitespace-nowrap">
+										<td class="whitespace-nowrap px-6 py-4">
 											<div class="flex items-center gap-3">
 												<UserAvatar {user} size="lg" />
 												<div>
@@ -846,9 +1141,9 @@
 												</div>
 											</div>
 										</td>
-										<td class="px-6 py-4 whitespace-nowrap">
+										<td class="whitespace-nowrap px-6 py-4">
 											<span
-												class="inline-flex rounded-full px-2 text-xs leading-5 font-semibold {user.role ===
+												class="inline-flex rounded-full px-2 text-xs font-semibold leading-5 {user.role ===
 												'admin'
 													? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
 													: 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'}"
@@ -857,16 +1152,16 @@
 											</span>
 										</td>
 										<td
-											class="px-6 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400"
+											class="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400"
 										>
 											{formatDate(user.created_at)}
 										</td>
 										<td
-											class="px-6 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400"
+											class="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400"
 										>
 											Active
 										</td>
-										<td class="px-6 py-4 text-right text-sm font-medium whitespace-nowrap">
+										<td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
 											<div class="flex items-center justify-end gap-2">
 												<button
 													class="cursor-pointer rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
@@ -920,7 +1215,7 @@
 												onclick={() => goToPage(pageNum)}
 												class="relative inline-flex items-center rounded-md px-3 py-2 text-sm font-medium {pageNum ===
 												currentPage
-													? 'bg-[rgb(37,140,244)] text-white'
+													? 'bg-primary text-white'
 													: 'text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700'}"
 											>
 												{pageNum}
@@ -948,152 +1243,639 @@
 		<!-- Settings Tab -->
 		{#if activeTab === 'settings'}
 			<div class="space-y-8">
-				<!-- Server Settings -->
+				<!-- Wayli Settings -->
 				<div
 					class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]"
 				>
 					<div class="mb-4">
 						<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
-							{t('serverAdmin.serverSettings')}
+							{t('serverAdmin.wayliSettings')}
 						</h2>
 						<p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
-							{t('serverAdmin.serverSettingsDescription')}
+							{t('serverAdmin.wayliSettingsDescription')}
 						</p>
 					</div>
 
-					<div class="space-y-6">
-						<!-- Server Name -->
+					<div class="space-y-4">
 						<div>
 							<label
 								for="serverName"
 								class="block text-sm font-medium text-gray-700 dark:text-gray-300"
-								>{t('serverAdmin.serverName')}</label
 							>
-							<div class="mt-1">
-								<input
-									type="text"
-									id="serverName"
-									bind:value={serverName}
-									class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-500"
-									placeholder="Enter server name"
-								/>
-							</div>
+								{t('serverAdmin.serverName')}
+							</label>
+							<input
+								type="text"
+								id="serverName"
+								bind:value={serverName}
+								class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
+								placeholder={t('serverAdmin.enterServerName')}
+							/>
 						</div>
 
-						<!-- Server-level Pexels API Key -->
 						<div>
 							<label
 								for="serverPexelsApiKey"
 								class="block text-sm font-medium text-gray-700 dark:text-gray-300"
-								>Server Pexels API Key</label
 							>
-							<div class="mt-1">
-								<input
-									type="text"
-									id="serverPexelsApiKey"
-									bind:value={serverPexelsApiKey}
-									class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-500"
-									placeholder="Enter Pexels API key (optional)"
-								/>
+								{t('serverAdmin.serverPexelsKey')}
+							</label>
+							<input
+								type="text"
+								id="serverPexelsApiKey"
+								bind:value={serverPexelsApiKey}
+								class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
+							/>
+							<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+								{t('serverAdmin.serverPexelsKeyDescription')}
+							</p>
+						</div>
+
+						<div class="flex justify-end">
+							<button
+								onclick={saveWayliSettings}
+								class="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium text-white"
+							>
+								{t('serverAdmin.saveSettings')}
+							</button>
+						</div>
+					</div>
+				</div>
+
+				<!-- Authentication Settings -->
+				<div
+					class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]"
+				>
+					<div class="mb-4">
+						<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
+							{t('serverAdmin.authenticationSettings')}
+						</h2>
+						<p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
+							{t('serverAdmin.authSettingsDescription')}
+						</p>
+					</div>
+
+					<div class="space-y-4">
+						{#if authReadOnly}
+							<div
+								class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20"
+							>
+								<Lock class="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+								<div>
+									<span class="text-sm font-medium text-amber-800 dark:text-amber-200">
+										{t('serverAdmin.authSettingsReadOnly')}
+									</span>
+									<p class="text-xs text-amber-700 dark:text-amber-300">
+										{t('serverAdmin.authSettingsReadOnlyDescription')}
+									</p>
+								</div>
 							</div>
-							<p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-								Provide a server-level Pexels API key for trip image suggestions. Users without their own API key will fall back to this server key. Free tier: 200 requests/hour. <a href="https://www.pexels.com/api/" target="_blank" rel="noopener noreferrer" class="text-[rgb(37,140,244)] hover:underline">Get an API key</a>
+						{/if}
+
+						<div class="flex items-center justify-between">
+							<span class="text-sm text-gray-700 dark:text-gray-300">
+								{t('serverAdmin.enableSignup')}
+							</span>
+							<Switch
+								bind:checked={enableSignup}
+								label={t('serverAdmin.enableSignup')}
+								disabled={authReadOnly}
+							/>
+						</div>
+
+						<div class="flex items-center justify-between">
+							<span class="text-sm text-gray-700 dark:text-gray-300">
+								{t('serverAdmin.requireEmailVerification')}
+							</span>
+							<Switch
+								bind:checked={requireEmailVerification}
+								label={t('serverAdmin.requireEmailVerification')}
+								disabled={authReadOnly}
+							/>
+						</div>
+
+						<div>
+							<label
+								for="passwordMinLength"
+								class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+							>
+								{t('serverAdmin.passwordMinLength')}
+							</label>
+							<input
+								type="number"
+								id="passwordMinLength"
+								bind:value={passwordMinLength}
+								disabled={authReadOnly}
+								min="8"
+								max="128"
+								class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+							/>
+						</div>
+
+						{#if !authReadOnly}
+							<div class="flex justify-end">
+								<button
+									onclick={saveAuthSettings}
+									class="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium text-white"
+								>
+									{t('serverAdmin.saveSettings')}
+								</button>
+							</div>
+						{/if}
+					</div>
+				</div>
+
+				<!-- Email & SMTP Settings -->
+				<div
+					class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]"
+				>
+					<div class="mb-4">
+						<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
+							{t('serverAdmin.emailSettings')}
+						</h2>
+						<p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
+							{t('serverAdmin.emailSettingsDescription')}
+						</p>
+					</div>
+
+					<div class="space-y-4">
+						{#if emailReadOnly}
+							<div
+								class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20"
+							>
+								<Lock class="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+								<div>
+									<span class="text-sm font-medium text-amber-800 dark:text-amber-200">
+										{t('serverAdmin.emailSettingsReadOnly')}
+									</span>
+									<p class="text-xs text-amber-700 dark:text-amber-300">
+										{t('serverAdmin.emailSettingsReadOnlyDescription')}
+									</p>
+								</div>
+							</div>
+						{/if}
+
+						<div class="flex items-center justify-between">
+							<span class="text-sm text-gray-700 dark:text-gray-300">
+								{t('serverAdmin.emailEnabled')}
+							</span>
+							<Switch
+								bind:checked={emailEnabled}
+								label={t('serverAdmin.emailEnabled')}
+								disabled={emailReadOnly}
+							/>
+						</div>
+
+						{#if emailEnabled}
+							<div
+								class="space-y-3 rounded border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800"
+							>
+								<h3 class="font-medium text-gray-900 dark:text-gray-100">
+									{t('serverAdmin.smtpConfiguration')}
+								</h3>
+
+								<div class="grid grid-cols-2 gap-4">
+									<div>
+										<label
+											for="smtpHost"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
+											{t('serverAdmin.smtpHost')}
+										</label>
+										<input
+											id="smtpHost"
+											type="text"
+											bind:value={smtpHost}
+											disabled={emailReadOnly}
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+											placeholder={t('serverAdmin.smtpHostPlaceholder')}
+										/>
+									</div>
+
+									<div>
+										<label
+											for="smtpPort"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
+											{t('serverAdmin.smtpPort')}
+										</label>
+										<input
+											id="smtpPort"
+											type="number"
+											bind:value={smtpPort}
+											disabled={emailReadOnly}
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+											placeholder={t('serverAdmin.smtpPortPlaceholder')}
+										/>
+									</div>
+								</div>
+
+								<div>
+									<label
+										for="smtpUsername"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
+										{t('serverAdmin.smtpUsername')}
+									</label>
+									<input
+										id="smtpUsername"
+										type="text"
+										bind:value={smtpUsername}
+										disabled={emailReadOnly}
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+										placeholder={t('serverAdmin.smtpUsernamePlaceholder')}
+									/>
+								</div>
+
+								<div>
+									<label
+										for="smtpPassword"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
+										{t('serverAdmin.smtpPassword')}
+									</label>
+									<input
+										id="smtpPassword"
+										type="password"
+										bind:value={smtpPassword}
+										disabled={emailReadOnly}
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+										placeholder={t('serverAdmin.smtpPasswordPlaceholder')}
+									/>
+								</div>
+
+								<div class="flex items-center justify-between">
+									<span class="text-sm text-gray-700 dark:text-gray-300">
+										{t('serverAdmin.smtpUseTls')}
+									</span>
+									<Switch
+										bind:checked={smtpUseTls}
+										label={t('serverAdmin.smtpUseTls')}
+										disabled={emailReadOnly}
+									/>
+								</div>
+
+								<div>
+									<label
+										for="smtpFromAddress"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
+										{t('serverAdmin.smtpFromAddress')}
+									</label>
+									<input
+										id="smtpFromAddress"
+										type="email"
+										bind:value={smtpFromAddress}
+										disabled={emailReadOnly}
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+										placeholder={t('serverAdmin.smtpFromAddressPlaceholder')}
+									/>
+								</div>
+
+								<div>
+									<label
+										for="smtpFromName"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
+										{t('serverAdmin.smtpFromName')}
+									</label>
+									<input
+										id="smtpFromName"
+										type="text"
+										bind:value={smtpFromName}
+										disabled={emailReadOnly}
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+										placeholder={t('serverAdmin.smtpFromNamePlaceholder')}
+									/>
+								</div>
+							</div>
+						{/if}
+
+						{#if !emailReadOnly}
+							<div class="flex justify-end">
+								<button
+									onclick={saveEmailSettings}
+									class="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium text-white"
+								>
+									{t('serverAdmin.saveSettings')}
+								</button>
+							</div>
+						{/if}
+					</div>
+				</div>
+
+				<!-- Database Maintenance -->
+				<div
+					class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]"
+				>
+					<div class="mb-4 flex items-center gap-3">
+						<Database class="h-6 w-6 text-emerald-500" />
+						<div>
+							<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
+								{t('serverAdmin.databaseMaintenance')}
+							</h2>
+							<p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
+								{t('serverAdmin.databaseMaintenanceDescription')}
 							</p>
 						</div>
 					</div>
 
-					<!-- Supabase Auth Configuration (Read-only) -->
-					<div>
-						<h3 class="mb-3 text-sm font-medium text-gray-900 dark:text-gray-100">
-							{t('serverAdmin.supabaseAuthConfig')}
-						</h3>
-						<p class="mb-4 text-xs text-gray-600 dark:text-gray-400">
-							{t('serverAdmin.supabaseAuthConfigDescription')}
-						</p>
-
-						<div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-							<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-								<thead class="bg-gray-50 dark:bg-gray-800">
-									<tr>
-										<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-											{t('serverAdmin.setting')}
-										</th>
-										<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-											{t('serverAdmin.helmChart')}
-										</th>
-										<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-											{t('serverAdmin.dockerCompose')}
-										</th>
-									</tr>
-								</thead>
-								<tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
-									<!-- Admin Email -->
-									<tr>
-										<td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
-											{t('serverAdmin.adminEmail')}
-										</td>
-										<td class="px-4 py-3 text-xs">
-											<code class="rounded bg-gray-100 px-2 py-1 font-mono text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-												supabase.auth.smtp.adminEmail
-											</code>
-										</td>
-										<td class="px-4 py-3 text-xs">
-											<code class="rounded bg-gray-100 px-2 py-1 font-mono text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-												GOTRUE_SMTP_ADMIN_EMAIL
-											</code>
-										</td>
-									</tr>
-									<!-- User Registration -->
-									<tr>
-										<td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
-											{t('serverAdmin.allowNewUserRegistration')}
-										</td>
-										<td class="px-4 py-3 text-xs">
-											<code class="rounded bg-gray-100 px-2 py-1 font-mono text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-												supabase.auth.enableSignup
-											</code>
-										</td>
-										<td class="px-4 py-3 text-xs">
-											<code class="rounded bg-gray-100 px-2 py-1 font-mono text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-												GOTRUE_DISABLE_SIGNUP
-											</code>
-										</td>
-									</tr>
-									<!-- Email Verification -->
-									<tr>
-										<td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
-											{t('serverAdmin.emailVerification')}
-										</td>
-										<td class="px-4 py-3 text-xs">
-											<code class="rounded bg-gray-100 px-2 py-1 font-mono text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-												supabase.auth.enableEmailAutoconfirm
-											</code>
-										</td>
-										<td class="px-4 py-3 text-xs">
-											<code class="rounded bg-gray-100 px-2 py-1 font-mono text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-												GOTRUE_MAILER_AUTOCONFIRM
-											</code>
-										</td>
-									</tr>
-								</tbody>
-							</table>
+					<div class="space-y-4">
+						<div class="flex items-center justify-between">
+							<div>
+								<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+									{t('serverAdmin.refreshPlaceVisits')}
+								</span>
+								<p class="text-xs text-gray-500 dark:text-gray-400">
+									{t('serverAdmin.refreshPlaceVisitsDescription')}
+								</p>
+							</div>
+							<button
+								onclick={refreshPlaceVisits}
+								disabled={isRefreshingPlaceVisits}
+								class="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								<RefreshCw class={`h-4 w-4 ${isRefreshingPlaceVisits ? 'animate-spin' : ''}`} />
+								{isRefreshingPlaceVisits ? t('serverAdmin.refreshing') : t('serverAdmin.refresh')}
+							</button>
 						</div>
-						<p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
-							💡 {t('serverAdmin.restartAfterChange')}
-						</p>
+
+						<div class="flex items-center justify-between">
+							<div>
+								<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+									{t('serverAdmin.syncPoiEmbeddings')}
+								</span>
+								<p class="text-xs text-gray-500 dark:text-gray-400">
+									{t('serverAdmin.syncPoiEmbeddingsDescription')}
+								</p>
+							</div>
+							<button
+								onclick={syncPoiEmbeddingsForAllUsers}
+								disabled={isSyncingPoiEmbeddings}
+								class="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								<RefreshCw class={`h-4 w-4 ${isSyncingPoiEmbeddings ? 'animate-spin' : ''}`} />
+								{isSyncingPoiEmbeddings ? t('serverAdmin.syncing') : t('serverAdmin.sync')}
+							</button>
+						</div>
+
+						<div class="flex items-center justify-between">
+							<div>
+								<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+									{t('serverAdmin.syncTripEmbeddings')}
+								</span>
+								<p class="text-xs text-gray-500 dark:text-gray-400">
+									{t('serverAdmin.syncTripEmbeddingsDescription')}
+								</p>
+							</div>
+							<button
+								onclick={syncTripEmbeddingsForAllUsers}
+								disabled={isSyncingTripEmbeddings}
+								class="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								<RefreshCw class={`h-4 w-4 ${isSyncingTripEmbeddings ? 'animate-spin' : ''}`} />
+								{isSyncingTripEmbeddings ? t('serverAdmin.syncing') : t('serverAdmin.sync')}
+							</button>
+						</div>
+					</div>
+				</div>
+
+				<!-- AI Settings -->
+				<div
+					class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]"
+				>
+					<div class="mb-4 flex items-center gap-3">
+						<Bot class="h-6 w-6 text-purple-500" />
+						<div>
+							<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
+								{t('serverAdmin.aiSettings')}
+							</h2>
+							<p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
+								{t('serverAdmin.aiSettingsDescription')}
+							</p>
+						</div>
 					</div>
 
-				<!-- Save Button -->
-				<div class="mt-6 flex justify-end">
-					<button
-						onclick={saveSettings}
-						class="rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(37,140,244)]/90"
-					>
-						{t('serverAdmin.saveSettings')}
-					</button>
+					<div class="space-y-4">
+						{#if providerReadOnly}
+							<div
+								class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20"
+							>
+								<Lock class="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+								<div>
+									<span class="text-sm font-medium text-amber-800 dark:text-amber-200">
+										{t('serverAdmin.aiProviderReadOnly')}
+									</span>
+									<p class="text-xs text-amber-700 dark:text-amber-300">
+										{t('serverAdmin.aiProviderReadOnlyDescription')}
+									</p>
+								</div>
+							</div>
+						{/if}
+
+						<div class="flex items-center justify-between">
+							<div>
+								<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+									{t('serverAdmin.aiEnabled')}
+								</span>
+								<p class="text-xs text-gray-500 dark:text-gray-400">
+									{t('serverAdmin.aiEnabledDescription')}
+								</p>
+							</div>
+							<Switch
+								bind:checked={aiEnabled}
+								label={t('serverAdmin.aiEnabled')}
+								disabled={providerReadOnly}
+							/>
+						</div>
+
+						{#if aiEnabled}
+							<div class="flex items-center justify-between">
+								<div>
+									<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+										{t('serverAdmin.allowUserOverride')}
+									</span>
+									<p class="text-xs text-gray-500 dark:text-gray-400">
+										{t('serverAdmin.allowUserOverrideDescription')}
+									</p>
+								</div>
+								<Switch
+									bind:checked={aiAllowUserOverride}
+									label={t('serverAdmin.allowUserOverride')}
+									disabled={providerReadOnly}
+								/>
+							</div>
+
+							<div
+								class="space-y-3 rounded border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800"
+							>
+								<div class="grid grid-cols-2 gap-4">
+									<div>
+										<label
+											for="providerName"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
+											{t('serverAdmin.aiProviderName')}
+										</label>
+										<input
+											id="providerName"
+											type="text"
+											bind:value={providerName}
+											disabled={providerReadOnly}
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+											placeholder={t('serverAdmin.aiProviderNamePlaceholder')}
+										/>
+									</div>
+									<div>
+										<label
+											for="providerDisplayName"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
+											{t('serverAdmin.aiDisplayName')}
+										</label>
+										<input
+											id="providerDisplayName"
+											type="text"
+											bind:value={providerDisplayName}
+											disabled={providerReadOnly}
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+											placeholder={t('serverAdmin.aiDisplayNamePlaceholder')}
+										/>
+									</div>
+								</div>
+
+								<div>
+									<label
+										for="providerType"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
+										{t('serverAdmin.aiProvider')}
+									</label>
+									<select
+										id="providerType"
+										bind:value={providerType}
+										disabled={providerReadOnly}
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+									>
+										<option value="openai">{t('serverAdmin.aiProviders.openai')}</option>
+										<option value="azure">{t('serverAdmin.aiProviders.azure')}</option>
+										<option value="ollama">{t('serverAdmin.aiProviders.ollama')}</option>
+									</select>
+								</div>
+
+								<div>
+									<label
+										for="providerModel"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
+										{t('serverAdmin.aiModel')}
+									</label>
+									<input
+										id="providerModel"
+										type="text"
+										bind:value={providerModel}
+										disabled={providerReadOnly}
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+										placeholder="gpt-4-turbo"
+									/>
+									<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+										{t('serverAdmin.aiModelDescription')}
+									</p>
+								</div>
+
+								<div>
+									<label
+										for="providerApiKey"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
+										{t('serverAdmin.aiApiKey')}
+									</label>
+									<input
+										id="providerApiKey"
+										type="password"
+										bind:value={providerApiKey}
+										disabled={providerReadOnly}
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+										placeholder={t('serverAdmin.aiApiKeyPlaceholder')}
+									/>
+								</div>
+
+								{#if providerType === 'ollama' || providerType === 'azure' || providerType === 'custom'}
+									<div>
+										<label
+											for="providerApiEndpoint"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
+											{t('serverAdmin.aiApiEndpoint')}
+										</label>
+										<input
+											id="providerApiEndpoint"
+											type="text"
+											bind:value={providerApiEndpoint}
+											disabled={providerReadOnly}
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+											placeholder={t('serverAdmin.aiApiEndpointPlaceholder')}
+										/>
+										<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+											{t('serverAdmin.aiApiEndpointDescription')}
+										</p>
+									</div>
+								{/if}
+
+								<div class="grid grid-cols-2 gap-4">
+									<div>
+										<label
+											for="providerMaxTokens"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
+											{t('serverAdmin.aiMaxTokens')}
+										</label>
+										<input
+											id="providerMaxTokens"
+											type="number"
+											bind:value={providerMaxTokens}
+											disabled={providerReadOnly}
+											min="256"
+											max="128000"
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+										/>
+									</div>
+
+									<div>
+										<label
+											for="providerTemperature"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
+											{t('serverAdmin.aiTemperature')}
+										</label>
+										<input
+											id="providerTemperature"
+											type="number"
+											bind:value={providerTemperature}
+											disabled={providerReadOnly}
+											min="0"
+											max="2"
+											step="0.1"
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+										/>
+									</div>
+								</div>
+							</div>
+						{/if}
+
+						{#if !providerReadOnly}
+							<div class="flex justify-end">
+								<button
+									onclick={saveAISettings}
+									class="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium text-white"
+								>
+									{t('serverAdmin.saveSettings')}
+								</button>
+							</div>
+						{/if}
+					</div>
 				</div>
 			</div>
-		</div>
 		{/if}
 	</div>
 {:else}

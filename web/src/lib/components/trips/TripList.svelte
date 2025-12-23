@@ -74,7 +74,7 @@
 			type="text"
 			bind:value={searchQuery}
 			placeholder="Search trips..."
-			class="w-full rounded-md border border-[rgb(218,218,221)] bg-white py-2 pr-4 pl-10 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+			class="w-full rounded-md border border-[rgb(218,218,221)] bg-white py-2 pr-4 pl-10 text-sm placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none"
 		/>
 	</div>
 
@@ -91,12 +91,12 @@
 					</th>
 					<th class="px-6 py-4">
 						<button
-							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-blue-600 dark:text-gray-100"
+							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-primary dark:text-gray-100 dark:hover:text-primary-dark"
 							onclick={() => toggleSort('title')}
 						>
 							Trip Name
 							{#if sortField === 'title'}
-								<span class="text-blue-600">
+								<span class="text-primary dark:text-primary-dark">
 									{#if sortDirection === 'asc'}
 										<ArrowUp class="h-4 w-4" />
 									{:else}
@@ -108,12 +108,12 @@
 					</th>
 					<th class="px-6 py-4">
 						<button
-							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-blue-600 dark:text-gray-100"
+							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-primary dark:text-gray-100 dark:hover:text-primary-dark"
 							onclick={() => toggleSort('labels')}
 						>
 							Labels
 							{#if sortField === 'labels'}
-								<span class="text-blue-600">
+								<span class="text-primary dark:text-primary-dark">
 									{#if sortDirection === 'asc'}
 										<ArrowUp class="h-4 w-4" />
 									{:else}
@@ -125,12 +125,12 @@
 					</th>
 					<th class="px-6 py-4">
 						<button
-							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-blue-600 dark:text-gray-100"
+							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-primary dark:text-gray-100 dark:hover:text-primary-dark"
 							onclick={() => toggleSort('distance')}
 						>
 							Distance
 							{#if sortField === 'distance'}
-								<span class="text-blue-600">
+								<span class="text-primary dark:text-primary-dark">
 									{#if sortDirection === 'asc'}
 										<ArrowUp class="h-4 w-4" />
 									{:else}
@@ -142,12 +142,12 @@
 					</th>
 					<th class="px-6 py-4">
 						<button
-							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-blue-600 dark:text-gray-100"
+							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-primary dark:text-gray-100 dark:hover:text-primary-dark"
 							onclick={() => toggleSort('startDate')}
 						>
 							Start Date
 							{#if sortField === 'startDate'}
-								<span class="text-blue-600">
+								<span class="text-primary dark:text-primary-dark">
 									{#if sortDirection === 'asc'}
 										<ArrowUp class="h-4 w-4" />
 									{:else}
@@ -159,12 +159,12 @@
 					</th>
 					<th class="px-6 py-4">
 						<button
-							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-blue-600 dark:text-gray-100"
+							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-primary dark:text-gray-100 dark:hover:text-primary-dark"
 							onclick={() => toggleSort('duration')}
 						>
 							Duration
 							{#if sortField === 'duration'}
-								<span class="text-blue-600">
+								<span class="text-primary dark:text-primary-dark">
 									{#if sortDirection === 'asc'}
 										<ArrowUp class="h-4 w-4" />
 									{:else}
@@ -200,7 +200,7 @@
 											: label === 'Nature'
 												? 'bg-green-100 text-green-700'
 												: label === 'Roadtrip'
-													? 'bg-blue-100 text-blue-700'
+													? 'bg-primary/10 text-primary dark:bg-primary-dark/20 dark:text-primary-dark'
 													: label === 'Vacation'
 														? 'bg-purple-100 text-purple-700'
 														: label === 'auto-generated'
@@ -267,18 +267,18 @@
 	<div class="flex items-center gap-2">
 		<button
 			class="cursor-pointer rounded-md border border-[rgb(218,218,221)] bg-white p-2 text-gray-600 hover:bg-gray-50 dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-300 dark:hover:bg-[#2d2d35]"
-			class:bg-[rgb(37,140,244)]={view === 'list'}
+			class:bg-primary={view === 'list'}
 			class:text-white={view === 'list'}
-			class:border-[rgb(37,140,244)]={view === 'list'}
+			class:border-[rgb(34,51,95)]={view === 'list'}
 			onclick={() => (view = 'list')}
 		>
 			<List class="h-5 w-5" />
 		</button>
 		<button
 			class="cursor-pointer rounded-md border border-[rgb(218,218,221)] bg-white p-2 text-gray-600 hover:bg-gray-50 dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-300 dark:hover:bg-[#2d2d35]"
-			class:bg-[rgb(37,140,244)]={view === 'tiles'}
+			class:bg-primary={view === 'tiles'}
 			class:text-white={view === 'tiles'}
-			class:border-[rgb(37,140,244)]={view === 'tiles'}
+			class:border-[rgb(34,51,95)]={view === 'tiles'}
 			onclick={() => (view = 'tiles')}
 		>
 			<LayoutGrid class="h-5 w-5" />

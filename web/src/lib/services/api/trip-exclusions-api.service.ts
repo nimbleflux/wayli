@@ -4,10 +4,10 @@
 import { errorHandler, ErrorCode } from '../error-handler.service';
 
 import type { GeocodedLocation } from '$lib/types/geocoding.types';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { FluxbaseClient } from '@fluxbase/sdk';
 
 export interface TripExclusionsApiServiceConfig {
-	supabase: SupabaseClient;
+	fluxbase: FluxbaseClient;
 }
 
 export interface TripExclusion {
@@ -50,10 +50,10 @@ export interface DeleteTripExclusionResult {
 }
 
 export class TripExclusionsApiService {
-	private supabase: SupabaseClient;
+	private fluxbase: FluxbaseClient;
 
 	constructor(config: TripExclusionsApiServiceConfig) {
-		this.supabase = config.supabase;
+		this.fluxbase = config.fluxbase;
 	}
 
 	/**
@@ -62,7 +62,7 @@ export class TripExclusionsApiService {
 	async getTripExclusions(userId: string): Promise<GetTripExclusionsResult> {
 		try {
 			// Get trip exclusions from user preferences
-			const { data: userPreferences, error: userPreferencesError } = await this.supabase
+			const { data: userPreferences, error: userPreferencesError } = await this.fluxbase
 				.from('user_preferences')
 				.select('trip_exclusions')
 				.eq('id', userId)
@@ -115,7 +115,7 @@ export class TripExclusionsApiService {
 			this.validateCreateRequest(request);
 
 			// Get current trip exclusions from user preferences
-			const { data: userPreferences, error: preferencesError } = await this.supabase
+			const { data: userPreferences, error: preferencesError } = await this.fluxbase
 				.from('user_preferences')
 				.select('trip_exclusions')
 				.eq('id', userId)
@@ -168,7 +168,7 @@ export class TripExclusionsApiService {
 			const updatedExclusions = [...currentExclusions, newExclusion];
 
 			// Update user preferences with new exclusions
-			const { error: updateError } = await this.supabase
+			const { error: updateError } = await this.fluxbase
 				.from('user_preferences')
 				.update({
 					trip_exclusions: updatedExclusions,
@@ -218,7 +218,7 @@ export class TripExclusionsApiService {
 			this.validateUpdateRequest(request);
 
 			// Get current trip exclusions from user preferences
-			const { data: userPreferences, error: preferencesError } = await this.supabase
+			const { data: userPreferences, error: preferencesError } = await this.fluxbase
 				.from('user_preferences')
 				.select('trip_exclusions')
 				.eq('id', userId)
@@ -270,7 +270,7 @@ export class TripExclusionsApiService {
 			currentExclusions[exclusionIndex] = updatedExclusion;
 
 			// Update user preferences with updated exclusions
-			const { error: updateError } = await this.supabase
+			const { error: updateError } = await this.fluxbase
 				.from('user_preferences')
 				.update({
 					trip_exclusions: currentExclusions,
@@ -320,7 +320,7 @@ export class TripExclusionsApiService {
 			this.validateDeleteRequest(request);
 
 			// Get current trip exclusions from user preferences
-			const { data: userPreferences, error: preferencesError } = await this.supabase
+			const { data: userPreferences, error: preferencesError } = await this.fluxbase
 				.from('user_preferences')
 				.select('trip_exclusions')
 				.eq('id', userId)
@@ -352,7 +352,7 @@ export class TripExclusionsApiService {
 			}
 
 			// Update user preferences with updated exclusions
-			const { error: updateError } = await this.supabase
+			const { error: updateError } = await this.fluxbase
 				.from('user_preferences')
 				.update({
 					trip_exclusions: updatedExclusions,

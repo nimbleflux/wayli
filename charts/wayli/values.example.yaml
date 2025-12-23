@@ -1,6 +1,14 @@
+# Wayli Helm Chart - Example Values
+#
+# Secret Generation:
+#   Run ./generate-secrets.sh to generate Kubernetes secrets for Fluxbase
+#
+# Documentation:
+#   See charts/wayli/README.md for full configuration options
+
 global:
-  ## Shared secret name anchor for Supabase
-  supabaseSecretName: &supabaseSecret supabase-secret
+  ## Shared secret name anchor for Fluxbase
+  fluxbaseSecretName: &fluxbaseSecret fluxbase-secret
 
 ## Web deployment
 web:
@@ -14,68 +22,146 @@ worker:
   ## Environment variables
   env:
     ## External service endpoints
-    nominatim:
-      endpoint: 'https://nominatim.wayli.app'
+    pelias:
+      endpoint: 'https://pelias.wayli.app'
 
 ## Wayli ingress configuration
 ingress:
   enabled: true
   ingressClassName: nginx
-  hostname: wayli.your-domain.com # Use the same domain as in .supabase.global.supabase.siteUrl
+  hostname: wayli.your-domain.com
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/ssl-redirect: 'true'
 
-## Supabase dependency configuration
-supabase:
+## Fluxbase dependency configuration
+## See: https://github.com/fluxbase-eu/fluxbase for full configuration options
+fluxbase:
   enabled: true
 
+  ## Global parameters
   global:
-    # Global default storage class
-    defaultStorageClass: 'local-path'
-    # Global storage class
     storageClass: 'local-path'
-    # Supabase global configuration
-    supabase:
-      # Organization name displayed in Studio
-      organizationName: Wayli
-      # Project name displayed in Studio
-      projectName: Wayli
-      # Public URL of the Studio instance (you MUST set this)
-      publicUrl: 'http://supabase.your-domain.com'
-      # Site URL of Wayli (you MUST set this)
-      siteUrl: 'http://wayli.your-domain.com'
-      # Existing secret containing Supabase keys
-      existingSecret: *supabaseSecret
-      # Uncomment if you want to provide a secret containing SMTP credentials yourself.
-      # Use the keys 'username' and 'password' (you can also configure these keys with 'secretKeys').
-      # auth:
-      #   smtp:
-      #     existingSecret: smtp-secret
 
-  db:
-    postgres:
-      existingSecret: *supabaseSecret
+  ## Fluxbase application configuration
+  config:
+    ## Public base URL for the application (you MUST set this)
+    base_url: 'https://flux.your-domain.com'
 
-  studio:
-    config:
-      auth:
-        existingSecret: *supabaseSecret
+    ## Authentication configuration
+    auth:
+      jwt_expiry: '1h'
+      refresh_expiry: '168h'
+      enable_signup: true
+      enable_magic_link: true
+      totp_issuer: 'Wayli'
 
-  vector:
-    enabled: false
+    ## CORS configuration
+    cors:
+      allowed_origins:
+        - 'https://your-domain.com'
+        - 'https://wayli.your-domain.com'
+      allow_credentials: true
 
-  kong:
-    ingress:
+    ## Storage configuration
+    storage:
+      provider: 'local'
+      local_path: '/data/storage'
+      max_upload_size: 1073741824  # 1GB
+      default_buckets:
+        - 'trip-images'
+
+    ## Realtime/WebSocket configuration
+    realtime:
       enabled: true
-      ingressClassName: nginx
-      hostname: 'supabase.your-domain.com' # Use the same domain as in .supabase.global.supabase.publicUrl
-      annotations:
-        nginx.ingress.kubernetes.io/ssl-redirect: 'true'
-        nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
-        nginx.ingress.kubernetes.io/backend-protocol: 'HTTP'
-        nginx.ingress.kubernetes.io/proxy-body-size: '1g'
-        nginx.ingress.kubernetes.io/proxy-connect-timeout: '3600'
-        nginx.ingress.kubernetes.io/proxy-read-timeout: '3600'
-        nginx.ingress.kubernetes.io/proxy-send-timeout: '3600'
-      tls: []
+      max_connections: 1000
+
+    ## Email configuration (optional)
+    email:
+      enabled: true
+      provider: 'smtp'
+      from_address: 'noreply@your-domain.com'
+      from_name: 'Wayli'
+      smtp_host: 'smtp.your-domain.com'
+      smtp_port: 587
+      smtp_tls: true
+      # smtp_username and smtp_password should be in existingSecret
+
+    ## Edge Functions configuration
+    functions:
+      enabled: true
+      functions_dir: '/app/functions'
+      auto_load_on_boot: true
+
+    ## Background Jobs configuration
+    jobs:
+      enabled: true
+      worker_mode: 'embedded'
+      embedded_worker_count: 4
+
+    ## Logging configuration
+    logging:
+      console_enabled: true
+      console_level: 'info'
+      console_format: 'json'
+      backend: 'postgres'
+      pubsub_enabled: true
+      retention_enabled: true
+
+    ## Admin dashboard configuration
+    admin:
+      enabled: false
+
+  ## Existing secret for sensitive configuration (you MUST create this secret)
+  ## Should contain keys: jwt-secret, setup-token, database-password, smtp-password
+  existingSecret: *fluxbaseSecret
+
+  ## Custom key names for existingSecret
+  existingSecretKeyRef:
+    jwtSecret: 'jwt-secret'
+    setupToken: 'setup-token'
+    databasePassword: 'database-password'
+    smtpPassword: 'smtp-password'
+
+  ## Resource configuration
+  resourcesPreset: 'small'
+
+  ## Persistence configuration
+  persistence:
+    enabled: true
+    storageClass: 'local-path'
+    size: 50Gi
+
+  ## Ingress configuration for Fluxbase API
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hostname: 'flux.your-domain.com'  # Use the same as config.base_url
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+      nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
+      nginx.ingress.kubernetes.io/backend-protocol: 'HTTP'
+      nginx.ingress.kubernetes.io/proxy-body-size: '1g'
+      nginx.ingress.kubernetes.io/proxy-connect-timeout: '3600'
+      nginx.ingress.kubernetes.io/proxy-read-timeout: '3600'
+      nginx.ingress.kubernetes.io/proxy-send-timeout: '3600'
+    tls: false
+
+  ## PostgreSQL configuration (bundled)
+  postgresql:
+    enabled: true
+    auth:
+      database: fluxbase
+      username: fluxbase
+      existingSecret: *fluxbaseSecret
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: 'local-path'
+    resources:
+      requests:
+        memory: 512Mi
+        cpu: '250m'
+      limits:
+        memory: 2Gi
+        cpu: '2'

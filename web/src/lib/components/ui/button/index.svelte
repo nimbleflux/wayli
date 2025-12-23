@@ -59,7 +59,7 @@
 	});
 
 	const baseClass =
-		'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none';
+		'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-[rgb(34,51,95)] focus-visible:ring-offset-2 focus-visible:outline-none';
 	// Classes
 
 	function getVariantClasses(v: ButtonVariants['variant']): string {

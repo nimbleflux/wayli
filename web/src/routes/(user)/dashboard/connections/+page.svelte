@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
+	import { config } from '$lib/config';
 	import { toast } from 'svelte-sonner';
 	import { translate } from '$lib/i18n';
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import { Database, Link, Copy, Check, RefreshCw } from 'lucide-svelte';
-	import { getEdgeFunctionUrl } from '$lib/utils/url-utils';
 
 	// Use the reactive translation function
 	let t = $derived($translate);
@@ -18,20 +18,34 @@
 	let owntracksEndpoint = $state<string | null>(null);
 
 	async function refreshApiKeyData() {
-		const {
-			data: { user },
-			error
-		} = await supabase.auth.getUser();
+		const { data, error } = await fluxbase.auth.getUser();
 
-		if (user && !error) {
-			owntracksApiKey = user.user_metadata?.owntracks_api_key || null;
+		if (data?.user && !error) {
+			const user = data.user;
 
-			// Construct the endpoint URL using the proper utility function
+			// Get the API key from user_preferences table
+			const { data: preferences, error: prefsError } = await fluxbase
+				.from('user_preferences')
+				.select('owntracks_api_key')
+				.eq('id', user.id)
+				.single();
+
+			if (prefsError) {
+				console.error('Error fetching user preferences:', prefsError);
+				owntracksApiKey = null;
+				owntracksEndpoint = null;
+				return;
+			}
+
+			owntracksApiKey = preferences?.owntracks_api_key || null;
+
+			// Construct the endpoint URL for OwnTracks integration
 			if (owntracksApiKey) {
-				owntracksEndpoint = getEdgeFunctionUrl('owntracks-points', {
-					api_key: owntracksApiKey,
-					user_id: user.id
-				});
+				const baseUrl = config.fluxbaseUrl;
+				const url = new URL(`${baseUrl}/functions/v1/owntracks-points`);
+				url.searchParams.append('api_key', owntracksApiKey);
+				url.searchParams.append('user_id', user.id);
+				owntracksEndpoint = url.toString();
 			} else {
 				owntracksEndpoint = null;
 			}
@@ -40,31 +54,47 @@
 
 	async function generateApiKey() {
 		try {
-			const {
-				data: { user }
-			} = await supabase.auth.getUser();
-			if (!user) {
+			const { data } = await fluxbase.auth.getUser();
+			if (!data?.user) {
 				toast.error(t('connections.userNotAuthenticated'));
 				return;
 			}
 
-			const { data, error } = await supabase.functions.invoke('connections-api-key', {
-				body: { action: 'generate' }
-			});
+			// Generate a secure random API key (16 bytes = 32 hex characters)
+			const array = new Uint8Array(16);
+			crypto.getRandomValues(array);
+			const newApiKey = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+
+			console.log('🔑 Generating new API key for user:', data.user.id);
+
+			// Store the API key in user_preferences table (upsert in case row doesn't exist)
+			const { error } = await fluxbase
+				.from('user_preferences')
+				.upsert({
+					id: data.user.id,
+					owntracks_api_key: newApiKey,
+					updated_at: new Date().toISOString()
+				});
 
 			if (error) {
-				console.error('❌ Error generating API key:', error);
+				console.error('❌ Error storing API key in user preferences:', error);
 				toast.error(t('connections.failedToGenerateApiKey'));
 				return;
 			}
 
-			if (data?.success) {
-				toast.success(t('connections.apiKeyGeneratedSuccess'));
-				// Refresh the data to show the new API key
-				await refreshApiKeyData();
-			} else {
-				toast.error(t('connections.failedToGenerateApiKey'));
-			}
+			console.log('✅ API key stored successfully in user_preferences');
+
+			// Immediately update the UI with the new API key
+			owntracksApiKey = newApiKey;
+
+			// Construct the endpoint URL with the new API key
+			const baseUrl = config.fluxbaseUrl;
+			const url = new URL(`${baseUrl}/functions/v1/owntracks-points`);
+			url.searchParams.append('api_key', newApiKey);
+			url.searchParams.append('user_id', data.user.id);
+			owntracksEndpoint = url.toString();
+
+			toast.success(t('connections.apiKeyGeneratedSuccess'));
 		} catch (error) {
 			console.error('❌ Error generating API key:', error);
 			toast.error(t('connections.failedToGenerateApiKey'));
@@ -113,7 +143,7 @@
 	<!-- Header -->
 	<div class="mb-8">
 		<div class="flex items-center gap-3">
-			<Link class="h-8 w-8 text-blue-600 dark:text-gray-400" />
+			<Link class="h-8 w-8 text-primary dark:text-gray-400" />
 			<h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
 				{t('connections.title')}
 			</h1>
@@ -151,7 +181,7 @@
 							value={owntracksEndpoint || t('connections.generateApiKeyFirst')}
 							readonly
 							id="owntracksEndpoint"
-							class="flex-1 rounded-md border border-[rgb(218,218,221)] bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#1a1a1a] dark:text-gray-100"
+							class="flex-1 rounded-md border border-[rgb(218,218,221)] bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#1a1a1a] dark:text-gray-100"
 						/>
 						{#if owntracksEndpoint}
 							<button
@@ -183,7 +213,7 @@
 							value={owntracksApiKey || t('connections.noApiKeyGenerated')}
 							readonly
 							id="owntracksApiKey"
-							class="flex-1 rounded-md border border-[rgb(218,218,221)] bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-[rgb(37,140,244)] focus:ring-1 focus:ring-[rgb(37,140,244)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#1a1a1a] dark:text-gray-100"
+							class="flex-1 rounded-md border border-[rgb(218,218,221)] bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-[#3f3f46] dark:bg-[#1a1a1a] dark:text-gray-100"
 						/>
 						{#if owntracksApiKey}
 							<button
@@ -206,7 +236,7 @@
 				<button
 					type="button"
 					onclick={generateApiKey}
-					class="flex cursor-pointer items-center gap-2 rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[rgb(37,140,244)]/90"
+					class="flex cursor-pointer items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-primary-dark/90"
 				>
 					<RefreshCw class="h-4 w-4" />
 					{owntracksApiKey ? t('connections.generateNewApiKey') : t('connections.generateApiKey')}
@@ -214,12 +244,12 @@
 
 				<!-- Instructions -->
 				<div
-					class="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20"
+					class="mt-4 rounded-lg border border-primary/30 bg-primary/5 p-4 dark:border-primary-dark/30 dark:bg-primary-dark/20"
 				>
-					<h3 class="mb-2 text-sm font-medium text-blue-800 dark:text-blue-200">
+					<h3 class="mb-2 text-sm font-medium text-primary dark:text-primary-dark">
 						{t('connections.setupInstructions')}
 					</h3>
-					<ol class="list-inside list-decimal space-y-1 text-sm text-blue-700 dark:text-blue-300">
+					<ol class="list-inside list-decimal space-y-1 text-sm text-primary dark:text-primary-dark/80">
 						<li>{t('connections.instruction1')}</li>
 						<li>{t('connections.instruction2')}</li>
 						<li>{t('connections.instruction3')}</li>

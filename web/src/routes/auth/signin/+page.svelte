@@ -4,9 +4,10 @@
 	import { toast } from 'svelte-sonner';
 
 	import { translate } from '$lib/i18n';
-	import { EdgeFunctionsApiService } from '$lib/services/api/edge-functions-api.service';
 	import { userStore } from '$lib/stores/auth';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
+	import { sessionManager } from '$lib/services/session';
+	import TwoFactorVerify from '$lib/components/TwoFactorVerify.svelte';
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -18,7 +19,10 @@
 	let password = $state<string>('');
 	let loading = $state(false);
 	let showPassword = $state(false);
+	let rememberMe = $state(true); // Default to checked
 	let isMagicLinkSent = $state(false);
+	let show2FAModal = $state(false);
+	let twoFactorUserId = $state('');
 
 	onMount(() => {
 		// Subscribe to user store for authentication state changes
@@ -35,80 +39,109 @@
 		loading = true;
 
 		try {
-			// First, authenticate with Supabase to get a temporary session
-			const { data, error } = await supabase.auth.signInWithPassword({
+			// Debug: Check fluxbase client configuration
+			console.log('🔧 [SignIn] Fluxbase client auth config:', {
+				persist: (fluxbase.auth as any).persist,
+				autoRefresh: (fluxbase.auth as any).autoRefresh,
+				hasSession: !!(fluxbase.auth as any).session
+			});
+
+			// Authenticate with Fluxbase
+			const { data, error } = await fluxbase.auth.signInWithPassword({
 				email,
 				password
 			});
 
 			if (error) throw error;
 
-			if (data.session) {
-				// Authentication successful, now check if user has 2FA enabled
-				try {
-					const edgeService = new EdgeFunctionsApiService();
-					const checkResult = (await edgeService.check2FA(data.session)) as any;
-					const has2FA = checkResult?.enabled === true;
-
-					if (has2FA) {
-						// User has 2FA enabled - sign out immediately to prevent access
-						await supabase.auth.signOut();
-
-						// Redirect to 2FA verification page with credentials
-						const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/statistics';
-						const verificationUrl = `/auth/2fa-verify?email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}&redirectTo=${encodeURIComponent(redirectTo)}`;
-
-						goto(verificationUrl);
-					} else {
-						// No 2FA enabled, check onboarding status
-						const { data: profile } = await supabase
-							.from('user_profiles')
-							.select('onboarding_completed, first_login_at')
-							.eq('id', data.user.id)
-							.single();
-
-						// If first-time user, redirect to onboarding
-						if (!profile?.onboarding_completed) {
-							if (!profile?.first_login_at) {
-								await supabase
-									.from('user_profiles')
-									.update({ first_login_at: new Date().toISOString() })
-									.eq('id', data.user.id);
-							}
-
-							toast.success(t('auth.welcomeSetupProfile'));
-							goto('/dashboard/account-settings?onboarding=true');
-						} else {
-							// Returning user - proceed with normal login
-							toast.success(t('auth.signedInSuccessfully'));
-
-							// Wait for the auth state change to propagate, then redirect
-							setTimeout(async () => {
-								// Check if we're still on the signin page and have a user
-								const {
-									data: { session }
-								} = await supabase.auth.getSession();
-								if (session?.user && $page.url.pathname.startsWith('/auth/signin')) {
-									const redirectTo =
-										$page.url.searchParams.get('redirectTo') || '/dashboard/statistics';
-									console.log(
-										'🔄 [SignIn] Redirecting after successful authentication to:',
-										redirectTo
-									);
-									goto(redirectTo, { replaceState: true });
-								}
-							}, 500); // Reduced timeout for better UX
-						}
-					}
-				} catch (twoFactorError: any) {
-					console.error('2FA check error:', twoFactorError);
-					// If 2FA check fails, sign out and show error
-					await supabase.auth.signOut();
-					toast.error(t('auth.failedToVerify2FA'));
-				}
-			} else {
-				toast.error(t('auth.noSessionReturned'));
+			// Check if 2FA is required (Fluxbase returns this directly in the response)
+			if (data && 'requires_2fa' in data && data.requires_2fa) {
+				console.log('🔐 [SignIn] 2FA required for this user');
+				// User has 2FA enabled - show verification modal
+				twoFactorUserId = data.user_id || '';
+				show2FAModal = true;
+				loading = false;
+				return;
 			}
+
+			// No 2FA required - we have a session
+			const user = data.user;
+			const session = data.session;
+
+			if (!session || !user) {
+				toast.error(t('auth.noSessionReturned'));
+				return;
+			}
+
+			// Debug: Check if session is being stored
+			console.log('✅ [SignIn] Session received:', {
+				user: user.email,
+				hasAccessToken: !!session.access_token,
+				expiresAt: session.expires_at
+			});
+
+			// Record login with Remember Me preference
+			sessionManager.recordLogin(rememberMe);
+
+			// Check localStorage for the session
+			setTimeout(() => {
+				const storedSession = localStorage.getItem('fluxbase.auth.session');
+				console.log('💾 [SignIn] Session in localStorage:', storedSession ? 'Found' : 'NOT FOUND');
+				if (storedSession) {
+					const parsed = JSON.parse(storedSession);
+					console.log('💾 [SignIn] Stored session user:', parsed.user?.email);
+				}
+			}, 100);
+
+			// Check onboarding status
+			console.log('🔍 [SignIn] Checking user profile for user:', user.id);
+			const { data: profile, error: profileError } = await fluxbase
+				.from('user_profiles')
+				.select('onboarding_completed, first_login_at')
+				.eq('id', user.id)
+				.single();
+
+			if (profileError) {
+				console.error('❌ [SignIn] Error fetching profile:', profileError);
+				// Profile fetch failed - redirect to dashboard anyway
+				toast.success(t('auth.signedInSuccessfully'));
+				console.log('🔄 [SignIn] Profile query failed, redirecting to dashboard');
+				goto('/dashboard/statistics', { replaceState: true });
+				return;
+			}
+
+			console.log('✅ [SignIn] Profile fetched:', profile);
+
+			// If first-time user, redirect to onboarding
+			if (!profile?.onboarding_completed) {
+				if (!profile?.first_login_at) {
+					const { error: updateError } = await fluxbase
+						.from('user_profiles')
+						.update({ first_login_at: new Date().toISOString() })
+						.eq('id', user.id);
+
+					if (updateError) {
+						console.error('❌ [SignIn] Error updating first_login_at:', updateError);
+					}
+				}
+
+				toast.success(t('auth.welcomeSetupProfile'));
+				goto('/dashboard/account-settings?onboarding=true');
+				return;
+			}
+
+			// Returning user - proceed with normal login
+			toast.success(t('auth.signedInSuccessfully'));
+
+			// Wait for the auth state change to propagate, then redirect
+			setTimeout(() => {
+				// Check if we're still on the signin page
+				if ($page.url.pathname.startsWith('/auth/signin')) {
+					const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/statistics';
+					console.log('🔄 [SignIn] Redirecting after successful authentication to:', redirectTo);
+					goto(redirectTo, { replaceState: true });
+				}
+			}, 500);
 		} catch (error: any) {
 			console.error('Sign in error:', error);
 			toast.error(error.message || t('auth.signInFailed'));
@@ -128,7 +161,7 @@
 		try {
 			// Always attempt to send reset email
 			// We don't check for errors to prevent email enumeration attacks
-			await supabase.auth.resetPasswordForEmail(email, {
+			await fluxbase.auth.resetPasswordForEmail(email, {
 				redirectTo: `${window.location.origin}/auth/reset-password`
 			});
 
@@ -149,13 +182,40 @@
 	function togglePassword() {
 		showPassword = !showPassword;
 	}
+
+	async function handle2FASuccess(event: CustomEvent) {
+		console.log('✅ [SignIn] 2FA verification successful');
+		const authData = event.detail;
+
+		// Store session in fluxbase client
+		if (authData.access_token && authData.refresh_token) {
+			// Calculate expires_at from expires_in if provided, otherwise default to 1 hour
+			// (matching FLUXBASE_AUTH_JWT_EXPIRY default)
+			const expiresIn = authData.expires_in || 3600;
+			const expiresAt = Math.floor(Date.now() / 1000) + expiresIn;
+
+			await fluxbase.auth.setSession({
+				access_token: authData.access_token,
+				refresh_token: authData.refresh_token,
+				expires_at: expiresAt
+			});
+		}
+
+		// Record login with Remember Me preference
+		sessionManager.recordLogin(rememberMe);
+
+		// Redirect to dashboard
+		const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/statistics';
+		toast.success(t('auth.signedInSuccessfully'));
+		goto(redirectTo, { replaceState: true });
+	}
 </script>
 
 <svelte:head>
 	<title>{t('auth.signIn')} - Wayli</title>
 </svelte:head>
 
-<div class="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-gray-900">
+<div class="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100 px-4 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
 	<div class="w-full max-w-md">
 		<!-- Back to home -->
 		<div class="mb-8">
@@ -174,7 +234,7 @@
 		>
 			<div class="mb-8 text-center">
 				<div
-					class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[rgb(37,140,244)]"
+					class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary dark:bg-primary-dark"
 				>
 					<LogIn class="h-6 w-6 text-white" />
 				</div>
@@ -198,7 +258,7 @@
 					<button
 						type="button"
 						onclick={() => (isMagicLinkSent = false)}
-						class="text-sm text-[rgb(37,140,244)] transition-colors hover:text-[rgb(37,140,244)]/80"
+						class="text-sm text-primary transition-colors hover:text-primary/80 dark:text-primary-dark dark:hover:text-primary-dark/80"
 					>
 						{t('auth.backToSignIn')}
 					</button>
@@ -222,7 +282,7 @@
 								type="email"
 								bind:value={email}
 								required
-								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-4 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(37,140,244)] dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
+								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-4 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
 								placeholder={t('auth.enterYourEmail')}
 							/>
 						</div>
@@ -245,7 +305,7 @@
 								type={showPassword ? 'text' : 'password'}
 								bind:value={password}
 								required
-								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-12 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(37,140,244)] dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
+								class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-12 pl-10 text-gray-900 placeholder-gray-500 transition-colors focus:border-transparent focus:ring-2 focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
 								placeholder={t('auth.enterYourPassword')}
 							/>
 							<button
@@ -262,13 +322,23 @@
 						</div>
 					</div>
 
-					<!-- Forgot Password Link -->
-					<div class="flex items-center justify-end">
+					<!-- Remember Me & Forgot Password -->
+					<div class="flex items-center justify-between">
+						<label class="flex cursor-pointer items-center">
+							<input
+								type="checkbox"
+								bind:checked={rememberMe}
+								class="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary focus:ring-primary dark:border-gray-600 dark:bg-gray-700"
+							/>
+							<span class="ml-2 text-sm text-gray-600 dark:text-gray-400">
+								{t('auth.rememberMe')}
+							</span>
+						</label>
 						<button
 							type="button"
 							onclick={handlePasswordReset}
 							disabled={loading || !email}
-							class="cursor-pointer text-sm text-[rgb(37,140,244)] transition-colors hover:text-[rgb(37,140,244)]/80 disabled:cursor-not-allowed disabled:opacity-50"
+							class="cursor-pointer text-sm text-primary transition-colors hover:text-primary/80 disabled:cursor-not-allowed disabled:opacity-50 dark:text-primary-dark dark:hover:text-primary-dark/80"
 						>
 							{t('auth.forgotPassword')}
 						</button>
@@ -278,7 +348,7 @@
 					<button
 						type="submit"
 						disabled={loading}
-						class="w-full cursor-pointer rounded-lg bg-[rgb(37,140,244)] px-4 py-3 font-medium text-white transition-colors hover:bg-[rgb(37,140,244)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+						class="w-full cursor-pointer rounded-lg bg-primary px-4 py-3 font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-primary-dark dark:hover:bg-primary-dark/90"
 					>
 						{loading ? t('auth.signingIn') : t('auth.signIn')}
 					</button>
@@ -289,7 +359,7 @@
 						{t('auth.dontHaveAccount')}
 						<a
 							href="/auth/signup"
-							class="cursor-pointer font-medium text-[rgb(37,140,244)] transition-colors hover:text-[rgb(37,140,244)]/80"
+							class="cursor-pointer font-medium text-primary transition-colors hover:text-primary/80 dark:text-primary-dark dark:hover:text-primary-dark/80"
 						>
 							{t('auth.signUp')}
 						</a>
@@ -299,3 +369,6 @@
 		</div>
 	</div>
 </div>
+
+<!-- 2FA Verification Modal -->
+<TwoFactorVerify bind:open={show2FAModal} userId={twoFactorUserId} on:success={handle2FASuccess} />

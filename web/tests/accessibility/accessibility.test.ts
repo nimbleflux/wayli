@@ -198,7 +198,8 @@ describe('Accessibility Tests', () => {
 			});
 
 			const button = screen.getByRole('button');
-			expect(button).toHaveClass('bg-blue-600', 'text-white');
+			// The default variant uses bg-primary and text-white classes
+			expect(button).toHaveClass('bg-primary', 'text-white');
 		});
 	});
 

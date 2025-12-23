@@ -1,5 +1,5 @@
-// web/tests/utils/supabase-mocks.ts
-import type { SupabaseClient } from '@supabase/supabase-js';
+// web/tests/utils/fluxbase-mocks.ts
+import type { FluxbaseClient } from '@fluxbase/sdk';
 
 type TableApi = {
 	select: ReturnType<typeof vi.fn>;
@@ -17,7 +17,7 @@ type TableApi = {
 	head?: unknown;
 };
 
-export function createMockSupabase(overrides: Partial<SupabaseClient> = {}): SupabaseClient {
+export function createMockFluxbase(overrides: Partial<FluxbaseClient> = {}): FluxbaseClient {
 	const tableImpl = (): TableApi => {
 		const api: any = {
 			select: vi.fn().mockReturnThis(),
@@ -50,5 +50,5 @@ export function createMockSupabase(overrides: Partial<SupabaseClient> = {}): Sup
 		...overrides
 	};
 
-	return client as SupabaseClient;
+	return client as FluxbaseClient;
 }

@@ -46,7 +46,7 @@
 									: label === 'Roadtrip'
 										? 'bg-green-100 text-green-700'
 										: label === 'Vacation'
-											? 'bg-blue-100 text-blue-700'
+											? 'bg-primary/10 text-primary dark:bg-primary-dark/20 dark:text-primary-dark'
 											: label === 'auto-generated'
 												? 'bg-gray-100 text-gray-700'
 												: ''}"

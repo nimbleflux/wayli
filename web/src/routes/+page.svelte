@@ -1,7 +1,6 @@
 <script lang="ts">
 	import {
 		MapPin,
-		Globe,
 		BarChart,
 		ArrowRight,
 		LogIn,
@@ -10,8 +9,7 @@
 		User,
 		LogOut,
 		Shield,
-		Users,
-		Navigation
+		Users
 	} from 'lucide-svelte';
 	import { onMount } from 'svelte';
 
@@ -19,8 +17,7 @@
 	import { translate, messages, currentLocale } from '$lib/i18n';
 	import { setTheme, initializeTheme } from '$lib/stores/app-state.svelte';
 	import { userStore, sessionStore } from '$lib/stores/auth';
-	import { supabase } from '$lib/supabase';
-	import { getEdgeFunctionUrl } from '$lib/utils/url-utils';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
@@ -45,7 +42,7 @@
 		console.log('🏠 [LANDING] Signout initiated');
 		try {
 			// Ensure client session/localStorage are cleared first
-			await supabase.auth.signOut();
+			await fluxbase.auth.signOut();
 		} catch (e) {
 			console.warn('🏠 [LANDING] Client signout warning:', e);
 		}
@@ -55,27 +52,23 @@
 
 	async function checkSetupStatus() {
 		try {
-			const { data, error } = await supabase.functions.invoke('server-settings', {
-				method: 'GET'
-			});
+			// Read setup status from app.settings (RLS allows anonymous read for public settings)
+			const isSetupComplete = await fluxbase.settings.get('wayli.is_setup_complete');
 
-			console.log('🏠 [LANDING] Raw response:', { data, error });
+			console.log('🏠 [LANDING] Setup status check:', { isSetupComplete });
 
-			if (!error && data) {
-				// Handle the response - data might already be unwrapped or might be wrapped in { data: ... }
-				const settings = data.data || data;
-				const isSetupComplete = settings.is_setup_complete ?? false;
-				console.log('🏠 [LANDING] Setup status check:', { isSetupComplete, settings });
-
-				// If setup is not complete, redirect to signup for initial setup
-				if (!isSetupComplete) {
-					console.log('🏠 [LANDING] Setup not complete, redirecting to initial setup');
-					goto('/auth/signup');
-					return;
-				}
+			// Only redirect if setup is explicitly marked as incomplete
+			// If the setting doesn't exist or is undefined, assume setup is complete
+			// (landing page should be accessible by default)
+			const setupValue = isSetupComplete?.value;
+			if (setupValue === false || setupValue === 'false') {
+				console.log('🏠 [LANDING] Setup explicitly incomplete, redirecting to initial setup');
+				goto('/auth/signup');
+				return;
 			}
 		} catch (error) {
 			console.error('🏠 [LANDING] Error checking setup status:', error);
+			// On error, don't redirect - let the user access the landing page
 		} finally {
 			checkingUserCount = false;
 		}
@@ -132,11 +125,11 @@
 <!-- Loading State -->
 {#if !messagesLoaded || checkingUserCount}
 	<div
-		class="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900"
+		class="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900"
 	>
 		<div class="text-center">
 			<div
-				class="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"
+				class="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-[rgb(34,51,95)]"
 			></div>
 			<p class="text-gray-600 dark:text-gray-300">
 				{checkingUserCount ? 'Checking system status...' : 'Loading translations...'}
@@ -145,7 +138,7 @@
 	</div>
 {:else}
 	<!-- Theme Toggle, Language Selector, and User/Login Button in Top Right -->
-	<div class="fixed top-4 right-4 z-50 flex items-center gap-3">
+	<div class="fixed right-4 top-4 z-50 flex items-center gap-3">
 		<!-- Language Selector -->
 		<LanguageSelector variant="minimal" size="sm" showLabel={false} position="bottom-right" />
 
@@ -154,7 +147,7 @@
 			<button
 				onclick={() => handleThemeChange('light')}
 				class="cursor-pointer rounded-lg p-2 font-medium transition-colors {currentTheme === 'light'
-					? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400'
+					? 'bg-primary/10 text-primary dark:bg-primary-dark/40 dark:text-primary-dark'
 					: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}"
 				title={t('landing.lightMode')}
 			>
@@ -163,7 +156,7 @@
 			<button
 				onclick={() => handleThemeChange('dark')}
 				class="cursor-pointer rounded-lg p-2 font-medium transition-colors {currentTheme === 'dark'
-					? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400'
+					? 'bg-primary/10 text-primary dark:bg-primary-dark/40 dark:text-primary-dark'
 					: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}"
 				title={t('landing.darkMode')}
 			>
@@ -185,7 +178,7 @@
 
 				<!-- Dropdown Menu -->
 				<div
-					class="invisible absolute top-full right-0 mt-2 w-48 rounded-lg border border-gray-200 bg-white opacity-0 shadow-lg transition-all duration-200 group-hover:visible group-hover:opacity-100 dark:border-gray-700 dark:bg-gray-800"
+					class="invisible absolute right-0 top-full mt-2 w-48 rounded-lg border border-gray-200 bg-white opacity-0 shadow-lg transition-all duration-200 group-hover:visible group-hover:opacity-100 dark:border-gray-700 dark:bg-gray-800"
 				>
 					<div class="py-2">
 						<a
@@ -215,7 +208,7 @@
 			<!-- Login Button -->
 			<button
 				onclick={handleLogin}
-				class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[rgb(37,140,244)] px-4 py-2 font-medium text-white shadow-lg transition-colors hover:bg-[rgb(37,140,244)]/90"
+				class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 py-2 font-medium text-white shadow-lg transition-colors hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-primary-dark/90"
 			>
 				<LogIn class="h-4 w-4" />
 				{t('landing.login')}
@@ -225,20 +218,19 @@
 
 	<!-- Hero Section -->
 	<div
-		class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 transition-colors duration-300 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900"
+		class="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 transition-colors duration-300 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900"
 	>
 		<div class="container mx-auto px-4 py-16">
 			<!-- Hero Content -->
 			<div class="mx-auto mb-16 max-w-4xl text-center">
-				<!-- Logo Icon -->
+				<!-- Logo with text -->
 				<div class="mx-auto mb-6 flex justify-center">
-					<Navigation class="h-24 w-24 text-[rgb(37,140,244)] md:h-32 md:w-32" />
+					<div
+						class="rounded-2xl bg-white/80 p-4 backdrop-blur-sm dark:bg-white/80 dark:backdrop-blur-md"
+					>
+						<img src="/logo.svg" alt="Wayli logo" class="h-32 w-auto md:h-40" />
+					</div>
 				</div>
-				<h1
-					class="mb-6 text-5xl font-bold text-gray-900 transition-colors duration-300 md:text-7xl dark:text-gray-100"
-				>
-					<span class="text-[rgb(37,140,244)]">Wayli</span>
-				</h1>
 				<p
 					class="mb-4 text-2xl font-semibold text-gray-800 transition-colors duration-300 md:text-3xl dark:text-gray-200"
 				>
@@ -252,14 +244,14 @@
 				<div class="flex flex-col justify-center gap-4 sm:flex-row">
 					<a
 						href="/auth/signup"
-						class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[rgb(37,140,244)] px-8 py-4 font-semibold text-white shadow-lg transition-colors hover:bg-[rgb(37,140,244)]/90"
+						class="inline-flex cursor-pointer items-center gap-2 rounded-lg border-2 border-gray-300 px-8 py-4 font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
 					>
 						{t('landing.getStarted')}
 						<ArrowRight class="h-5 w-5" />
 					</a>
 					<a
 						href="/auth/signin"
-						class="inline-flex cursor-pointer items-center gap-2 rounded-lg border-2 border-gray-300 px-8 py-4 font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+						class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-8 py-4 font-semibold text-white shadow-lg transition-colors hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-primary-dark/90"
 					>
 						{t('landing.signIn')}
 					</a>
@@ -273,9 +265,9 @@
 					class="rounded-xl border border-gray-200/50 bg-white/50 p-6 text-center backdrop-blur-sm transition-all duration-300 hover:scale-105 hover:shadow-lg dark:border-gray-700/50 dark:bg-gray-800/50"
 				>
 					<div
-						class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 transition-colors duration-300 dark:bg-blue-900/20"
+						class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 transition-colors duration-300 dark:bg-primary/20"
 					>
-						<Shield class="h-8 w-8 text-blue-600 dark:text-blue-400" />
+						<Shield class="h-8 w-8 text-primary dark:text-gray-300" />
 					</div>
 					<h3
 						class="mb-2 text-xl font-semibold text-gray-900 transition-colors duration-300 dark:text-gray-100"

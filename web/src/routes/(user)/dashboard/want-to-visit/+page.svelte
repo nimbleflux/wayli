@@ -26,7 +26,7 @@
 	} from 'lucide-svelte';
 	import { onMount } from 'svelte';
 
-	import { reverseGeocode } from '$lib/services/external/nominatim.service';
+	import { reverseGeocode } from '$lib/services/external/pelias.service';
 
 	import { toast } from 'svelte-sonner';
 
@@ -36,7 +36,7 @@
 	let t = $derived($translate);
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
 	import { WantToVisitService } from '$lib/services/want-to-visit.service';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import type { UserProfile } from '$lib/types/user.types';
 	import type { Place } from '$lib/types/want-to-visit.types';
@@ -81,7 +81,7 @@
 
 	// Marker customization
 	let selectedMarkerType = $state('default');
-	let selectedMarkerColor = $state('#3B82F6'); // blue-500
+	let selectedMarkerColor = $state('#22335F'); // primary rgb(34,51,95)
 
 	// Edit mode
 	let editingPlace = $state<Place | null>(null);
@@ -270,15 +270,15 @@
 
 		isLoadingProfile = true;
 		try {
-			const session = await supabase.auth.getSession();
+			const session = await fluxbase.auth.getSession();
 			if (!session.data.session?.user) {
 				console.error('No session found');
 				return;
 			}
 
-			// Use the Edge Function to get user profile
+			// Get user profile using ServiceAdapter (now uses SDK internally)
 			const serviceAdapter = new ServiceAdapter({ session: session.data.session });
-			const profile = (await serviceAdapter.callApi('auth-profile')) as any;
+			const profile = (await serviceAdapter.getProfile()) as any;
 
 			userProfile = profile as UserProfile;
 
@@ -332,15 +332,15 @@
 				(selectedTypes.length === 1 && selectedTypes[0] === 'All') ||
 				selectedTypes.some((selectedType) => place.markerType && place.markerType === selectedType);
 
-			// Search filter - search in title, description, labels, and location
+			// Search filter - search in title, description, labels, and address
 			const searchLower = searchQuery.toLowerCase();
 			const searchMatch =
 				!searchQuery ||
 				place.title.toLowerCase().includes(searchLower) ||
 				(place.description && place.description.toLowerCase().includes(searchLower)) ||
 				(place.labels && place.labels.some((label) => label.toLowerCase().includes(searchLower))) ||
-				(place.location && place.location.toLowerCase().includes(searchLower)) ||
-				(place.address && place.address.toLowerCase().includes(searchLower));
+				(place.address && place.address.toLowerCase().includes(searchLower)) ||
+				(place.coordinates && place.coordinates.toLowerCase().includes(searchLower));
 
 			// Favourited filter - show only favourited places when enabled
 			const favouritedMatch = !showFavouritedOnly || place.favorite;
@@ -611,15 +611,31 @@
 
 		isSearching = true;
 		try {
+			// Use Pelias autocomplete endpoint for faster results
+			const peliasEndpoint = import.meta.env.PUBLIC_PELIAS_ENDPOINT || 'https://pelias.wayli.app';
 			const response = await fetch(
-				`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5&addressdetails=1`
+				`${peliasEndpoint}/v1/autocomplete?text=${encodeURIComponent(searchQuery)}&size=5`,
+				{
+					headers: {
+						'User-Agent': 'WayliApp/1.0',
+						'Accept': 'application/json'
+					}
+				}
 			);
 			const data = await response.json();
-			searchResults = data.map((result: any) => ({
-				name: result.display_name,
-				lat: result.lat,
-				lon: result.lon,
-				address: result.address || {}
+			searchResults = (data.features || []).map((feature: any) => ({
+				name: feature.properties?.label || '',
+				lat: feature.geometry?.coordinates?.[1],
+				lon: feature.geometry?.coordinates?.[0],
+				address: {
+					city: feature.properties?.locality,
+					state: feature.properties?.region,
+					country: feature.properties?.country,
+					country_code: feature.properties?.country_a,
+					neighbourhood: feature.properties?.neighbourhood,
+					road: feature.properties?.street,
+					house_number: feature.properties?.housenumber
+				}
 			}));
 			showSearchResults = true;
 		} catch (error) {
@@ -724,7 +740,6 @@
 				coordinates: `${latitude}, ${longitude}`,
 				description,
 				address,
-				location: address.split(',').slice(-2).join(',').trim(),
 				markerType: selectedMarkerType,
 				markerColor: selectedMarkerColor,
 				labels: [...labels],
@@ -765,7 +780,6 @@
 				coordinates: `${latitude}, ${longitude}`,
 				description,
 				address,
-				location: address.split(',').slice(-2).join(',').trim(),
 				markerType: selectedMarkerType,
 				markerColor: selectedMarkerColor,
 				labels: [...labels]
@@ -953,7 +967,7 @@
 			</h1>
 		</div>
 		<button
-			class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+			class="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
 			onclick={() => {
 				showAddForm = true;
 				// Clear form data when opening
@@ -1058,7 +1072,7 @@
 							id="titleInput"
 							type="text"
 							bind:value={title}
-							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 							placeholder={t('wantToVisit.titlePlaceholder')}
 							required
 						/>
@@ -1081,13 +1095,13 @@
 								id="searchPlace"
 								bind:value={searchQuery}
 								oninput={handleSearchInput}
-								class="w-full rounded-lg border border-gray-300 py-2 pr-10 pl-10 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+								class="w-full rounded-lg border border-gray-300 py-2 pr-10 pl-10 text-sm focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 								placeholder={t('wantToVisit.searchPlaceholder')}
 							/>
 							{#if isSearching}
 								<div class="pointer-events-none absolute top-1/2 right-3 z-10 -translate-y-1/2">
 									<div
-										class="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"
+										class="h-4 w-4 animate-spin rounded-full border-2 border-[rgb(34,51,95)] border-t-transparent"
 									></div>
 								</div>
 							{/if}
@@ -1188,7 +1202,7 @@
 									}}
 									class="flex flex-col items-center justify-center gap-1 rounded-lg border px-3 py-2 transition-colors {placeType ===
 									marker.id
-										? 'border-blue-600 bg-blue-600 text-white'
+										? 'border-[rgb(34,51,95)] bg-primary text-white'
 										: 'border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'}"
 								>
 									<marker.icon class="h-5 w-5" />
@@ -1226,13 +1240,13 @@
 						<div class="mb-2 flex flex-wrap gap-2">
 							{#each labels as label (label)}
 								<span
-									class="mr-1 mb-1 inline-flex items-center rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+									class="mr-1 mb-1 inline-flex items-center rounded-full bg-primary/10 px-2 py-1 text-xs text-primary dark:bg-primary/30 dark:text-gray-300"
 								>
 									{label}
 									<button
 										type="button"
 										aria-label="Remove {label} label"
-										class="ml-1 text-blue-500 hover:text-red-500"
+										class="ml-1 text-primary hover:text-red-500"
 										onclick={() => removeLabel(label)}
 									>
 										<X class="h-3 w-3" />
@@ -1245,7 +1259,7 @@
 								id="labelInput"
 								type="text"
 								bind:value={labelInput}
-								class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+								class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 								placeholder={t('wantToVisit.addLabelPlaceholder')}
 								onkeydown={(e) => {
 									if (e.key === 'Enter') {
@@ -1256,7 +1270,7 @@
 							/>
 							<button
 								type="button"
-								class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+								class="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
 								onclick={addLabel}
 							>
 								{t('common.actions.add')}
@@ -1275,7 +1289,7 @@
 							id="descriptionInput"
 							bind:value={description}
 							rows="3"
-							class="relative z-[10001] w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+							class="relative z-[10001] w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 							placeholder={t('wantToVisit.notesPlaceholder')}
 						></textarea>
 					</div>
@@ -1298,7 +1312,7 @@
 						<button
 							type="button"
 							onclick={addPlace}
-							class="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+							class="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
 						>
 							{t('wantToVisit.addToList')}
 						</button>
@@ -1364,7 +1378,7 @@
 							id="titleInput"
 							type="text"
 							bind:value={title}
-							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 							placeholder={t('wantToVisit.titlePlaceholder')}
 							required
 						/>
@@ -1413,7 +1427,7 @@
 							id="addressDisplay"
 							type="text"
 							bind:value={address}
-							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 							placeholder={t('wantToVisit.addressPlaceholder')}
 						/>
 					</div>
@@ -1434,7 +1448,7 @@
 									}}
 									class="flex flex-col items-center justify-center gap-1 rounded-lg border px-3 py-2 transition-colors {placeType ===
 									marker.id
-										? 'border-blue-600 bg-blue-600 text-white'
+										? 'border-[rgb(34,51,95)] bg-primary text-white'
 										: 'border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'}"
 								>
 									<marker.icon class="h-5 w-5" />
@@ -1472,13 +1486,13 @@
 						<div class="mb-2 flex flex-wrap gap-2">
 							{#each labels as label (label)}
 								<span
-									class="mr-1 mb-1 inline-flex items-center rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+									class="mr-1 mb-1 inline-flex items-center rounded-full bg-primary/10 px-2 py-1 text-xs text-primary dark:bg-primary/30 dark:text-gray-300"
 								>
 									{label}
 									<button
 										type="button"
 										aria-label="Remove {label} label"
-										class="ml-1 text-blue-500 hover:text-red-500"
+										class="ml-1 text-primary hover:text-red-500"
 										onclick={() => removeLabel(label)}
 									>
 										<X class="h-3 w-3" />
@@ -1491,7 +1505,7 @@
 								id="labelInput"
 								type="text"
 								bind:value={labelInput}
-								class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+								class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 								placeholder={t('wantToVisit.addLabelPlaceholder')}
 								onkeydown={(e) => {
 									if (e.key === 'Enter') {
@@ -1502,7 +1516,7 @@
 							/>
 							<button
 								type="button"
-								class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+								class="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
 								onclick={addLabel}
 							>
 								{t('common.actions.add')}
@@ -1521,7 +1535,7 @@
 							id="descriptionInput"
 							bind:value={description}
 							rows="3"
-							class="relative z-[10001] w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+							class="relative z-[10001] w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 							placeholder={t('wantToVisit.notesPlaceholder')}
 						></textarea>
 					</div>
@@ -1541,7 +1555,7 @@
 						<button
 							type="button"
 							onclick={updatePlace}
-							class="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+							class="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
 						>
 							{t('wantToVisit.updatePlace')}
 						</button>
@@ -1566,7 +1580,7 @@
 							class="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors {selectedTypes.includes(
 								type.id
 							)
-								? 'bg-blue-600 text-white'
+								? 'bg-primary text-white'
 								: 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'}"
 							onclick={() => {
 								selectType(type.id);
@@ -1599,7 +1613,7 @@
 					type="text"
 					bind:value={searchQuery}
 					placeholder={t('wantToVisit.searchTitlesPlaceholder')}
-					class="w-full rounded-lg border border-gray-300 py-2 pr-4 pl-10 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+					class="w-full rounded-lg border border-gray-300 py-2 pr-4 pl-10 text-sm focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 				/>
 			</div>
 		</div>
@@ -1627,7 +1641,7 @@
 	<!-- Places List -->
 	{#if isLoading}
 		<div class="py-12 text-center">
-			<div class="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
+			<div class="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-[rgb(34,51,95)]"></div>
 			<p class="mt-4 text-gray-500 dark:text-gray-400">{t('wantToVisit.loadingPlaces')}</p>
 		</div>
 	{:else if filteredPlaces.length === 0}
@@ -1658,7 +1672,7 @@
 
 					<!-- Place Info -->
 					<div class="mb-4">
-						<div class="mb-1 text-base font-bold text-blue-700 dark:text-blue-300">
+						<div class="mb-1 text-base font-bold text-primary dark:text-gray-300">
 							{place.title}
 						</div>
 						<div class="mb-2 flex items-start justify-between">
@@ -1666,10 +1680,10 @@
 						</div>
 						<div class="mb-2 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
 							<MapPin class="h-4 w-4" />
-							{place.location || place.address}
+							{place.address || place.coordinates}
 						</div>
 						<span
-							class="inline-block rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+							class="inline-block rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary dark:bg-primary/30 dark:text-gray-300"
 						>
 							{getMarkerTypeName(place.markerType || place.type || 'default')}
 						</span>
@@ -1678,7 +1692,7 @@
 							<div class="mt-2 flex flex-wrap gap-1">
 								{#each place.labels as label (label)}
 									<span
-										class="inline-flex items-center rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700 dark:bg-blue-900/40 dark:text-blue-200"
+										class="inline-flex items-center rounded-full bg-primary/5 px-2 py-1 text-xs text-primary dark:bg-primary/40 dark:text-gray-200"
 									>
 										{label}
 									</span>
@@ -1708,14 +1722,14 @@
 								const [lat, lng] = place.coordinates.split(',').map(Number);
 								map.setView([lat, lng], 15);
 							}}
-							class="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/20"
+							class="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/5 dark:hover:bg-primary/20"
 						>
 							<MapPin class="h-4 w-4" />
 							{t('wantToVisit.showOnMap')}
 						</button>
 						<button
 							onclick={() => editPlace(place)}
-							class="rounded-lg p-2 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-500 dark:hover:bg-blue-900/20"
+							class="rounded-lg p-2 text-gray-400 transition-colors hover:bg-primary/5 hover:text-primary dark:hover:bg-primary/20"
 						>
 							<Edit class="h-4 w-4" />
 						</button>

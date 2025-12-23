@@ -1,5 +1,6 @@
 <!-- src/lib/components/ui/language-switcher.svelte -->
 <script lang="ts">
+	import { onMount, onDestroy } from 'svelte';
 	import { ChevronDown, Globe } from 'lucide-svelte';
 
 	import { currentLocale, SUPPORTED_LOCALES, type SupportedLocale } from '$lib/i18n';
@@ -15,13 +16,29 @@
 	const localeNames: Record<SupportedLocale, string> = {
 		en: 'English',
 		nl: 'Nederlands',
-		es: 'Español'
+		es: 'Español',
+		de: 'Deutsch',
+		fr: 'Français',
+		it: 'Italiano',
+		ja: '日本語',
+		ko: '한국어',
+		pt: 'Português',
+		ru: 'Русский',
+		zh: '中文'
 	};
 
 	const localeFlags: Record<SupportedLocale, string> = {
 		en: '🇺🇸',
 		nl: '🇳🇱',
-		es: '🇪🇸'
+		es: '🇪🇸',
+		de: '🇩🇪',
+		fr: '🇫🇷',
+		it: '🇮🇹',
+		ja: '🇯🇵',
+		ko: '🇰🇷',
+		pt: '🇧🇷',
+		ru: '🇷🇺',
+		zh: '🇨🇳'
 	};
 
 	function toggleDropdown() {
@@ -54,10 +71,14 @@
 		}
 	}
 
-	// Handle click outside
-	if (typeof window !== 'undefined') {
+	// Add click listener on mount and remove on destroy to prevent memory leaks
+	onMount(() => {
 		window.addEventListener('click', handleClickOutside);
-	}
+	});
+
+	onDestroy(() => {
+		window.removeEventListener('click', handleClickOutside);
+	});
 </script>
 
 <svelte:head>

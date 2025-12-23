@@ -1,9 +1,9 @@
 import { writable } from 'svelte/store';
 
-import { supabase } from '$lib/supabase';
+import { fluxbase } from '$lib/fluxbase';
 
 import type { UserProfile } from '$lib/types/user.types';
-import type { Session, User } from '@supabase/supabase-js';
+import type { AuthSession, User } from '@fluxbase/sdk';
 
 type AuthStore = User & Partial<Pick<UserProfile, 'full_name' | 'avatar_url' | 'role'>>;
 
@@ -29,11 +29,9 @@ export const sessionStoreReady = writable<boolean>(false);
 // Initialize session store with session manager
 async function initializeSessionStore() {
 	try {
-		console.log('🔐 [AuthStore] Initializing auth store...');
 		// Session manager will handle the auth state changes
 		// Just mark the store as ready
 		sessionStoreReady.set(true);
-		console.log('✅ [AuthStore] Auth store ready');
 	} catch (error) {
 		console.error('❌ [AuthStore] Failed to initialize session store:', error);
 		sessionStore.set(null);

@@ -8,7 +8,7 @@ Thank you for your interest in contributing to Wayli! This guide will help you g
 
 - **Node.js 18+** - [Download here](https://nodejs.org/)
 - **Git** - [Download here](https://git-scm.com/)
-- **Supabase Account** - [Sign up here](https://supabase.com/)
+- **Fluxbase** - [Get started here](https://fluxbase.eu/)
 - **Code Editor** - We recommend VS Code with the Svelte extension
 
 ### Development Setup
@@ -32,18 +32,18 @@ Thank you for your interest in contributing to Wayli! This guide will help you g
    cp .env.example .env
    ```
 
-   Edit `.env` with your Supabase credentials:
+   Edit `.env` with your Fluxbase credentials:
 
    ```env
-   PUBLIC_SUPABASE_URL=your_supabase_url
-   PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-   SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+   PUBLIC_FLUXBASE_BASE_URL=your_FLUXBASE_BASE_URL
+   PUBLIC_FLUXBASE_ANON_KEY=your_fluxbase_anon_key
+   FLUXBASE_SERVICE_ROLE_KEY=your_service_role_key
    ```
 
 4. **Database Setup**
 
    ```bash
-   npx supabase db reset
+   npx fluxbase db reset
    ```
 
 5. **Start Development Server**
@@ -104,7 +104,7 @@ src/
 │   ├── components/          # Reusable UI components
 │   ├── core/
 │   │   ├── config/          # Environment configuration
-│   │   └── supabase/        # Supabase clients
+│   │   └── fluxbase/        # Fluxbase clients
 │   ├── services/           # Business logic services
 │   ├── stores/             # Svelte stores
 │   ├── types/              # TypeScript types
@@ -192,7 +192,7 @@ describe('UserProfileService', () => {
 	let service: UserProfileService;
 
 	beforeEach(() => {
-		service = new UserProfileService(mockSupabaseClient);
+		service = new UserProfileService(mockFluxbaseClient);
 	});
 
 	it('should create user profile successfully', async () => {
@@ -246,8 +246,8 @@ import { useAriaModal } from '$lib/accessibility/aria-modal';
 Follow the environment separation pattern:
 
 ```typescript
-// Note: Nominatim configuration is now handled directly in the service
-// No client-side config needed at this time
+// Note: Pelias configuration is now handled directly in the service
+// Client-side can use PUBLIC_PELIAS_ENDPOINT env var (defaults to https://pelias.wayli.app)
 
 // Server-only (private variables)
 import { validateServerEnvironment } from '$lib/core/config/server-environment';
@@ -381,7 +381,7 @@ We are committed to providing a welcoming and inclusive environment. Please:
 ### External Resources
 
 - [SvelteKit Documentation](https://kit.svelte.dev/)
-- [Supabase Documentation](https://supabase.com/docs)
+- [Fluxbase Documentation](https://fluxbase.eu/docs)
 - [WCAG 2.1 Guidelines](https://www.w3.org/WAI/WCAG21/quickref/)
 - [Vitest Testing Framework](https://vitest.dev/)
 - [Zod Validation](https://zod.dev/)

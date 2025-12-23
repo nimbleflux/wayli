@@ -1,11 +1,10 @@
 # Claude Code Configuration for Wayli Project
 
 ## Most Important Rules
-- Do not ever run `npx supabase db reset`
-- ABSOLUTELY DO NOT EVER RUN `npx supabase db reset`
+- Do not ever run database reset commands
 - Do not import $env/static/private into client-side code (could leak sensitive information)
 - When working on the web app, use the web/ folder as a base
-- Do not use the Supabase CLI to deploy functions (we're running Supabase self-hosted)
+- We are using Fluxbase as our backend, not Supabase. Edge functions are in fluxbase/functions/.
 - Prefix all log messages with an appropriate emoji
 - Always comply with a11y
 - Use Svelte v5's runes system where applicable
@@ -13,10 +12,10 @@
 
 ## Tech Stack & Project Context
 - Frontend & Backend: SvelteKit
-- Database: PostgreSQL (via Supabase)
+- Database: PostgreSQL (via Fluxbase)
 - UI Styling: Tailwind CSS
-- Deployment: Vercel
-- Authentication: Supabase Auth
+- Deployment: Kubernetes / Docker
+- Authentication: Fluxbase Auth
 - This is a travel tracking and trip management application
 - Implements background job processing with workers
 - Follows TypeScript best practices
@@ -37,11 +36,11 @@
 - Use dependency injection where appropriate
 - Follow the existing service layer pattern
 - Maintain separation between client and server code
-- Use proper RLS (Row Level Security) policies in Supabase
+- Use proper RLS (Row Level Security) policies in Fluxbase
 - The webserver and workers are two separate processes
 
 ## Environment & Configuration
-- Use the appropriate Supabase client for each context:
+- Use the appropriate Fluxbase client for each context:
   - `client.ts` for browser/client-side code
   - `server.ts` for SvelteKit server-side code (API routes, load functions)
   - `worker.ts` for background workers and job processing
@@ -67,7 +66,7 @@
 - Use proper TypeScript types for request/response data
 
 ## Database & Migrations
-- Write migrations in `supabase/migrations/` with descriptive names
+- Write migrations in `fluxbase/migrations/` with descriptive names
 - Use proper RLS policies for all tables
 - Include indexes for performance-critical queries
 - Use PostGIS functions for geographic data
@@ -90,7 +89,7 @@
 - Use Vitest for unit and integration tests
 - Aim for high test coverage (80% or higher)
 - Test API endpoints with proper authentication
-- Mock external dependencies (Supabase, external APIs)
+- Mock external dependencies (Fluxbase, external APIs)
 - Test both success and error scenarios
 - Use descriptive test names that explain the behavior
 - Test accessibility features

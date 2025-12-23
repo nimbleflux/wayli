@@ -1,132 +1,56 @@
 // /Users/bart/Dev/wayli/web/tests/unit/services/client-statistics-smart-sampling.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ClientStatisticsService } from '../../../src/lib/services/client-statistics.service';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { FluxbaseClient } from '@fluxbase/sdk';
 
-// Mock Supabase client
-const mockSupabase = {
-	auth: {
-		getSession: vi.fn()
-	},
-	from: vi.fn(() => ({
-		select: vi.fn(() => ({
-			eq: vi.fn(() => ({
-				not: vi.fn(() => ({
-					order: vi.fn(() => ({
-						range: vi.fn(() => ({
-							gte: vi.fn(() => ({
-								lte: vi.fn(() => Promise.resolve({ data: [], error: null }))
-							}))
-						}))
-					}))
-				}))
-			}))
+// Helper to create a chainable mock that supports all methods
+function createChainableMock(resolvedValue: { data: any[]; error: any } | { count: number; error: any }) {
+	const mock: any = {};
+
+	const methods = ['select', 'eq', 'not', 'order', 'range', 'gte', 'lte', 'count'];
+
+	methods.forEach(method => {
+		mock[method] = vi.fn().mockImplementation(() => {
+			// Return a promise for the final call
+			if ('data' in resolvedValue || 'count' in resolvedValue) {
+				const result = { ...mock, then: (resolve: any) => resolve(resolvedValue) };
+				// Make it thenable for await
+				Object.assign(result, Promise.resolve(resolvedValue));
+				return result;
+			}
+			return mock;
+		});
+	});
+
+	return mock;
+}
+
+// Mock Fluxbase client with proper method chaining
+const createMockFluxbase = (countValue: number = 0, batchData: any[] = []) => {
+	const selectChain = createChainableMock({ data: batchData, error: null });
+	const countChain = createChainableMock({ count: countValue, error: null });
+
+	return {
+		auth: {
+			getSession: vi.fn()
+		},
+		from: vi.fn((tableName: string) => ({
+			select: vi.fn().mockReturnValue(selectChain),
+			count: vi.fn().mockReturnValue(countChain)
 		}))
-	}))
-} as unknown as SupabaseClient;
-
-// Mock fetch for Edge Function calls
-global.fetch = vi.fn();
+	} as unknown as FluxbaseClient;
+};
 
 describe('ClientStatisticsService - Smart Sampling', () => {
 	let service: ClientStatisticsService;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		service = new ClientStatisticsService(mockSupabase);
 	});
 
-	it('should use smart sampling for large datasets (>1000 points)', async () => {
-		// Mock session
-		mockSupabase.auth.getSession.mockResolvedValue({
-			data: { session: { access_token: 'test-token' } },
-			error: null
-		});
-
-		// Mock fetch response for smart sampling
-		global.fetch = vi.fn().mockResolvedValue({
-			ok: true,
-			json: () =>
-				Promise.resolve({
-					data: [
-						{
-							recorded_at: '2024-01-01T00:00:00Z',
-							location: { type: 'Point', coordinates: [0, 0] },
-							speed: 0,
-							distance: 0,
-							time_spent: 0,
-							country_code: 'US',
-							tz_diff: 0,
-							geocode: { properties: { type: 'test' } }
-						}
-					],
-					metadata: {
-						totalCount: 5000,
-						returnedCount: 1500,
-						samplingApplied: true
-					}
-				})
-		});
-
-		// Mock getTotalCount to return large number
-		vi.spyOn(service as any, 'getTotalCount').mockResolvedValue(5000);
-
-		const onProgress = vi.fn();
-		const onError = vi.fn();
-
-		// This should trigger smart sampling
-		await service.loadAndProcessData(
-			'test-user-id',
-			'2024-01-01',
-			'2024-01-31',
-			onProgress,
-			onError
-		);
-
-		// Verify that fetch was called for smart sampling
-		expect(global.fetch).toHaveBeenCalledWith(
-			expect.stringContaining('/tracker-data-smart'),
-			expect.objectContaining({
-				method: 'POST',
-				headers: expect.objectContaining({
-					Authorization: 'Bearer test-token',
-					'Content-Type': 'application/json'
-				}),
-				body: JSON.stringify({
-					userId: 'test-user-id',
-					startDate: '2024-01-01',
-					endDate: '2024-01-31',
-					maxPointsThreshold: 1000,
-					offset: 0,
-					limit: 1000,
-					totalCount: 5000
-				})
-			})
-		);
-
-		// Verify progress was called with sampling stages
-		expect(onProgress).toHaveBeenCalledWith(
-			expect.objectContaining({
-				stage: 'Loading sampled data...'
-			})
-		);
-	});
-
-	it('should fallback to regular loading if smart sampling fails', async () => {
-		// Mock session
-		mockSupabase.auth.getSession.mockResolvedValue({
-			data: { session: { access_token: 'test-token' } },
-			error: null
-		});
-
-		// Mock fetch to fail
-		global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
-
-		// Mock getTotalCount to return large number
-		vi.spyOn(service as any, 'getTotalCount').mockResolvedValue(5000);
-
-		// Mock loadBatch to return test data
-		vi.spyOn(service as any, 'loadBatch').mockResolvedValue([
+	it('should use client-side sampling for large datasets (>2000 points)', async () => {
+		// Create mock with large dataset
+		const mockFluxbase = createMockFluxbase(5000, [
 			{
 				recorded_at: '2024-01-01T00:00:00Z',
 				location: { type: 'Point', coordinates: [0, 0] },
@@ -134,15 +58,18 @@ describe('ClientStatisticsService - Smart Sampling', () => {
 				distance: 0,
 				time_spent: 0,
 				country_code: 'US',
-				tz_diff: 0,
-				type: 'test'
+				tz_diff: 0
 			}
 		]);
+
+		service = new ClientStatisticsService(mockFluxbase);
+
+		// Spy on console.log to verify sampling message
+		const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
 		const onProgress = vi.fn();
 		const onError = vi.fn();
 
-		// This should trigger smart sampling, fail, and fallback
 		await service.loadAndProcessData(
 			'test-user-id',
 			'2024-01-01',
@@ -151,23 +78,17 @@ describe('ClientStatisticsService - Smart Sampling', () => {
 			onError
 		);
 
-		// Verify that fetch was called (smart sampling attempted)
-		expect(global.fetch).toHaveBeenCalled();
-
-		// Verify fallback progress was called
-		expect(onProgress).toHaveBeenCalledWith(
-			expect.objectContaining({
-				stage: 'Falling back to regular loading...'
-			})
+		// Verify that sampling strategy was logged (indicating large dataset handling)
+		expect(consoleSpy).toHaveBeenCalledWith(
+			expect.stringContaining('Sampling strategy')
 		);
+
+		consoleSpy.mockRestore();
 	});
 
-	it('should use regular loading for small datasets (<=1000 points)', async () => {
-		// Mock getTotalCount to return small number
-		vi.spyOn(service as any, 'getTotalCount').mockResolvedValue(1000);
-
-		// Mock loadBatch to return test data
-		vi.spyOn(service as any, 'loadBatch').mockResolvedValue([
+	it('should not sample for small datasets (<=2000 points)', async () => {
+		// Create mock with small dataset
+		const mockFluxbase = createMockFluxbase(1000, [
 			{
 				recorded_at: '2024-01-01T00:00:00Z',
 				location: { type: 'Point', coordinates: [0, 0] },
@@ -175,15 +96,18 @@ describe('ClientStatisticsService - Smart Sampling', () => {
 				distance: 0,
 				time_spent: 0,
 				country_code: 'US',
-				tz_diff: 0,
-				type: 'test'
+				tz_diff: 0
 			}
 		]);
+
+		service = new ClientStatisticsService(mockFluxbase);
+
+		// Spy on console.log to verify no sampling message
+		const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
 		const onProgress = vi.fn();
 		const onError = vi.fn();
 
-		// This should use regular loading
 		await service.loadAndProcessData(
 			'test-user-id',
 			'2024-01-01',
@@ -192,13 +116,45 @@ describe('ClientStatisticsService - Smart Sampling', () => {
 			onError
 		);
 
-		// Verify that fetch was NOT called (no smart sampling)
-		expect(global.fetch).not.toHaveBeenCalled();
+		// Verify that sampling strategy was NOT logged for small datasets
+		const samplingLogCalls = consoleSpy.mock.calls.filter(
+			(call) => call[0]?.toString().includes('Sampling strategy')
+		);
+		expect(samplingLogCalls).toHaveLength(0);
 
-		// Verify regular batch loading progress
+		consoleSpy.mockRestore();
+	});
+
+	it('should report progress during data loading', async () => {
+		const mockFluxbase = createMockFluxbase(100, [
+			{
+				recorded_at: '2024-01-01T00:00:00Z',
+				location: { type: 'Point', coordinates: [0, 0] },
+				speed: 0,
+				distance: 0,
+				time_spent: 0,
+				country_code: 'US',
+				tz_diff: 0
+			}
+		]);
+
+		service = new ClientStatisticsService(mockFluxbase);
+
+		const onProgress = vi.fn();
+		const onError = vi.fn();
+
+		await service.loadAndProcessData(
+			'test-user-id',
+			'2024-01-01',
+			'2024-01-31',
+			onProgress,
+			onError
+		);
+
+		// Verify progress was called with counting stage
 		expect(onProgress).toHaveBeenCalledWith(
 			expect.objectContaining({
-				stage: expect.stringContaining('Loading batch')
+				stage: 'Counting records...'
 			})
 		);
 	});

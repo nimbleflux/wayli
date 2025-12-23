@@ -2,12 +2,12 @@
 // Geocoding API Service for handling geocoding-related API operations
 
 import { errorHandler, ErrorCode } from '../error-handler.service';
-import { forwardGeocode } from '../external/nominatim.service';
+import { forwardGeocode } from '../external/pelias.service';
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { FluxbaseClient } from '@fluxbase/sdk';
 
 export interface GeocodingApiServiceConfig {
-	supabase: SupabaseClient;
+	fluxbase: FluxbaseClient;
 }
 
 export interface GeocodeSearchRequest {
@@ -29,10 +29,10 @@ export interface GeocodeSearchResult {
 }
 
 export class GeocodingApiService {
-	private supabase: SupabaseClient;
+	private fluxbase: FluxbaseClient;
 
 	constructor(config: GeocodingApiServiceConfig) {
-		this.supabase = config.supabase;
+		this.fluxbase = config.fluxbase;
 	}
 
 	/**
@@ -69,11 +69,11 @@ export class GeocodingApiService {
 				results.push({
 					display_name: searchResult.display_name,
 					coordinates: {
-						lat: parseFloat(searchResult.lat),
-						lng: parseFloat(searchResult.lon)
+						lat: searchResult.lat,
+						lng: searchResult.lon
 					},
-					lat: parseFloat(searchResult.lat),
-					lon: parseFloat(searchResult.lon),
+					lat: searchResult.lat,
+					lon: searchResult.lon,
 					address: searchResult.address || {}
 				});
 			}

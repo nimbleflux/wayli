@@ -8,6 +8,27 @@ vi.mock('@svelte-plugins/datepicker', async () => {
 	return { DatePicker: mod.default };
 });
 
+// Mock SvelteKit app stores
+vi.mock('$app/stores', async () => {
+	const { readable, writable } = await import('svelte/store');
+	return {
+		page: readable({
+			url: new URL('http://localhost/dashboard/statistics'),
+			params: {},
+			route: { id: '/dashboard/statistics' },
+			status: 200,
+			error: null,
+			data: {},
+			form: null
+		}),
+		navigating: readable(null),
+		updated: {
+			subscribe: readable(false).subscribe,
+			check: () => Promise.resolve(false)
+		}
+	};
+});
+
 vi.mock('$lib/i18n', async () => {
 	const { readable } = await import('svelte/store');
 	return {
@@ -17,8 +38,29 @@ vi.mock('$lib/i18n', async () => {
 	} as any;
 });
 
-vi.mock('$lib/supabase', () => ({
-	supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: {} } }) } }
+// Create a chainable fluxbase mock that handles both auth and database queries
+function createChainableMock(resolvedValue: any = { data: [], count: 0 }) {
+	const chain: any = {};
+	const methods = ['select', 'eq', 'in', 'single', 'not', 'order', 'range', 'gte', 'lte', 'insert', 'update', 'delete', 'limit', 'count'];
+	methods.forEach(method => {
+		chain[method] = vi.fn().mockReturnValue(chain);
+	});
+	chain.then = (resolve: (value: any) => void) => {
+		resolve(resolvedValue);
+		return Promise.resolve(resolvedValue);
+	};
+	return chain;
+}
+
+vi.mock('$lib/fluxbase', () => ({
+	fluxbase: {
+		auth: {
+			getSession: vi.fn().mockResolvedValue({
+				data: { session: { user: { id: 'test-user-id' } } }
+			})
+		},
+		from: vi.fn().mockReturnValue(createChainableMock({ data: [], count: 0 }))
+	}
 }));
 
 vi.mock('$lib/services/api/service-adapter', () => ({

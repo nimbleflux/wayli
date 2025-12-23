@@ -10,7 +10,6 @@ const config = {
 			strict: false
 		}),
 		csrf: {
-			checkOrigin: true,
 			// Add your production domains here when deploying
 			// Example: trustedOrigins: ['https://yourdomain.com', 'https://www.yourdomain.com']
 			trustedOrigins: process.env.PUBLIC_TRUSTED_ORIGINS?.split(',') || []

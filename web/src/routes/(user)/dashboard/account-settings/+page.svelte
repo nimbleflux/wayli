@@ -15,13 +15,14 @@
 	import { toast } from 'svelte-sonner';
 
 	import OnboardingWelcome from '$lib/components/OnboardingWelcome.svelte';
-	import TwoFactorDisable from '$lib/components/TwoFactorDisable.svelte';
 	import TwoFactorSetup from '$lib/components/TwoFactorSetup.svelte';
+	import TwoFactorDisable from '$lib/components/TwoFactorDisable.svelte';
 	import LanguageSelector from '$lib/components/ui/language-selector/index.svelte';
 	import { translate, changeLocale, currentLocale, type SupportedLocale } from '$lib/i18n';
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
+	import { sessionManager } from '$lib/services/session';
 	import { sessionStore } from '$lib/stores/auth';
-	import { supabase } from '$lib/supabase';
+	import { fluxbase } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -34,12 +35,9 @@
 	let currentPassword = $state('');
 	let newPassword = $state('');
 	let confirmPassword = $state('');
-	let twoFactorEnabled = $state(false);
 	let isUpdatingPassword = $state(false);
 	let isUpdatingProfile = $state(false);
 	let isUpdatingPreferences = $state(false);
-	let showTwoFactorSetup = $state(false);
-	let showTwoFactorDisable = $state(false);
 	let profile = $state<UserProfile | null>(null);
 	let preferences = $state<UserPreferences | null>(null);
 	let firstNameInput = $state('');
@@ -61,6 +59,12 @@
 	// Onboarding state
 	let showOnboardingModal = $state(false);
 	let isOnboarding = $derived($page.url.searchParams.get('onboarding') === 'true');
+
+	// Two-Factor Authentication state
+	let twoFactorEnabled = $state(false);
+	let showTwoFactorSetup = $state(false);
+	let showTwoFactorDisable = $state(false);
+	let isCheckingTwoFactor = $state(false);
 
 	// Trip exclusions state
 	let tripExclusions: any[] = $state([]);
@@ -101,6 +105,10 @@
 	let editExclusionAddressSearchTimeout: ReturnType<typeof setTimeout> | null = null;
 	let editExclusionAddressSearchError: string | null = $state(null);
 
+	// AI Settings - user override controlled by Fluxbase SDK
+	// Note: User-level AI provider configuration is managed via Fluxbase SDK
+	let aiAllowUserOverride = $state(false);
+
 	// Handle Escape key for modals
 	$effect(() => {
 		if (showAddExclusionModal || showEditExclusionModal) {
@@ -126,22 +134,26 @@
 	function handleLanguageChange(data: { locale: SupportedLocale }) {
 		const { locale } = data;
 		changeLocale(locale);
+
+		// Update preferences object so it saves correctly
+		if (preferences) {
+			preferences.language = locale;
+		}
 	}
 
 	async function loadUserData() {
 		try {
-			const session = await supabase.auth.getSession();
+			const session = await fluxbase.auth.getSession();
 			if (!session.data.session) {
 				throw new Error('No session found');
 			}
 
 			const serviceAdapter = new ServiceAdapter({ session: session.data.session });
 
-			// Load profile, preferences, and server settings separately
-			const [profileResult, preferencesResult, serverSettingsResponse] = await Promise.all([
+			// Load profile and preferences (server settings loaded via admin endpoint if needed)
+			const [profileResult, preferencesResult] = await Promise.all([
 				serviceAdapter.getProfile(),
-				serviceAdapter.getPreferences(),
-				supabase.functions.invoke('server-settings', { method: 'GET' })
+				serviceAdapter.getPreferences()
 			]);
 
 			// Handle profile data - Edge Functions return { success: true, data: ... }
@@ -177,47 +189,108 @@
 				pexelsApiKeyInput = preferences.pexels_api_key || '';
 			}
 
-			// Handle server settings data
-			if (serverSettingsResponse && !serverSettingsResponse.error) {
-				const serverSettingsData = serverSettingsResponse.data?.data || serverSettingsResponse.data;
-				if (serverSettingsData?.server_pexels_api_key_available) {
-					serverPexelsApiKeyAvailable = true;
-				}
-			}
-
-			// Check 2FA status using the auth-check-2fa endpoint
-			try {
-				console.log('🔍 [AccountSettings] Checking 2FA status...');
-				const twoFactorResult = (await serviceAdapter.check2FA()) as any;
-				console.log('📡 [AccountSettings] 2FA check result:', twoFactorResult);
-
-				if (twoFactorResult && typeof twoFactorResult === 'object') {
-					const twoFactorData = twoFactorResult.data || twoFactorResult;
-					console.log('📊 [AccountSettings] 2FA data:', twoFactorData);
-					twoFactorEnabled = twoFactorData.enabled || false;
-					console.log('✅ [AccountSettings] 2FA enabled:', twoFactorEnabled);
-				} else {
-					console.log('⚠️ [AccountSettings] Invalid 2FA result format:', twoFactorResult);
-					twoFactorEnabled = false;
-				}
-			} catch (error) {
-				console.error('❌ [AccountSettings] Error checking 2FA status:', error);
-				twoFactorEnabled = false;
-			}
+			// Check if server Pexels API key is available
+			// This is only relevant for admins, regular users don't need this info
+			// For now, we'll assume it's not available unless explicitly configured
+			serverPexelsApiKeyAvailable = false;
 		} catch (error) {
 			console.error('❌ [AccountSettings] Error loading user data:', error);
+		}
+	}
+
+	async function loadAISettings() {
+		try {
+			const session = await fluxbase.auth.getSession();
+			if (!session.data.session) return;
+
+			const serviceAdapter = new ServiceAdapter({ session: session.data.session });
+
+			// Load app-level AI settings to check if user override is allowed
+			const result = await serviceAdapter.getAllSettings();
+			if (result?.app?.ai) {
+				aiAllowUserOverride = result.app.ai.allow_user_provider_override ?? false;
+			}
+
+			// Note: User-level AI provider configuration is now managed via Fluxbase SDK
+			// The SDK handles user provider settings when aiAllowUserOverride is true
+		} catch (error) {
+			console.error('❌ [AccountSettings] Error loading AI settings:', error);
 		}
 	}
 
 	onMount(async () => {
 		await loadUserData();
 		await loadTripExclusions();
+		await check2FAStatus();
+		await loadAISettings();
 
 		// Show onboarding modal if this is first login
 		if (isOnboarding) {
 			showOnboardingModal = true;
 		}
 	});
+
+	async function check2FAStatus() {
+		isCheckingTwoFactor = true;
+		try {
+			// Check if user is authenticated via Fluxbase
+			const { data: userData } = await fluxbase.auth.getUser();
+			if (!userData.user) {
+				console.warn('⚠️ [AccountSettings] No authenticated user for 2FA status check');
+				return;
+			}
+
+			// Call get2FAStatus directly on fluxbase SDK (doesn't require session wrapper)
+			const { data, error } = await fluxbase.auth.get2FAStatus();
+
+			if (error) {
+				throw new Error(error.message || 'Failed to get 2FA status');
+			}
+
+			if (!data) {
+				console.warn('⚠️ [AccountSettings] No 2FA status data returned');
+				twoFactorEnabled = false;
+				return;
+			}
+
+			// SDK returns { totp_enabled: boolean } or { totp: Factor[] }
+			// Check both formats for compatibility
+			if (typeof data.totp_enabled === 'boolean') {
+				twoFactorEnabled = data.totp_enabled;
+			} else if (data.totp && Array.isArray(data.totp)) {
+				twoFactorEnabled = data.totp.length > 0;
+			} else {
+				twoFactorEnabled = false;
+			}
+		} catch (error) {
+			console.error('❌ [AccountSettings] Error checking 2FA status:', error);
+			twoFactorEnabled = false;
+		} finally {
+			isCheckingTwoFactor = false;
+		}
+	}
+
+	async function handle2FASetupSuccess() {
+		showTwoFactorSetup = false;
+		toast.success('Two-factor authentication enabled successfully!');
+		// Re-check 2FA status from server to ensure it's properly enabled
+		await check2FAStatus();
+	}
+
+	async function handle2FADisableSuccess() {
+		showTwoFactorDisable = false;
+		toast.success('Two-factor authentication disabled successfully!');
+		// Re-check 2FA status from server to ensure it's properly disabled
+		await check2FAStatus();
+	}
+
+	// Require re-authentication before enabling 2FA (sensitive action)
+	async function handleEnable2FA() {
+		const confirmed = await sessionManager.requireReauth();
+		if (confirmed) {
+			showTwoFactorSetup = true;
+		}
+	}
 
 	async function loadTripExclusions() {
 		try {
@@ -295,7 +368,7 @@
 				selectedHomeAddress = homeAddress;
 				homeAddressInput = homeAddress.display_name || '';
 
-				const session = await supabase.auth.getSession();
+				const session = await fluxbase.auth.getSession();
 				const serviceAdapter = new ServiceAdapter({ session: session.data.session! });
 
 				await serviceAdapter.updateProfile({
@@ -308,10 +381,15 @@
 
 			// Mark onboarding as completed
 			if (profile) {
-				await supabase
+				const { error } = await fluxbase
 					.from('user_profiles')
-					.update({ onboarding_completed: true })
-					.eq('id', profile.id);
+					.eq('id', profile.id)
+					.update({ onboarding_completed: true });
+
+				if (error) {
+					console.error('Error marking onboarding as completed:', error);
+					throw new Error(error.message || 'Failed to update onboarding status');
+				}
 			}
 
 			toast.success('Welcome! Your profile is all set.');
@@ -327,13 +405,15 @@
 		try {
 			// Mark onboarding as completed and home address as skipped
 			if (profile) {
-				await supabase
-					.from('user_profiles')
-					.update({
-						onboarding_completed: true,
-						home_address_skipped: true
-					})
-					.eq('id', profile.id);
+				const { error } = await fluxbase.from('user_profiles').eq('id', profile.id).update({
+					onboarding_completed: true,
+					home_address_skipped: true
+				});
+
+				if (error) {
+					console.error('Error marking onboarding as skipped:', error);
+					throw new Error(error.message || 'Failed to update onboarding status');
+				}
 			}
 
 			toast.info('You can add your home address anytime from Account Settings');
@@ -341,16 +421,22 @@
 			goto('/dashboard/account-settings', { replaceState: true });
 		} catch (error) {
 			console.error('Error skipping onboarding:', error);
+			toast.error('Failed to skip onboarding');
 		}
 	}
 
 	async function handleSkipHomeAddressField() {
 		try {
 			if (profile) {
-				await supabase
+				const { error } = await fluxbase
 					.from('user_profiles')
-					.update({ home_address_skipped: true })
-					.eq('id', profile.id);
+					.eq('id', profile.id)
+					.update({ home_address_skipped: true });
+
+				if (error) {
+					console.error('Error skipping home address:', error);
+					throw new Error(error.message || 'Failed to update home address skip status');
+				}
 
 				toast.info('You can add your home address later if you change your mind');
 
@@ -359,6 +445,7 @@
 			}
 		} catch (error) {
 			console.error('Error skipping home address:', error);
+			toast.error('Failed to skip home address field');
 		}
 	}
 
@@ -369,7 +456,7 @@
 		error = null;
 
 		try {
-			const session = await supabase.auth.getSession();
+			const session = await fluxbase.auth.getSession();
 			if (!session.data.session) {
 				throw new Error('No session found');
 			}
@@ -405,7 +492,7 @@
 		error = null;
 
 		try {
-			const session = await supabase.auth.getSession();
+			const session = await fluxbase.auth.getSession();
 			if (!session.data.session) {
 				throw new Error('No session found');
 			}
@@ -457,11 +544,9 @@
 		}
 		isUpdatingPassword = true;
 		try {
-			const {
-				data: { session }
-			} = await supabase.auth.getSession();
-			if (!session) throw new Error('No session found');
-			const serviceAdapter = new ServiceAdapter({ session });
+			const { data } = await fluxbase.auth.getSession();
+			if (!data?.session) throw new Error('No session found');
+			const serviceAdapter = new ServiceAdapter({ session: data.session });
 			await serviceAdapter.updatePassword(newPassword);
 			toast.success('Password updated successfully!');
 			currentPassword = '';
@@ -472,26 +557,6 @@
 		} finally {
 			isUpdatingPassword = false;
 		}
-	}
-
-	function handleTwoFactorEnabled() {
-		showTwoFactorSetup = true;
-	}
-
-	function handleTwoFactorSetupClose() {
-		showTwoFactorSetup = false;
-		// Reload user data to check if 2FA was enabled
-		loadUserData();
-	}
-
-	function handleTwoFactorDisable() {
-		showTwoFactorDisable = true;
-	}
-
-	function handleTwoFactorDisableClose() {
-		showTwoFactorDisable = false;
-		// Reload user data to check if 2FA was disabled
-		loadUserData();
 	}
 
 	function handleHomeAddressInput(event: Event) {
@@ -846,7 +911,7 @@
 	<!-- Header -->
 	<div class="mb-8">
 		<div class="flex items-center gap-3">
-			<User class="h-8 w-8 text-blue-600 dark:text-gray-400" />
+			<User class="h-8 w-8 text-primary dark:text-primary-dark" />
 			<h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
 				Account Settings
 			</h1>
@@ -894,7 +959,7 @@
 						type="email"
 						value={profile?.email}
 						disabled
-						class="w-full rounded-md border border-[rgb(218,218,221)] bg-gray-50 px-3 py-2 text-sm text-gray-500 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:outline-none focus:ring-1 focus:ring-[rgb(37,140,244)] dark:bg-gray-700 dark:text-gray-400 dark:placeholder:text-gray-400"
+						class="w-full rounded-md border border-[rgb(218,218,221)] bg-gray-50 px-3 py-2 text-sm text-gray-500 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-primary dark:bg-gray-700 dark:text-gray-400 dark:placeholder:text-gray-400"
 					/>
 					<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
 						{t('accountSettings.emailCannotChange')}
@@ -910,7 +975,7 @@
 						{t('accountSettings.homeLocationOptional')}
 						{#if !homeAddressInput && !profile?.home_address_skipped}
 							<span
-								class="ml-2 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+								class="ml-2 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary dark:bg-primary/30 dark:text-gray-300"
 							>
 								{t('accountSettings.recommended')}
 							</span>
@@ -931,12 +996,12 @@
 							oninput={handleHomeAddressInput}
 							onkeydown={handleHomeAddressKeydown}
 							placeholder={t('accountSettings.startTypingHomeAddress')}
-							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:outline-none focus:ring-1 focus:ring-[rgb(37,140,244)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-primary dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 						/>
 						{#if isHomeAddressSearching}
 							<div class="absolute right-3 top-1/2 -translate-y-1/2">
 								<div
-									class="h-4 w-4 animate-spin rounded-full border-2 border-[rgb(37,140,244)] border-t-transparent"
+									class="h-4 w-4 animate-spin rounded-full border-2 border-[rgb(34,51,95)] border-t-transparent"
 								></div>
 							</div>
 						{/if}
@@ -950,7 +1015,7 @@
 									type="button"
 									class="w-full px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:text-gray-100 dark:hover:bg-[#2d2d35] dark:focus:bg-[#2d2d35] {selectedHomeAddressIndex ===
 									index
-										? 'bg-[rgb(37,140,244)]/10 dark:bg-[rgb(37,140,244)]/20'
+										? 'bg-primary/10 dark:bg-primary/20'
 										: ''}"
 									onclick={() => selectHomeAddress(suggestion)}
 								>
@@ -1026,7 +1091,7 @@
 							type="text"
 							bind:value={firstNameInput}
 							placeholder={t('accountSettings.enterFirstName')}
-							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:outline-none focus:ring-1 focus:ring-[rgb(37,140,244)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-primary dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 						/>
 					</div>
 
@@ -1041,14 +1106,14 @@
 							type="text"
 							bind:value={lastNameInput}
 							placeholder={t('accountSettings.enterLastName')}
-							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:outline-none focus:ring-1 focus:ring-[rgb(37,140,244)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-primary dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 						/>
 					</div>
 				</div>
 			</div>
 
 			<button
-				class="mt-6 cursor-pointer rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(37,140,244)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+				class="mt-6 cursor-pointer rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
 				onclick={handleSaveProfile}
 				disabled={isUpdatingProfile}
 			>
@@ -1083,7 +1148,7 @@
 						id="currentPassword"
 						type="password"
 						bind:value={currentPassword}
-						class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:outline-none focus:ring-1 focus:ring-[rgb(37,140,244)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+						class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-primary dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 					/>
 				</div>
 
@@ -1098,7 +1163,7 @@
 							id="newPassword"
 							type="password"
 							bind:value={newPassword}
-							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:outline-none focus:ring-1 focus:ring-[rgb(37,140,244)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-primary dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 						/>
 					</div>
 
@@ -1112,13 +1177,13 @@
 							id="confirmPassword"
 							type="password"
 							bind:value={confirmPassword}
-							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:outline-none focus:ring-1 focus:ring-[rgb(37,140,244)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-primary dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 						/>
 					</div>
 				</div>
 
 				<button
-					class="cursor-pointer rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(37,140,244)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+					class="cursor-pointer rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
 					onclick={handleUpdatePassword}
 					disabled={isUpdatingPassword}
 				>
@@ -1126,52 +1191,91 @@
 						? t('accountSettings.updatingPassword')
 						: t('accountSettings.updatePassword')}
 				</button>
+			</div>
+		</div>
 
-				<!-- Two-Factor Authentication Section -->
-				<div class="mt-6 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-					<div class="flex items-center justify-between">
+		<!-- Two-Factor Authentication -->
+		<div
+			class="mb-8 rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]"
+		>
+			<div class="mb-6">
+				<div class="flex items-center gap-2">
+					<Shield class="h-5 w-5 text-gray-400" />
+					<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
+						{t('accountSettings.twoFactorAuthentication')}
+					</h2>
+				</div>
+				<p class="mt-1 text-sm text-gray-600 dark:text-gray-100">
+					{t('accountSettings.twoFactorAuthDescription')}
+				</p>
+			</div>
+
+			{#if isCheckingTwoFactor}
+				<div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+					<div
+						class="h-4 w-4 animate-spin rounded-full border-2 border-[rgb(34,51,95)] border-t-transparent"
+					></div>
+					<span>{t('auth.checking2FAStatus')}</span>
+				</div>
+			{:else}
+				<div class="space-y-4">
+					<!-- Current Status -->
+					<div
+						class="flex items-center justify-between rounded-lg border p-4 {twoFactorEnabled
+							? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20'
+							: 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800'}"
+					>
 						<div class="flex items-center gap-3">
-							<Shield class="h-5 w-5 text-gray-400" />
+							<div
+								class="flex h-10 w-10 items-center justify-center rounded-full {twoFactorEnabled
+									? 'bg-green-100 dark:bg-green-900/30'
+									: 'bg-gray-200 dark:bg-gray-700'}"
+							>
+								<Shield
+									class="h-5 w-5 {twoFactorEnabled
+										? 'text-green-600 dark:text-green-400'
+										: 'text-gray-400'}"
+								/>
+							</div>
 							<div>
-								<h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">
-									{t('accountSettings.twoFactorAuth')}
-								</h3>
+								<p class="font-medium text-gray-900 dark:text-gray-100">
+									{twoFactorEnabled ? t('accountSettings.enabled') : t('accountSettings.disabled')}
+								</p>
 								<p class="text-sm text-gray-600 dark:text-gray-400">
-									{#if twoFactorEnabled}
-										{t('accountSettings.twoFactorEnabled')}
-									{:else}
-										{t('accountSettings.twoFactorDisabled')}
-									{/if}
+									{twoFactorEnabled
+										? t('accountSettings.twoFactorEnabled')
+										: t('accountSettings.2faStatusDisabled')}
 								</p>
 							</div>
 						</div>
-
 						{#if twoFactorEnabled}
-							<div class="flex items-center gap-2">
-								<span
-									class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/20 dark:text-green-400"
-								>
-									{t('accountSettings.enabled')}
-								</span>
-								<button
-									class="cursor-pointer text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-									onclick={handleTwoFactorDisable}
-								>
-									{t('accountSettings.disable')}
-								</button>
-							</div>
+							<button
+								onclick={() => (showTwoFactorDisable = true)}
+								class="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-red-800 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-900/20"
+							>
+								{t('accountSettings.disable')}
+							</button>
 						{:else}
 							<button
-								class="inline-flex cursor-pointer items-center gap-2 rounded-md bg-[rgb(37,140,244)]/10 px-3 py-1.5 text-sm font-medium text-[rgb(37,140,244)] hover:bg-[rgb(37,140,244)]/20"
-								onclick={handleTwoFactorEnabled}
+								onclick={handleEnable2FA}
+								class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
 							>
-								<Shield class="h-4 w-4" />
-								{t('accountSettings.setup2FA')}
+								{t('accountSettings.enable2FA')}
 							</button>
 						{/if}
 					</div>
+
+					<!-- Info Message -->
+					<div
+						class="flex items-start gap-3 rounded-lg border border-[rgb(34,51,95)]/20 bg-primary/5 p-3 dark:border-[rgb(34,51,95)]/30 dark:bg-primary/20"
+					>
+						<Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-primary dark:text-gray-400" />
+						<p class="text-xs text-primary dark:text-gray-300">
+							{t('accountSettings.2faInfoMessage')}
+						</p>
+					</div>
 				</div>
-			</div>
+			{/if}
 		</div>
 
 		<!-- Preferences -->
@@ -1186,7 +1290,7 @@
 					</h2>
 				</div>
 				<p class="mt-1 text-sm text-gray-600 dark:text-gray-100">
-					Configure your language and display preferences
+					{t('accountSettings.preferencesSubtitle')}
 				</p>
 			</div>
 
@@ -1209,7 +1313,7 @@
 			</div>
 
 			<button
-				class="mt-6 cursor-pointer rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(37,140,244)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+				class="mt-6 cursor-pointer rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
 				onclick={handleSavePreferences}
 				disabled={isUpdatingPreferences}
 			>
@@ -1218,6 +1322,9 @@
 					: t('accountSettings.savePreferences')}
 			</button>
 		</div>
+
+		<!-- AI Settings - User-level provider configuration is managed via Fluxbase SDK -->
+		<!-- When aiAllowUserOverride is true, users can configure their own AI provider through the SDK -->
 
 		<!-- Trips Settings -->
 		<div
@@ -1277,7 +1384,7 @@
 						placeholder={serverPexelsApiKeyAvailable
 							? t('accountSettings.leaveEmptyToUseServerKey')
 							: t('accountSettings.enterPexelsApiKey')}
-						class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(37,140,244)] focus:outline-none focus:ring-1 focus:ring-[rgb(37,140,244)] dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+						class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-primary dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 					/>
 					<p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
 						{#if pexelsApiKeyInput}
@@ -1292,16 +1399,16 @@
 
 				<!-- Info notification -->
 				<div
-					class="mt-4 flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20"
+					class="mt-4 flex items-start gap-3 rounded-lg border border-[rgb(34,51,95)]/20 bg-primary/5 p-3 dark:border-[rgb(34,51,95)]/30 dark:bg-primary/20"
 				>
-					<Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
-					<p class="text-xs text-blue-700 dark:text-blue-300">
+					<Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-primary dark:text-gray-400" />
+					<p class="text-xs text-primary dark:text-gray-300">
 						{t('accountSettings.dontHavePexelsApiKey')}
 						<a
 							href="https://www.pexels.com/api/"
 							target="_blank"
 							rel="noopener noreferrer"
-							class="font-medium underline hover:text-blue-800 dark:hover:text-blue-200"
+							class="font-medium underline hover:text-primary/80 dark:hover:text-gray-200"
 							>{t('accountSettings.getApiKey')}</a
 						>.
 					</p>
@@ -1344,7 +1451,7 @@
 								<div class="flex items-center gap-2">
 									<button
 										onclick={() => handleEditExclusion(exclusion)}
-										class="rounded-lg p-2 text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-900/20"
+										class="rounded-lg p-2 text-primary transition-colors hover:bg-primary/5 hover:text-primary/80 dark:hover:bg-primary/20"
 									>
 										<Pencil class="h-4 w-4" />
 									</button>
@@ -1386,7 +1493,7 @@
 
 			<!-- Save Button for Trips Section -->
 			<button
-				class="mt-6 cursor-pointer rounded-md bg-[rgb(37,140,244)] px-4 py-2 text-sm font-medium text-white hover:bg-[rgb(37,140,244)]/90 disabled:cursor-not-allowed disabled:opacity-50"
+				class="mt-6 cursor-pointer rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
 				onclick={handleSavePreferences}
 				disabled={isUpdatingPreferences}
 			>
@@ -1397,20 +1504,6 @@
 		</div>
 	{/if}
 </div>
-
-<!-- Two-Factor Authentication Setup Modal -->
-<TwoFactorSetup
-	open={showTwoFactorSetup}
-	onClose={handleTwoFactorSetupClose}
-	onEnabled={handleTwoFactorSetupClose}
-/>
-
-<!-- Two-Factor Authentication Disable Modal -->
-<TwoFactorDisable
-	open={showTwoFactorDisable}
-	onClose={handleTwoFactorDisableClose}
-	onDisabled={handleTwoFactorDisableClose}
-/>
 
 <!-- Add Trip Exclusion Modal -->
 {#if showAddExclusionModal}
@@ -1437,26 +1530,26 @@
 			tabindex="-1"
 		>
 			<h3 class="mb-6 text-center text-2xl font-bold text-gray-900 dark:text-gray-100">
-				Add Trip Exclusion
+				{t('accountSettings.addTripExclusionModal')}
 			</h3>
 			<div class="space-y-6">
 				<div>
 					<label
 						for="add-exclusion-name"
-						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label
+						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('common.fields.name')}</label
 					>
 					<input
 						id="add-exclusion-name"
 						type="text"
 						bind:value={newExclusion.name}
 						placeholder={t('accountSettings.exclusionExampleLabel')}
-						class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+						class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
 					/>
 				</div>
 				<div>
 					<label
 						for="add-exclusion-address"
-						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Address</label
+						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('common.fields.address')}</label
 					>
 					<div class="relative">
 						<input
@@ -1467,12 +1560,12 @@
 							oninput={handleExclusionAddressInput}
 							onkeydown={handleExclusionAddressKeydown}
 							placeholder={t('accountSettings.startTypingAddress')}
-							class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+							class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
 						/>
 						{#if isExclusionAddressSearching}
 							<div class="absolute right-3 top-1/2 -translate-y-1/2">
 								<div
-									class="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"
+									class="h-4 w-4 animate-spin rounded-full border-2 border-[rgb(34,51,95)] border-t-transparent"
 								></div>
 							</div>
 						{/if}
@@ -1486,7 +1579,7 @@
 									type="button"
 									class="w-full px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:text-gray-100 dark:hover:bg-gray-700 dark:focus:bg-gray-700 {selectedExclusionAddressIndex ===
 									index
-										? 'bg-blue-500/10 dark:bg-blue-500/20'
+										? 'bg-primary/10 dark:bg-primary/20'
 										: ''}"
 									onclick={() => selectExclusionAddress(suggestion)}
 								>
@@ -1538,15 +1631,15 @@
 					<button
 						onclick={handleAddExclusion}
 						disabled={isAddingExclusion || !newExclusion.name || !newExclusion.location}
-						class="flex-1 cursor-pointer rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+						class="flex-1 cursor-pointer rounded-lg bg-primary px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
 					>
-						{isAddingExclusion ? 'Adding...' : 'Add Exclusion'}
+						{isAddingExclusion ? t('common.status.adding') : t('accountSettings.addExclusion')}
 					</button>
 					<button
 						onclick={() => (showAddExclusionModal = false)}
 						class="flex-1 cursor-pointer rounded-lg border border-gray-300 bg-white px-6 py-3 font-semibold text-gray-700 shadow transition-all duration-200 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
 					>
-						Cancel
+						{t('common.actions.cancel')}
 					</button>
 				</div>
 			</div>
@@ -1579,26 +1672,26 @@
 			tabindex="-1"
 		>
 			<h3 class="mb-6 text-center text-2xl font-bold text-gray-900 dark:text-gray-100">
-				Edit Trip Exclusion
+				{t('accountSettings.editTripExclusionModal')}
 			</h3>
 			<div class="space-y-6">
 				<div>
 					<label
 						for="edit-exclusion-name"
-						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label
+						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('common.fields.name')}</label
 					>
 					<input
 						id="edit-exclusion-name"
 						type="text"
 						bind:value={editingExclusion.name}
 						placeholder={t('accountSettings.exclusionExampleLabel')}
-						class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+						class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
 					/>
 				</div>
 				<div>
 					<label
 						for="edit-exclusion-address"
-						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Address</label
+						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('common.fields.address')}</label
 					>
 					<div class="relative">
 						<input
@@ -1609,12 +1702,12 @@
 							oninput={handleEditExclusionAddressInput}
 							onkeydown={handleEditExclusionAddressKeydown}
 							placeholder={t('accountSettings.startTypingAddress')}
-							class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+							class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
 						/>
 						{#if isEditExclusionAddressSearching}
 							<div class="absolute right-3 top-1/2 -translate-y-1/2">
 								<div
-									class="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"
+									class="h-4 w-4 animate-spin rounded-full border-2 border-[rgb(34,51,95)] border-t-transparent"
 								></div>
 							</div>
 						{/if}
@@ -1628,7 +1721,7 @@
 									type="button"
 									class="w-full px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:text-gray-100 dark:hover:bg-gray-700 dark:focus:bg-gray-700 {selectedEditExclusionAddressIndex ===
 									index
-										? 'bg-blue-500/10 dark:bg-blue-500/20'
+										? 'bg-primary/10 dark:bg-primary/20'
 										: ''}"
 									onclick={() => selectEditExclusionAddress(suggestion)}
 								>
@@ -1680,15 +1773,15 @@
 					<button
 						onclick={handleUpdateExclusion}
 						disabled={isEditingExclusion || !editingExclusion.name || !editingExclusion.location}
-						class="flex-1 cursor-pointer rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+						class="flex-1 cursor-pointer rounded-lg bg-primary px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
 					>
-						{isEditingExclusion ? 'Updating...' : 'Update Exclusion'}
+						{isEditingExclusion ? t('common.status.updating') : t('accountSettings.updateExclusion')}
 					</button>
 					<button
 						onclick={() => (showEditExclusionModal = false)}
 						class="flex-1 cursor-pointer rounded-lg border border-gray-300 bg-white px-6 py-3 font-semibold text-gray-700 shadow transition-all duration-200 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
 					>
-						Cancel
+						{t('common.actions.cancel')}
 					</button>
 				</div>
 			</div>
@@ -1703,4 +1796,13 @@
 		onComplete={handleOnboardingComplete}
 		onSkip={handleOnboardingSkip}
 	/>
+{/if}
+
+<!-- Two-Factor Authentication Modals -->
+{#if showTwoFactorSetup}
+	<TwoFactorSetup bind:open={showTwoFactorSetup} on:success={handle2FASetupSuccess} />
+{/if}
+
+{#if showTwoFactorDisable}
+	<TwoFactorDisable bind:open={showTwoFactorDisable} on:success={handle2FADisableSuccess} />
 {/if}

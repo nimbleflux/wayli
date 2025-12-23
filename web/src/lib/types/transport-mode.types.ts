@@ -18,5 +18,6 @@ export enum TransportDetectionReason {
 	GOLF_COURSE_WALKING = 'Walking on a golf course, likely walking',
 	DEFAULT = 'Default detection logic',
 	HIGHWAY_OR_MOTORWAY = 'Detected motorway or highway, assumed car',
-	FAST_SEGMENT = 'Fast segment, possible high-speed travel'
+	FAST_SEGMENT = 'Fast segment, possible high-speed travel',
+	VENUE_STATIONARY = 'At a stationary venue (restaurant, golf course, etc.), low speed indicates stationary'
 }

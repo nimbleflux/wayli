@@ -1,30 +1,57 @@
-import { createClient } from '@supabase/supabase-js';
-
-import { getSupabaseConfig } from '../../shared/config/node-environment';
-
 import type { UserProfile } from '$lib/types/user.types';
-// Supports both SvelteKit and Node/worker environments. By default, uses SvelteKit $env/static/*, but can be configured for Node/worker via setSupabaseClient or setSupabaseConfig.
+
+// Flexible type for Fluxbase client that works with both SDK and job runtime
+type FluxbaseClientLike = {
+	from(table: string): any;
+	auth: any;
+	rpc(fn: string, params?: Record<string, unknown>): Promise<any>;
+};
+
+// Supports both SvelteKit and Node/worker environments.
+// For job workers, call setFluxbaseClient() with the client passed to the handler.
 
 export class UserProfileService {
-	private static supabase = createClient(
-		getSupabaseConfig().url,
-		getSupabaseConfig().serviceRoleKey
-	);
+	private static _fluxbase: FluxbaseClientLike | null = null;
 
-	// Allow override for test/worker/Node.js
-	static setSupabaseClient(client: ReturnType<typeof createClient>) {
-		this.supabase = client;
+	// Lazy-load client - throws if not configured
+	private static get fluxbase(): FluxbaseClientLike {
+		if (!this._fluxbase) {
+			throw new Error(
+				'UserProfileService not configured. Call setFluxbaseClient() first.'
+			);
+		}
+		return this._fluxbase;
 	}
 
-	// Allow override for Node/worker: call this at startup in worker context
-	static setSupabaseConfig(url: string, serviceRoleKey: string) {
-		this.supabase = createClient(url, serviceRoleKey);
+	// Allow override for test/worker/Node.js - use this in job handlers
+	static setFluxbaseClient(client: FluxbaseClientLike) {
+		this._fluxbase = client;
 	}
 
-	// Helper for Node/worker: call this at startup
-	static useNodeEnvironmentConfig() {
-		const config = getSupabaseConfig();
-		this.supabase = createClient(config.url, config.serviceRoleKey);
+	/**
+	 * Get basic user profile from user_profiles table only (works in job context)
+	 * Use this in jobs where auth.admin is not available
+	 */
+	static async getUserProfileBasic(
+		userId: string
+	): Promise<{ home_address?: any; [key: string]: any } | null> {
+		try {
+			const { data: profile, error } = await this.fluxbase
+				.from('user_profiles')
+				.select('*')
+				.eq('id', userId)
+				.single();
+
+			if (error || !profile) {
+				console.error('Error fetching user profile:', error);
+				return null;
+			}
+
+			return profile;
+		} catch (error) {
+			console.error('Error in getUserProfileBasic:', error);
+			return null;
+		}
 	}
 
 	/**
@@ -33,7 +60,7 @@ export class UserProfileService {
 	static async getUserProfile(userId: string): Promise<UserProfile | null> {
 		try {
 			// Fetch from user_profiles
-			const { data: profileData, error: profileError } = await this.supabase
+			const { data: profileData, error: profileError } = await this.fluxbase
 				.from('user_profiles')
 				.select('*')
 				.eq('id', userId)
@@ -50,7 +77,7 @@ export class UserProfileService {
 					return null;
 				}
 				// Fetch the newly created profile
-				const { data: newProfile, error: newProfileError } = await this.supabase
+				const { data: newProfile, error: newProfileError } = await this.fluxbase
 					.from('user_profiles')
 					.select('*')
 					.eq('id', userId)
@@ -67,7 +94,7 @@ export class UserProfileService {
 
 			// Fetch from auth.users for email, confirmation, created_at
 			const { data: userData, error: userError } =
-				await this.supabase.auth.admin.getUserById(userId);
+				await this.fluxbase.auth.admin.getUserById(userId);
 			if (userError || !userData.user) {
 				console.error('Error fetching user from auth.users:', userError);
 				return null;
@@ -101,7 +128,7 @@ export class UserProfileService {
 	private static async createUserProfileFromMetadata(userId: string): Promise<boolean> {
 		try {
 			const { data: userData, error: userError } =
-				await this.supabase.auth.admin.getUserById(userId);
+				await this.fluxbase.auth.admin.getUserById(userId);
 			if (userError || !userData.user) {
 				console.error('Error fetching user for profile creation:', userError);
 				return false;
@@ -110,7 +137,7 @@ export class UserProfileService {
 			const user = userData.user;
 			const metadata = user.user_metadata || {};
 
-			const { error: insertError } = await this.supabase.from('user_profiles').insert({
+			const { error: insertError } = await this.fluxbase.from('user_profiles').insert({
 				id: userId,
 				first_name: metadata.first_name || '',
 				last_name: metadata.last_name || '',
@@ -140,7 +167,7 @@ export class UserProfileService {
 	 */
 	static async isUserAdmin(userId: string): Promise<boolean> {
 		try {
-			const { data, error } = await this.supabase.rpc('is_user_admin', { user_uuid: userId });
+			const { data, error } = await this.fluxbase.rpc('is_user_admin', { user_uuid: userId });
 
 			if (error) {
 				console.error('Error checking admin status:', error);
@@ -161,7 +188,7 @@ export class UserProfileService {
 		try {
 			// Get current user data
 			const { data: currentUser, error: fetchError } =
-				await this.supabase.auth.admin.getUserById(userId);
+				await this.fluxbase.auth.admin.getUserById(userId);
 
 			if (fetchError || !currentUser.user) {
 				console.error('Error fetching user for role update:', fetchError);
@@ -174,7 +201,7 @@ export class UserProfileService {
 				role: newRole
 			};
 
-			const { error: updateError } = await this.supabase.auth.admin.updateUserById(userId, {
+			const { error: updateError } = await this.fluxbase.auth.admin.updateUserById(userId, {
 				user_metadata: updatedMetadata
 			});
 
@@ -195,7 +222,7 @@ export class UserProfileService {
 	 */
 	static async updateUserProfile(userId: string, updates: Partial<UserProfile>): Promise<boolean> {
 		try {
-			const { error } = await this.supabase.from('user_profiles').update(updates).eq('id', userId);
+			const { error } = await this.fluxbase.from('user_profiles').eq('id', userId).update(updates);
 			if (error) {
 				console.error('Error updating user profile:', error);
 				return false;
@@ -212,7 +239,7 @@ export class UserProfileService {
 	 */
 	static async getAllUsers(): Promise<UserProfile[]> {
 		try {
-			const { data, error } = await this.supabase.auth.admin.listUsers();
+			const { data, error } = await this.fluxbase.auth.admin.listUsers();
 
 			if (error) {
 				console.error('Error fetching all users:', error);
@@ -249,7 +276,7 @@ export class UserProfileService {
 	 */
 	static async getUserCount(): Promise<number> {
 		try {
-			const { data, error } = await this.supabase.auth.admin.listUsers();
+			const { data, error } = await this.fluxbase.auth.admin.listUsers();
 
 			if (error) {
 				console.error('Error counting users:', error);

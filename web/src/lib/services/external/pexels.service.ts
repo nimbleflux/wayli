@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@fluxbase/sdk';
 import { config } from '../../config';
 import { cleanCountryNameForSearch } from '../../utils/country-name-cleaner';
 
@@ -95,7 +95,7 @@ export async function searchPexelsImages(
 }
 
 /**
- * Download an image from a URL and upload it to Supabase Storage
+ * Download an image from a URL and upload it to Fluxbase Storage
  */
 export async function downloadAndUploadImage(
 	imageUrl: string,
@@ -103,8 +103,8 @@ export async function downloadAndUploadImage(
 	bucketName: string = 'trip-images'
 ): Promise<string | null> {
 	try {
-		// Create server-side Supabase client with service role key
-		const supabase = createClient(config.supabaseUrl, config.supabaseServiceKey);
+		// Create server-side Fluxbase client with service role key
+		const fluxbase = createClient(config.fluxbaseUrl, config.fluxbaseServiceKey);
 
 		// Download the image with timeout
 		const controller = new AbortController();
@@ -147,19 +147,19 @@ export async function downloadAndUploadImage(
 
 		const imageBlob = new Blob([imageBuffer], { type: contentType });
 
-		// Upload to Supabase Storage
-		const { error } = await supabase.storage.from(bucketName).upload(fileName, imageBlob, {
+		// Upload to Fluxbase Storage
+		const { error } = await fluxbase.storage.from(bucketName).upload(fileName, imageBlob, {
 			contentType: contentType,
 			upsert: true
 		});
 
 		if (error) {
-			console.error('❌ Failed to upload image to Supabase Storage:', error);
+			console.error('❌ Failed to upload image to Fluxbase Storage:', error);
 			return null;
 		}
 
 		// Get the public URL
-		const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(fileName);
+		const { data: urlData } = fluxbase.storage.from(bucketName).getPublicUrl(fileName);
 
 		return urlData.publicUrl;
 	} catch (error) {

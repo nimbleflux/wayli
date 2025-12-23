@@ -72,121 +72,32 @@ configure_nginx() {
     echo "Nginx configuration complete"
 }
 
-# Sync Fluxbase migrations
-sync_migrations() {
-    echo "Syncing Fluxbase migrations..."
+# Sync all Fluxbase resources (RPC, functions, jobs, chatbots, migrations)
+sync_all() {
+    echo "Syncing all Fluxbase resources..."
 
     # Check if sync should be skipped (useful for testing/dev)
-    if [ "$SKIP_MIGRATION_SYNC" = "true" ]; then
-        echo "⚠️  SKIP_MIGRATION_SYNC is set, skipping migration sync"
+    if [ "$SKIP_SYNC" = "true" ]; then
+        echo "SKIP_SYNC is set, skipping all sync operations"
         return 0
     fi
 
     # Verify environment variables are set
     if [ -z "$FLUXBASE_BASE_URL" ] || [ -z "$FLUXBASE_SERVICE_ROLE_KEY" ]; then
-        echo "⚠️  Warning: FLUXBASE_BASE_URL or FLUXBASE_SERVICE_ROLE_KEY not set"
-        echo "⚠️  Skipping migration sync - migrations will need to be run manually"
+        echo "Warning: FLUXBASE_BASE_URL or FLUXBASE_SERVICE_ROLE_KEY not set"
+        echo "Skipping sync - resources will need to be synced manually"
         return 0
     fi
 
     cd /app
 
-    # Run migration sync script
-    if npm run sync-migrations; then
-        echo "✅ Migration sync completed successfully"
+    # Run sync:all script (syncs RPC, functions, jobs, chatbots, migrations)
+    if npm run sync:all; then
+        echo "All sync operations completed successfully"
     else
-        echo "❌ Error: Migration sync failed (exit code: $?)"
-        echo "❌ Cannot continue - database schema may be out of date"
+        echo "Error: Sync failed (exit code: $?)"
+        echo "Cannot continue - resources may be out of sync"
         exit 1
-    fi
-}
-
-# Sync Fluxbase edge functions
-sync_functions() {
-    echo "Syncing Fluxbase edge functions..."
-
-    # Check if sync should be skipped (useful for testing/dev)
-    if [ "$SKIP_FUNCTION_SYNC" = "true" ]; then
-        echo "⚠️  SKIP_FUNCTION_SYNC is set, skipping function sync"
-        return 0
-    fi
-
-    # Verify environment variables are set
-    if [ -z "$FLUXBASE_BASE_URL" ] || [ -z "$FLUXBASE_SERVICE_ROLE_KEY" ]; then
-        echo "⚠️  Warning: FLUXBASE_BASE_URL or FLUXBASE_SERVICE_ROLE_KEY not set"
-        echo "⚠️  Skipping function sync - functions will need to be deployed manually"
-        return 0
-    fi
-
-    cd /app
-
-    # Run function sync script
-    if npm run sync-functions; then
-        echo "✅ Function sync completed successfully"
-    else
-        echo "⚠️  Warning: Function sync failed (exit code: $?)"
-        echo "⚠️  Continuing startup - functions may not be available"
-        # Don't exit - allow the app to start even if function sync fails
-    fi
-}
-
-# Sync Fluxbase job handlers
-# NOTE: Commented out until Fluxbase Jobs platform is available
-# Job handlers are validated but not synced to platform yet
-sync_jobs() {
-    echo "Syncing Fluxbase job handlers..."
-
-    # Check if sync should be skipped (useful for testing/dev)
-    if [ "$SKIP_JOB_SYNC" = "true" ]; then
-        echo "⚠️  SKIP_JOB_SYNC is set, skipping job sync"
-        return 0
-    fi
-
-    # Verify environment variables are set
-    if [ -z "$FLUXBASE_BASE_URL" ] || [ -z "$FLUXBASE_SERVICE_ROLE_KEY" ]; then
-        echo "⚠️  Warning: FLUXBASE_BASE_URL or FLUXBASE_SERVICE_ROLE_KEY not set"
-        echo "⚠️  Skipping job sync - jobs will need to be deployed manually"
-        return 0
-    fi
-
-    cd /app
-
-    # Run job sync script (currently just validates handlers)
-    if npm run sync-jobs; then
-        echo "✅ Job validation completed successfully"
-    else
-        echo "⚠️  Warning: Job validation failed (exit code: $?)"
-        echo "⚠️  Continuing startup - jobs will still run via worker"
-        # Don't exit - allow the app to start even if job validation fails
-    fi
-}
-
-# Sync Fluxbase AI chatbots
-sync_chatbots() {
-    echo "Syncing Fluxbase AI chatbots..."
-
-    # Check if sync should be skipped (useful for testing/dev)
-    if [ "$SKIP_CHATBOT_SYNC" = "true" ]; then
-        echo "⚠️  SKIP_CHATBOT_SYNC is set, skipping chatbot sync"
-        return 0
-    fi
-
-    # Verify environment variables are set
-    if [ -z "$FLUXBASE_BASE_URL" ] || [ -z "$FLUXBASE_SERVICE_ROLE_KEY" ]; then
-        echo "⚠️  Warning: FLUXBASE_BASE_URL or FLUXBASE_SERVICE_ROLE_KEY not set"
-        echo "⚠️  Skipping chatbot sync - chatbots will need to be deployed manually"
-        return 0
-    fi
-
-    cd /app
-
-    # Run chatbot sync script
-    if npm run sync-chatbots; then
-        echo "✅ Chatbot sync completed successfully"
-    else
-        echo "⚠️  Warning: Chatbot sync failed (exit code: $?)"
-        echo "⚠️  Continuing startup - chatbots may not be available"
-        # Don't exit - allow the app to start even if chatbot sync fails
     fi
 }
 
@@ -208,10 +119,7 @@ start_nginx_background() {
 case "${APP_MODE:-web}" in
     "web"|"combined")
         configure_nginx
-        sync_migrations
-        sync_functions
-        sync_jobs
-        sync_chatbots
+        sync_all
         start_nginx_foreground
         ;;
     *)

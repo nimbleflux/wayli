@@ -56,12 +56,6 @@ web:
         repository: postgres
         tag: "16-alpine"
         pullPolicy: IfNotPresent
-    migrations:
-      enabled: true
-      flywayImage:
-        repository: flyway/flyway
-        tag: "11-alpine"
-        pullPolicy: IfNotPresent
     waitForFluxbase:
       enabled: true
       image:
@@ -739,7 +733,7 @@ fluxbase:
   ## Functions persistence
   functions:
     persistence:
-      enabled: true
+      enabled: false
       storageClass: ""
       size: 1Gi
       accessModes:

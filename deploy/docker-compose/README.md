@@ -161,7 +161,6 @@ All data is persisted using Docker named volumes for better performance and port
 - `db-config`: PostgreSQL configuration including pgsodium encryption keys
 - `minio-data`: MinIO (S3-compatible) object storage data
 - `storage-data`: Fluxbase Storage service cache (optional, mainly uses MinIO)
-- `flyway-sql`: Temporary volume for migration files
 - Database initialization scripts use bind mounts to local directories
 
 ### Benefits of Named Volumes

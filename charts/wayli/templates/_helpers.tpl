@@ -115,12 +115,6 @@ Return the proper init container image name (postgres)
 {{- printf "%s:%s" .Values.web.initContainers.waitForDb.image.repository .Values.web.initContainers.waitForDb.image.tag }}
 {{- end }}
 
-{{/*
-Return the proper init container image name (flyway)
-*/}}
-{{- define "wayli.initContainer.flyway.image" -}}
-{{- printf "%s:%s" .Values.web.initContainers.migrations.flywayImage.repository .Values.web.initContainers.migrations.flywayImage.tag }}
-{{- end }}
 
 {{/*
 Return the proper image pull secrets
@@ -176,7 +170,7 @@ Return the database URL for init containers
 {{- $dbPort := include "wayli.fluxbase.dbPort" . -}}
 {{- $dbName := include "wayli.fluxbase.dbName" . -}}
 {{- $dbUser := include "wayli.fluxbase.dbUser" . -}}
-{{- printf "postgresql://%s:%s@%s:%v/%s?prepareThreshold=0" $dbUser "$(FLYWAY_PASSWORD)" $dbHost $dbPort $dbName -}}
+{{- printf "postgresql://%s:%s@%s:%v/%s?prepareThreshold=0" $dbUser "$(DB_PASSWORD)" $dbHost $dbPort $dbName -}}
 {{- end -}}
 
 {{/*
@@ -261,6 +255,8 @@ Return the Fluxbase service host (replaces Kong host)
 {{- define "wayli.fluxbase.serviceHost" -}}
 {{- if .Values.externalFluxbase.enabled -}}
 {{- .Values.externalFluxbase.host | default .Values.externalFluxbase.url -}}
+{{- else if .Values.fluxbase.fullnameOverride -}}
+{{- .Values.fluxbase.fullnameOverride -}}
 {{- else -}}
 {{- printf "%s-fluxbase" .Release.Name -}}
 {{- end -}}
@@ -275,20 +271,6 @@ Return the Fluxbase service port (replaces Kong port)
 {{- else -}}
 {{- .Values.fluxbase.service.ports.http | default 8080 -}}
 {{- end -}}
-{{- end -}}
-
-{{/*
-Return the Fluxbase Kong host (deprecated - use wayli.fluxbase.serviceHost)
-*/}}
-{{- define "wayli.fluxbase.kongHost" -}}
-{{- include "wayli.fluxbase.serviceHost" . -}}
-{{- end -}}
-
-{{/*
-Return the Fluxbase Kong port (deprecated - use wayli.fluxbase.servicePort)
-*/}}
-{{- define "wayli.fluxbase.kongPort" -}}
-{{- include "wayli.fluxbase.servicePort" . -}}
 {{- end -}}
 
 {{/*
@@ -330,17 +312,15 @@ Common initContainers for waiting for Fluxbase services and database
       value: "{{ include "wayli.fluxbase.dbHost" . }}.{{ .Release.Namespace }}.svc.cluster.local"
     - name: DB_PORT
       value: {{ include "wayli.fluxbase.dbPort" . | quote }}
-    - name: FLYWAY_USER
+    - name: DB_USER
       value: {{ include "wayli.fluxbase.dbUser" . | quote }}
-    - name: FLYWAY_PASSWORD
+    - name: DB_PASSWORD
       valueFrom:
         secretKeyRef:
           name: {{ include "wayli.fluxbaseSecretName" . }}
           key: {{ .Values.fluxbase.existingSecretKeyRef.databasePassword }}
     - name: DB_NAME
       value: {{ include "wayli.fluxbase.dbName" . | quote }}
-    - name: FLYWAY_URL
-      value: jdbc:postgresql://$(DB_HOST):{{ include "wayli.fluxbase.dbPort" . }}/$(DB_NAME)
     - name: DATABASE_URL
       value: {{ include "wayli.databaseUrl" . | quote }}
     - name: PGHOST
@@ -361,7 +341,7 @@ Common initContainers for waiting for Fluxbase services and database
     - -c
     - |
       echo "Waiting for database to be ready..."
-      while ! pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$FLYWAY_USER" -d "$DB_NAME"; do
+      while ! pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME"; do
         echo "Database not ready, waiting..."
         sleep 1
       done

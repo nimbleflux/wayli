@@ -10,7 +10,7 @@ This setup replaces the 11+ Supabase services with a single Fluxbase container, 
 - **Startup time**: ~30-60 seconds
 
 ### After (Fluxbase)
-- **4 services**: Fluxbase, PostgreSQL, MinIO, Flyway (migrations)
+- **3 services**: Fluxbase, PostgreSQL, MinIO
 - **Resource usage**: ~256-512 MB RAM
 - **Startup time**: ~5-10 seconds
 
@@ -98,11 +98,6 @@ docker compose -f docker-compose.fluxbase.yml exec postgres psql -U postgres -d 
 - **Credentials**: minioadmin / minioadmin (change in production!)
 - **Buckets**: trip-images, exports
 
-### Flyway Migrations
-- Runs automatically on startup
-- Migrations from `./volumes/migrations`
-- One-time execution, exits after completion
-
 ## Environment Variables
 
 ### Required Secrets
@@ -185,19 +180,6 @@ Access app at: http://localhost:4000
 docker compose -f docker-compose.fluxbase.yml logs -f wayli-worker
 ```
 
-### Database Migrations
-
-```bash
-# Add new migration to ./volumes/migrations/
-# Example: 2025111001__add_new_table.sql
-
-# Restart Flyway to run new migrations
-docker compose -f docker-compose.fluxbase.yml restart flyway-migrations
-
-# Check logs
-docker compose -f docker-compose.fluxbase.yml logs flyway-migrations
-```
-
 ### Edge Functions
 
 ```bash
@@ -225,17 +207,6 @@ docker compose -f docker-compose.fluxbase.yml logs fluxbase
 # 1. PostgreSQL not ready - wait for health check
 # 2. Invalid JWT_SECRET - must be 32+ characters
 # 3. Database connection - check POSTGRES_PASSWORD matches
-```
-
-### Migrations Failed
-
-```bash
-# Check Flyway logs
-docker compose -f docker-compose.fluxbase.yml logs flyway-migrations
-
-# Manual migration
-docker compose -f docker-compose.fluxbase.yml exec postgres \
-  psql -U postgres -d wayli -f /docker-entrypoint-initdb.d/your-migration.sql
 ```
 
 ### Cannot Connect to Realtime

@@ -79,28 +79,28 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ include "wayli.fluxbaseSecretName" . }}
-                  key: {{ .Values.fluxbase.global.fluxbase.secretKeys.anonKey }}
+                  key: {{ .Values.fluxbase.existingSecretKeyRef.jwtSecret }}
             - name: FLUXBASE_SERVICE_ROLE_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "wayli.fluxbaseSecretName" . }}
-                  key: {{ .Values.fluxbase.global.fluxbase.secretKeys.serviceRoleKey }}
+                  key: {{ .Values.fluxbase.existingSecretKeyRef.jwtSecret }}
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ include "wayli.fluxbaseSecretName" . }}
-                  key: {{ .Values.fluxbase.global.fluxbase.secretKeys.jwtSecret }}
+                  key: {{ .Values.fluxbase.existingSecretKeyRef.jwtSecret }}
             - name: FLUXBASE_DB_USERNAME
               value: {{ include "wayli.fluxbase.dbUser" . | quote }}
             - name: FLUXBASE_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "wayli.fluxbaseSecretName" . }}
-                  key: {{ .Values.fluxbase.db.postgres.secretKeys.userPasswordKey }}
+                  key: {{ .Values.fluxbase.existingSecretKeyRef.databasePassword }}
             - name: INTERNAL_FLUXBASE_BASE_URL
-              value: "http://{{ include "wayli.fluxbase.kongHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ include "wayli.fluxbase.kongPort" . }}"
+              value: "http://{{ include "wayli.fluxbase.serviceHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ include "wayli.fluxbase.servicePort" . }}"
             - name: WORKER_FLUXBASE_BASE_URL
-              value: "http://{{ include "wayli.fluxbase.kongHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ include "wayli.fluxbase.kongPort" . }}"
+              value: "http://{{ include "wayli.fluxbase.serviceHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ include "wayli.fluxbase.servicePort" . }}"
             - name: PUBLIC_FLUXBASE_BASE_URL
               value: {{ include "wayli.fluxbase.url" . | quote }}
             - name: PELIAS_ENDPOINT

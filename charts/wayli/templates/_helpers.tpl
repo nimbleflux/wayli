@@ -138,22 +138,18 @@ imagePullSecrets:
 Return the Fluxbase secret name
 */}}
 {{- define "wayli.fluxbaseSecretName" -}}
-{{- if .Values.fluxbase.global.fluxbase.existingSecret }}
-{{- .Values.fluxbase.global.fluxbase.existingSecret }}
+{{- if .Values.fluxbase.existingSecret }}
+{{- .Values.fluxbase.existingSecret }}
 {{- else }}
 {{- printf "%s-fluxbase" (include "wayli.fullname" .) }}
 {{- end }}
 {{- end }}
 
 {{/*
-Return the SMTP secret name
+Return the SMTP secret name (now uses the main fluxbase secret)
 */}}
 {{- define "wayli.smtpSecretName" -}}
-{{- if .Values.fluxbase.global.fluxbase.auth.smtp.existingSecret }}
-{{- .Values.fluxbase.global.fluxbase.auth.smtp.existingSecret }}
-{{- else }}
-{{- printf "%s-smtp" (include "wayli.fullname" .) }}
-{{- end }}
+{{- include "wayli.fluxbaseSecretName" . -}}
 {{- end }}
 
 {{/*
@@ -161,11 +157,11 @@ Compile all warnings into a single message
 */}}
 {{- define "wayli.validateValues" -}}
 {{- $messages := list -}}
-{{- if and (not .Values.fluxbase.global.fluxbase.existingSecret) (not .Values.secrets.fluxbase.values.jwtSecret) -}}
-{{- $messages = append $messages "WARNING: No Fluxbase JWT secret configured. Set fluxbase.global.fluxbase.existingSecret or secrets.fluxbase.values.jwtSecret" -}}
+{{- if and (not .Values.fluxbase.existingSecret) (not .Values.fluxbase.config.auth.jwt_secret) -}}
+{{- $messages = append $messages "WARNING: No Fluxbase JWT secret configured. Set fluxbase.existingSecret or fluxbase.config.auth.jwt_secret" -}}
 {{- end -}}
-{{- if and (not .Values.fluxbase.global.fluxbase.existingSecret) (not .Values.secrets.fluxbase.values.dbPassword) -}}
-{{- $messages = append $messages "WARNING: No database password configured. Set fluxbase.global.fluxbase.existingSecret or secrets.fluxbase.values.dbPassword" -}}
+{{- if and (not .Values.fluxbase.existingSecret) (not .Values.fluxbase.postgresql.auth.password) (not .Values.fluxbase.postgresql.auth.existingSecret) -}}
+{{- $messages = append $messages "WARNING: No database password configured. Set fluxbase.existingSecret, fluxbase.postgresql.auth.password, or fluxbase.postgresql.auth.existingSecret" -}}
 {{- end -}}
 {{- if $messages -}}
 {{- printf "\nVALIDATION WARNINGS:\n%s" (join "\n" $messages) | fail -}}
@@ -184,22 +180,14 @@ Return the database URL for init containers
 {{- end -}}
 
 {{/*
-Return the Fluxbase database URL for workers (conditionally uses pgbouncer from fluxbase chart)
+Return the Fluxbase database URL for workers
 */}}
 {{- define "wayli.fluxbase.dbUrl" -}}
-{{- if and .Values.fluxbase.db .Values.fluxbase.db.pgbouncer.enabled -}}
-{{- $pgHost := printf "%s.%s.svc.cluster.local" .Values.fluxbase.db.pgbouncer.service.name .Release.Namespace -}}
-{{- $pgPort := .Values.fluxbase.db.pgbouncer.service.port -}}
-{{- $dbName := include "wayli.fluxbase.dbName" . -}}
-{{- $dbUser := include "wayli.fluxbase.dbUser" . -}}
-{{- printf "postgresql://%s:$(FLUXBASE_DB_PASSWORD)@%s:%v/%s" $dbUser $pgHost $pgPort $dbName -}}
-{{- else -}}
-{{- $dbHost := printf "%s-fluxbase-db.%s.svc.cluster.local" .Release.Name .Release.Namespace -}}
+{{- $dbHost := printf "%s.%s.svc.cluster.local" (include "wayli.fluxbase.dbHost" .) .Release.Namespace -}}
 {{- $dbPort := include "wayli.fluxbase.dbPort" . -}}
 {{- $dbName := include "wayli.fluxbase.dbName" . -}}
 {{- $dbUser := include "wayli.fluxbase.dbUser" . -}}
 {{- printf "postgresql://%s:$(FLUXBASE_DB_PASSWORD)@%s:%v/%s" $dbUser $dbHost $dbPort $dbName -}}
-{{- end -}}
 {{- end -}}
 
 {{/*
@@ -208,23 +196,23 @@ Return the Fluxbase public URL
 {{- define "wayli.fluxbase.url" -}}
 {{- if .Values.externalFluxbase.enabled -}}
 {{- .Values.externalFluxbase.url -}}
-{{- else if .Values.fluxbase.global.fluxbase.publicUrl -}}
-{{- .Values.fluxbase.global.fluxbase.publicUrl -}}
+{{- else if .Values.fluxbase.config.base_url -}}
+{{- .Values.fluxbase.config.base_url -}}
 {{- else -}}
-{{- fail "Either externalFluxbase.url or fluxbase.global.fluxbase.publicUrl must be set" -}}
+{{- fail "Either externalFluxbase.url or fluxbase.config.base_url must be set" -}}
 {{- end -}}
 {{- end -}}
 
 {{/*
-Return the Fluxbase database host (uses pgbouncer if enabled)
+Return the Fluxbase database host
 */}}
 {{- define "wayli.fluxbase.dbHost" -}}
 {{- if .Values.externalFluxbase.enabled -}}
 {{- .Values.externalFluxbase.dbHost -}}
-{{- else if and .Values.fluxbase.db .Values.fluxbase.db.pgbouncer.enabled -}}
-{{- printf "%s-fluxbase-pgbouncer" .Release.Name -}}
+{{- else if not .Values.fluxbase.postgresql.enabled -}}
+{{- .Values.fluxbase.externalDatabase.host -}}
 {{- else -}}
-{{- printf "%s-fluxbase-db" .Release.Name -}}
+{{- printf "%s-fluxbase-postgresql" .Release.Name -}}
 {{- end -}}
 {{- end -}}
 
@@ -234,8 +222,8 @@ Return the Fluxbase database port
 {{- define "wayli.fluxbase.dbPort" -}}
 {{- if .Values.externalFluxbase.enabled -}}
 {{- .Values.externalFluxbase.dbPort -}}
-{{- else if and .Values.fluxbase.db .Values.fluxbase.db.pgbouncer.enabled -}}
-{{- .Values.fluxbase.db.pgbouncer.service.port | default 6432 -}}
+{{- else if not .Values.fluxbase.postgresql.enabled -}}
+{{- .Values.fluxbase.externalDatabase.port | default 5432 -}}
 {{- else -}}
 5432
 {{- end -}}
@@ -247,8 +235,10 @@ Return the Fluxbase database name
 {{- define "wayli.fluxbase.dbName" -}}
 {{- if .Values.externalFluxbase.enabled -}}
 {{- .Values.externalFluxbase.dbName -}}
+{{- else if not .Values.fluxbase.postgresql.enabled -}}
+{{- .Values.fluxbase.externalDatabase.database | default "fluxbase" -}}
 {{- else -}}
-postgres
+{{- .Values.fluxbase.postgresql.auth.database | default "fluxbase" -}}
 {{- end -}}
 {{- end -}}
 
@@ -258,31 +248,47 @@ Return the Fluxbase database user
 {{- define "wayli.fluxbase.dbUser" -}}
 {{- if .Values.externalFluxbase.enabled -}}
 {{- .Values.externalFluxbase.dbUser -}}
+{{- else if not .Values.fluxbase.postgresql.enabled -}}
+{{- .Values.fluxbase.externalDatabase.user | default "fluxbase" -}}
 {{- else -}}
-fluxbase_admin
+{{- .Values.fluxbase.postgresql.auth.username | default "fluxbase" -}}
 {{- end -}}
 {{- end -}}
 
 {{/*
-Return the Fluxbase Kong host
+Return the Fluxbase service host (replaces Kong host)
 */}}
-{{- define "wayli.fluxbase.kongHost" -}}
+{{- define "wayli.fluxbase.serviceHost" -}}
 {{- if .Values.externalFluxbase.enabled -}}
-{{- .Values.externalFluxbase.kongHost -}}
+{{- .Values.externalFluxbase.host | default .Values.externalFluxbase.url -}}
 {{- else -}}
 {{- printf "%s-fluxbase" .Release.Name -}}
 {{- end -}}
 {{- end -}}
 
 {{/*
-Return the Fluxbase Kong port
+Return the Fluxbase service port (replaces Kong port)
+*/}}
+{{- define "wayli.fluxbase.servicePort" -}}
+{{- if .Values.externalFluxbase.enabled -}}
+{{- .Values.externalFluxbase.port | default 8080 -}}
+{{- else -}}
+{{- .Values.fluxbase.service.ports.http | default 8080 -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Return the Fluxbase Kong host (deprecated - use wayli.fluxbase.serviceHost)
+*/}}
+{{- define "wayli.fluxbase.kongHost" -}}
+{{- include "wayli.fluxbase.serviceHost" . -}}
+{{- end -}}
+
+{{/*
+Return the Fluxbase Kong port (deprecated - use wayli.fluxbase.servicePort)
 */}}
 {{- define "wayli.fluxbase.kongPort" -}}
-{{- if .Values.externalFluxbase.enabled -}}
-{{- .Values.externalFluxbase.kongPort -}}
-{{- else -}}
-8000
-{{- end -}}
+{{- include "wayli.fluxbase.servicePort" . -}}
 {{- end -}}
 
 {{/*
@@ -301,36 +307,19 @@ Common initContainers for waiting for Fluxbase services and database
   image: {{ .Values.web.initContainers.waitForFluxbase.image.repository }}:{{ .Values.web.initContainers.waitForFluxbase.image.tag }}
   imagePullPolicy: {{ .Values.web.initContainers.waitForFluxbase.image.pullPolicy }}
   env:
-    - name: KONG_SERVICE
-      value: "{{ include "wayli.fluxbase.kongHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ include "wayli.fluxbase.kongPort" . }}"
-    - name: FLUXBASE_ANON_KEY
-      valueFrom:
-        secretKeyRef:
-          name: {{ include "wayli.fluxbaseSecretName" . }}
-          key: {{ .Values.fluxbase.global.fluxbase.secretKeys.anonKey }}
+    - name: FLUXBASE_SERVICE
+      value: "{{ include "wayli.fluxbase.serviceHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ include "wayli.fluxbase.servicePort" . }}"
   command:
     - /bin/sh
     - -c
     - |
-      echo "Waiting for Fluxbase Auth service to be ready via Kong..."
-      until wget --header="apikey: ${FLUXBASE_ANON_KEY}" \
-        --header="Authorization: Bearer ${FLUXBASE_ANON_KEY}" \
-        -O /dev/null --timeout=5 --tries=1 -q \
-        "http://${KONG_SERVICE}/auth/v1/health"; do
-        echo "Auth service not ready, waiting..."
+      echo "Waiting for Fluxbase health endpoint to be ready..."
+      until wget -O /dev/null --timeout=5 --tries=1 -q \
+        "http://${FLUXBASE_SERVICE}/health"; do
+        echo "Fluxbase not ready, waiting..."
         sleep 2
       done
-      echo "Fluxbase Auth service is ready"
-
-      echo "Waiting for Fluxbase Storage service to be ready via Kong..."
-      until wget --header="apikey: ${FLUXBASE_ANON_KEY}" \
-        --header="Authorization: Bearer ${FLUXBASE_ANON_KEY}" \
-        -O /dev/null --timeout=5 --tries=1 -q \
-        "http://${KONG_SERVICE}/storage/v1/status"; do
-        echo "Storage service not ready, waiting..."
-        sleep 2
-      done
-      echo "Fluxbase Storage service is ready"
+      echo "Fluxbase is ready"
 {{- end }}
 {{- if .Values.web.initContainers.waitForDb.enabled }}
 - name: wait-for-db
@@ -347,7 +336,7 @@ Common initContainers for waiting for Fluxbase services and database
       valueFrom:
         secretKeyRef:
           name: {{ include "wayli.fluxbaseSecretName" . }}
-          key: {{ .Values.fluxbase.db.postgres.secretKeys.userPasswordKey }}
+          key: {{ .Values.fluxbase.existingSecretKeyRef.databasePassword }}
     - name: DB_NAME
       value: {{ include "wayli.fluxbase.dbName" . | quote }}
     - name: FLYWAY_URL
@@ -364,7 +353,7 @@ Common initContainers for waiting for Fluxbase services and database
       valueFrom:
         secretKeyRef:
           name: {{ include "wayli.fluxbaseSecretName" . }}
-          key: {{ .Values.fluxbase.db.postgres.secretKeys.userPasswordKey }}
+          key: {{ .Values.fluxbase.existingSecretKeyRef.databasePassword }}
     - name: PGDATABASE
       value: {{ include "wayli.fluxbase.dbName" . | quote }}
   command:
@@ -377,12 +366,5 @@ Common initContainers for waiting for Fluxbase services and database
         sleep 1
       done
       echo "Database is ready"
-
-      echo "Waiting for Fluxbase Storage migrations to complete..."
-      until [ "$(psql -tAc "SELECT COUNT(*) FROM storage.migrations;" 2>/dev/null || echo 0)" -ge 44 ]; do
-        echo "Storage migrations not complete yet, waiting..."
-        sleep 2
-      done
-      echo "Fluxbase Storage migrations are complete."
 {{- end }}
 {{- end -}}

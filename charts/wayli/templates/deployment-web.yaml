@@ -95,17 +95,17 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ include "wayli.fluxbaseSecretName" . }}
-                  key: {{ .Values.fluxbase.global.fluxbase.secretKeys.anonKey }}
+                  key: {{ .Values.fluxbase.existingSecretKeyRef.jwtSecret }}
             - name: FLUXBASE_SERVICE_ROLE_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "wayli.fluxbaseSecretName" . }}
-                  key: {{ .Values.fluxbase.global.fluxbase.secretKeys.serviceRoleKey }}
+                  key: {{ .Values.fluxbase.existingSecretKeyRef.jwtSecret }}
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ include "wayli.fluxbaseSecretName" . }}
-                  key: {{ .Values.fluxbase.global.fluxbase.secretKeys.jwtSecret }}
+                  key: {{ .Values.fluxbase.existingSecretKeyRef.jwtSecret }}
             {{- /* Include worker-specific env vars in combined mode */}}
             {{- if eq .Values.deploymentMode "combined" }}
             - name: PELIAS_ENDPOINT

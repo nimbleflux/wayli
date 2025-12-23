@@ -29,138 +29,139 @@ worker:
 ingress:
   enabled: true
   ingressClassName: nginx
-  hostname: wayli.your-domain.com # Use the same domain as in .fluxbase.global.fluxbase.siteUrl
+  hostname: wayli.your-domain.com
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/ssl-redirect: 'true'
 
 ## Fluxbase dependency configuration
+## See: https://github.com/fluxbase-eu/fluxbase for full configuration options
 fluxbase:
   enabled: true
 
+  ## Global parameters
   global:
-    # Global default storage class
-    defaultStorageClass: 'local-path'
-    # Global storage class
     storageClass: 'local-path'
-    # Fluxbase global configuration
-    fluxbase:
-      # Public URL of the Fluxbase instance (API endpoint) (you MUST set this)
-      publicUrl: 'https://flux.your-domain.com'
-      # Site URL for auth redirects (you MUST set this)
-      siteUrl: 'https://wayli.your-domain.com'
-      # JWT token expiry (e.g., 15m, 1h, 24h)
-      jwtExpiry: '1h'
-      # Auth configuration
-      auth:
-        # Disable new user signups (set to true after first admin user is created)
-        disableSignup: false
-        # Enable email signup
-        enableEmailSignup: true
-        # Enable email autoconfirm (set to true if SMTP is not configured)
-        enableEmailAutoconfirm: false
-        # SMTP configuration
-        smtp:
-          # SMTP admin email (receives system notifications)
-          adminEmail: 'admin@your-domain.com'
-          # SMTP host
-          host: 'smtp.your-domain.com'
-          # SMTP port
-          port: 587
-          # SMTP sender name
-          senderName: 'Wayli'
-          # Existing secret containing SMTP credentials (keys: username, password)
-          existingSecret: 'smtp-secret'
-          # Secret keys configuration for existing secret
-          secretKeys:
-            userKey: username
-            passwordKey: password
-      # Existing secret for Fluxbase credentials (you MUST create this secret)
-      existingSecret: *fluxbaseSecret
-      secretKeys:
-        # JWT secret key in the secret
-        jwtSecret: jwt-secret
-        # Anonymous key in the secret
-        anonKey: anon-key
-        # Service role key in the secret
-        serviceRoleKey: service-role-key
-        # Secret key base in the secret
-        secretKeyBase: secret-key-base
-        # Vault encryption key in the secret
-        vaultEncKey: vault-enc-key
-        # Database encryption key in the secret
-        dbEncKey: db-enc-key
 
-  # Database configuration (PostgreSQL)
-  db:
-    postgres:
-      enabled: true
-      existingSecret: *fluxbaseSecret
-      secretKeys:
-        userPasswordKey: db-password
-      resources:
-        requests:
-          memory: 512Mi
-          cpu: '250m'
-        limits:
-          memory: 2Gi
-          cpu: '2'
-      persistence:
-        size: 20Gi
-        storageClass: 'local-path'
+  ## Fluxbase application configuration
+  config:
+    ## Public base URL for the application (you MUST set this)
+    base_url: 'https://flux.your-domain.com'
 
-  # Storage configuration (MinIO/S3)
-  storage:
-    enabled: true
-    config:
-      fileSizeLimit: 1073741824 # 1GB
-      storageBucket: trip-images
-      region: local
-    persistence:
-      size: 50Gi
-      storageClass: 'local-path'
+    ## Authentication configuration
+    auth:
+      jwt_expiry: '1h'
+      refresh_expiry: '168h'
+      enable_signup: true
+      enable_magic_link: true
+      totp_issuer: 'Wayli'
 
-  # Fluxbase server configuration
-  server:
-    enabled: true
-    resources:
-      requests:
-        memory: 256Mi
-        cpu: '100m'
-      limits:
-        memory: 512Mi
-        cpu: '500m'
-    # Realtime configuration
+    ## CORS configuration
+    cors:
+      allowed_origins:
+        - 'https://your-domain.com'
+        - 'https://wayli.your-domain.com'
+      allow_credentials: true
+
+    ## Storage configuration
+    storage:
+      provider: 'local'
+      local_path: '/data/storage'
+      max_upload_size: 1073741824  # 1GB
+      default_buckets:
+        - 'trip-images'
+
+    ## Realtime/WebSocket configuration
     realtime:
       enabled: true
-    # Functions/Edge Functions configuration
+      max_connections: 1000
+
+    ## Email configuration (optional)
+    email:
+      enabled: true
+      provider: 'smtp'
+      from_address: 'noreply@your-domain.com'
+      from_name: 'Wayli'
+      smtp_host: 'smtp.your-domain.com'
+      smtp_port: 587
+      smtp_tls: true
+      # smtp_username and smtp_password should be in existingSecret
+
+    ## Edge Functions configuration
     functions:
       enabled: true
-      # Path to edge functions directory
-      functionsPath: /app/functions
-    # Ingress configuration for Fluxbase API
-    ingress:
+      functions_dir: '/app/functions'
+      auto_load_on_boot: true
+
+    ## Background Jobs configuration
+    jobs:
       enabled: true
-      ingressClassName: nginx
-      hostname: 'flux.your-domain.com' # Use the same domain as in .fluxbase.global.fluxbase.publicUrl
-      annotations:
-        nginx.ingress.kubernetes.io/ssl-redirect: 'true'
-        nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
-        nginx.ingress.kubernetes.io/backend-protocol: 'HTTP'
-        nginx.ingress.kubernetes.io/proxy-body-size: '1g'
-        nginx.ingress.kubernetes.io/proxy-connect-timeout: '3600'
-        nginx.ingress.kubernetes.io/proxy-read-timeout: '3600'
-        nginx.ingress.kubernetes.io/proxy-send-timeout: '3600'
-      tls: []
+      worker_mode: 'embedded'
+      embedded_worker_count: 4
 
-  # Logging configuration
-  logging:
-    console_enabled: true
-    console_level: 'info'
-    backend: 'postgres'
-    pubsub_enabled: true
-    retention_enabled: true
+    ## Logging configuration
+    logging:
+      console_enabled: true
+      console_level: 'info'
+      console_format: 'json'
+      backend: 'postgres'
+      pubsub_enabled: true
+      retention_enabled: true
 
-  # Admin UI configuration (disabled by default)
-  admin:
-    enabled: false
+    ## Admin dashboard configuration
+    admin:
+      enabled: false
+
+  ## Existing secret for sensitive configuration (you MUST create this secret)
+  ## Should contain keys: jwt-secret, setup-token, database-password, smtp-password
+  existingSecret: *fluxbaseSecret
+
+  ## Custom key names for existingSecret
+  existingSecretKeyRef:
+    jwtSecret: 'jwt-secret'
+    setupToken: 'setup-token'
+    databasePassword: 'database-password'
+    smtpPassword: 'smtp-password'
+
+  ## Resource configuration
+  resourcesPreset: 'small'
+
+  ## Persistence configuration
+  persistence:
+    enabled: true
+    storageClass: 'local-path'
+    size: 50Gi
+
+  ## Ingress configuration for Fluxbase API
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hostname: 'flux.your-domain.com'  # Use the same as config.base_url
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+      nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
+      nginx.ingress.kubernetes.io/backend-protocol: 'HTTP'
+      nginx.ingress.kubernetes.io/proxy-body-size: '1g'
+      nginx.ingress.kubernetes.io/proxy-connect-timeout: '3600'
+      nginx.ingress.kubernetes.io/proxy-read-timeout: '3600'
+      nginx.ingress.kubernetes.io/proxy-send-timeout: '3600'
+    tls: false
+
+  ## PostgreSQL configuration (bundled)
+  postgresql:
+    enabled: true
+    auth:
+      database: fluxbase
+      username: fluxbase
+      existingSecret: *fluxbaseSecret
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: 'local-path'
+    resources:
+      requests:
+        memory: 512Mi
+        cpu: '250m'
+      limits:
+        memory: 2Gi
+        cpu: '2'

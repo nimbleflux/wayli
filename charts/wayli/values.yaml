@@ -413,19 +413,29 @@ serviceAccount:
   automountServiceAccountToken: true
 
 ## Fluxbase dependency configuration
-## See: https://github.com/fluxbase-eu/fluxbase/blob/main/deploy/helm/fluxbase/values.yaml
+## See: https://github.com/fluxbase-eu/fluxbase for full configuration options
 fluxbase:
   enabled: true
 
   ## Global parameters
   global:
+    imageRegistry: ""
+    imagePullSecrets: []
     storageClass: "standard"
 
+  ## Fluxbase image
+  image:
+    registry: ghcr.io
+    repository: fluxbase-eu/fluxbase
+    tag: ""
+    pullPolicy: IfNotPresent
+
   ## Fluxbase application configuration
-  ## All settings under fluxbase.* are passed as environment variables with FLUXBASE_ prefix
-  fluxbase:
+  ## All settings under config.* are passed as environment variables with FLUXBASE_ prefix
+  config:
     ## Public base URL for the application
     base_url: "https://flux.wayli.app"
+    debug: false
 
     ## Server configuration
     server:
@@ -444,6 +454,7 @@ fluxbase:
       max_conn_lifetime: "1h"
       max_conn_idle_time: "30m"
       health_check_period: "1m"
+      user_migrations_path: ""
 
     ## Authentication configuration
     auth:
@@ -458,6 +469,9 @@ fluxbase:
       enable_signup: true
       enable_magic_link: true
       totp_issuer: "Wayli"
+      google_client_id: ""
+      apple_client_id: ""
+      microsoft_client_id: ""
 
     ## Security configuration
     security:
@@ -467,6 +481,8 @@ fluxbase:
       admin_setup_rate_window: "1m"
       auth_login_rate_limit: 10
       auth_login_rate_window: "1m"
+      admin_login_rate_limit: 5
+      admin_login_rate_window: "1m"
 
     ## CORS configuration
     cors:
@@ -481,6 +497,7 @@ fluxbase:
         - "OPTIONS"
       allowed_headers:
         - "*"
+      exposed_headers: []
       allow_credentials: true
       max_age: 86400
 
@@ -491,6 +508,12 @@ fluxbase:
       max_upload_size: 1073741824
       default_buckets:
         - "trip-images"
+      s3_endpoint: ""
+      s3_access_key: ""
+      s3_secret_key: ""
+      s3_bucket: ""
+      s3_region: ""
+      s3_force_path_style: false
 
     ## Realtime/WebSocket configuration
     realtime:
@@ -498,6 +521,10 @@ fluxbase:
       max_connections: 1000
       ping_interval: "30s"
       pong_timeout: "60s"
+      write_buffer_size: 1024
+      read_buffer_size: 1024
+      message_size_limit: 524288
+      channel_buffer_size: 100
 
     ## Email configuration
     email:
@@ -511,6 +538,12 @@ fluxbase:
       smtp_username: ""
       smtp_password: ""  # Use existingSecret in production
       smtp_tls: true
+      sendgrid_api_key: ""
+      mailgun_api_key: ""
+      mailgun_domain: ""
+      ses_access_key: ""
+      ses_secret_key: ""
+      ses_region: "us-east-1"
 
     ## Edge Functions configuration
     functions:
@@ -519,6 +552,9 @@ fluxbase:
       auto_load_on_boot: true
       default_timeout: 30
       max_timeout: 300
+      default_memory_limit: 128
+      max_memory_limit: 1024
+      sync_allowed_ip_ranges: []
 
     ## Background Jobs configuration
     jobs:
@@ -527,6 +563,74 @@ fluxbase:
       auto_load_on_boot: true
       worker_mode: "embedded"
       embedded_worker_count: 4
+      max_concurrent_per_worker: 10
+      max_concurrent_per_namespace: 50
+      default_max_duration: "30m"
+      max_max_duration: "24h"
+      default_progress_timeout: "5m"
+      poll_interval: "1s"
+      worker_heartbeat_interval: "10s"
+      worker_timeout: "30s"
+      sync_allowed_ip_ranges: []
+      functions_logs_retention_days: 7
+      rpc_logs_retention_days: 7
+      jobs_logs_retention_days: 7
+
+    ## REST API configuration
+    api:
+      max_page_size: 1000
+      max_total_results: 10000
+      default_page_size: 1000
+
+    ## Migrations configuration
+    migrations:
+      enabled: true
+      allowed_ip_ranges: []
+      require_service_key: false
+
+    ## RPC configuration
+    rpc:
+      enabled: true
+      procedures_dir: "/app/procedures"
+      auto_load_on_boot: true
+      default_max_execution_time: 30
+      max_max_execution_time: 300
+      default_max_rows: 1000
+      sync_allowed_ip_ranges: []
+
+    ## AI/Chatbot configuration
+    ai:
+      enabled: false
+      chatbots_dir: "/app/chatbots"
+      auto_load_on_boot: true
+      default_max_tokens: 4096
+      default_model: ""
+      query_timeout: "30s"
+      max_rows_per_query: 1000
+      conversation_cache_ttl: "1h"
+      max_conversation_turns: 50
+      encryption_key: ""
+      sync_allowed_ip_ranges: []
+      provider_type: ""
+      provider_enabled: false
+      provider_name: ""
+      provider_model: ""
+      openai_api_key: ""
+      openai_organization_id: ""
+      openai_base_url: ""
+      azure_api_key: ""
+      azure_endpoint: ""
+      azure_deployment_name: ""
+      azure_api_version: ""
+      azure_embedding_deployment_name: ""
+      ollama_endpoint: ""
+      ollama_model: ""
+      embedding_enabled: false
+      embedding_provider: ""
+      embedding_model: ""
+      ocr_enabled: false
+      ocr_provider: ""
+      ocr_languages: []
 
     ## Logging configuration
     logging:
@@ -534,8 +638,29 @@ fluxbase:
       console_level: "info"
       console_format: "json"
       backend: "postgres"
+      s3_bucket: ""
+      s3_prefix: ""
+      local_path: ""
+      batch_size: 100
+      flush_interval: "5s"
+      buffer_size: 1000
       pubsub_enabled: true
+      system_retention_days: 30
+      http_retention_days: 7
+      security_retention_days: 90
+      execution_retention_days: 7
+      ai_retention_days: 30
       retention_enabled: true
+      retention_check_interval: "1h"
+
+    ## Tracing configuration (OpenTelemetry)
+    tracing:
+      enabled: false
+      endpoint: "localhost:4317"
+      service_name: "fluxbase"
+      environment: "production"
+      sample_rate: 0.1
+      insecure: false
 
     ## Admin dashboard configuration
     admin:
@@ -550,20 +675,73 @@ fluxbase:
     jwtSecret: "jwt-secret"
     setupToken: "setup-token"
     databasePassword: "database-password"
+    s3AccessKey: "s3-access-key"
+    s3SecretKey: "s3-secret-key"
     smtpPassword: "smtp-password"
+    sendgridApiKey: "sendgrid-api-key"
+    mailgunApiKey: "mailgun-api-key"
+    sesAccessKey: "ses-access-key"
+    sesSecretKey: "ses-secret-key"
+    aiEncryptionKey: "ai-encryption-key"
+    openaiApiKey: "openai-api-key"
+    azureApiKey: "azure-api-key"
+
+  ## Service Keys Configuration
+  serviceKey:
+    enabled: false
+    existingSecret: ""
+    secretKey: "service-key"
 
   ## Deployment configuration
   replicaCount: 1
+  updateStrategy:
+    type: RollingUpdate
 
   ## Resource configuration
   resourcesPreset: "small"
   resources: {}
 
-  ## Persistence configuration
+  ## Pod probes
+  startupProbe:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
+    successThreshold: 1
+
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+
+  ## Persistence configuration (for local storage provider)
   persistence:
     enabled: true
     storageClass: ""
     size: 50Gi
+    accessModes:
+      - ReadWriteOnce
+
+  ## Functions persistence
+  functions:
+    persistence:
+      enabled: true
+      storageClass: ""
+      size: 1Gi
+      accessModes:
+        - ReadWriteMany
 
   ## Service configuration
   service:
@@ -576,12 +754,22 @@ fluxbase:
     enabled: false
     ingressClassName: nginx
     hostname: ""
+    path: /
+    pathType: ImplementationSpecific
     annotations:
       nginx.ingress.kubernetes.io/ssl-redirect: "true"
       nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
       nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
       nginx.ingress.kubernetes.io/proxy-body-size: "1g"
-    tls: []
+    tls: false
+
+  ## Gateway API configuration
+  gateway:
+    enabled: false
+    parentRefs: []
+    hostname: ""
+    path: /
+    pathType: PathPrefix
 
   ## PostgreSQL configuration (bundled)
   postgresql:
@@ -591,6 +779,56 @@ fluxbase:
       username: fluxbase
       password: ""  # Use existingSecret in production
       existingSecret: ""
-    primary:
-      persistence:
-        size: 20Gi
+    image:
+      registry: ghcr.io
+      repository: fluxbase-eu/fluxbase-postgres
+      tag: "18.1-0.0.1-rc.53"
+      pullPolicy: IfNotPresent
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: ""
+      accessModes:
+        - ReadWriteOnce
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+  ## External Database Configuration (when postgresql.enabled=false)
+  externalDatabase:
+    host: ""
+    port: 5432
+    user: fluxbase
+    password: ""
+    database: fluxbase
+    existingSecret: ""
+    existingSecretPasswordKey: "password"
+
+  ## Horizontal Scaling Parameters
+  scaling:
+    backend: local
+    enableLeaderElection: false
+    redis:
+      enabled: false
+    externalRedis:
+      host: ""
+      port: 6379
+      password: ""
+
+  ## Autoscaling configuration
+  autoscaling:
+    enabled: false
+    minReplicas: 3
+    maxReplicas: 11
+    targetCPU: 80
+    targetMemory: 80
+
+  ## Metrics configuration
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: false

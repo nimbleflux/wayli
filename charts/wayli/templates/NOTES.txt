@@ -75,8 +75,8 @@ COMPONENTS DEPLOYED
 
 {{- if .Values.fluxbase.enabled }}
 ✓ Fluxbase (subchart)
-{{- if .Values.fluxbase.db.pgbouncer.enabled }}
-  - PgBouncer enabled
+{{- if .Values.fluxbase.postgresql.enabled }}
+  - PostgreSQL enabled
 {{- end }}
 {{- end }}
 
@@ -102,16 +102,16 @@ CONFIGURATION
 Fluxbase URL: {{ include "wayli.fluxbase.url" . }}
 Database: {{ include "wayli.fluxbase.dbHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ include "wayli.fluxbase.dbPort" . }}
 
-{{- if not .Values.fluxbase.global.fluxbase.existingSecret }}
+{{- if not .Values.fluxbase.existingSecret }}
 
 ⚠️  WARNING: Secrets are created from values.yaml
-    For production, use fluxbase.global.fluxbase.existingSecret to reference an external secret.
+    For production, use fluxbase.existingSecret to reference an external secret.
 {{- end }}
 
-{{- if and (not .Values.fluxbase.global.fluxbase.existingSecret) (not .Values.secrets.fluxbase.values.jwtSecret) }}
+{{- if and (not .Values.fluxbase.existingSecret) (not .Values.fluxbase.config.auth.jwt_secret) }}
 
 ⚠️  SECURITY WARNING: No JWT secret configured!
-    Set fluxbase.global.fluxbase.existingSecret or secrets.fluxbase.values.jwtSecret
+    Set fluxbase.existingSecret or fluxbase.config.auth.jwt_secret
 {{- end }}
 
 ===================

@@ -437,13 +437,13 @@ jobs:
             git show gh-pages:index.yaml > .cr-index/index.yaml 2>/dev/null || true
           fi
 
-          # Generate/update index
+          # Generate/update index (must use same release-name-template as upload)
           cr index \
             --owner wayli-app \
             --git-repo wayli \
-            --charts-repo https://wayli-app.github.io/wayli \
             --package-path .cr-release-packages \
-            --index-path .cr-index/index.yaml
+            --index-path .cr-index/index.yaml \
+            --release-name-template "chart-{{ .Version }}"
 
       - name: Deploy index.yaml to gh-pages
         run: |

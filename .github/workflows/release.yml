@@ -450,9 +450,16 @@ jobs:
           # Copy the generated index.yaml to a temporary location
           cp .cr-index/index.yaml /tmp/index.yaml
 
+          # Stash any local changes before switching branches
+          git stash --include-untracked
+
           # Checkout gh-pages branch
-          git fetch origin gh-pages:gh-pages || git checkout --orphan gh-pages
-          git checkout gh-pages
+          if git fetch origin gh-pages:gh-pages 2>/dev/null; then
+            git checkout gh-pages
+          else
+            git checkout --orphan gh-pages
+            git rm -rf . || true
+          fi
 
           # Copy the index.yaml from temp to root
           cp /tmp/index.yaml index.yaml

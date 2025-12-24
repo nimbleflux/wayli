@@ -9,20 +9,6 @@
 import type { FluxbaseClient } from '../jobs/types';
 
 // ===== Type Definitions =====
-interface FluxbaseRequest {
-	method: string;
-	url: string;
-	headers: Record<string, string>;
-	body: string;
-	params: Record<string, string>;
-}
-
-interface FluxbaseResponse {
-	status: number;
-	headers?: Record<string, string>;
-	body?: string;
-}
-
 interface ApiResponse<T = unknown> {
 	success: boolean;
 	data?: T;
@@ -31,38 +17,28 @@ interface ApiResponse<T = unknown> {
 }
 
 // ===== Utility Functions =====
-function successResponse<T>(data: T, status = 200): FluxbaseResponse {
+function successResponse<T>(data: T, status = 200): Response {
 	const response: ApiResponse<T> = {
 		success: true,
 		data
 	};
 
-	return {
+	return new Response(JSON.stringify(response), {
 		status,
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(response)
-	};
+		headers: { 'Content-Type': 'application/json' }
+	});
 }
 
-function errorResponse(message: string, status = 400): FluxbaseResponse {
+function errorResponse(message: string, status = 400): Response {
 	const response: ApiResponse = {
 		success: false,
 		error: message
 	};
 
-	return {
+	return new Response(JSON.stringify(response), {
 		status,
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(response)
-	};
-}
-
-async function parseJsonBody<T>(req: FluxbaseRequest): Promise<T> {
-	try {
-		return JSON.parse(req.body);
-	} catch {
-		throw new Error('Invalid JSON body');
-	}
+		headers: { 'Content-Type': 'application/json' }
+	});
 }
 
 function logError(error: unknown, context: string, data?: unknown): void {
@@ -167,10 +143,10 @@ async function reverseGeocode(lat: number, lon: number): Promise<any | null> {
 }
 
 async function handler(
-	req: FluxbaseRequest,
+	req: Request,
 	_fluxbase: FluxbaseClient,
 	fluxbaseService: FluxbaseClient
-): Promise<FluxbaseResponse> {
+): Promise<Response> {
 	try {
 		// This endpoint uses API key authentication instead of JWT
 		// We check for query parameters first to allow OwnTracks devices to connect
@@ -221,8 +197,8 @@ async function handler(
 
 		logInfo('Processing OwnTracks points', 'OWNTRACKS_POINTS', { userId: user.id });
 
-		// Parse request body for location data
-		const body = await parseJsonBody<Record<string, unknown>>(req);
+		// Parse request body for location data using standard Web API
+		const body = await req.json() as Record<string, unknown>;
 
 		// Handle both single location objects and arrays of points
 		// OwnTracks sends single location objects, but we also support batch imports

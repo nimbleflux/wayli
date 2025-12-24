@@ -73,18 +73,22 @@ export interface PeliasProperties {
 }
 
 /**
- * Normalized address structure (used for internal storage)
+ * Pelias address structure (used for internal storage)
  */
-export interface NormalizedAddress {
+export interface PeliasAddress {
+	railway?: string;
+	road?: string;
+	suburb?: string;
 	city?: string;
+	municipality?: string;
 	state?: string;
+	'ISO3166-2-lvl4'?: string;
 	country?: string;
-	country_code?: string; // 2-letter ISO code
+	postcode?: string;
+	country_code?: string;
 	neighbourhood?: string;
 	borough?: string;
-	road?: string;
 	house_number?: string;
-	postcode?: string;
 	county?: string;
 	[key: string]: string | undefined;
 }
@@ -308,8 +312,8 @@ export function fromPeliasResponse(feature: PeliasFeature): GeocodedLocation {
 	const props = feature.properties;
 	const [lon, lat] = feature.geometry.coordinates;
 
-	// Build normalized address
-	const address: NormalizedAddress = {};
+	// Build Pelias address
+	const address: PeliasAddress = {};
 	if (props.locality) address.city = props.locality;
 	if (props.region) address.state = props.region;
 	if (props.country) address.country = props.country;
@@ -326,7 +330,7 @@ export function fromPeliasResponse(feature: PeliasFeature): GeocodedLocation {
 	return {
 		display_name: props.label || '',
 		coordinates: { lat, lng: lon },
-		address: address as NominatimAddress,
+		address,
 		name: props.name,
 		// Map Pelias layer to type for compatibility
 		type: props.layer,
@@ -336,40 +340,8 @@ export function fromPeliasResponse(feature: PeliasFeature): GeocodedLocation {
 }
 
 // =============================================================================
-// Nominatim Types (legacy, kept for backward compatibility)
+// GeocodedLocation and helpers
 // =============================================================================
-
-export interface NominatimAddress {
-	railway?: string;
-	road?: string;
-	suburb?: string;
-	city?: string;
-	municipality?: string;
-	state?: string;
-	'ISO3166-2-lvl4'?: string;
-	country?: string;
-	postcode?: string;
-	country_code?: string;
-	[key: string]: string | undefined;
-}
-
-export interface NominatimResponse {
-	place_id: number;
-	licence: string;
-	osm_type: string;
-	osm_id: number;
-	lat: string;
-	lon: string;
-	class: string;
-	type: string;
-	place_rank: number;
-	importance: number;
-	addresstype: string;
-	name: string;
-	display_name: string;
-	address: NominatimAddress;
-	boundingbox: [string, string, string, string];
-}
 
 export interface GeocodedLocation {
 	display_name: string;
@@ -377,7 +349,7 @@ export interface GeocodedLocation {
 		lat: number;
 		lng: number;
 	};
-	address: NominatimAddress;
+	address: PeliasAddress;
 	place_id?: number;
 	osm_type?: string;
 	osm_id?: number;
@@ -387,33 +359,13 @@ export interface GeocodedLocation {
 }
 
 /**
- * Helper function to convert Nominatim response to our GeocodedLocation type
- */
-export function fromNominatimResponse(response: Partial<NominatimResponse>): GeocodedLocation {
-	return {
-		display_name: response.display_name || '',
-		coordinates: {
-			lat: response.lat ? parseFloat(response.lat) : 0,
-			lng: response.lon ? parseFloat(response.lon) : 0
-		},
-		address: response.address || {},
-		place_id: response.place_id,
-		osm_type: response.osm_type,
-		osm_id: response.osm_id,
-		class: response.class,
-		type: response.type,
-		name: response.name
-	};
-}
-
-/**
  * Helper function to create a minimal GeocodedLocation from basic data
  */
 export function createGeocodedLocation(
 	displayName: string,
 	lat: number,
 	lng: number,
-	address?: NominatimAddress
+	address?: PeliasAddress
 ): GeocodedLocation {
 	return {
 		display_name: displayName,

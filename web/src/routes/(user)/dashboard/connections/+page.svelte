@@ -42,7 +42,7 @@
 			// Construct the endpoint URL for OwnTracks integration
 			if (owntracksApiKey) {
 				const baseUrl = config.fluxbaseUrl;
-				const url = new URL(`${baseUrl}/functions/v1/owntracks-points`);
+				const url = new URL(`${baseUrl}/api/v1/functions/owntracks-points/invoke/`);
 				url.searchParams.append('api_key', owntracksApiKey);
 				url.searchParams.append('user_id', user.id);
 				owntracksEndpoint = url.toString();
@@ -89,7 +89,7 @@
 
 			// Construct the endpoint URL with the new API key
 			const baseUrl = config.fluxbaseUrl;
-			const url = new URL(`${baseUrl}/functions/v1/owntracks-points`);
+			const url = new URL(`${baseUrl}/api/v1/functions/owntracks-points/invoke/`);
 			url.searchParams.append('api_key', newApiKey);
 			url.searchParams.append('user_id', data.user.id);
 			owntracksEndpoint = url.toString();

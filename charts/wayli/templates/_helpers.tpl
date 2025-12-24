@@ -109,14 +109,6 @@ Return the proper PgBouncer image name
 {{- end }}
 
 {{/*
-Return the proper init container image name (postgres)
-*/}}
-{{- define "wayli.initContainer.postgres.image" -}}
-{{- printf "%s:%s" .Values.web.initContainers.waitForDb.image.repository .Values.web.initContainers.waitForDb.image.tag }}
-{{- end }}
-
-
-{{/*
 Return the proper image pull secrets
 */}}
 {{- define "wayli.imagePullSecrets" -}}
@@ -163,28 +155,6 @@ Compile all warnings into a single message
 {{- end -}}
 
 {{/*
-Return the database URL for init containers
-*/}}
-{{- define "wayli.databaseUrl" -}}
-{{- $dbHost := printf "%s.%s.svc.cluster.local" (include "wayli.fluxbase.dbHost" .) .Release.Namespace -}}
-{{- $dbPort := include "wayli.fluxbase.dbPort" . -}}
-{{- $dbName := include "wayli.fluxbase.dbName" . -}}
-{{- $dbUser := include "wayli.fluxbase.dbUser" . -}}
-{{- printf "postgresql://%s:%s@%s:%v/%s?prepareThreshold=0" $dbUser "$(DB_PASSWORD)" $dbHost $dbPort $dbName -}}
-{{- end -}}
-
-{{/*
-Return the Fluxbase database URL for workers
-*/}}
-{{- define "wayli.fluxbase.dbUrl" -}}
-{{- $dbHost := printf "%s.%s.svc.cluster.local" (include "wayli.fluxbase.dbHost" .) .Release.Namespace -}}
-{{- $dbPort := include "wayli.fluxbase.dbPort" . -}}
-{{- $dbName := include "wayli.fluxbase.dbName" . -}}
-{{- $dbUser := include "wayli.fluxbase.dbUser" . -}}
-{{- printf "postgresql://%s:$(FLUXBASE_DB_PASSWORD)@%s:%v/%s" $dbUser $dbHost $dbPort $dbName -}}
-{{- end -}}
-
-{{/*
 Return the Fluxbase public URL
 */}}
 {{- define "wayli.fluxbase.url" -}}
@@ -213,9 +183,7 @@ Constructs cluster-internal URL from serviceHost and servicePort
 Return the Fluxbase database host
 */}}
 {{- define "wayli.fluxbase.dbHost" -}}
-{{- if .Values.externalFluxbase.enabled -}}
-{{- .Values.externalFluxbase.dbHost -}}
-{{- else if not .Values.fluxbase.postgresql.enabled -}}
+{{- if not .Values.fluxbase.postgresql.enabled -}}
 {{- .Values.fluxbase.externalDatabase.host -}}
 {{- else if .Values.fluxbase.fullnameOverride -}}
 {{- printf "%s-postgresql" .Values.fluxbase.fullnameOverride -}}
@@ -228,9 +196,7 @@ Return the Fluxbase database host
 Return the Fluxbase database port
 */}}
 {{- define "wayli.fluxbase.dbPort" -}}
-{{- if .Values.externalFluxbase.enabled -}}
-{{- .Values.externalFluxbase.dbPort -}}
-{{- else if not .Values.fluxbase.postgresql.enabled -}}
+{{- if not .Values.fluxbase.postgresql.enabled -}}
 {{- .Values.fluxbase.externalDatabase.port | default 5432 -}}
 {{- else -}}
 5432
@@ -241,9 +207,7 @@ Return the Fluxbase database port
 Return the Fluxbase database name
 */}}
 {{- define "wayli.fluxbase.dbName" -}}
-{{- if .Values.externalFluxbase.enabled -}}
-{{- .Values.externalFluxbase.dbName -}}
-{{- else if not .Values.fluxbase.postgresql.enabled -}}
+{{- if not .Values.fluxbase.postgresql.enabled -}}
 {{- .Values.fluxbase.externalDatabase.database | default "fluxbase" -}}
 {{- else -}}
 {{- .Values.fluxbase.postgresql.auth.database | default "fluxbase" -}}
@@ -254,9 +218,7 @@ Return the Fluxbase database name
 Return the Fluxbase database user
 */}}
 {{- define "wayli.fluxbase.dbUser" -}}
-{{- if .Values.externalFluxbase.enabled -}}
-{{- .Values.externalFluxbase.dbUser -}}
-{{- else if not .Values.fluxbase.postgresql.enabled -}}
+{{- if not .Values.fluxbase.postgresql.enabled -}}
 {{- .Values.fluxbase.externalDatabase.user | default "fluxbase" -}}
 {{- else -}}
 {{- .Values.fluxbase.postgresql.auth.username | default "fluxbase" -}}
@@ -265,6 +227,7 @@ Return the Fluxbase database user
 
 {{/*
 Return the Fluxbase service host (replaces Kong host)
+Uses the same naming logic as the Fluxbase subchart's fullname helper
 */}}
 {{- define "wayli.fluxbase.serviceHost" -}}
 {{- if .Values.externalFluxbase.enabled -}}
@@ -272,7 +235,12 @@ Return the Fluxbase service host (replaces Kong host)
 {{- else if .Values.fluxbase.fullnameOverride -}}
 {{- .Values.fluxbase.fullnameOverride -}}
 {{- else -}}
-{{- printf "%s-fluxbase" .Release.Name -}}
+{{- $name := "fluxbase" -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -295,7 +263,7 @@ Return the site URL
 {{- end -}}
 
 {{/*
-Common initContainers for waiting for Fluxbase services and database
+Common initContainers for waiting for Fluxbase services
 */}}
 {{- define "wayli.initContainers.waitForInfrastructure" -}}
 {{- if .Values.web.initContainers.waitForFluxbase.enabled }}
@@ -316,49 +284,5 @@ Common initContainers for waiting for Fluxbase services and database
         sleep 2
       done
       echo "Fluxbase is ready"
-{{- end }}
-{{- if .Values.web.initContainers.waitForDb.enabled }}
-- name: wait-for-db
-  image: {{ include "wayli.initContainer.postgres.image" . }}
-  imagePullPolicy: {{ .Values.web.initContainers.waitForDb.image.pullPolicy }}
-  env:
-    - name: DB_HOST
-      value: "{{ include "wayli.fluxbase.dbHost" . }}.{{ .Release.Namespace }}.svc.cluster.local"
-    - name: DB_PORT
-      value: {{ include "wayli.fluxbase.dbPort" . | quote }}
-    - name: DB_USER
-      value: {{ include "wayli.fluxbase.dbUser" . | quote }}
-    - name: DB_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: {{ include "wayli.fluxbaseSecretName" . }}
-          key: {{ .Values.fluxbase.existingSecretKeyRef.databasePassword }}
-    - name: DB_NAME
-      value: {{ include "wayli.fluxbase.dbName" . | quote }}
-    - name: DATABASE_URL
-      value: {{ include "wayli.databaseUrl" . | quote }}
-    - name: PGHOST
-      value: "{{ include "wayli.fluxbase.dbHost" . }}.{{ .Release.Namespace }}.svc.cluster.local"
-    - name: PGPORT
-      value: {{ include "wayli.fluxbase.dbPort" . | quote }}
-    - name: PGUSER
-      value: {{ include "wayli.fluxbase.dbUser" . | quote }}
-    - name: PGPASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: {{ include "wayli.fluxbaseSecretName" . }}
-          key: {{ .Values.fluxbase.existingSecretKeyRef.databasePassword }}
-    - name: PGDATABASE
-      value: {{ include "wayli.fluxbase.dbName" . | quote }}
-  command:
-    - /bin/bash
-    - -c
-    - |
-      echo "Waiting for database to be ready..."
-      while ! pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME"; do
-        echo "Database not ready, waiting..."
-        sleep 1
-      done
-      echo "Database is ready"
 {{- end }}
 {{- end -}}

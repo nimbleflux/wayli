@@ -175,8 +175,10 @@ async function handler(
 		// This endpoint uses API key authentication instead of JWT
 		// We check for query parameters first to allow OwnTracks devices to connect
 		// without JWT tokens.
-		const apiKey = req.params.api_key;
-		const userId = req.params.user_id;
+		// Parse query parameters from the URL since req.params may not include them
+		const url = new URL(req.url);
+		const apiKey = url.searchParams.get('api_key');
+		const userId = url.searchParams.get('user_id');
 
 		if (!userId || !apiKey) {
 			logError('Missing api_key or user_id in query parameters', 'OWNTRACKS_POINTS');

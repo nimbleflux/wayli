@@ -23,20 +23,20 @@ Console/App URL:
   http://{{ .Values.ingress.hostname }}
   {{- end }}
 
-{{- else if .Values.gateway.enabled }}
+{{- else if .Values.httpRoute.enabled }}
 
 ===================
 ACCESSING WAYLI
 ===================
 
 Gateway API HTTPRoute configured:
-{{- range .Values.gateway.parentRefs }}
+{{- range .Values.httpRoute.parentRefs }}
 {{- if .name }}
   Gateway: {{ .name }}{{- if .namespace }} (namespace: {{ .namespace }}){{- end }}
 {{- end }}
 {{- end }}
-{{- if .Values.gateway.hostname }}
-  Hostname: {{ .Values.gateway.hostname }}
+{{- if .Values.httpRoute.hostname }}
+  Hostname: {{ .Values.httpRoute.hostname }}
 {{- end }}
 
 Note: Ensure your Gateway resource has:
@@ -100,7 +100,9 @@ CONFIGURATION
 ===================
 
 Fluxbase URL: {{ include "wayli.fluxbase.url" . }}
+{{- if not .Values.externalFluxbase.enabled }}
 Database: {{ include "wayli.fluxbase.dbHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ include "wayli.fluxbase.dbPort" . }}
+{{- end }}
 
 {{- if not .Values.fluxbase.existingSecret }}
 

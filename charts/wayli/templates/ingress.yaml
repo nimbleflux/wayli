@@ -2,7 +2,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "wayli.fullname" . }}
+  name: {{ printf "%s-web" (include "wayli.fullname" .) }}
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "wayli.labels" . | nindent 4 }}

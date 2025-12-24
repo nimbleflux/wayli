@@ -56,3 +56,4 @@ bun.lockb
 
 deploy/docker-compose/volumes/db/data
 charts/wayli/charts/*.tgz
+charts/wayli/values.tmp.yaml

@@ -1,27 +1,27 @@
-{{- if .Values.gateway.enabled }}
+{{- if .Values.httpRoute.enabled }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: {{ .Values.gateway.routeName | default (include "wayli.fullname" .) }}
+  name: {{ .Values.httpRoute.routeName | default (printf "%s-web" (include "wayli.fullname" .)) }}
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "wayli.labels" . | nindent 4 }}
     app.kubernetes.io/component: web
-    {{- with .Values.gateway.labels }}
+    {{- with .Values.httpRoute.labels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
-  {{- if or .Values.gateway.annotations .Values.global.annotations }}
+  {{- if or .Values.httpRoute.annotations .Values.global.annotations }}
   annotations:
     {{- with .Values.global.annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
-    {{- with .Values.gateway.annotations }}
+    {{- with .Values.httpRoute.annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
   {{- end }}
 spec:
   parentRefs:
-    {{- range .Values.gateway.parentRefs }}
+    {{- range .Values.httpRoute.parentRefs }}
     {{- if .name }}
     - name: {{ .name }}
       {{- with .namespace }}
@@ -32,24 +32,24 @@ spec:
       {{- end }}
     {{- end }}
     {{- end }}
-  {{- if or .Values.gateway.hostname .Values.gateway.extraHostnames }}
+  {{- if or .Values.httpRoute.hostname .Values.httpRoute.extraHostnames }}
   hostnames:
-    {{- with .Values.gateway.hostname }}
+    {{- with .Values.httpRoute.hostname }}
     - {{ . | quote }}
     {{- end }}
-    {{- range .Values.gateway.extraHostnames }}
+    {{- range .Values.httpRoute.extraHostnames }}
     - {{ . | quote }}
     {{- end }}
   {{- end }}
   rules:
     - matches:
         - path:
-            type: {{ .Values.gateway.pathType }}
-            value: {{ .Values.gateway.path }}
+            type: {{ .Values.httpRoute.pathType }}
+            value: {{ .Values.httpRoute.path }}
       backendRefs:
         - name: {{ include "wayli.fullname" . }}-web
           port: {{ .Values.web.service.port }}
-    {{- with .Values.gateway.extraRules }}
+    {{- with .Values.httpRoute.extraRules }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
 {{- end }}

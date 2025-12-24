@@ -1,7 +1,7 @@
 // web/src/lib/services/external/pelias.service.ts
 // Pelias geocoding service for both client and worker use
 
-import type { PeliasResponse, PeliasFeature, NormalizedAddress } from '../../types/geocoding.types';
+import type { PeliasResponse, PeliasFeature, PeliasAddress } from '../../types/geocoding.types';
 import { convertCountryCode3to2 } from '../../types/geocoding.types';
 
 /**
@@ -34,7 +34,7 @@ export interface PeliasReverseResponse {
 	// Pelias properties for transport mode detection
 	category?: string[];
 	// Normalized address for compatibility
-	address: NormalizedAddress;
+	address: PeliasAddress;
 	// Original Pelias properties (for direct access)
 	locality?: string;
 	region?: string;
@@ -57,7 +57,7 @@ export interface PeliasSearchResponse {
 	display_name: string;
 	lat: number;
 	lon: number;
-	address: NormalizedAddress;
+	address: PeliasAddress;
 	name?: string;
 	confidence?: number;
 	layer?: string;
@@ -194,7 +194,7 @@ function transformPeliasFeature(
 	const props = feature.properties;
 
 	// Build normalized address for compatibility with existing code
-	const address: NormalizedAddress = {};
+	const address: PeliasAddress = {};
 	if (props.locality) address.city = props.locality;
 	if (props.region) address.state = props.region;
 	if (props.country) address.country = props.country;

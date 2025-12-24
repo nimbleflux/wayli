@@ -48,14 +48,8 @@ web:
       maxSurge: 1
       maxUnavailable: 0
 
-  ## Init containers for migrations
+  ## Init containers
   initContainers:
-    waitForDb:
-      enabled: true
-      image:
-        repository: postgres
-        tag: "18-alpine"
-        pullPolicy: IfNotPresent
     waitForFluxbase:
       enabled: true
       image:
@@ -311,7 +305,7 @@ worker:
 ## Ingress configuration
 ingress:
   # Enable ingress
-  enabled: true
+  enabled: false
   # Ingress class name
   ingressClassName: nginx
   # Additional ingress labels
@@ -340,7 +334,7 @@ ingress:
 ## Gateway API configuration (HTTPRoute)
 ## Requires Gateway API CRDs and a GatewayClass/Gateway to be installed
 ## See: https://gateway-api.sigs.k8s.io/
-gateway:
+httpRoute:
   # Enable Gateway API HTTPRoute (disabled by default)
   enabled: false
   # Name of the HTTPRoute resource (defaults to release fullname)
@@ -378,11 +372,6 @@ externalFluxbase:
   ## Internal Fluxbase URL (for server-to-server communication within cluster)
   ## If not set, falls back to fluxbase.config.base_url
   internalUrl: ""
-  ## Database connection details (for migrations and workers)
-  dbHost: ""
-  dbPort: 5432
-  dbName: "postgres"
-  dbUser: "postgres"
 
 ## Pod Security Context (enabled by default for non-root)
 podSecurityContext:
@@ -436,319 +425,319 @@ fluxbase:
     base_url: "https://flux.wayli.app"
     debug: false
 
-    ## Server configuration
-    server:
-      address: ":8080"
-      read_timeout: "300s"
-      write_timeout: "300s"
-      idle_timeout: "120s"
-      body_limit: "2147483648"
-
-    ## Database configuration
-    ## Note: host, port, user are auto-determined from postgresql.* section
-    database:
-      ssl_mode: "disable"
-      max_connections: 25
-      min_connections: 5
-      max_conn_lifetime: "1h"
-      max_conn_idle_time: "30m"
-      health_check_period: "1m"
-      user_migrations_path: ""
-
-    ## Authentication configuration
-    auth:
-      jwt_secret: ""  # Use existingSecret in production
-      anon_key: ""    # Pre-signed JWT for client apps
-      jwt_expiry: "1h"
-      refresh_expiry: "168h"
-      magic_link_expiry: "15m"
-      password_reset_expiry: "1h"
-      password_min_length: 8
-      bcrypt_cost: 10
-      enable_signup: true
-      enable_magic_link: true
-      totp_issuer: "Wayli"
-      google_client_id: ""
-      apple_client_id: ""
-      microsoft_client_id: ""
-
-    ## Security configuration
-    security:
-      enable_global_rate_limit: false
-      setup_token: ""  # Use existingSecret in production
-      admin_setup_rate_limit: 5
-      admin_setup_rate_window: "1m"
-      auth_login_rate_limit: 10
-      auth_login_rate_window: "1m"
-      admin_login_rate_limit: 5
-      admin_login_rate_window: "1m"
-
-    ## CORS configuration
-    cors:
-      allowed_origins:
-        - "https://wayli.app"
-      allowed_methods:
-        - "GET"
-        - "POST"
-        - "PUT"
-        - "DELETE"
-        - "PATCH"
-        - "OPTIONS"
-      allowed_headers:
-        - "*"
-      exposed_headers: []
-      allow_credentials: true
-      max_age: 86400
-
-    ## Storage configuration
-    storage:
-      provider: "local"
-      local_path: "/data/storage"
-      max_upload_size: "1073741824"
-      default_buckets:
-        - "trip-images"
-      s3_endpoint: ""
-      s3_access_key: ""
-      s3_secret_key: ""
-      s3_bucket: ""
-      s3_region: ""
-      s3_force_path_style: false
-
-    ## Realtime/WebSocket configuration
-    realtime:
-      enabled: true
-      max_connections: 1000
-      ping_interval: "30s"
-      pong_timeout: "60s"
-      write_buffer_size: 1024
-      read_buffer_size: 1024
-      message_size_limit: "524288"
-      channel_buffer_size: 100
-
-    ## Email configuration
-    email:
-      enabled: false
-      provider: "smtp"
-      from_address: "noreply@wayli.app"
-      from_name: "Wayli"
-      reply_to_address: ""
-      smtp_host: ""
-      smtp_port: 587
-      smtp_username: ""
-      smtp_password: ""  # Use existingSecret in production
-      smtp_tls: true
-      sendgrid_api_key: ""
-      mailgun_api_key: ""
-      mailgun_domain: ""
-      ses_access_key: ""
-      ses_secret_key: ""
-      ses_region: "us-east-1"
-
-    ## Edge Functions configuration
-    functions:
-      enabled: true
-      functions_dir: "/app/functions"
-      auto_load_on_boot: true
-      default_timeout: 30
-      max_timeout: 300
-      default_memory_limit: 128
-      max_memory_limit: 1024
-      sync_allowed_ip_ranges: []
-
-    ## Background Jobs configuration
-    jobs:
-      enabled: true
-      jobs_dir: "/app/jobs"
-      auto_load_on_boot: true
-      worker_mode: "embedded"
-      embedded_worker_count: 4
-      max_concurrent_per_worker: 10
-      max_concurrent_per_namespace: 50
-      default_max_duration: "30m"
-      max_max_duration: "24h"
-      default_progress_timeout: "5m"
-      poll_interval: "1s"
-      worker_heartbeat_interval: "10s"
-      worker_timeout: "30s"
-      sync_allowed_ip_ranges: []
-      functions_logs_retention_days: 7
-      rpc_logs_retention_days: 7
-      jobs_logs_retention_days: 7
-
-    ## REST API configuration
-    api:
-      max_page_size: 1000
-      max_total_results: 10000
-      default_page_size: 1000
-
-    ## Migrations configuration
-    migrations:
-      enabled: true
-      allowed_ip_ranges: []
-      require_service_key: false
-
-    ## RPC configuration
-    rpc:
-      enabled: true
-      procedures_dir: "/app/procedures"
-      auto_load_on_boot: true
-      default_max_execution_time: 30s
-      max_max_execution_time: 300s
-      default_max_rows: 1000
-      sync_allowed_ip_ranges: []
-
-    ## AI/Chatbot configuration
-    ai:
-      enabled: true
-      chatbots_dir: "/app/chatbots"
-      auto_load_on_boot: true
-      default_max_tokens: 4096
-      default_model: ""
-      query_timeout: "30s"
-      max_rows_per_query: 1000
-      conversation_cache_ttl: "1h"
-      max_conversation_turns: 50
-      encryption_key: ""
-      sync_allowed_ip_ranges: []
-      provider_type: ""
-      provider_enabled: false
-      provider_name: ""
-      provider_model: ""
-      openai_api_key: ""
-      openai_organization_id: ""
-      openai_base_url: ""
-      azure_api_key: ""
-      azure_endpoint: ""
-      azure_deployment_name: ""
-      azure_api_version: ""
-      azure_embedding_deployment_name: ""
-      ollama_endpoint: ""
-      ollama_model: ""
-      embedding_enabled: false
-      embedding_provider: ""
-      embedding_model: ""
-      ocr_enabled: false
-      ocr_provider: ""
-      ocr_languages: []
-
-    ## Logging configuration
-    logging:
-      console_enabled: true
-      console_level: "info"
-      console_format: "json"
-      backend: "postgres"
-      s3_bucket: ""
-      s3_prefix: ""
-      local_path: ""
-      batch_size: 100
-      flush_interval: "5s"
-      buffer_size: 1000
-      pubsub_enabled: true
-      system_retention_days: 30
-      http_retention_days: 7
-      security_retention_days: 90
-      execution_retention_days: 7
-      ai_retention_days: 30
-      retention_enabled: true
-      retention_check_interval: "1h"
-
-    ## Tracing configuration (OpenTelemetry)
-    tracing:
-      enabled: false
-      endpoint: "localhost:4317"
-      service_name: "fluxbase"
-      environment: "production"
-      sample_rate: 0.1
-      insecure: false
-
-    ## Admin dashboard configuration
-    admin:
-      enabled: false
-
-  ## Existing secret for sensitive configuration
-  ## Should contain keys: jwt-secret, setup-token, database-password, smtp-password, etc.
+  # ## Existing secret for sensitive configuration
+  # ## Should contain keys: jwt-secret, setup-token, db-password, smtp-password, etc.
   existingSecret: ""
 
-  ## Custom key names for existingSecret
-  existingSecretKeyRef:
-    jwtSecret: "jwt-secret"
-    anonKey: "anon-key"
-    serviceRoleKey: "service-role-key"
-    setupToken: "setup-token"
-    databasePassword: "database-password"
-    s3AccessKey: "s3-access-key"
-    s3SecretKey: "s3-secret-key"
-    smtpPassword: "smtp-password"
-    sendgridApiKey: "sendgrid-api-key"
-    mailgunApiKey: "mailgun-api-key"
-    sesAccessKey: "ses-access-key"
-    sesSecretKey: "ses-secret-key"
-    aiEncryptionKey: "ai-encryption-key"
-    openaiApiKey: "openai-api-key"
-    azureApiKey: "azure-api-key"
+  # ## Custom key names for existingSecret
+  # existingSecretKeyRef:
+  #   jwtSecret: "jwt-secret"
+  #   anonKey: "anon-key"
+  #   serviceRoleKey: "service-role-key"
+  #   setupToken: "setup-token"
+  #   databasePassword: "db-password"
+  #   s3AccessKey: "s3-access-key"
+  #   s3SecretKey: "s3-secret-key"
+  #   smtpPassword: "smtp-password"
+  #   sendgridApiKey: "sendgrid-api-key"
+  #   mailgunApiKey: "mailgun-api-key"
+  #   sesAccessKey: "ses-access-key"
+  #   sesSecretKey: "ses-secret-key"
+  #   aiEncryptionKey: "ai-encryption-key"
+  #   openaiApiKey: "openai-api-key"
+  #   azureApiKey: "azure-api-key"
 
-  ## Service Keys Configuration
-  serviceKey:
-    enabled: false
-    existingSecret: ""
-    secretKey: "service-key"
+  # ## Service Keys Configuration
+  # serviceKey:
+  #   enabled: false
+  #   existingSecret: ""
+  #   secretKey: "service-key"
 
-  ## Deployment configuration
-  replicaCount: 1
-  updateStrategy:
-    type: RollingUpdate
+  #   ## Server configuration
+  #   server:
+  #     address: ":8080"
+  #     read_timeout: "300s"
+  #     write_timeout: "300s"
+  #     idle_timeout: "120s"
+  #     body_limit: "2147483648"
 
-  ## Resource configuration
-  resourcesPreset: "small"
-  resources: {}
+  #   ## Database configuration
+  #   ## Note: host, port, user are auto-determined from postgresql.* section
+  #   database:
+  #     ssl_mode: "disable"
+  #     max_connections: 25
+  #     min_connections: 5
+  #     max_conn_lifetime: "1h"
+  #     max_conn_idle_time: "30m"
+  #     health_check_period: "1m"
+  #     user_migrations_path: ""
 
-  ## Pod probes
-  startupProbe:
-    enabled: true
-    initialDelaySeconds: 0
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 30
-    successThreshold: 1
+  #   ## Authentication configuration
+  #   auth:
+  #     jwt_secret: ""  # Use existingSecret in production
+  #     anon_key: ""    # Pre-signed JWT for client apps
+  #     jwt_expiry: "1h"
+  #     refresh_expiry: "168h"
+  #     magic_link_expiry: "15m"
+  #     password_reset_expiry: "1h"
+  #     password_min_length: 8
+  #     bcrypt_cost: 10
+  #     enable_signup: true
+  #     enable_magic_link: true
+  #     totp_issuer: "Wayli"
+  #     google_client_id: ""
+  #     apple_client_id: ""
+  #     microsoft_client_id: ""
 
-  livenessProbe:
-    enabled: true
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 3
-    successThreshold: 1
+  #   ## Security configuration
+  #   security:
+  #     enable_global_rate_limit: false
+  #     setup_token: ""  # Use existingSecret in production
+  #     admin_setup_rate_limit: 5
+  #     admin_setup_rate_window: "1m"
+  #     auth_login_rate_limit: 10
+  #     auth_login_rate_window: "1m"
+  #     admin_login_rate_limit: 5
+  #     admin_login_rate_window: "1m"
 
-  readinessProbe:
-    enabled: true
-    initialDelaySeconds: 5
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 3
-    successThreshold: 1
+  #   ## CORS configuration
+  #   cors:
+  #     allowed_origins:
+  #       - "https://wayli.app"
+  #     allowed_methods:
+  #       - "GET"
+  #       - "POST"
+  #       - "PUT"
+  #       - "DELETE"
+  #       - "PATCH"
+  #       - "OPTIONS"
+  #     allowed_headers:
+  #       - "*"
+  #     exposed_headers: []
+  #     allow_credentials: true
+  #     max_age: 86400
 
-  ## Persistence configuration (for local storage provider)
-  persistence:
-    enabled: true
-    storageClass: ""
-    size: 50Gi
-    accessModes:
-      - ReadWriteOnce
+  #   ## Storage configuration
+  #   storage:
+  #     provider: "local"
+  #     local_path: "/data/storage"
+  #     max_upload_size: "1073741824"
+  #     default_buckets:
+  #       - "trip-images"
+  #     s3_endpoint: ""
+  #     s3_access_key: ""
+  #     s3_secret_key: ""
+  #     s3_bucket: ""
+  #     s3_region: ""
+  #     s3_force_path_style: false
 
-  ## Functions persistence
-  functions:
-    persistence:
-      enabled: false
-      storageClass: ""
-      size: 1Gi
-      accessModes:
-        - ReadWriteMany
+  #   ## Realtime/WebSocket configuration
+  #   realtime:
+  #     enabled: true
+  #     max_connections: 1000
+  #     ping_interval: "30s"
+  #     pong_timeout: "60s"
+  #     write_buffer_size: 1024
+  #     read_buffer_size: 1024
+  #     message_size_limit: "524288"
+  #     channel_buffer_size: 100
 
-  ## Service configuration
-  service:
-    type: ClusterIP
-    ports:
-      http: 8080
+  #   ## Email configuration
+  #   email:
+  #     enabled: false
+  #     provider: "smtp"
+  #     from_address: "noreply@wayli.app"
+  #     from_name: "Wayli"
+  #     reply_to_address: ""
+  #     smtp_host: ""
+  #     smtp_port: 587
+  #     smtp_username: ""
+  #     smtp_password: ""  # Use existingSecret in production
+  #     smtp_tls: true
+  #     sendgrid_api_key: ""
+  #     mailgun_api_key: ""
+  #     mailgun_domain: ""
+  #     ses_access_key: ""
+  #     ses_secret_key: ""
+  #     ses_region: "us-east-1"
+
+  #   ## Edge Functions configuration
+  #   functions:
+  #     enabled: true
+  #     functions_dir: "/app/functions"
+  #     auto_load_on_boot: true
+  #     default_timeout: 30
+  #     max_timeout: 300
+  #     default_memory_limit: 128
+  #     max_memory_limit: 1024
+  #     sync_allowed_ip_ranges: []
+
+  #   ## Background Jobs configuration
+  #   jobs:
+  #     enabled: true
+  #     jobs_dir: "/app/jobs"
+  #     auto_load_on_boot: true
+  #     worker_mode: "embedded"
+  #     embedded_worker_count: 4
+  #     max_concurrent_per_worker: 10
+  #     max_concurrent_per_namespace: 50
+  #     default_max_duration: "30m"
+  #     max_max_duration: "24h"
+  #     default_progress_timeout: "5m"
+  #     poll_interval: "1s"
+  #     worker_heartbeat_interval: "10s"
+  #     worker_timeout: "30s"
+  #     sync_allowed_ip_ranges: []
+  #     functions_logs_retention_days: 7
+  #     rpc_logs_retention_days: 7
+  #     jobs_logs_retention_days: 7
+
+  #   ## REST API configuration
+  #   api:
+  #     max_page_size: 1000
+  #     max_total_results: 10000
+  #     default_page_size: 1000
+
+  #   ## Migrations configuration
+  #   migrations:
+  #     enabled: true
+  #     allowed_ip_ranges: []
+  #     require_service_key: false
+
+  #   ## RPC configuration
+  #   rpc:
+  #     enabled: true
+  #     procedures_dir: "/app/procedures"
+  #     auto_load_on_boot: true
+  #     default_max_execution_time: 30s
+  #     max_max_execution_time: 300s
+  #     default_max_rows: 1000
+  #     sync_allowed_ip_ranges: []
+
+  #   ## AI/Chatbot configuration
+  #   ai:
+  #     enabled: true
+  #     chatbots_dir: "/app/chatbots"
+  #     auto_load_on_boot: true
+  #     default_max_tokens: 4096
+  #     default_model: ""
+  #     query_timeout: "30s"
+  #     max_rows_per_query: 1000
+  #     conversation_cache_ttl: "1h"
+  #     max_conversation_turns: 50
+  #     encryption_key: ""
+  #     sync_allowed_ip_ranges: []
+  #     provider_type: ""
+  #     provider_enabled: false
+  #     provider_name: ""
+  #     provider_model: ""
+  #     openai_api_key: ""
+  #     openai_organization_id: ""
+  #     openai_base_url: ""
+  #     azure_api_key: ""
+  #     azure_endpoint: ""
+  #     azure_deployment_name: ""
+  #     azure_api_version: ""
+  #     azure_embedding_deployment_name: ""
+  #     ollama_endpoint: ""
+  #     ollama_model: ""
+  #     embedding_enabled: false
+  #     embedding_provider: ""
+  #     embedding_model: ""
+  #     ocr_enabled: false
+  #     ocr_provider: ""
+  #     ocr_languages: []
+
+  #   ## Logging configuration
+  #   logging:
+  #     console_enabled: true
+  #     console_level: "info"
+  #     console_format: "json"
+  #     backend: "postgres"
+  #     s3_bucket: ""
+  #     s3_prefix: ""
+  #     local_path: ""
+  #     batch_size: 100
+  #     flush_interval: "5s"
+  #     buffer_size: 1000
+  #     pubsub_enabled: true
+  #     system_retention_days: 30
+  #     http_retention_days: 7
+  #     security_retention_days: 90
+  #     execution_retention_days: 7
+  #     ai_retention_days: 30
+  #     retention_enabled: true
+  #     retention_check_interval: "1h"
+
+  #   ## Tracing configuration (OpenTelemetry)
+  #   tracing:
+  #     enabled: false
+  #     endpoint: "localhost:4317"
+  #     service_name: "fluxbase"
+  #     environment: "production"
+  #     sample_rate: 0.1
+  #     insecure: false
+
+  #   ## Admin dashboard configuration
+  #   admin:
+  #     enabled: false
+
+  # ## Deployment configuration
+  # replicaCount: 1
+  # updateStrategy:
+  #   type: RollingUpdate
+
+  # ## Resource configuration
+  # resourcesPreset: "small"
+  # resources: {}
+
+  # ## Pod probes
+  # startupProbe:
+  #   enabled: true
+  #   initialDelaySeconds: 0
+  #   periodSeconds: 10
+  #   timeoutSeconds: 5
+  #   failureThreshold: 30
+  #   successThreshold: 1
+
+  # livenessProbe:
+  #   enabled: true
+  #   initialDelaySeconds: 30
+  #   periodSeconds: 10
+  #   timeoutSeconds: 5
+  #   failureThreshold: 3
+  #   successThreshold: 1
+
+  # readinessProbe:
+  #   enabled: true
+  #   initialDelaySeconds: 5
+  #   periodSeconds: 10
+  #   timeoutSeconds: 5
+  #   failureThreshold: 3
+  #   successThreshold: 1
+
+  # ## Persistence configuration (for local storage provider)
+  # persistence:
+  #   enabled: true
+  #   storageClass: ""
+  #   size: 50Gi
+  #   accessModes:
+  #     - ReadWriteOnce
+
+  # ## Functions persistence
+  # functions:
+  #   persistence:
+  #     enabled: false
+  #     storageClass: ""
+  #     size: 1Gi
+  #     accessModes:
+  #       - ReadWriteMany
+
+  # ## Service configuration
+  # service:
+  #   type: ClusterIP
+  #   ports:
+  #     http: 8080
 
   ## Ingress configuration
   ingress:
@@ -765,7 +754,7 @@ fluxbase:
     tls: false
 
   ## Gateway API configuration
-  gateway:
+  httpRoute:
     enabled: false
     parentRefs: []
     hostname: ""
@@ -776,9 +765,9 @@ fluxbase:
   postgresql:
     enabled: true
     auth:
-      database: fluxbase
-      username: fluxbase
-      password: ""  # Use existingSecret in production
+      database: ~
+      username: ~
+      password: ~  # Use existingSecret in production
       existingSecret: ""
     image:
       registry: ghcr.io

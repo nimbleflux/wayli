@@ -6,10 +6,6 @@
 # Documentation:
 #   See charts/wayli/README.md for full configuration options
 
-global:
-  ## Shared secret name anchor for Fluxbase
-  fluxbaseSecretName: &fluxbaseSecret fluxbase-secret
-
 ## Web deployment
 web:
   ## Environment variables

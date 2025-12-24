@@ -392,7 +392,7 @@ export class TripDetectionService {
 
 				console.log(`📦 Batch ${batchNumber}: ${batch.length} records fetched, current state: ${this.userState?.currentState}, nextState: ${this.userState?.nextState || 'none'}, nextStateDataPoints: ${this.userState?.nextStateDataPoints || 0}`);
 
-				// Filter by city presence (check Pelias addendum.osm path first, then fallback to Nominatim paths)
+				// Filter by city presence (check Pelias addendum.osm path first, then fallback to other paths)
 				const pointsWithCity = batch.filter((point: { recorded_at: string; geocode?: { properties?: { city?: string; address?: { city?: string }; addendum?: { osm?: { 'addr:city'?: string } } } } }) => {
 					const city = point.geocode?.properties?.addendum?.osm?.['addr:city'] ||
 						point.geocode?.properties?.city ||
@@ -563,11 +563,11 @@ export class TripDetectionService {
 	 * Extract city name from a data point
 	 */
 	private getCityFromPoint(point: any): string | null {
-		// Try Pelias addendum.osm path first (most common with new geocoding)
+		// Try Pelias addendum.osm path first (most common)
 		if (point.geocode?.properties?.addendum?.osm?.['addr:city']) {
 			return point.geocode.properties.addendum.osm['addr:city'];
 		}
-		// Fallback to Nominatim paths
+		// Fallback to other Pelias paths
 		if (point.geocode?.properties?.address?.city) {
 			return point.geocode.properties.address.city;
 		}

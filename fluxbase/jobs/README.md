@@ -202,13 +202,13 @@ await fluxbaseService.jobs.submit('distance-calculation',
 
 #### Why Pelias?
 
-We use [Pelias](https://pelias.io/) for geocoding instead of Nominatim. Both are open source, but Pelias offers significant advantages:
+We use [Pelias](https://pelias.io/) for geocoding. Pelias is an open-source geocoder with significant advantages:
 
-- **Lightweight** - Uses ~20x less storage than Nominatim thanks to its Elasticsearch-based architecture
+- **Lightweight** - Uses ~20x less storage thanks to its Elasticsearch-based architecture
 - **Fast** - Superior search performance from Elasticsearch full-text search
-- **Flexible** - Handles varied address formats better than Nominatim's rigid address-scheme-dependent design
+- **Flexible** - Handles varied address formats well
 
-We previously used Nominatim, but switched to Pelias because it requires far fewer resources for the same functionality. For a deeper technical comparison, see [this article](https://wcedmisten.fyi/post/upgrading-with-headway-maps/).
+For a deeper technical comparison of geocoding options, see [this article](https://wcedmisten.fyi/post/upgrading-with-headway-maps/).
 
 ### Trip Processing
 

@@ -49,6 +49,15 @@ spec:
       backendRefs:
         - name: {{ include "wayli.fullname" . }}-web
           port: {{ .Values.web.service.port }}
+      {{- if .Values.httpRoute.timeouts }}
+      timeouts:
+        {{- with .Values.httpRoute.timeouts.request }}
+        request: {{ . | quote }}
+        {{- end }}
+        {{- with .Values.httpRoute.timeouts.backendRequest }}
+        backendRequest: {{ . | quote }}
+        {{- end }}
+      {{- end }}
     {{- with .Values.httpRoute.extraRules }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

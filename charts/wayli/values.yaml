@@ -359,6 +359,13 @@ httpRoute:
   pathType: PathPrefix
   # Path value
   path: /
+  # Timeouts configuration (important for WebSocket connections)
+  # See: https://gateway-api.sigs.k8s.io/geps/gep-1742/
+  timeouts:
+    # Maximum time for the entire request/response (use "0s" for no timeout, required for WebSockets)
+    request: "0s"
+    # Maximum time waiting for backend response
+    backendRequest: "1h"
   # Additional routing rules (for advanced use cases like traffic splitting)
   extraRules: []
 

@@ -48,6 +48,9 @@ RUN npm ci --omit=dev --legacy-peer-deps && \
 # Copy entire web directory (node_modules, .svelte-kit excluded via .dockerignore)
 COPY web/ ./
 
+# Use production tsconfig (doesn't depend on .svelte-kit/tsconfig.json)
+RUN mv tsconfig.prod.json tsconfig.json
+
 # Copy built application from builder stage (overwrites empty build dir from COPY web/)
 COPY --from=builder /app/web/build ./build
 

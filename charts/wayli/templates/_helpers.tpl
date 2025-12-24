@@ -199,15 +199,13 @@ Return the Fluxbase public URL
 
 {{/*
 Return the Fluxbase internal URL (for server-to-server communication)
-Falls back to fluxbase.config.base_url if internalUrl is not set
+Constructs cluster-internal URL from serviceHost and servicePort
 */}}
 {{- define "wayli.fluxbase.internalUrl" -}}
 {{- if and .Values.externalFluxbase.enabled .Values.externalFluxbase.internalUrl -}}
 {{- .Values.externalFluxbase.internalUrl -}}
-{{- else if .Values.fluxbase.config.base_url -}}
-{{- .Values.fluxbase.config.base_url -}}
 {{- else -}}
-{{- fail "Either externalFluxbase.internalUrl or fluxbase.config.base_url must be set" -}}
+{{- printf "http://%s.%s.svc.cluster.local:%s" (include "wayli.fluxbase.serviceHost" .) .Release.Namespace (include "wayli.fluxbase.servicePort" . | toString) -}}
 {{- end -}}
 {{- end -}}
 

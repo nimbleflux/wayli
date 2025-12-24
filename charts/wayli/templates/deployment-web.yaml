@@ -90,7 +90,7 @@ spec:
             - name: PORT
               value: {{ .Values.web.env.port | quote }}
             - name: FLUXBASE_BASE_URL
-              value: {{ include "wayli.fluxbase.url" . | quote }}
+              value: {{ include "wayli.fluxbase.internalUrl" . | quote }}
             - name: FLUXBASE_ANON_KEY
               valueFrom:
                 secretKeyRef:

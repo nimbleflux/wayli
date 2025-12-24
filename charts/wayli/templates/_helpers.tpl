@@ -198,6 +198,20 @@ Return the Fluxbase public URL
 {{- end -}}
 
 {{/*
+Return the Fluxbase internal URL (for server-to-server communication)
+Falls back to fluxbase.config.base_url if internalUrl is not set
+*/}}
+{{- define "wayli.fluxbase.internalUrl" -}}
+{{- if and .Values.externalFluxbase.enabled .Values.externalFluxbase.internalUrl -}}
+{{- .Values.externalFluxbase.internalUrl -}}
+{{- else if .Values.fluxbase.config.base_url -}}
+{{- .Values.fluxbase.config.base_url -}}
+{{- else -}}
+{{- fail "Either externalFluxbase.internalUrl or fluxbase.config.base_url must be set" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Return the Fluxbase database host
 */}}
 {{- define "wayli.fluxbase.dbHost" -}}

@@ -375,6 +375,9 @@ externalFluxbase:
   enabled: false
   ## Public Fluxbase URL (API endpoint)
   url: ""
+  ## Internal Fluxbase URL (for server-to-server communication within cluster)
+  ## If not set, falls back to fluxbase.config.base_url
+  internalUrl: ""
   ## Database connection details (for migrations and workers)
   dbHost: ""
   dbPort: 5432
@@ -596,7 +599,7 @@ fluxbase:
 
     ## AI/Chatbot configuration
     ai:
-      enabled: false
+      enabled: true
       chatbots_dir: "/app/chatbots"
       auto_load_on_boot: true
       default_max_tokens: 4096

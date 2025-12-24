@@ -74,7 +74,7 @@ spec:
             - name: APP_MODE
               value: {{ .Values.worker.env.appMode | quote }}
             - name: FLUXBASE_BASE_URL
-              value: {{ include "wayli.fluxbase.url" . | quote }}
+              value: {{ include "wayli.fluxbase.internalUrl" . | quote }}
             - name: FLUXBASE_ANON_KEY
               valueFrom:
                 secretKeyRef:

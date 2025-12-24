@@ -26,10 +26,11 @@ const countriesGeoJSON: FeatureCollection<Polygon | MultiPolygon> = (() => {
 		console.log('✅ Loaded countries.geojson from embedded compressed data');
 	} catch {
 		// Fallback to filesystem (for development mode)
+		const cwd = typeof process !== 'undefined' && process.cwd ? process.cwd() : '/app';
 		const possiblePaths = [
 			path.resolve(__dirname, '../../data/countries.geojson'),
-			path.resolve(process.cwd(), 'src/lib/data/countries.geojson'),
-			path.resolve(process.cwd(), 'web/src/lib/data/countries.geojson'),
+			path.resolve(cwd, 'src/lib/data/countries.geojson'),
+			path.resolve(cwd, 'web/src/lib/data/countries.geojson'),
 			'/data/countries.geojson'
 		];
 
@@ -79,10 +80,11 @@ const timezonesGeoJSON: FeatureCollection<Polygon | MultiPolygon> = (() => {
 		return JSON.parse(decompressed) as FeatureCollection<Polygon | MultiPolygon>;
 	} catch {
 		// Fallback to filesystem (for development mode)
+		const cwd = typeof process !== 'undefined' && process.cwd ? process.cwd() : '/app';
 		const possiblePaths = [
 			path.resolve(__dirname, '../../data/timezones.geojson'),
-			path.resolve(process.cwd(), 'src/lib/data/timezones.geojson'),
-			path.resolve(process.cwd(), 'web/src/lib/data/timezones.geojson'),
+			path.resolve(cwd, 'src/lib/data/timezones.geojson'),
+			path.resolve(cwd, 'web/src/lib/data/timezones.geojson'),
 			'./src/lib/data/timezones.geojson',
 			'./web/src/lib/data/timezones.geojson'
 		];

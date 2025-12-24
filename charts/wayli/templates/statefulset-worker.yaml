@@ -97,10 +97,6 @@ spec:
                 secretKeyRef:
                   name: {{ include "wayli.fluxbaseSecretName" . }}
                   key: {{ .Values.fluxbase.existingSecretKeyRef.databasePassword }}
-            - name: INTERNAL_FLUXBASE_BASE_URL
-              value: "http://{{ include "wayli.fluxbase.serviceHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ include "wayli.fluxbase.servicePort" . }}"
-            - name: WORKER_FLUXBASE_BASE_URL
-              value: "http://{{ include "wayli.fluxbase.serviceHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ include "wayli.fluxbase.servicePort" . }}"
             - name: PUBLIC_FLUXBASE_BASE_URL
               value: {{ include "wayli.fluxbase.url" . | quote }}
             - name: PELIAS_ENDPOINT

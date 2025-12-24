@@ -163,12 +163,7 @@ export function getNodeEnvironmentConfig(): NodeEnvironmentConfig {
 	const mergedEnv = { ...result.parsed, ...process.env };
 
 	// Fluxbase Configuration - prioritize internal URLs for workers
-	const fluxbaseUrl =
-		mergedEnv.WORKER_FLUXBASE_BASE_URL ||
-		mergedEnv.INTERNAL_FLUXBASE_BASE_URL ||
-		mergedEnv.FLUXBASE_BASE_URL ||
-		mergedEnv.PUBLIC_FLUXBASE_BASE_URL ||
-		'';
+	const fluxbaseUrl = mergedEnv.FLUXBASE_BASE_URL || mergedEnv.PUBLIC_FLUXBASE_BASE_URL || '';
 	const fluxbaseAnonKey = mergedEnv.FLUXBASE_ANON_KEY || mergedEnv.PUBLIC_FLUXBASE_ANON_KEY || '';
 	const fluxbaseServiceRoleKey = mergedEnv.FLUXBASE_SERVICE_ROLE_KEY || '';
 
@@ -327,26 +322,17 @@ export function getWorkerFluxbaseConfig() {
 
 	// For workers, prioritize internal URLs over public URLs
 	// This ensures workers use cluster-internal communication in Kubernetes
-	const fluxbaseUrl =
-		mergedEnv.WORKER_FLUXBASE_BASE_URL ||
-		mergedEnv.INTERNAL_FLUXBASE_BASE_URL ||
-		mergedEnv.FLUXBASE_BASE_URL ||
-		mergedEnv.PUBLIC_FLUXBASE_BASE_URL ||
-		'';
+	const fluxbaseUrl = mergedEnv.FLUXBASE_BASE_URL || mergedEnv.PUBLIC_FLUXBASE_BASE_URL || '';
 
 	const fluxbaseAnonKey = mergedEnv.FLUXBASE_ANON_KEY || mergedEnv.PUBLIC_FLUXBASE_ANON_KEY || '';
 	const fluxbaseServiceRoleKey = mergedEnv.FLUXBASE_SERVICE_ROLE_KEY || '';
 
 	// Log which URL is being used for debugging
-	const urlSource = mergedEnv.WORKER_FLUXBASE_BASE_URL
-		? 'WORKER_FLUXBASE_BASE_URL'
-		: mergedEnv.INTERNAL_FLUXBASE_BASE_URL
-			? 'INTERNAL_FLUXBASE_BASE_URL'
-			: mergedEnv.FLUXBASE_BASE_URL
-				? 'FLUXBASE_BASE_URL'
-				: mergedEnv.PUBLIC_FLUXBASE_BASE_URL
-					? 'PUBLIC_FLUXBASE_BASE_URL'
-					: 'none';
+	const urlSource = mergedEnv.FLUXBASE_BASE_URL
+		? 'FLUXBASE_BASE_URL'
+		: mergedEnv.PUBLIC_FLUXBASE_BASE_URL
+			? 'PUBLIC_FLUXBASE_BASE_URL'
+			: 'none';
 	console.log(`🔧 Worker Fluxbase URL source: ${urlSource}`);
 	console.log(`🔧 Worker Fluxbase URL: ${fluxbaseUrl}`);
 
@@ -388,4 +374,3 @@ export function isDevelopment(): boolean {
 export function isProduction(): boolean {
 	return getNodeEnvironmentConfig().app.nodeEnv === 'production';
 }
-

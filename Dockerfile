@@ -1,6 +1,11 @@
 # Multi-stage Dockerfile for Wayli - optimized for minimal size
 # Stage 1: Build stage - includes all build dependencies
 # Stage 2: Production stage - only runtime dependencies and built artifacts
+#
+# Container structure mirrors repo layout:
+#   /app/
+#   ├── web/          (SvelteKit app, package.json, node_modules)
+#   └── fluxbase/     (functions, migrations, jobs)
 
 #############################################
 # Stage 1: Builder
@@ -10,7 +15,7 @@ FROM node:20-alpine AS builder
 # Install build dependencies
 RUN apk add --no-cache python3 make g++
 
-WORKDIR /app
+WORKDIR /app/web
 
 # Copy package files first (for better caching)
 COPY web/package*.json ./
@@ -18,20 +23,11 @@ COPY web/package*.json ./
 # Install ALL dependencies (including devDependencies for build)
 RUN npm ci --legacy-peer-deps
 
-# Copy source code
+# Copy web source code (node_modules excluded via .dockerignore)
 COPY web/ ./
 
 # Generate SvelteKit TypeScript configuration and build app
 RUN npm run prepare && npm run build
-
-# Verify build output
-RUN echo "=== Build Complete ===" && \
-    echo "Available directories:" && \
-    ls -la && \
-    echo "Build directory:" && \
-    ls -la build/ && \
-    echo "Static files:" && \
-    ls -la static/
 
 #############################################
 # Stage 2: Production Runtime
@@ -42,45 +38,38 @@ FROM node:20-alpine AS production
 RUN apk add --no-cache nginx wget bash && \
     mkdir -p /run/nginx
 
-WORKDIR /app
+WORKDIR /app/web
 
-# Copy package files
+# Copy package files and install production dependencies
 COPY web/package*.json ./
-
-# Install ONLY production dependencies (no devDependencies)
 RUN npm ci --omit=dev --legacy-peer-deps && \
     npm cache clean --force
 
-# Copy built application from builder stage
-COPY --from=builder /app/build ./build
-COPY --from=builder /app/static ./static
+# Copy entire web directory (node_modules, .svelte-kit excluded via .dockerignore)
+COPY web/ ./
 
-# Copy source code (needed for worker mode with tsx)
-COPY web/src ./src
+# Copy built application from builder stage (overwrites empty build dir from COPY web/)
+COPY --from=builder /app/web/build ./build
 
-# Copy Fluxbase functions, migrations, and jobs (needed for Kubernetes deployments)
-COPY fluxbase/ ./fluxbase/
+# Copy fluxbase directory
+COPY fluxbase/ /app/fluxbase/
 
-# Copy nginx config and serve static files
+# Setup nginx with static files
 COPY web/nginx.conf /etc/nginx/nginx.conf
 RUN mkdir -p /usr/share/nginx/html && \
     rm -rf /usr/share/nginx/html/* && \
     cp -r build/* /usr/share/nginx/html/ && \
     cp -r static /usr/share/nginx/html/
 
-# Copy startup scripts
-COPY web/startup.sh /usr/local/bin/startup.sh
-COPY web/docker-entrypoint.sh ./docker-entrypoint.sh
-
 # Make scripts executable
-RUN chmod +x /usr/local/bin/startup.sh ./docker-entrypoint.sh
+RUN chmod +x startup.sh docker-entrypoint.sh && \
+    cp startup.sh /usr/local/bin/startup.sh
 
 # Create non-root user for security
 RUN addgroup -S appuser && \
     adduser -S -G appuser appuser
 
 # Create nginx directories with proper ownership
-# Note: Logs go to stdout/stderr, so no log directories needed
 RUN mkdir -p /var/cache/nginx /run /tmp/nginx && \
     chown -R appuser:appuser /var/cache/nginx /run /tmp/nginx /app /usr/share/nginx/html && \
     chmod -R 755 /var/cache/nginx /run /tmp/nginx /app /usr/share/nginx/html

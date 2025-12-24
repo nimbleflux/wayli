@@ -89,7 +89,7 @@ sync_all() {
         return 0
     fi
 
-    cd /app
+    cd /app/web
 
     # Run sync:all script (syncs RPC, functions, jobs, chatbots, migrations)
     if npm run sync:all; then

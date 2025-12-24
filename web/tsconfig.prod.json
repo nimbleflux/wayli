@@ -1,0 +1,30 @@
+{
+	"compilerOptions": {
+		"checkJs": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"sourceMap": true,
+		"strict": true,
+		"moduleResolution": "bundler",
+		"module": "esnext",
+		"target": "esnext",
+		"noEmit": true,
+		"isolatedModules": true,
+		"verbatimModuleSyntax": true,
+		"lib": ["esnext", "DOM", "DOM.Iterable"],
+		"paths": {
+			"$lib": ["./src/lib"],
+			"$lib/*": ["./src/lib/*"]
+		}
+	},
+	"include": ["src/**/*.ts", "src/**/*.js"],
+	"exclude": [
+		"node_modules",
+		"src/**/*.spec.ts",
+		"src/**/*.test.ts",
+		"src/service-worker.ts",
+		"src/service-worker/**/*.ts"
+	]
+}

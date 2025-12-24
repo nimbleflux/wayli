@@ -95,12 +95,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ include "wayli.fluxbaseSecretName" . }}
-                  key: {{ .Values.fluxbase.existingSecretKeyRef.jwtSecret }}
+                  key: {{ .Values.fluxbase.existingSecretKeyRef.anonKey }}
             - name: FLUXBASE_SERVICE_ROLE_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "wayli.fluxbaseSecretName" . }}
-                  key: {{ .Values.fluxbase.existingSecretKeyRef.jwtSecret }}
+                  key: {{ .Values.fluxbase.existingSecretKeyRef.serviceRoleKey }}
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:

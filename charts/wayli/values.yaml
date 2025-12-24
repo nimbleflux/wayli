@@ -669,6 +669,8 @@ fluxbase:
   ## Custom key names for existingSecret
   existingSecretKeyRef:
     jwtSecret: "jwt-secret"
+    anonKey: "anon-key"
+    serviceRoleKey: "service-role-key"
     setupToken: "setup-token"
     databasePassword: "database-password"
     s3AccessKey: "s3-access-key"

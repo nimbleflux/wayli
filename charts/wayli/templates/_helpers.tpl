@@ -160,10 +160,12 @@ Return the Fluxbase public URL
 {{- define "wayli.fluxbase.url" -}}
 {{- if .Values.externalFluxbase.enabled -}}
 {{- .Values.externalFluxbase.url -}}
+{{- else if .Values.fluxbase.config.public_base_url -}}
+{{- .Values.fluxbase.config.public_base_url -}}
 {{- else if .Values.fluxbase.config.base_url -}}
 {{- .Values.fluxbase.config.base_url -}}
 {{- else -}}
-{{- fail "Either externalFluxbase.url or fluxbase.config.base_url must be set" -}}
+{{- fail "Either externalFluxbase.url or fluxbase.config.public_base_url or fluxbase.config.base_url must be set" -}}
 {{- end -}}
 {{- end -}}
 

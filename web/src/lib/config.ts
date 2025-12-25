@@ -17,16 +17,17 @@ export const config = {
 	/**
 	 * Get the public Fluxbase URL for client-side access.
 	 * This should always be the externally-accessible URL.
+	 *
+	 * Priority order:
+	 * 1. window.WAYLI_CONFIG (production runtime - injected by startup.sh)
+	 * 2. process.env (development mode - from Vite)
+	 * 3. Fallback default
 	 */
 	get fluxbaseUrl(): string {
-		// In development mode, use environment variables from Vite
-		if (typeof process !== 'undefined' && process.env.FLUXBASE_PUBLIC_BASE_URL) {
-			return process.env.FLUXBASE_PUBLIC_BASE_URL;
-		}
-
-		// In production, check if we're in a browser environment
+		// In production, check window.WAYLI_CONFIG first (runtime injection takes priority)
+		// This must come BEFORE process.env check because Vite replaces process.env at build time
 		if (typeof window !== 'undefined') {
-			// Check if WAYLI_CONFIG is available (production)
+			// Check if WAYLI_CONFIG is available (production runtime)
 			if ((window as any).WAYLI_CONFIG?.fluxbaseUrl) {
 				return (window as any).WAYLI_CONFIG.fluxbaseUrl;
 			}
@@ -37,22 +38,28 @@ export const config = {
 			}
 		}
 
+		// In development mode, use environment variables from Vite (replaced at build time)
+		if (typeof process !== 'undefined' && process.env.FLUXBASE_PUBLIC_BASE_URL) {
+			return process.env.FLUXBASE_PUBLIC_BASE_URL;
+		}
+
 		// Fallback for development
 		return 'http://127.0.0.1:8080';
 	},
 
 	/**
 	 * Get the Fluxbase anonymous key for client-side access.
+	 *
+	 * Priority order:
+	 * 1. window.WAYLI_CONFIG (production runtime - injected by startup.sh)
+	 * 2. process.env (development mode - from Vite)
+	 * 3. Fallback default
 	 */
 	get fluxbaseAnonKey(): string {
-		// In development mode, use environment variables from Vite
-		if (typeof process !== 'undefined' && process.env.PUBLIC_FLUXBASE_ANON_KEY) {
-			return process.env.PUBLIC_FLUXBASE_ANON_KEY;
-		}
-
-		// In production, check if we're in a browser environment
+		// In production, check window.WAYLI_CONFIG first (runtime injection takes priority)
+		// This must come BEFORE process.env check because Vite replaces process.env at build time
 		if (typeof window !== 'undefined') {
-			// Check if WAYLI_CONFIG is available (production)
+			// Check if WAYLI_CONFIG is available (production runtime)
 			if ((window as any).WAYLI_CONFIG?.fluxbaseAnonKey) {
 				return (window as any).WAYLI_CONFIG.fluxbaseAnonKey;
 			}
@@ -61,6 +68,11 @@ export const config = {
 			if ((window as any).__sveltekit_dev?.env?.PUBLIC_FLUXBASE_ANON_KEY) {
 				return (window as any).__sveltekit_dev.env.PUBLIC_FLUXBASE_ANON_KEY;
 			}
+		}
+
+		// In development mode, use environment variables from Vite (replaced at build time)
+		if (typeof process !== 'undefined' && process.env.PUBLIC_FLUXBASE_ANON_KEY) {
+			return process.env.PUBLIC_FLUXBASE_ANON_KEY;
 		}
 
 		// Fallback for development

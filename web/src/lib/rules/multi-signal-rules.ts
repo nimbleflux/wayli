@@ -8,6 +8,15 @@ import type {
 import { analyzeStopPattern, calculateSpeedVariance } from '../utils/speed-pattern-analysis';
 
 /**
+ * Represents a detection signal from a specific analysis source
+ */
+interface Signal {
+	mode: string;
+	confidence: number;
+	source: string;
+}
+
+/**
  * Multi-Signal Combination Rule
  * Combines multiple weak signals (60-75% confidence) into a stronger signal (85-95%)
  *
@@ -34,12 +43,6 @@ export class MultiSignalCombinationRule implements DetectionRule {
 	}
 
 	detect(context: DetectionContext): DetectionResult | null {
-		interface Signal {
-			mode: string;
-			confidence: number;
-			source: string;
-		}
-
 		const signals: Signal[] = [];
 
 		// Signal 1: GPS frequency analysis

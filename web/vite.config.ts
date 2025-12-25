@@ -18,17 +18,16 @@ export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
 	define: {
 		// Only expose public environment variables to the client
-		// SECURITY: Never expose FLUXBASE_SERVICE_ROLE_KEY to the client!
-		// It should only be used server-side (in +server.ts files, hooks.server.ts, or workers)
+		// SECURITY: Never expose FLUXBASE_SERVICE_ROLE_KEY or FLUXBASE_BASE_URL to the client!
+		// FLUXBASE_BASE_URL is for server-to-server communication (internal cluster URLs)
+		// FLUXBASE_PUBLIC_BASE_URL is for browser access (externally accessible URLs)
 		'process.env': {
-			// Server-side URL: Use Docker service name when in container, localhost otherwise
-			FLUXBASE_BASE_URL: process.env.FLUXBASE_BASE_URL || 'http://fluxbase-dev:8080',
-			// Client-side URL: Always use localhost for browser access
+			// Client-side URL: For browser access during development
+			// In production, window.WAYLI_CONFIG (injected at runtime) takes priority over this
 			FLUXBASE_PUBLIC_BASE_URL: process.env.FLUXBASE_PUBLIC_BASE_URL || 'http://localhost:8080',
 			PUBLIC_FLUXBASE_ANON_KEY:
 				process.env.PUBLIC_FLUXBASE_ANON_KEY ||
 				'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6ImZsdXhiYXNlIiwiaWF0IjoxNjQxNzY5MjAwLCJleHAiOjE3OTk1MzU2MDB9.iPr9o47ALu9iDLqL9rqq7rlvka9Q8ps2XV049R4l67E',
-			// REMOVED: FLUXBASE_SERVICE_ROLE_KEY - should never be exposed to client
 			NODE_ENV: process.env.NODE_ENV || 'development'
 		}
 	},

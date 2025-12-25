@@ -1,6 +1,6 @@
 dependencies:
 - name: fluxbase
   repository: oci://ghcr.io/fluxbase-eu/charts
-  version: 0.0.1-rc.77
-digest: sha256:82f94f37f78af279d39a9fe4c2e55c0bbd8230fd7c8f06b6e390fa3ebf9254b0
-generated: "2025-12-25T08:57:09.780442+01:00"
+  version: 0.0.1-rc.78
+digest: sha256:3ddf8202afc710d6f586504f22c9da2efb8ad2e5ff31210bca12596d9255f1df
+generated: "2025-12-25T10:48:22.857671+01:00"

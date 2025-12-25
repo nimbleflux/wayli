@@ -9,7 +9,7 @@ vi.mock('@svelte-plugins/datepicker', async () => {
 });
 
 vi.mock('$env/static/public', () => ({
-	PUBLIC_FLUXBASE_BASE_URL: 'http://localhost',
+	FLUXBASE_PUBLIC_BASE_URL: 'http://localhost',
 	PUBLIC_FLUXBASE_ANON_KEY: 'anon'
 }));
 

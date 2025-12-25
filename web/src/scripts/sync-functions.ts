@@ -184,7 +184,7 @@ async function syncFunctions() {
 	console.log('🔄 Starting Fluxbase function sync...');
 
 	// Get configuration from environment
-	const fluxbaseUrl = process.env.FLUXBASE_BASE_URL || process.env.PUBLIC_FLUXBASE_BASE_URL;
+	const fluxbaseUrl = process.env.FLUXBASE_BASE_URL || process.env.FLUXBASE_PUBLIC_BASE_URL;
 	const serviceRoleKey = process.env.FLUXBASE_SERVICE_ROLE_KEY;
 	const namespace = process.env.FLUXBASE_FUNCTIONS_NAMESPACE || 'wayli';
 	const deleteMissing = process.env.FLUXBASE_FUNCTIONS_DELETE_MISSING !== 'false';

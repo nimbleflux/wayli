@@ -90,7 +90,7 @@ spec:
                 secretKeyRef:
                   name: {{ include "wayli.fluxbaseSecretName" . }}
                   key: {{ .Values.fluxbase.existingSecretKeyRef.jwtSecret }}
-            - name: PUBLIC_FLUXBASE_BASE_URL
+            - name: FLUXBASE_PUBLIC_BASE_URL
               value: {{ include "wayli.fluxbase.url" . | quote }}
             - name: PELIAS_ENDPOINT
               value: {{ .Values.worker.env.pelias.endpoint | quote }}

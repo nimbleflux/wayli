@@ -1,4 +1,5 @@
 import { fluxbase } from '$lib/fluxbase';
+import { config } from '$lib/config';
 
 export interface ExportOptions {
 	format?: string;
@@ -274,11 +275,12 @@ export class ExportService {
 		}
 
 		// Replace internal hostname/port with public URL
+		// The signed URL may use internal URLs, but we need to return client-accessible URLs
 		const signedUrl = data.signedUrl;
-		const publicUrl = process.env.PUBLIC_FLUXBASE_BASE_URL;
+		const publicUrl = config.fluxbaseUrl;
 
 		if (!publicUrl) {
-			console.warn('⚠️  PUBLIC_FLUXBASE_BASE_URL not set, returning signed URL as-is');
+			console.warn('⚠️  Fluxbase public URL not configured, returning signed URL as-is');
 			return signedUrl;
 		}
 

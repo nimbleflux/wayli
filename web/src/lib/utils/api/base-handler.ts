@@ -2,7 +2,7 @@
 // Base API handler class for standardized API endpoint patterns
 
 import { createClient } from '@fluxbase/sdk';
-import { config } from '../../config';
+import { getFluxbaseConfig } from '../../../shared/config/node-environment';
 import { z } from 'zod';
 
 import {
@@ -96,9 +96,11 @@ export abstract class BaseApiHandler {
 	 * Validate request data based on options
 	 */
 	private async validate(event: RequestEvent | AuthenticatedRequest): Promise<ApiContext> {
+		// Use server-side config with internal URL for API handlers
+		const fluxbaseConfig = getFluxbaseConfig();
 		const context: ApiContext = {
 			event,
-			fluxbase: createClient(config.fluxbaseUrl, config.fluxbaseServiceKey)
+			fluxbase: createClient(fluxbaseConfig.url, fluxbaseConfig.serviceRoleKey)
 		};
 
 		// Add user if authenticated

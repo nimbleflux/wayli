@@ -1,5 +1,5 @@
 import { createClient } from '@fluxbase/sdk';
-import { config } from '../../config';
+import { getFluxbaseConfig } from '../../../shared/config/node-environment';
 import { cleanCountryNameForSearch } from '../../utils/country-name-cleaner';
 
 /**
@@ -104,7 +104,9 @@ export async function downloadAndUploadImage(
 ): Promise<string | null> {
 	try {
 		// Create server-side Fluxbase client with service role key
-		const fluxbase = createClient(config.fluxbaseUrl, config.fluxbaseServiceKey);
+		// Uses internal URL (FLUXBASE_BASE_URL) for server-to-server communication
+		const fluxbaseConfig = getFluxbaseConfig();
+		const fluxbase = createClient(fluxbaseConfig.url, fluxbaseConfig.serviceRoleKey);
 
 		// Download the image with timeout
 		const controller = new AbortController();

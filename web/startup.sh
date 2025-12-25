@@ -58,14 +58,13 @@ configure_nginx() {
     cd /tmp/nginx/html
 
     # Inject environment variables into HTML files
-    # Use PUBLIC_FLUXBASE_BASE_URL for browser clients (falls back to FLUXBASE_BASE_URL)
+    # Use FLUXBASE_PUBLIC_BASE_URL for browser clients (required for client-side access)
     echo "Injecting environment variables into HTML..."
     for file in *.html; do
         if [ -f "$file" ]; then
             echo "   Processing $file..."
-            sed -i "s|{{FLUXBASE_BASE_URL}}|${PUBLIC_FLUXBASE_BASE_URL:-$FLUXBASE_BASE_URL}|g" "$file"
+            sed -i "s|{{FLUXBASE_PUBLIC_BASE_URL}}|${FLUXBASE_PUBLIC_BASE_URL}|g" "$file"
             sed -i "s|{{FLUXBASE_ANON_KEY}}|${PUBLIC_FLUXBASE_ANON_KEY:-$FLUXBASE_ANON_KEY}|g" "$file"
-            sed -i "s|{{FLUXBASE_SERVICE_ROLE_KEY}}|$FLUXBASE_SERVICE_ROLE_KEY|g" "$file"
         fi
     done
 

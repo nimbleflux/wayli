@@ -1,13 +1,17 @@
 /**
  * Client-side Fluxbase client
  * Safe for use in browser environment
+ *
+ * This client uses the PUBLIC Fluxbase URL (FLUXBASE_PUBLIC_BASE_URL) which is
+ * accessible from the browser. For server-side operations that need internal
+ * URLs, use getFluxbaseConfig() from shared/config/node-environment.ts instead.
  */
 
 import { createFluxbaseClient } from '../shared/fluxbase-factory';
 import { config } from './config';
 
-// Get environment variables from config (supports both dev and production)
-const FLUXBASE_BASE_URL = config.fluxbaseUrl;
+// Get public URL and anon key from client config (supports both dev and production)
+const FLUXBASE_PUBLIC_URL = config.fluxbaseUrl;
 const FLUXBASE_ANON_KEY = config.fluxbaseAnonKey;
 
 if (!FLUXBASE_ANON_KEY) {
@@ -17,7 +21,7 @@ if (!FLUXBASE_ANON_KEY) {
 }
 
 // Create client-side Fluxbase client with browser-safe settings
-export const fluxbase = createFluxbaseClient(FLUXBASE_BASE_URL, FLUXBASE_ANON_KEY, {
+export const fluxbase = createFluxbaseClient(FLUXBASE_PUBLIC_URL, FLUXBASE_ANON_KEY, {
 	persist: true, // Enable session persistence in browser
 	autoRefresh: true // Auto-refresh tokens in browser
 });

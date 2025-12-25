@@ -320,7 +320,7 @@ async function syncChatbots() {
 	console.log('🤖 Starting Fluxbase chatbot sync...');
 
 	// Get configuration from environment
-	const fluxbaseUrl = process.env.FLUXBASE_BASE_URL || process.env.PUBLIC_FLUXBASE_BASE_URL;
+	const fluxbaseUrl = process.env.FLUXBASE_BASE_URL || process.env.FLUXBASE_PUBLIC_BASE_URL;
 	const serviceRoleKey = process.env.FLUXBASE_SERVICE_ROLE_KEY;
 	const namespace = process.env.FLUXBASE_CHATBOTS_NAMESPACE || 'wayli';
 	const deleteMissing = process.env.FLUXBASE_CHATBOTS_DELETE_MISSING !== 'false';

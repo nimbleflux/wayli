@@ -21,6 +21,9 @@ worker:
     pelias:
       endpoint: 'https://pelias.wayli.app'
 
+serviceAccount:
+  create: false
+
 ## Wayli ingress configuration
 ingress:
   enabled: true
@@ -42,7 +45,8 @@ fluxbase:
   ## Fluxbase application configuration
   config:
     ## Public base URL for the application (you MUST set this)
-    base_url: 'https://flux.your-domain.com'
+    base_url: 'https://flux.internal.your-domain.com'
+    public_base_url: 'https://flux.your-domain.com'
 
     ## Authentication configuration
     auth:

@@ -123,10 +123,21 @@ const config = getNodeEnvironmentConfig();
 
 ## 🔧 Environment Variables
 
+### Fluxbase URL Configuration
+
+There are two Fluxbase URL environment variables:
+
+| Variable | Purpose | Usage |
+|----------|---------|-------|
+| `FLUXBASE_PUBLIC_BASE_URL` | Public URL accessible from browsers | Client-side code, browser requests |
+| `FLUXBASE_BASE_URL` | Internal URL for cluster communication | Server-side, workers, edge functions, jobs |
+
+In Kubernetes deployments, `FLUXBASE_BASE_URL` typically points to an internal service (e.g., `http://fluxbase:8080`) while `FLUXBASE_PUBLIC_BASE_URL` points to the external ingress URL (e.g., `https://flux.your-domain.com`).
+
 ### Public Variables (Client-Safe)
 
 ```env
-PUBLIC_FLUXBASE_BASE_URL=https://your-project.fluxbase.eu
+FLUXBASE_PUBLIC_BASE_URL=https://flux.your-domain.com
 PUBLIC_FLUXBASE_ANON_KEY=your-anon-key
 NODE_ENV=development
 ```
@@ -134,6 +145,7 @@ NODE_ENV=development
 ### Private Variables (Server-Only)
 
 ```env
+FLUXBASE_BASE_URL=http://fluxbase:8080
 FLUXBASE_SERVICE_ROLE_KEY=your-service-role-key
 JWT_SECRET=your-jwt-secret
 SESSION_SECRET=your-session-secret
@@ -171,7 +183,7 @@ describe('Server Environment Config', () => {
 	});
 
 	it('should validate required environment variables', () => {
-		process.env.PUBLIC_FLUXBASE_BASE_URL = 'https://test.fluxbase.eu';
+		process.env.FLUXBASE_PUBLIC_BASE_URL = 'https://test.fluxbase.eu';
 		process.env.FLUXBASE_SERVICE_ROLE_KEY = 'test-service-key';
 
 		const config = validateServerEnvironmentConfig(true);
@@ -225,7 +237,7 @@ Warning: Sensitive environment variable exposed to client
 
 ```typescript
 // ❌ Old way
-import { PUBLIC_FLUXBASE_BASE_URL } from '$env/static/public';
+import { FLUXBASE_PUBLIC_BASE_URL } from '$env/static/public';
 import { FLUXBASE_SERVICE_ROLE_KEY } from '$env/static/private';
 
 // ✅ New way
@@ -237,9 +249,9 @@ const config = validateServerEnvironmentConfig();
 
 ```typescript
 // ❌ Old way
-const url = process.env.PUBLIC_FLUXBASE_BASE_URL;
+const url = process.env.FLUXBASE_PUBLIC_BASE_URL;
 
 // ✅ New way
-import { PUBLIC_FLUXBASE_BASE_URL } from '$lib/fluxbase';
-const url = PUBLIC_FLUXBASE_BASE_URL;
+import { FLUXBASE_PUBLIC_BASE_URL } from '$lib/fluxbase';
+const url = FLUXBASE_PUBLIC_BASE_URL;
 ```

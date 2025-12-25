@@ -153,7 +153,7 @@ npm install @fluxbase/sdk
 
 # Update environment
 cat > .env.development.local <<EOF
-PUBLIC_FLUXBASE_BASE_URL=http://localhost:8080
+FLUXBASE_PUBLIC_BASE_URL=http://localhost:8080
 PUBLIC_FLUXBASE_ANON_KEY=<your-anon-key>
 FLUXBASE_SERVICE_ROLE_KEY=<your-service-role-key>
 EOF

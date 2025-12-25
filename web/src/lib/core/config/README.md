@@ -130,10 +130,21 @@ const config = getNodeEnvironmentConfig();
 
 ## 🔧 Environment Variables
 
+### Fluxbase URL Configuration
+
+There are two Fluxbase URL environment variables:
+
+| Variable | Purpose | Usage |
+|----------|---------|-------|
+| `FLUXBASE_PUBLIC_BASE_URL` | Public URL accessible from browsers | Client-side code, browser requests |
+| `FLUXBASE_BASE_URL` | Internal URL for cluster communication | Server-side, workers, edge functions, jobs |
+
+In Kubernetes deployments, `FLUXBASE_BASE_URL` typically points to an internal service (e.g., `http://fluxbase:8080`) while `FLUXBASE_PUBLIC_BASE_URL` points to the external ingress URL (e.g., `https://flux.your-domain.com`).
+
 ### Public Variables (Client-Safe)
 
 ```env
-PUBLIC_FLUXBASE_BASE_URL=https://your-project.fluxbase.eu
+FLUXBASE_PUBLIC_BASE_URL=https://flux.your-domain.com
 PUBLIC_FLUXBASE_ANON_KEY=your-anon-key
 NODE_ENV=development
 ```
@@ -141,6 +152,7 @@ NODE_ENV=development
 ### Private Variables (Server-Only)
 
 ```env
+FLUXBASE_BASE_URL=http://fluxbase:8080
 FLUXBASE_SERVICE_ROLE_KEY=your-service-role-key
 JWT_SECRET=your-jwt-secret
 SESSION_SECRET=your-session-secret

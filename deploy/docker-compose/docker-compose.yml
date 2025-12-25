@@ -26,7 +26,7 @@ services:
       PUBLIC_TRUSTED_ORIGINS: ${SITE_URL}
 
       # Fluxbase connection
-      PUBLIC_FLUXBASE_BASE_URL: ${PUBLIC_FLUXBASE_BASE_URL:-http://localhost:8080}
+      FLUXBASE_PUBLIC_BASE_URL: ${FLUXBASE_PUBLIC_BASE_URL:-http://localhost:8080}
       FLUXBASE_BASE_URL: http://fluxbase:8080
       FLUXBASE_ANON_KEY: ${ANON_KEY}
       FLUXBASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
@@ -62,7 +62,7 @@ services:
 
   # Fluxbase API
   fluxbase:
-    image: ghcr.io/fluxbase-eu/fluxbase:0.0.1-rc.75
+    image: ghcr.io/fluxbase-eu/fluxbase:0.0.1-rc.77
     container_name: fluxbase
     ports:
       - '8080:8080'
@@ -137,7 +137,7 @@ services:
       # ==========================================================================
       # CORS Configuration
       # ==========================================================================
-      FLUXBASE_CORS_ALLOWED_ORIGINS: "${SITE_URL:-http://localhost:4000}"
+      FLUXBASE_CORS_ALLOWED_ORIGINS: '${SITE_URL:-http://localhost:4000}'
       # FLUXBASE_CORS_ALLOWED_METHODS: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
       # FLUXBASE_CORS_ALLOWED_HEADERS: "*"
       # FLUXBASE_CORS_ALLOW_CREDENTIALS: "true"

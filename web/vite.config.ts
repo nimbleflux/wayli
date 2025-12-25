@@ -24,7 +24,7 @@ export default defineConfig({
 			// Server-side URL: Use Docker service name when in container, localhost otherwise
 			FLUXBASE_BASE_URL: process.env.FLUXBASE_BASE_URL || 'http://fluxbase-dev:8080',
 			// Client-side URL: Always use localhost for browser access
-			PUBLIC_FLUXBASE_BASE_URL: process.env.PUBLIC_FLUXBASE_BASE_URL || 'http://localhost:8080',
+			FLUXBASE_PUBLIC_BASE_URL: process.env.FLUXBASE_PUBLIC_BASE_URL || 'http://localhost:8080',
 			PUBLIC_FLUXBASE_ANON_KEY:
 				process.env.PUBLIC_FLUXBASE_ANON_KEY ||
 				'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6ImZsdXhiYXNlIiwiaWF0IjoxNjQxNzY5MjAwLCJleHAiOjE3OTk1MzU2MDB9.iPr9o47ALu9iDLqL9rqq7rlvka9Q8ps2XV049R4l67E',

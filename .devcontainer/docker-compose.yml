@@ -24,7 +24,7 @@ services:
       # - FLUXBASE_BASE_URL=http://fluxbase-dev:8080
       # - JWT_SECRET=super-secret-jwt-token-with-at-least-32-characters-long
     ports:
-      - "4000:4000"
+      - '4000:4000'
     networks:
       - fluxbase-dev-network
 
@@ -62,7 +62,7 @@ services:
   #   command: sh -c "chmod -R 755 /storage && chown -R 1000:1000 /storage"
 
   # fluxbase:
-  #   image: ghcr.io/wayli-app/fluxbase:0.0.1-rc.42
+  #   image: ghcr.io/wayli-app/fluxbase:0.0.1-rc.77
   #   depends_on:
   #     postgres:
   #       condition: service_healthy
@@ -111,7 +111,6 @@ services:
 networks:
   fluxbase-dev-network:
     external: true
-
 # For standalone Wayli development (uncomment these, comment out networks above):
 # volumes:
 #   postgres-data:

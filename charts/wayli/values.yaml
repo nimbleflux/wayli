@@ -399,7 +399,7 @@ containerSecurityContext:
 
 ## Service Account
 serviceAccount:
-  create: true
+  create: false
   ## Service account name
   name: ""
   ## Annotations
@@ -430,6 +430,8 @@ fluxbase:
   config:
     ## Public base URL for the application
     base_url: "https://flux.wayli.app"
+    # Internal base URL for server-to-server communication (if different)
+    public_base_url: 'https://flux.your-domain.com'
     debug: false
 
   # ## Existing secret for sensitive configuration

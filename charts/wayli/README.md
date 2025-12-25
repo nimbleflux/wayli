@@ -290,7 +290,7 @@ ingress:
           pathType: Prefix
 
 env:
-  PUBLIC_FLUXBASE_BASE_URL: "https://your-project.fluxbase.eu"
+  FLUXBASE_PUBLIC_BASE_URL: "https://your-project.fluxbase.eu"
   PUBLIC_FLUXBASE_ANON_KEY: "your-anon-key"
 ```
 

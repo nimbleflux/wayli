@@ -35,7 +35,7 @@ Thank you for your interest in contributing to Wayli! This guide will help you g
    Edit `.env` with your Fluxbase credentials:
 
    ```env
-   PUBLIC_FLUXBASE_BASE_URL=your_FLUXBASE_BASE_URL
+   FLUXBASE_PUBLIC_BASE_URL=your_FLUXBASE_BASE_URL
    PUBLIC_FLUXBASE_ANON_KEY=your_fluxbase_anon_key
    FLUXBASE_SERVICE_ROLE_KEY=your_service_role_key
    ```

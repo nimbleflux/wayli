@@ -12,9 +12,10 @@ export const CLIENT_ENVIRONMENT = {
 	IS_SERVER: false,
 	IS_WORKER: false,
 
-	// Fluxbase URLs (safe for client-side)
-	FLUXBASE_BASE_URL: process.env.FLUXBASE_BASE_URL || '',
-	PUBLIC_FLUXBASE_BASE_URL: process.env.PUBLIC_FLUXBASE_BASE_URL || '',
+	// Fluxbase public URL (safe for client-side)
+	// Note: Only the PUBLIC URL should be used in browser code.
+	// Internal URLs (FLUXBASE_BASE_URL) should only be used server-side.
+	FLUXBASE_PUBLIC_BASE_URL: process.env.FLUXBASE_PUBLIC_BASE_URL || '',
 
 	// Client-side feature flags
 	ENABLE_ANALYTICS: process.env.NODE_ENV === 'production',

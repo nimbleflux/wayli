@@ -976,6 +976,8 @@
 		"emailSettingsDescription": "Configura entrega de correo y configuración SMTP",
 		"emailSettingsReadOnly": "Solo lectura",
 		"emailSettingsReadOnlyDescription": "La configuración de correo está configurada mediante variables de entorno o configuración YAML y no se puede modificar a través de la interfaz.",
+		"emailSettingsPartialReadOnly": "Algunas configuraciones son de solo lectura",
+		"emailSettingsPartialReadOnlyDescription": "Algunas configuraciones de correo están definidas mediante variables de entorno y no se pueden modificar. Otras configuraciones aún se pueden editar.",
 		"emailEnabled": "Habilitar Sistema de Correo",
 		"emailEnabledDescription": "Habilitar funcionalidad de correo para autenticación y notificaciones",
 		"emailProvider": "Proveedor de Correo",

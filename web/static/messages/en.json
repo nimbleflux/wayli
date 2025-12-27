@@ -972,6 +972,8 @@
 		"emailSettingsDescription": "Configure email delivery and SMTP settings",
 		"emailSettingsReadOnly": "Read-only",
 		"emailSettingsReadOnlyDescription": "Email settings are configured via environment variables or YAML configuration and cannot be modified through the UI.",
+		"emailSettingsPartialReadOnly": "Some settings are read-only",
+		"emailSettingsPartialReadOnlyDescription": "Some email settings are configured via environment variables and cannot be modified. Other settings can still be edited.",
 		"emailEnabled": "Enable Email System",
 		"emailEnabledDescription": "Enable email functionality for authentication and notifications",
 		"emailProvider": "Email Provider",

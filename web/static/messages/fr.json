@@ -980,6 +980,8 @@
     "emailSettingsDescription": "Configurer la livraison des e-mails et les paramètres SMTP",
     "emailSettingsReadOnly": "Lecture seule",
     "emailSettingsReadOnlyDescription": "Les paramètres de messagerie sont configurés via des variables d'environnement ou la configuration YAML et ne peuvent pas être modifiés via l'interface utilisateur.",
+    "emailSettingsPartialReadOnly": "Certains paramètres sont en lecture seule",
+    "emailSettingsPartialReadOnlyDescription": "Certains paramètres de messagerie sont configurés via des variables d'environnement et ne peuvent pas être modifiés. Les autres paramètres peuvent toujours être modifiés.",
     "emailEnabled": "Activer le système de messagerie",
     "emailEnabledDescription": "Activer la fonctionnalité de messagerie pour l'authentification et les notifications",
     "emailProvider": "Fournisseur de messagerie",

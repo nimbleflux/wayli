@@ -1500,9 +1500,9 @@ export class ServiceAdapter {
 		}
 
 		// Get Email settings directly from appSettings (already fetched above)
-		// Read-only status is indicated by appSettings.overrides?.email
+		// Per-field read-only status from appSettings.overrides?.email
 		const emailEnabledValue = appSettings.email?.enabled ?? false;
-		const emailReadOnlyValue = Object.keys(appSettings.overrides?.email ?? {}).length > 0;
+		const emailOverrides = appSettings.overrides?.email as Record<string, boolean> | undefined;
 		let emailSmtpConfig: {
 			host: string;
 			port: number;
@@ -1534,9 +1534,9 @@ export class ServiceAdapter {
 			...appSettings,
 			email: {
 				enabled: emailEnabledValue,
-				provider: appSettings.email?.provider ?? 'smtp',
+				provider: (appSettings.email?.provider ?? 'smtp') as 'smtp',
 				smtp: emailSmtpConfig,
-				read_only: emailReadOnlyValue
+				overrides: emailOverrides
 			},
 			ai: {
 				enabled: aiEnabled,

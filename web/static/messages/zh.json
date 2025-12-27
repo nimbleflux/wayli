@@ -980,6 +980,8 @@
     "emailSettingsDescription": "配置电子邮件传送和 SMTP 设置",
     "emailSettingsReadOnly": "只读",
     "emailSettingsReadOnlyDescription": "电子邮件设置通过环境变量或 YAML 配置进行配置，无法通过 UI 进行修改。",
+    "emailSettingsPartialReadOnly": "部分设置为只读",
+    "emailSettingsPartialReadOnlyDescription": "部分电子邮件设置通过环境变量配置，无法修改。其他设置仍可编辑。",
     "emailEnabled": "启用电子邮件系统",
     "emailEnabledDescription": "启用电子邮件功能以进行身份​​验证和通知",
     "emailProvider": "电子邮件提供商",

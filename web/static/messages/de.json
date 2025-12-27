@@ -980,6 +980,8 @@
     "emailSettingsDescription": "Konfigurieren Sie die E-Mail-Zustellungs- und SMTP-Einstellungen",
     "emailSettingsReadOnly": "Schreibgeschützt",
     "emailSettingsReadOnlyDescription": "E-Mail-Einstellungen werden über Umgebungsvariablen oder YAML-Konfiguration konfiguriert und können nicht über die Benutzeroberfläche geändert werden.",
+    "emailSettingsPartialReadOnly": "Einige Einstellungen sind schreibgeschützt",
+    "emailSettingsPartialReadOnlyDescription": "Einige E-Mail-Einstellungen sind über Umgebungsvariablen konfiguriert und können nicht geändert werden. Andere Einstellungen können weiterhin bearbeitet werden.",
     "emailEnabled": "E-Mail-System aktivieren",
     "emailEnabledDescription": "Aktivieren Sie die E-Mail-Funktionalität für Authentifizierung und Benachrichtigungen",
     "emailProvider": "E-Mail-Anbieter",

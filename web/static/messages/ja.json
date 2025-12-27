@@ -972,6 +972,8 @@
 		"emailSettingsDescription": "電子メール配信と SMTP 設定を構成する",
 		"emailSettingsReadOnly": "読み取り専用",
 		"emailSettingsReadOnlyDescription": "電子メール設定は環境変数または YAML 構成を介して構成され、UI から変更することはできません。",
+		"emailSettingsPartialReadOnly": "一部の設定は読み取り専用です",
+		"emailSettingsPartialReadOnlyDescription": "一部の電子メール設定は環境変数で構成されており、変更できません。その他の設定は引き続き編集できます。",
 		"emailEnabled": "電子メール システムを有効にする",
 		"emailEnabledDescription": "認証と通知のための電子メール機能を有効にする",
 		"emailProvider": "電子メールプロバイダー",

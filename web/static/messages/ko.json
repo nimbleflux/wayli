@@ -980,6 +980,8 @@
     "emailSettingsDescription": "이메일 전달 및 SMTP 설정 구성",
     "emailSettingsReadOnly": "읽기 전용",
     "emailSettingsReadOnlyDescription": "이메일 설정은 환경 변수 또는 YAML 구성을 통해 구성되며 UI를 통해 수정할 수 없습니다.",
+    "emailSettingsPartialReadOnly": "일부 설정은 읽기 전용입니다",
+    "emailSettingsPartialReadOnlyDescription": "일부 이메일 설정은 환경 변수를 통해 구성되어 수정할 수 없습니다. 다른 설정은 여전히 편집할 수 있습니다.",
     "emailEnabled": "이메일 시스템 활성화",
     "emailEnabledDescription": "인증 및 알림을 위한 이메일 기능 활성화",
     "emailProvider": "이메일 제공업체",

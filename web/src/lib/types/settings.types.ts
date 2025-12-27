@@ -43,6 +43,15 @@ export interface AuthenticationSettings {
 }
 
 /**
+ * Per-field overrides indicating which fields are configured via env/yaml
+ */
+export interface EmailOverrides {
+	enabled?: boolean;
+	provider?: boolean;
+	smtp?: boolean;
+}
+
+/**
  * Email settings from Fluxbase AppSettingsManager
  * Note: Currently only SMTP is supported. More providers may be added later.
  */
@@ -58,7 +67,7 @@ export interface EmailSettings {
 		from_name: string;
 		reply_to_address?: string;
 	};
-	read_only?: boolean; // True if configured via env/yaml
+	overrides?: EmailOverrides; // Per-field read-only status
 }
 
 /**

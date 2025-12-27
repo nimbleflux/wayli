@@ -80,7 +80,14 @@
 	let smtpFromAddress = $state('');
 	let smtpFromName = $state('Wayli');
 	let smtpReplyTo = $state('');
-	let emailReadOnly = $state(false);
+	// Per-field read-only status based on overrides
+	let emailEnabledReadOnly = $state(false);
+	let emailProviderReadOnly = $state(false);
+	let emailSmtpReadOnly = $state(false);
+	// Derived: true if any email field has overrides (for banner display)
+	let hasEmailOverrides = $derived(emailEnabledReadOnly || emailProviderReadOnly || emailSmtpReadOnly);
+	// Derived: true if all email fields are read-only (hide save button)
+	let allEmailReadOnly = $derived(emailEnabledReadOnly && emailSmtpReadOnly);
 
 	// Feature Toggles
 	let enableRealtime = $state(true);
@@ -630,7 +637,10 @@
 			// Email
 			emailEnabled = app.email.enabled;
 			emailProvider = app.email.provider;
-			emailReadOnly = app.email.read_only ?? false;
+			// Per-field read-only status from overrides
+			emailEnabledReadOnly = app.email.overrides?.enabled ?? false;
+			emailProviderReadOnly = app.email.overrides?.provider ?? false;
+			emailSmtpReadOnly = app.email.overrides?.smtp ?? false;
 
 			// Load SMTP configuration if available
 			if (app.email.smtp) {
@@ -1425,17 +1435,17 @@
 					</div>
 
 					<div class="space-y-4">
-						{#if emailReadOnly}
+						{#if hasEmailOverrides}
 							<div
 								class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20"
 							>
 								<Lock class="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
 								<div>
 									<span class="text-sm font-medium text-amber-800 dark:text-amber-200">
-										{t('serverAdmin.emailSettingsReadOnly')}
+										{t('serverAdmin.emailSettingsPartialReadOnly')}
 									</span>
 									<p class="text-xs text-amber-700 dark:text-amber-300">
-										{t('serverAdmin.emailSettingsReadOnlyDescription')}
+										{t('serverAdmin.emailSettingsPartialReadOnlyDescription')}
 									</p>
 								</div>
 							</div>
@@ -1448,7 +1458,7 @@
 							<Switch
 								bind:checked={emailEnabled}
 								label={t('serverAdmin.emailEnabled')}
-								disabled={emailReadOnly}
+								disabled={emailEnabledReadOnly}
 							/>
 						</div>
 
@@ -1472,7 +1482,7 @@
 											id="smtpHost"
 											type="text"
 											bind:value={smtpHost}
-											disabled={emailReadOnly}
+											disabled={emailSmtpReadOnly}
 											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 											placeholder={t('serverAdmin.smtpHostPlaceholder')}
 										/>
@@ -1489,7 +1499,7 @@
 											id="smtpPort"
 											type="number"
 											bind:value={smtpPort}
-											disabled={emailReadOnly}
+											disabled={emailSmtpReadOnly}
 											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 											placeholder={t('serverAdmin.smtpPortPlaceholder')}
 										/>
@@ -1507,7 +1517,7 @@
 										id="smtpUsername"
 										type="text"
 										bind:value={smtpUsername}
-										disabled={emailReadOnly}
+										disabled={emailSmtpReadOnly}
 										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 										placeholder={t('serverAdmin.smtpUsernamePlaceholder')}
 									/>
@@ -1524,7 +1534,7 @@
 										id="smtpPassword"
 										type="password"
 										bind:value={smtpPassword}
-										disabled={emailReadOnly}
+										disabled={emailSmtpReadOnly}
 										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 										placeholder={t('serverAdmin.smtpPasswordPlaceholder')}
 									/>
@@ -1537,7 +1547,7 @@
 									<Switch
 										bind:checked={smtpUseTls}
 										label={t('serverAdmin.smtpUseTls')}
-										disabled={emailReadOnly}
+										disabled={emailSmtpReadOnly}
 									/>
 								</div>
 
@@ -1552,7 +1562,7 @@
 										id="smtpFromAddress"
 										type="email"
 										bind:value={smtpFromAddress}
-										disabled={emailReadOnly}
+										disabled={emailSmtpReadOnly}
 										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 										placeholder={t('serverAdmin.smtpFromAddressPlaceholder')}
 									/>
@@ -1569,7 +1579,7 @@
 										id="smtpFromName"
 										type="text"
 										bind:value={smtpFromName}
-										disabled={emailReadOnly}
+										disabled={emailSmtpReadOnly}
 										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 										placeholder={t('serverAdmin.smtpFromNamePlaceholder')}
 									/>
@@ -1577,7 +1587,7 @@
 							</div>
 						{/if}
 
-						{#if !emailReadOnly}
+						{#if !allEmailReadOnly}
 							<div class="flex justify-end">
 								<button
 									onclick={saveEmailSettings}

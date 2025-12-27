@@ -980,6 +980,8 @@
     "emailSettingsDescription": "Definir entrega de e-mail e configurações de SMTP",
     "emailSettingsReadOnly": "Somente leitura",
     "emailSettingsReadOnlyDescription": "As configurações de email são definidas por meio de variáveis ​​de ambiente ou configuração YAML e não podem ser modificadas por meio da IU.",
+    "emailSettingsPartialReadOnly": "Algumas configurações são somente leitura",
+    "emailSettingsPartialReadOnlyDescription": "Algumas configurações de e-mail são definidas por variáveis ​​de ambiente e não podem ser modificadas. Outras configurações ainda podem ser editadas.",
     "emailEnabled": "Ativar sistema de e-mail",
     "emailEnabledDescription": "Habilite a funcionalidade de e-mail para autenticação e notificações",
     "emailProvider": "Provedor de e-mail",

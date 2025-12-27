@@ -977,6 +977,8 @@
 		"emailSettingsDescription": "Configureer e-mailbezorging en SMTP instellingen",
 		"emailSettingsReadOnly": "Alleen-lezen",
 		"emailSettingsReadOnlyDescription": "E-mailinstellingen zijn geconfigureerd via omgevingsvariabelen of YAML-configuratie en kunnen niet worden gewijzigd via de interface.",
+		"emailSettingsPartialReadOnly": "Sommige instellingen zijn alleen-lezen",
+		"emailSettingsPartialReadOnlyDescription": "Sommige e-mailinstellingen zijn geconfigureerd via omgevingsvariabelen en kunnen niet worden gewijzigd. Andere instellingen kunnen nog wel worden bewerkt.",
 		"emailEnabled": "E-mailsysteem Inschakelen",
 		"emailEnabledDescription": "E-mailfunctionaliteit inschakelen voor authenticatie en meldingen",
 		"emailProvider": "E-mailprovider",

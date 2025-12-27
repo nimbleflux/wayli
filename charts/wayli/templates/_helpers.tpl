@@ -301,6 +301,7 @@ Init container for syncing Fluxbase resources using CLI
     - /bin/sh
     - -c
     - |
+      set -e
       echo "Syncing Fluxbase resources..."
       fluxbase rpc sync --dir /app/fluxbase/rpc --namespace wayli
       fluxbase functions sync --dir /app/fluxbase/functions --namespace wayli

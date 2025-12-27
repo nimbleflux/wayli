@@ -34,12 +34,9 @@ RUN npm run prepare && npm run build
 #############################################
 FROM node:20-alpine AS production
 
-# Install nginx, wget, bash, and curl for static file serving, health checks, entrypoint script, and CLI installation
-RUN apk add --no-cache nginx wget bash curl && \
+# Install nginx, wget, bash, curl, and deno for static file serving, health checks, entrypoint script, CLI installation, and background jobs
+RUN apk add --no-cache nginx wget bash curl deno && \
     mkdir -p /run/nginx
-
-# Install Deno for running background jobs
-RUN curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh
 
 # Install Fluxbase CLI for resource synchronization
 RUN curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- v0.0.1-rc.91

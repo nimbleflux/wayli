@@ -38,6 +38,9 @@ FROM node:20-alpine AS production
 RUN apk add --no-cache nginx wget bash curl && \
     mkdir -p /run/nginx
 
+# Install Deno for running background jobs
+RUN curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh
+
 # Install Fluxbase CLI for resource synchronization
 RUN curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- v0.0.1-rc.91
 
@@ -72,16 +75,16 @@ RUN chmod +x startup.sh docker-entrypoint.sh && \
     cp startup.sh /usr/local/bin/startup.sh
 
 # Create non-root user for security
-RUN addgroup -S appuser && \
-    adduser -S -G appuser appuser
+RUN addgroup -S wayli && \
+    adduser -S -G wayli wayli
 
 # Create nginx directories with proper ownership
 RUN mkdir -p /var/cache/nginx /run /tmp/nginx && \
-    chown -R appuser:appuser /var/cache/nginx /run /tmp/nginx /app /usr/share/nginx/html && \
+    chown -R wayli:wayli /var/cache/nginx /run /tmp/nginx /app /usr/share/nginx/html && \
     chmod -R 755 /var/cache/nginx /run /tmp/nginx /app /usr/share/nginx/html
 
 # Switch to non-root user
-USER appuser
+USER wayli
 
 # Expose port 80 (nginx default)
 EXPOSE 80

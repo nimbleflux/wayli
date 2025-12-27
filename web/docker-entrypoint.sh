@@ -30,7 +30,7 @@ esac
 start_worker() {
     echo "Starting worker..."
 
-    # Start worker process using npm script (already running as appuser)
+    # Start worker process using npm script (already running as wayli)
     exec npm run worker
 }
 

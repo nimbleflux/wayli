@@ -528,6 +528,7 @@ fluxbase:
 
   #   ## Storage configuration
   #   storage:
+  #     enabled: true
   #     provider: "local"
   #     local_path: "/data/storage"
   #     max_upload_size: "1073741824"
@@ -698,7 +699,13 @@ fluxbase:
 
   # ## Resource configuration
   # resourcesPreset: "small"
-  # resources: {}
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "1"
 
   # ## Pod probes
   # startupProbe:

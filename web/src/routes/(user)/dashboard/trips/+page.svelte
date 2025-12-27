@@ -180,7 +180,8 @@
 		}
 
 		// If no active trip generation job found, clear the progress
-		if (approvalProgress.step === 'creating-trips') {
+		// But don't reset if we're in the middle of a local approval process
+		if (approvalProgress.step === 'creating-trips' && !isApprovalInProgress) {
 			approvalProgress = {
 				step: 'idle',
 				message: '',

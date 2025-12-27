@@ -8,11 +8,11 @@
  * @fluxbase:timeout 900
  */
 
-import { TripDetectionService } from '../../web/src/lib/services/trip-detection.service';
-import { forwardGeocode } from '../../web/src/lib/services/external/pelias.service';
+import { TripDetectionService } from '_shared/services/trip-detection.service';
+import { forwardGeocode } from '_shared/services/external/pelias.service';
 
-import type { TripGenerationData } from '../../web/src/lib/types/trip-generation.types';
-import type { Location } from '../../web/src/lib/services/trip-detection.service';
+import type { TripGenerationData } from '_shared/types/trip-generation.types';
+import type { Location } from '_shared/services/trip-detection.service';
 import type { FluxbaseClient, JobUtils } from './types';
 
 // Safe wrapper for reportProgress - logs if method doesn't exist

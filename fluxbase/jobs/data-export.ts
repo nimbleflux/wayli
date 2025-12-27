@@ -22,12 +22,12 @@ declare const Deno: {
 	stat(path: string): Promise<{ size: number }>;
 };
 
-import JSZip from 'jszip';
+import JSZip from 'npm:jszip';
 import {
 	isGeoJSONGeocode,
 	getDisplayNameFromGeoJSON,
 	getAddressFromGeoJSON
-} from '../../web/src/lib/utils/geojson-converter';
+} from '_shared/utils/geojson-converter';
 
 import type { FluxbaseClient, JobUtils } from './types';
 

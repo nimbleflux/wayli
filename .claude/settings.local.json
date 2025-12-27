@@ -21,7 +21,8 @@
       "Bash(PGPASSWORD=postgres psql:*)",
       "Bash(PGPASSWORD=fluxbase_app_password psql:*)",
       "Bash(tree:*)",
-      "Bash(npm run test)"
+      "Bash(npm run test)",
+      "Bash(make cli:*)"
     ],
     "deny": [],
     "ask": []

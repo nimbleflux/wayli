@@ -99,7 +99,7 @@
 	// AI Settings - provider-based model
 	let aiEnabled = $state(false);
 	let aiAllowUserOverride = $state(false);
-	let providerName = $state('openai-main');
+	let providerName = $state('wayli-default');
 	let providerDisplayName = $state('OpenAI (Production)');
 	let providerType = $state('openai');
 	let providerModel = $state('gpt-4-turbo');
@@ -660,7 +660,7 @@
 				// Load default provider into form if available
 				const defaultProvider = app.ai.default_provider;
 				if (defaultProvider) {
-					providerName = defaultProvider.name ?? 'openai-main';
+					providerName = 'wayli-default'; // Always use fixed provider name
 					providerDisplayName = defaultProvider.display_name ?? 'OpenAI (Production)';
 					providerType = defaultProvider.provider_type ?? 'openai';
 					providerModel = defaultProvider.config?.model ?? 'gpt-4-turbo';
@@ -1765,8 +1765,8 @@
 										<input
 											id="providerName"
 											type="text"
-											bind:value={providerName}
-											disabled={providerReadOnly}
+											value={providerName}
+											disabled
 											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
 											placeholder={t('serverAdmin.aiProviderNamePlaceholder')}
 										/>

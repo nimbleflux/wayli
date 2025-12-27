@@ -11,14 +11,28 @@
  * @fluxbase:allow-env true
  */
 
-import { reverseGeocode } from '../../web/src/lib/services/external/pelias.service';
-import { isRetryableError } from '../../web/src/lib/utils/geocoding-utils';
+import { reverseGeocode } from '_shared/services/external/pelias.service';
+import { isRetryableError } from '_shared/utils/geocoding-utils';
 import {
 	createGeocodeErrorGeoJSON,
 	mergeGeocodingWithExisting
-} from '../../web/src/lib/utils/geojson-converter';
+} from '_shared/utils/geojson-converter';
 
 import type { FluxbaseClient, JobUtils } from './types';
+
+// Deno type declaration for environment access
+declare const Deno: { env: { get(key: string): string | undefined } } | undefined;
+
+// Safe environment access for both Deno and Node
+function getEnv(key: string): string | undefined {
+	if (typeof Deno !== 'undefined') {
+		return Deno.env.get(key);
+	}
+	if (typeof process !== 'undefined' && process.env) {
+		return process.env[key];
+	}
+	return undefined;
+}
 
 interface ReverseGeocodingPayload {
 	/** @deprecated Use onBehalfOf option in job submission instead */
@@ -96,7 +110,7 @@ export async function handler(
 		console.log(`🌍 Processing reverse geocoding missing job ${jobId}`);
 
 		// Show rate limiting settings
-		const rateLimit = parseInt(process.env?.PELIAS_RATE_LIMIT || '1000', 10);
+		const rateLimit = parseInt(getEnv('PELIAS_RATE_LIMIT') || '1000', 10);
 		const rateLimitEnabled = rateLimit > 0;
 		const minInterval = rateLimit > 0 ? 1000 / rateLimit : 0;
 

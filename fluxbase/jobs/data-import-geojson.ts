@@ -16,10 +16,10 @@ import {
 	normalizeCountryCode,
 	applyTimezoneCorrectionToTimestamp,
 	getTimezoneDifferenceForPoint
-} from '../../web/src/lib/services/external/country-reverse-geocoding.service';
+} from '_shared/services/external/country-reverse-geocoding.service';
 
 import { JSONParser } from 'npm:@streamparser/json';
-import type { Feature } from 'geojson';
+import type { Feature } from 'npm:@types/geojson';
 import type { FluxbaseClient, JobUtils } from './types';
 
 interface DataImportPayload {

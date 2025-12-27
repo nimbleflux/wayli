@@ -16,7 +16,7 @@ import {
 	normalizeCountryCode,
 	applyTimezoneCorrectionToTimestamp,
 	getTimezoneDifferenceForPoint
-} from '../../web/src/lib/services/external/country-reverse-geocoding.service';
+} from '_shared/services/external/country-reverse-geocoding.service';
 
 import type { FluxbaseClient, JobUtils } from './types';
 

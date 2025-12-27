@@ -1,59 +1,162 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { gunzipSync } from 'node:zlib';
-
 import { point, booleanPointInPolygon } from '@turf/turf';
 
 import type { FeatureCollection, Feature, Polygon, MultiPolygon } from 'geojson';
 
-// ESM-compatible __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Deno type declaration for cross-runtime compatibility
+declare const Deno:
+	| {
+			env: { get(key: string): string | undefined };
+			readTextFileSync(path: string): string;
+	  }
+	| undefined;
 
-// Eager load countries.geojson at module initialization to avoid blocking during job processing
-// This prevents worker health check failures from the blocking gunzipSync call
-const countriesGeoJSON: FeatureCollection<Polygon | MultiPolygon> = (() => {
-	let rawGeoJSON: FeatureCollection<Polygon | MultiPolygon> | null = null;
+// Cross-runtime gunzip function
+function decompressGzip(base64Data: string): string {
+	// Decode base64 to binary
+	const binaryString = atob(base64Data);
+	const bytes = new Uint8Array(binaryString.length);
+	for (let i = 0; i < binaryString.length; i++) {
+		bytes[i] = binaryString.charCodeAt(i);
+	}
 
-	// Try to load embedded compressed data first (for bundled mode)
-	try {
-		// @ts-ignore - This constant will be injected during bundling via esbuild define
-		const compressedData = EMBEDDED_COUNTRIES_GEOJSON;
-		const buffer = Buffer.from(compressedData, 'base64');
-		const decompressed = gunzipSync(buffer).toString('utf-8');
-		rawGeoJSON = JSON.parse(decompressed) as FeatureCollection<Polygon | MultiPolygon>;
-		console.log('✅ Loaded countries.geojson from embedded compressed data');
-	} catch {
-		// Fallback to filesystem (for development mode)
-		const cwd = typeof process !== 'undefined' && process.cwd ? process.cwd() : '/app';
-		const possiblePaths = [
-			path.resolve(__dirname, '../../data/countries.geojson'),
-			path.resolve(cwd, 'src/lib/data/countries.geojson'),
-			path.resolve(cwd, 'web/src/lib/data/countries.geojson'),
-			'/data/countries.geojson'
-		];
+	// Use DecompressionStream (available in both Node.js 18+ and Deno)
+	// But since this runs at module initialization (sync), we need a sync approach
+	// In Deno, we can use the built-in pako-like functionality or fall back
 
-		for (const filePath of possiblePaths) {
-			try {
-				const data = fs.readFileSync(filePath, 'utf-8');
-				rawGeoJSON = JSON.parse(data) as FeatureCollection<Polygon | MultiPolygon>;
-				console.log(`✅ Loaded countries.geojson from ${filePath}`);
-				break;
-			} catch {
-				// Continue trying other paths
-			}
-		}
-
-		if (!rawGeoJSON) {
-			console.error('❌ [COUNTRY] Failed to load countries.geojson from any path');
-			// Return empty feature collection to prevent crashes
-			return {
-				type: 'FeatureCollection',
-				features: []
-			} as FeatureCollection<Polygon | MultiPolygon>;
+	// For Node.js, try to use zlib
+	if (typeof process !== 'undefined' && process.versions?.node) {
+		try {
+			// Dynamic import to avoid issues in Deno
+			// eslint-disable-next-line @typescript-eslint/no-require-imports
+			const zlib = require('zlib');
+			const buffer = Buffer.from(base64Data, 'base64');
+			return zlib.gunzipSync(buffer).toString('utf-8');
+		} catch {
+			// Fall through to other methods
 		}
 	}
+
+	// For Deno, use the built-in decompression
+	if (typeof Deno !== 'undefined') {
+		try {
+			// Deno has fflate available or we can use DecompressionStream
+			// Since we need sync, try using the Compression Streams API with sync wrapper
+			// Actually, Deno doesn't have a sync gunzip - the bundler should handle this
+			// If we get here in Deno, the embedded data approach failed
+			throw new Error('Deno sync gunzip not available - embedded data required');
+		} catch {
+			throw new Error('Decompression failed in Deno runtime');
+		}
+	}
+
+	throw new Error('No compatible decompression method available');
+}
+
+// Cross-runtime file reading
+function readFileSync(filePath: string): string | null {
+	// Try Node.js fs
+	if (typeof process !== 'undefined' && process.versions?.node) {
+		try {
+			// eslint-disable-next-line @typescript-eslint/no-require-imports
+			const fs = require('fs');
+			return fs.readFileSync(filePath, 'utf-8');
+		} catch {
+			return null;
+		}
+	}
+
+	// Try Deno
+	if (typeof Deno !== 'undefined') {
+		try {
+			return Deno.readTextFileSync(filePath);
+		} catch {
+			return null;
+		}
+	}
+
+	return null;
+}
+
+// Cross-runtime path resolution
+function resolvePath(...segments: string[]): string {
+	// Simple path join - works for both runtimes
+	return segments
+		.join('/')
+		.replace(/\/+/g, '/')
+		.replace(/\/$/, '');
+}
+
+// Get current working directory cross-runtime
+function getCwd(): string {
+	if (typeof process !== 'undefined' && process.cwd) {
+		return process.cwd();
+	}
+	if (typeof Deno !== 'undefined') {
+		try {
+			return (Deno as any).cwd();
+		} catch {
+			return '/app';
+		}
+	}
+	return '/app';
+}
+
+// Load GeoJSON data with fallbacks
+function loadGeoJSON(
+	embeddedConstantName: string,
+	fileName: string
+): FeatureCollection<Polygon | MultiPolygon> {
+	// Try to load embedded compressed data first (for bundled mode)
+	try {
+		// These constants are injected by esbuild during bundling
+		let compressedData: string | undefined;
+
+		if (embeddedConstantName === 'EMBEDDED_COUNTRIES_GEOJSON') {
+			// @ts-ignore - This constant will be injected during bundling via esbuild define
+			compressedData = typeof EMBEDDED_COUNTRIES_GEOJSON !== 'undefined' ? EMBEDDED_COUNTRIES_GEOJSON : undefined;
+		} else if (embeddedConstantName === 'EMBEDDED_TIMEZONES_GEOJSON') {
+			// @ts-ignore - This constant will be injected during bundling via esbuild define
+			compressedData = typeof EMBEDDED_TIMEZONES_GEOJSON !== 'undefined' ? EMBEDDED_TIMEZONES_GEOJSON : undefined;
+		}
+
+		if (compressedData) {
+			const decompressed = decompressGzip(compressedData);
+			console.log(`✅ Loaded ${fileName} from embedded compressed data`);
+			return JSON.parse(decompressed) as FeatureCollection<Polygon | MultiPolygon>;
+		}
+	} catch (e) {
+		// Embedded data not available or decompression failed, try filesystem
+		console.log(`ℹ️ Embedded ${fileName} not available, trying filesystem...`);
+	}
+
+	// Fallback to filesystem (for development mode)
+	const cwd = getCwd();
+	const possiblePaths = [
+		resolvePath(cwd, 'src/lib/data', fileName),
+		resolvePath(cwd, 'web/src/lib/data', fileName),
+		resolvePath('/app/web/src/lib/data', fileName),
+		resolvePath('/data', fileName)
+	];
+
+	for (const filePath of possiblePaths) {
+		const data = readFileSync(filePath);
+		if (data) {
+			console.log(`✅ Loaded ${fileName} from ${filePath}`);
+			return JSON.parse(data) as FeatureCollection<Polygon | MultiPolygon>;
+		}
+	}
+
+	console.error(`❌ [GEOJSON] Failed to load ${fileName} from any path`);
+	// Return empty feature collection to prevent crashes
+	return {
+		type: 'FeatureCollection',
+		features: []
+	} as FeatureCollection<Polygon | MultiPolygon>;
+}
+
+// Eager load countries.geojson at module initialization
+const countriesGeoJSON: FeatureCollection<Polygon | MultiPolygon> = (() => {
+	const rawGeoJSON = loadGeoJSON('EMBEDDED_COUNTRIES_GEOJSON', 'countries.geojson');
 
 	// Normalize properties
 	for (const feature of rawGeoJSON.features) {
@@ -68,45 +171,11 @@ const countriesGeoJSON: FeatureCollection<Polygon | MultiPolygon> = (() => {
 	return rawGeoJSON;
 })();
 
-// Eager load timezones.geojson at module initialization (same pattern as countries)
-const timezonesGeoJSON: FeatureCollection<Polygon | MultiPolygon> = (() => {
-	// Try to load embedded compressed data first (for bundled mode)
-	try {
-		// @ts-ignore - This constant will be injected during bundling via esbuild define
-		const compressedData = EMBEDDED_TIMEZONES_GEOJSON;
-		const buffer = Buffer.from(compressedData, 'base64');
-		const decompressed = gunzipSync(buffer).toString('utf-8');
-		console.log('✅ Loaded timezones.geojson from embedded compressed data');
-		return JSON.parse(decompressed) as FeatureCollection<Polygon | MultiPolygon>;
-	} catch {
-		// Fallback to filesystem (for development mode)
-		const cwd = typeof process !== 'undefined' && process.cwd ? process.cwd() : '/app';
-		const possiblePaths = [
-			path.resolve(__dirname, '../../data/timezones.geojson'),
-			path.resolve(cwd, 'src/lib/data/timezones.geojson'),
-			path.resolve(cwd, 'web/src/lib/data/timezones.geojson'),
-			'./src/lib/data/timezones.geojson',
-			'./web/src/lib/data/timezones.geojson'
-		];
-
-		for (const filePath of possiblePaths) {
-			try {
-				const data = fs.readFileSync(filePath, 'utf-8');
-				console.log(`✅ Loaded timezones.geojson from ${filePath}`);
-				return JSON.parse(data) as FeatureCollection<Polygon | MultiPolygon>;
-			} catch {
-				// Continue trying other paths
-			}
-		}
-
-		console.error(`❌ [TIMEZONE] Failed to load timezones.geojson from any path`);
-		// Return empty feature collection to prevent crashes
-		return {
-			type: 'FeatureCollection',
-			features: []
-		} as FeatureCollection<Polygon | MultiPolygon>;
-	}
-})();
+// Eager load timezones.geojson at module initialization
+const timezonesGeoJSON: FeatureCollection<Polygon | MultiPolygon> = loadGeoJSON(
+	'EMBEDDED_TIMEZONES_GEOJSON',
+	'timezones.geojson'
+);
 
 /**
  * Returns the country name or code for a given lat/lng, or null if not found.

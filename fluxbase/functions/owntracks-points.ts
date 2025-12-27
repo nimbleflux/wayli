@@ -177,7 +177,7 @@ async function handler(
 			.single();
 
 		if (userError || !userData) {
-			logError('User not found', 'OWNTRACKS_POINTS', { userId });
+			logError('User not found', 'OWNTRACKS_POINTS', { userId, userError: userError?.message || 'No data returned', userData });
 			return errorResponse('Invalid user ID', 401);
 		}
 

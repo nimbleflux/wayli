@@ -177,9 +177,13 @@ async function discoverJobs(basePath: string): Promise<JobConfig[]> {
 /**
  * Load and compress GeoJSON files for embedding in bundled code
  * Returns define values for esbuild
+ *
+ * These files are REQUIRED for country/timezone detection in edge functions.
+ * The function will throw if files cannot be loaded.
  */
 async function loadEmbeddedGeoJSON(basePath: string): Promise<Record<string, string>> {
 	const defines: Record<string, string> = {};
+	const errors: string[] = [];
 
 	const geoJsonFiles = [
 		{ name: 'EMBEDDED_COUNTRIES_GEOJSON', path: 'web/src/lib/data/countries.geojson' },
@@ -196,8 +200,15 @@ async function loadEmbeddedGeoJSON(basePath: string): Promise<Record<string, str
 			defines[file.name] = JSON.stringify(base64);
 			console.log(`📦 Embedded ${file.name}: ${(content.length / 1024).toFixed(1)}KB -> ${(base64.length / 1024).toFixed(1)}KB (compressed)`);
 		} catch (error) {
-			console.warn(`⚠️  Could not load ${file.path}: ${(error as Error).message}`);
+			errors.push(`${file.path}: ${(error as Error).message}`);
 		}
+	}
+
+	if (errors.length > 0) {
+		throw new Error(
+			`Failed to load required GeoJSON files for embedding:\n${errors.map(e => `  - ${e}`).join('\n')}\n` +
+			`These files are required for country/timezone detection in edge functions.`
+		);
 	}
 
 	return defines;

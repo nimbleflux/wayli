@@ -789,16 +789,6 @@
 							<Bot class="h-5 w-5 text-primary dark:text-primary-dark" />
 						</div>
 						<div class="max-w-[80%] rounded-xl bg-white px-4 py-3 dark:bg-gray-800">
-							<!-- Clean Status Indicator - always visible during loading, stable height -->
-							{#if !currentStreamingContent}
-								<div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400" style="min-height: 24px;">
-									<Loader2 class="h-4 w-4 flex-shrink-0 animate-spin text-primary dark:text-primary-dark" />
-									<span class="transition-opacity duration-150">
-										{currentProgress?.message || t('ask.thinking')}
-									</span>
-								</div>
-							{/if}
-
 							<!-- Collapsible Query Summary -->
 							{#if currentQueryResults.length > 0}
 								<button
@@ -838,6 +828,14 @@
 									{@html renderMarkdown(currentStreamingContent, currentQueryResults.length > 0)}
 								</div>
 								<span class="inline-block h-4 w-2 animate-pulse bg-gray-400 mt-1"></span>
+							{:else if !currentQueryResults.length}
+								<!-- Status Indicator - only show when no content or query results have arrived yet -->
+								<div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400" style="min-height: 24px;">
+									<Loader2 class="h-4 w-4 flex-shrink-0 animate-spin text-primary dark:text-primary-dark" />
+									<span class="transition-opacity duration-150">
+										{currentProgress?.message || t('ask.thinking')}
+									</span>
+								</div>
 							{/if}
 						</div>
 					</div>

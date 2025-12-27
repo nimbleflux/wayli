@@ -23,6 +23,8 @@ import type { FluxbaseClient, JobUtils } from './types';
 interface ReverseGeocodingPayload {
 	/** @deprecated Use onBehalfOf option in job submission instead */
 	target_user_id?: string;
+	/** Process all users' data (admin only) */
+	all_users?: boolean;
 }
 
 // Safe wrapper for reportProgress - logs if method doesn't exist
@@ -52,10 +54,20 @@ export async function handler(
 	const userRole = context.user?.role;
 	const isAdmin = userRole === 'admin' || userRole === 'dashboard_admin';
 
-	// Use user context from onBehalfOf (preferred) or fall back to target_user_id in payload (deprecated)
-	const userId = authenticatedUserId || payload?.target_user_id;
+	// Check if processing all users (admin only)
+	const processAllUsers = payload?.all_users === true;
 
-	if (!userId) {
+	if (processAllUsers && !isAdmin) {
+		return {
+			success: false,
+			error: 'Unauthorized: only admins can process data for all users'
+		};
+	}
+
+	// Use user context from onBehalfOf (preferred) or fall back to target_user_id in payload (deprecated)
+	const userId = processAllUsers ? null : (authenticatedUserId || payload?.target_user_id);
+
+	if (!userId && !processAllUsers) {
 		return {
 			success: false,
 			error: 'No user context available. Submit job with onBehalfOf option or as authenticated user.'
@@ -76,9 +88,9 @@ export async function handler(
 		};
 	}
 
-	// Use service role client when operating on behalf of target_user_id (no user context)
-	// This bypasses RLS and allows the job to query data for the specified user
-	const db = authenticatedUserId ? fluxbase : fluxbaseService;
+	// Use service role client when processing all users or operating on behalf of target_user_id
+	// This bypasses RLS and allows the job to query data for the specified user(s)
+	const db = processAllUsers ? fluxbaseService : (authenticatedUserId ? fluxbase : fluxbaseService);
 
 	try {
 		console.log(`🌍 Processing reverse geocoding missing job ${jobId}`);
@@ -108,13 +120,18 @@ export async function handler(
 		const scanSamples: Array<{ time: number; scanned: number }> = [];
 
 		// First, count total points that need geocoding
-		console.log(`🔍 Checking for points that need geocoding...`);
-		const { count: totalPointsNeedingGeocoding, error: countError } = await db
+		console.log(`🔍 Checking for points that need geocoding${processAllUsers ? ' (all users)' : ''}...`);
+		let countQuery = db
 			.from('tracker_data')
 			.select('*', { count: 'exact', head: true })
-			.eq('user_id', userId)
 			.is('geocode->properties->>geocoded_at', null)
 			.is('geocode->properties->>geocode_error', null);
+
+		if (!processAllUsers && userId) {
+			countQuery = countQuery.eq('user_id', userId);
+		}
+
+		const { count: totalPointsNeedingGeocoding, error: countError } = await countQuery;
 
 		if (countError) throw countError;
 
@@ -157,12 +174,17 @@ export async function handler(
 			batchNumber++;
 
 			// Fetch next batch of unprocessed points
-			const { data: batch, error: fetchError } = await db
+			let batchQuery = db
 				.from('tracker_data')
 				.select('user_id, location, geocode, recorded_at, tracker_type')
-				.eq('user_id', userId)
 				.is('geocode->properties->>geocoded_at', null)
-				.is('geocode->properties->>geocode_error', null)
+				.is('geocode->properties->>geocode_error', null);
+
+			if (!processAllUsers && userId) {
+				batchQuery = batchQuery.eq('user_id', userId);
+			}
+
+			const { data: batch, error: fetchError } = await batchQuery
 				.order('recorded_at', { ascending: false })
 				.limit(BATCH_SIZE);
 

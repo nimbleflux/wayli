@@ -1464,22 +1464,7 @@ export class ServiceAdapter {
 				[s.key]: s.value
 			}), {});
 
-		// Get AI settings from FluxbaseAdmin SDK
-		let aiEnabled = false;
-		let allowUserOverride = false;
-		try {
-			const enableAISetting = await fluxbase.admin.settings.system.get('app.ai.enabled');
-			aiEnabled = enableAISetting?.value?.value ?? false;
-
-			const userOverrideSetting = await fluxbase.admin.settings.system.get(
-				'app.ai.allow_user_provider_override'
-			);
-			allowUserOverride = userOverrideSetting?.value?.value ?? false;
-		} catch {
-			// Settings don't exist yet - use defaults
-		}
-
-		// Get AI providers from FluxbaseAdmin SDK
+		// Get AI providers from FluxbaseAdmin SDK first
 		let providers: any[] = [];
 		let defaultProvider: any | undefined;
 		try {
@@ -1490,6 +1475,28 @@ export class ServiceAdapter {
 			}
 		} catch {
 			// AI providers not configured yet
+		}
+
+		// Get AI settings from FluxbaseAdmin SDK
+		// If providers exist and are enabled, consider AI enabled
+		let aiEnabled = false;
+		let allowUserOverride = false;
+		try {
+			const enableAISetting = await fluxbase.admin.settings.system.get('app.ai.enabled');
+			aiEnabled = Boolean((enableAISetting?.value as any)?.value ?? false);
+
+			const userOverrideSetting = await fluxbase.admin.settings.system.get(
+				'app.ai.allow_user_provider_override'
+			);
+			allowUserOverride = Boolean((userOverrideSetting?.value as any)?.value ?? false);
+		} catch {
+			// Settings don't exist yet - use defaults
+		}
+
+		// If there are enabled providers but AI is not explicitly enabled,
+		// consider AI enabled (providers configured via Fluxbase/env take precedence)
+		if (!aiEnabled && providers.some((p) => p.enabled)) {
+			aiEnabled = true;
 		}
 
 		// Get Email settings directly from appSettings (already fetched above)
@@ -1640,7 +1647,8 @@ export class ServiceAdapter {
 					display_name: params.provider.display_name,
 					provider_type: params.provider.provider_type,
 					is_default: params.provider.is_default ?? true,
-					config: params.provider.config
+					config: params.provider.config,
+					enabled: true,
 				});
 			}
 		}

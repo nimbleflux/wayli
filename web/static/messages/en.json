@@ -1063,7 +1063,13 @@
 		"syncPoiEmbeddingsQueued": "POI embeddings sync jobs queued for all users",
 		"syncPoiEmbeddingsFailed": "Failed to queue POI embeddings sync",
 		"syncTripEmbeddingsQueued": "Trip embeddings sync jobs queued for all users",
-		"syncTripEmbeddingsFailed": "Failed to queue trip embeddings sync"
+		"syncTripEmbeddingsFailed": "Failed to queue trip embeddings sync",
+		"reverseGeocode": "Reverse Geocode",
+		"reverseGeocodeDescription": "Run reverse geocoding for all tracker data points missing address information.",
+		"run": "Run",
+		"running": "Running...",
+		"reverseGeocodeQueued": "Reverse geocoding job queued for all users",
+		"reverseGeocodeFailed": "Failed to queue reverse geocoding"
 	},
 	"wantToVisit": {
 		"addNewPlace": "Add new place",

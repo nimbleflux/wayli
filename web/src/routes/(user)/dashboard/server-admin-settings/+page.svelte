@@ -94,6 +94,7 @@
 	let isRefreshingPlaceVisits = $state(false);
 	let isSyncingPoiEmbeddings = $state(false);
 	let isSyncingTripEmbeddings = $state(false);
+	let isReverseGeocodingAllUsers = $state(false);
 
 	// AI Settings - provider-based model
 	let aiEnabled = $state(false);
@@ -464,6 +465,31 @@
 			});
 		} finally {
 			isSyncingTripEmbeddings = false;
+		}
+	}
+
+	async function reverseGeocodeAllUsers() {
+		if (isReverseGeocodingAllUsers) return;
+
+		isReverseGeocodingAllUsers = true;
+		try {
+			const { error } = await fluxbase.jobs.submit(
+				'reverse-geocoding',
+				{ all_users: true },
+				{
+					namespace: 'wayli',
+					priority: 4
+				}
+			);
+			if (error) throw error;
+			toast.success(t('serverAdmin.reverseGeocodeQueued'));
+		} catch (error: any) {
+			console.error('❌ Failed to queue reverse geocoding:', error);
+			toast.error(t('serverAdmin.reverseGeocodeFailed'), {
+				description: error?.message
+			});
+		} finally {
+			isReverseGeocodingAllUsers = false;
 		}
 	}
 
@@ -1635,6 +1661,25 @@
 							>
 								<RefreshCw class={`h-4 w-4 ${isSyncingTripEmbeddings ? 'animate-spin' : ''}`} />
 								{isSyncingTripEmbeddings ? t('serverAdmin.syncing') : t('serverAdmin.sync')}
+							</button>
+						</div>
+
+						<div class="flex items-center justify-between">
+							<div>
+								<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+									{t('serverAdmin.reverseGeocode')}
+								</span>
+								<p class="text-xs text-gray-500 dark:text-gray-400">
+									{t('serverAdmin.reverseGeocodeDescription')}
+								</p>
+							</div>
+							<button
+								onclick={reverseGeocodeAllUsers}
+								disabled={isReverseGeocodingAllUsers}
+								class="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								<RefreshCw class={`h-4 w-4 ${isReverseGeocodingAllUsers ? 'animate-spin' : ''}`} />
+								{isReverseGeocodingAllUsers ? t('serverAdmin.running') : t('serverAdmin.run')}
 							</button>
 						</div>
 					</div>

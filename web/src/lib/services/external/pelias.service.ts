@@ -67,10 +67,23 @@ export interface PeliasSearchResponse {
 	[key: string]: unknown;
 }
 
+// Get environment variable in a cross-runtime compatible way (Node.js + Deno)
+declare const Deno: { env: { get(key: string): string | undefined } } | undefined;
+
+function getEnv(key: string): string | undefined {
+	if (typeof process !== 'undefined' && process.env) {
+		return process.env[key];
+	}
+	if (typeof Deno !== 'undefined') {
+		return Deno.env.get(key);
+	}
+	return undefined;
+}
+
 // Get configuration - prioritize environment variables, fallback to default
 const config = {
-	endpoint: process.env?.PELIAS_ENDPOINT || 'https://pelias.wayli.app',
-	rateLimit: parseInt(process.env?.PELIAS_RATE_LIMIT || '1000', 10)
+	endpoint: getEnv('PELIAS_ENDPOINT') || 'https://pelias.wayli.app',
+	rateLimit: parseInt(getEnv('PELIAS_RATE_LIMIT') || '1000', 10)
 };
 
 // Rate limiting configuration

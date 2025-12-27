@@ -62,7 +62,7 @@ services:
   #   command: sh -c "chmod -R 755 /storage && chown -R 1000:1000 /storage"
 
   # fluxbase:
-  #   image: ghcr.io/wayli-app/fluxbase:0.0.1-rc.79
+  #   image: ghcr.io/wayli-app/fluxbase:0.0.1-rc.82
   #   depends_on:
   #     postgres:
   #       condition: service_healthy

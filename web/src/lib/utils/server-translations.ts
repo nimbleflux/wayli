@@ -1,11 +1,76 @@
 // web/src/lib/utils/server-translations.ts
-// Server-side translation utility for worker environments
+// Server-side translation utility for worker environments (Node.js + Deno compatible)
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+// Deno type declaration for cross-runtime compatibility
+declare const Deno:
+	| {
+			env: { get(key: string): string | undefined };
+			readTextFileSync(path: string): string;
+			cwd(): string;
+	  }
+	| undefined;
 
 interface Translations {
 	[key: string]: string;
+}
+
+// Cross-runtime file reading
+function readFileSync(filePath: string): string | null {
+	// Try Node.js fs
+	if (typeof process !== 'undefined' && process.versions?.node) {
+		try {
+			// eslint-disable-next-line @typescript-eslint/no-require-imports
+			const fs = require('fs');
+			return fs.readFileSync(filePath, 'utf-8');
+		} catch {
+			return null;
+		}
+	}
+
+	// Try Deno
+	if (typeof Deno !== 'undefined') {
+		try {
+			return Deno.readTextFileSync(filePath);
+		} catch {
+			return null;
+		}
+	}
+
+	return null;
+}
+
+// Cross-runtime path join
+function joinPath(...segments: string[]): string {
+	return segments
+		.join('/')
+		.replace(/\/+/g, '/')
+		.replace(/\/$/, '');
+}
+
+// Cross-runtime cwd
+function getCwd(): string {
+	if (typeof process !== 'undefined' && process.cwd) {
+		return process.cwd();
+	}
+	if (typeof Deno !== 'undefined') {
+		try {
+			return Deno.cwd();
+		} catch {
+			return '/app';
+		}
+	}
+	return '/app';
+}
+
+// Cross-runtime environment variable access
+function getEnv(key: string): string | undefined {
+	if (typeof process !== 'undefined' && process.env) {
+		return process.env[key];
+	}
+	if (typeof Deno !== 'undefined') {
+		return Deno.env.get(key);
+	}
+	return undefined;
 }
 
 // Cache for loaded translations
@@ -44,26 +109,24 @@ function loadFullTranslations(): { [lang: string]: Translations } {
 	try {
 		const languages = ['en', 'nl', 'es'];
 		const result: { [lang: string]: Translations } = {};
+		const cwd = getCwd();
 
 		for (const lang of languages) {
 			// Try multiple possible paths for translation files
 			// 1. Build directory (for worker in Docker)
 			// 2. Static directory (for development)
 			const possiblePaths = [
-				join(process.cwd(), 'build', 'messages', `${lang}.json`),
-				join(process.cwd(), 'static', 'messages', `${lang}.json`)
+				joinPath(cwd, 'build', 'messages', `${lang}.json`),
+				joinPath(cwd, 'static', 'messages', `${lang}.json`)
 			];
 
 			let loaded = false;
 			for (const filePath of possiblePaths) {
-				try {
-					const fileContent = readFileSync(filePath, 'utf-8');
+				const fileContent = readFileSync(filePath);
+				if (fileContent) {
 					result[lang] = JSON.parse(fileContent);
 					loaded = true;
 					break;
-				} catch (err) {
-					// Try next path
-					continue;
 				}
 			}
 
@@ -106,7 +169,7 @@ export function translateServer(
 		);
 	}
 
-	if (process.env.NODE_ENV !== 'production') {
+	if (getEnv('NODE_ENV') !== 'production') {
 		console.log('[translateServer]', { key, template, params, result });
 	}
 	return result;

@@ -29,7 +29,7 @@ keywords:
 
 dependencies:
   - name: fluxbase
-    version: '0.0.1-rc.82'
+    version: '0.0.1-rc.84'
     repository: 'oci://ghcr.io/fluxbase-eu/charts'
     condition: fluxbase.enabled
 

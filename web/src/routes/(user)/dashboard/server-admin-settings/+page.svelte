@@ -84,10 +84,9 @@
 	let emailEnabledReadOnly = $state(false);
 	let emailProviderReadOnly = $state(false);
 	let emailSmtpReadOnly = $state(false);
-	// Derived: true if any email field has overrides (for banner display)
-	let hasEmailOverrides = $derived(emailEnabledReadOnly || emailProviderReadOnly || emailSmtpReadOnly);
-	// Derived: true if all email fields are read-only (hide save button)
-	let allEmailReadOnly = $derived(emailEnabledReadOnly && emailSmtpReadOnly);
+	// Derived: true if configuration fields have overrides (for banner display)
+	// Note: emailEnabledReadOnly is excluded - it just enables the feature, not a config field
+	let hasEmailConfigOverrides = $derived(emailProviderReadOnly || emailSmtpReadOnly);
 
 	// Feature Toggles
 	let enableRealtime = $state(true);
@@ -1435,7 +1434,7 @@
 					</div>
 
 					<div class="space-y-4">
-						{#if hasEmailOverrides}
+						{#if hasEmailConfigOverrides}
 							<div
 								class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20"
 							>
@@ -1587,7 +1586,7 @@
 							</div>
 						{/if}
 
-						{#if !allEmailReadOnly}
+						{#if !emailSmtpReadOnly}
 							<div class="flex justify-end">
 								<button
 									onclick={saveEmailSettings}

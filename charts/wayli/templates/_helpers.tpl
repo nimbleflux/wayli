@@ -302,11 +302,11 @@ Init container for syncing Fluxbase resources using CLI
     - -c
     - |
       echo "Syncing Fluxbase resources..."
-      fluxbase sync rpc --dir /app/fluxbase
-      fluxbase sync functions --dir /app/fluxbase
-      fluxbase sync jobs --dir /app/fluxbase
-      fluxbase sync chatbots --dir /app/fluxbase
-      fluxbase sync migrations --dir /app/fluxbase
+      fluxbase rpc sync --dir /app/fluxbase/rpc --namespace wayli
+      fluxbase functions sync --dir /app/fluxbase/functions --namespace wayli
+      fluxbase jobs sync --dir /app/fluxbase/jobs --namespace wayli
+      fluxbase chatbots sync --dir /app/fluxbase/chatbots --namespace wayli
+      fluxbase migrations sync --dir /app/fluxbase/migrations --namespace wayli
       echo "Sync completed successfully"
   env:
     - name: FLUXBASE_SERVER

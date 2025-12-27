@@ -96,19 +96,19 @@ sync_all() {
     local failed=0
 
     echo "Syncing RPC procedures..."
-    fluxbase sync rpc --dir /app/fluxbase || failed=1
+    fluxbase rpc sync --dir /app/fluxbase/rpc --namespace wayli || failed=1
 
     echo "Syncing functions..."
-    fluxbase sync functions --dir /app/fluxbase || failed=1
+    fluxbase functions sync --dir /app/fluxbase/functions --namespace wayli || failed=1
 
     echo "Syncing jobs..."
-    fluxbase sync jobs --dir /app/fluxbase || failed=1
+    fluxbase jobs sync --dir /app/fluxbase/jobs --namespace wayli || failed=1
 
     echo "Syncing chatbots..."
-    fluxbase sync chatbots --dir /app/fluxbase || failed=1
+    fluxbase chatbots sync --dir /app/fluxbase/chatbots --namespace wayli || failed=1
 
     echo "Syncing migrations..."
-    fluxbase sync migrations --dir /app/fluxbase || failed=1
+    fluxbase migrations sync --dir /app/fluxbase/migrations --namespace wayli || failed=1
 
     if [ "$failed" -eq 1 ]; then
         echo "Error: One or more sync operations failed"

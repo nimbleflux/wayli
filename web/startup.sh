@@ -71,11 +71,9 @@ configure_nginx() {
     echo "Nginx configuration complete"
 }
 
-# Sync all Fluxbase resources (RPC, functions, jobs, chatbots, migrations)
+# Sync all Fluxbase resources (RPC, functions, jobs, chatbots, migrations) using Fluxbase CLI
 sync_all() {
-    echo "Syncing all Fluxbase resources..."
-
-    # Check if sync should be skipped (useful for testing/dev)
+    # Check if sync should be skipped (useful for Kubernetes where init container handles sync)
     if [ "$SKIP_SYNC" = "true" ]; then
         echo "SKIP_SYNC is set, skipping all sync operations"
         return 0
@@ -88,16 +86,37 @@ sync_all() {
         return 0
     fi
 
-    cd /app/web
+    echo "Syncing all Fluxbase resources using CLI..."
 
-    # Run sync:all script (syncs RPC, functions, jobs, chatbots, migrations)
-    if npm run sync:all; then
-        echo "All sync operations completed successfully"
-    else
-        echo "Error: Sync failed (exit code: $?)"
+    # Set CLI environment variables (CLI expects FLUXBASE_SERVER and FLUXBASE_TOKEN)
+    export FLUXBASE_SERVER="$FLUXBASE_BASE_URL"
+    export FLUXBASE_TOKEN="$FLUXBASE_SERVICE_ROLE_KEY"
+
+    # Run fluxbase CLI sync for each resource type
+    local failed=0
+
+    echo "Syncing RPC procedures..."
+    fluxbase sync rpc --dir /app/fluxbase || failed=1
+
+    echo "Syncing functions..."
+    fluxbase sync functions --dir /app/fluxbase || failed=1
+
+    echo "Syncing jobs..."
+    fluxbase sync jobs --dir /app/fluxbase || failed=1
+
+    echo "Syncing chatbots..."
+    fluxbase sync chatbots --dir /app/fluxbase || failed=1
+
+    echo "Syncing migrations..."
+    fluxbase sync migrations --dir /app/fluxbase || failed=1
+
+    if [ "$failed" -eq 1 ]; then
+        echo "Error: One or more sync operations failed"
         echo "Cannot continue - resources may be out of sync"
         exit 1
     fi
+
+    echo "All sync operations completed successfully"
 }
 
 # Start nginx in foreground (web-only mode)

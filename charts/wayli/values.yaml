@@ -56,6 +56,10 @@ web:
         repository: busybox
         tag: "1.36"
         pullPolicy: IfNotPresent
+    ## Sync Fluxbase resources (functions, jobs, migrations, RPC, chatbots)
+    ## Uses the Fluxbase CLI installed in the wayli image
+    syncResources:
+      enabled: true
 
   ## Extra init containers (prepended before standard init containers)
   ## Specify as a list of container definitions

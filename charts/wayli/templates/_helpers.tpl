@@ -288,3 +288,44 @@ Common initContainers for waiting for Fluxbase services
       echo "Fluxbase is ready"
 {{- end }}
 {{- end -}}
+
+{{/*
+Init container for syncing Fluxbase resources using CLI
+*/}}
+{{- define "wayli.initContainers.syncResources" -}}
+{{- if .Values.web.initContainers.syncResources.enabled }}
+- name: sync-fluxbase-resources
+  image: {{ include "wayli.image" . }}
+  imagePullPolicy: {{ .Values.image.pullPolicy }}
+  command:
+    - /bin/sh
+    - -c
+    - |
+      echo "Syncing Fluxbase resources..."
+      fluxbase sync rpc --dir /app/fluxbase
+      fluxbase sync functions --dir /app/fluxbase
+      fluxbase sync jobs --dir /app/fluxbase
+      fluxbase sync chatbots --dir /app/fluxbase
+      fluxbase sync migrations --dir /app/fluxbase
+      echo "Sync completed successfully"
+  env:
+    - name: FLUXBASE_SERVER
+      value: {{ include "wayli.fluxbase.internalUrl" . | quote }}
+    - name: FLUXBASE_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: {{ include "wayli.fluxbaseSecretName" . }}
+          key: {{ .Values.fluxbase.existingSecretKeyRef.serviceRoleKey }}
+  {{- if .Values.containerSecurityContext.enabled }}
+  securityContext:
+    allowPrivilegeEscalation: {{ .Values.containerSecurityContext.allowPrivilegeEscalation }}
+    runAsNonRoot: {{ .Values.containerSecurityContext.runAsNonRoot }}
+    runAsUser: {{ .Values.containerSecurityContext.runAsUser }}
+    capabilities:
+      drop:
+        {{- range .Values.containerSecurityContext.capabilities.drop }}
+        - {{ . }}
+        {{- end }}
+  {{- end }}
+{{- end }}
+{{- end -}}

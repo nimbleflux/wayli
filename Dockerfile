@@ -34,9 +34,12 @@ RUN npm run prepare && npm run build
 #############################################
 FROM node:20-alpine AS production
 
-# Install nginx, wget, and bash for static file serving, health checks, and entrypoint script
-RUN apk add --no-cache nginx wget bash && \
+# Install nginx, wget, bash, and curl for static file serving, health checks, entrypoint script, and CLI installation
+RUN apk add --no-cache nginx wget bash curl && \
     mkdir -p /run/nginx
+
+# Install Fluxbase CLI for resource synchronization
+RUN curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash
 
 WORKDIR /app/web
 

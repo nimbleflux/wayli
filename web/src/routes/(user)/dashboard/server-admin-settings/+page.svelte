@@ -79,7 +79,6 @@
 	let smtpUseTls = $state(true);
 	let smtpFromAddress = $state('');
 	let smtpFromName = $state('Wayli');
-	let smtpReplyTo = $state('');
 	// Per-field read-only status based on overrides
 	let emailEnabledReadOnly = $state(false);
 	let emailProviderReadOnly = $state(false);
@@ -331,24 +330,19 @@
 
 			const serviceAdapter = new ServiceAdapter({ session });
 
-			// Update email enabled
-			await serviceAdapter.updateAppSetting('setEmailEnabled', {
-				enabled: emailEnabled
+			// Update all email settings in a single call using the new SDK method
+			await serviceAdapter.updateAppSetting('updateEmailSettings', {
+				enabled: emailEnabled,
+				provider: emailProvider as 'smtp',
+				from_address: smtpFromAddress,
+				from_name: smtpFromName,
+				smtp_host: smtpHost,
+				smtp_port: smtpPort,
+				smtp_username: smtpUsername,
+				// Only send password if user entered one (it's not returned from get)
+				...(smtpPassword && { smtp_password: smtpPassword }),
+				smtp_tls: smtpUseTls
 			});
-
-			// Configure SMTP if enabled and provider is smtp
-			if (emailEnabled && emailProvider === 'smtp') {
-				await serviceAdapter.updateAppSetting('configureSMTP', {
-					host: smtpHost,
-					port: smtpPort,
-					username: smtpUsername,
-					password: smtpPassword,
-					use_tls: smtpUseTls,
-					from_address: smtpFromAddress,
-					from_name: smtpFromName,
-					reply_to_address: smtpReplyTo || undefined
-				});
-			}
 
 			toast.success(t('serverAdmin.emailSettingsSaved'));
 		} catch (error: any) {
@@ -633,25 +627,21 @@
 			requireEmailVerification = app.authentication.require_email_verification;
 			authReadOnly = app.authentication.read_only ?? false;
 
-			// Email
+			// Email - now using flat EmailProviderSettings structure from SDK
 			emailEnabled = app.email.enabled;
 			emailProvider = app.email.provider;
-			// Per-field read-only status from overrides
-			emailEnabledReadOnly = app.email.overrides?.enabled ?? false;
-			emailProviderReadOnly = app.email.overrides?.provider ?? false;
-			emailSmtpReadOnly = app.email.overrides?.smtp ?? false;
+			smtpHost = app.email.smtp_host ?? '';
+			smtpPort = app.email.smtp_port ?? 587;
+			smtpUsername = app.email.smtp_username ?? '';
+			smtpUseTls = app.email.smtp_tls ?? true;
+			smtpFromAddress = app.email.from_address ?? '';
+			smtpFromName = app.email.from_name ?? 'Wayli';
+			// Note: SMTP password is not returned for security (smtp_password_set indicates if configured)
 
-			// Load SMTP configuration if available
-			if (app.email.smtp) {
-				smtpHost = app.email.smtp.host ?? '';
-				smtpPort = app.email.smtp.port ?? 587;
-				smtpUsername = app.email.smtp.username ?? '';
-				smtpUseTls = app.email.smtp.use_tls ?? true;
-				smtpFromAddress = app.email.smtp.from_address ?? '';
-				smtpFromName = app.email.smtp.from_name ?? 'Wayli';
-				smtpReplyTo = app.email.smtp.reply_to_address ?? '';
-				// Note: SMTP password is not returned for security reasons
-			}
+			// Per-field read-only status from _overrides
+			emailEnabledReadOnly = app.email._overrides?.enabled?.is_overridden ?? false;
+			emailProviderReadOnly = app.email._overrides?.provider?.is_overridden ?? false;
+			emailSmtpReadOnly = app.email._overrides?.smtp_host?.is_overridden ?? false;
 
 			// Features
 			enableRealtime = app.features.enable_realtime;

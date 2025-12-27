@@ -1,5 +1,10 @@
 // Settings type definitions for Fluxbase AppSettingsManager
 
+import type { EmailProviderSettings } from '@fluxbase/sdk';
+
+// Re-export SDK email types for use in the app
+export type { EmailProviderSettings, UpdateEmailProviderSettingsRequest } from '@fluxbase/sdk';
+
 /**
  * Public server settings - returned by server-settings endpoint
  * Safe for unauthenticated users
@@ -40,34 +45,6 @@ export interface AuthenticationSettings {
 		require_special?: boolean;
 	};
 	read_only?: boolean; // True if configured via env/yaml
-}
-
-/**
- * Per-field overrides indicating which fields are configured via env/yaml
- */
-export interface EmailOverrides {
-	enabled?: boolean;
-	provider?: boolean;
-	smtp?: boolean;
-}
-
-/**
- * Email settings from Fluxbase AppSettingsManager
- * Note: Currently only SMTP is supported. More providers may be added later.
- */
-export interface EmailSettings {
-	enabled: boolean;
-	provider: 'smtp';
-	smtp?: {
-		host: string;
-		port: number;
-		username: string;
-		use_tls: boolean;
-		from_address: string;
-		from_name: string;
-		reply_to_address?: string;
-	};
-	overrides?: EmailOverrides; // Per-field read-only status
 }
 
 /**
@@ -126,7 +103,7 @@ export interface AISettings {
  */
 export interface AppSettings {
 	authentication: AuthenticationSettings;
-	email: EmailSettings;
+	email: EmailProviderSettings;
 	features: FeatureSettings;
 	security: SecuritySettings;
 	ai?: AISettings;

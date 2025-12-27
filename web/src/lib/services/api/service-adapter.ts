@@ -1499,45 +1499,13 @@ export class ServiceAdapter {
 			aiEnabled = true;
 		}
 
-		// Get Email settings directly from appSettings (already fetched above)
-		// Per-field read-only status from appSettings.overrides?.email
-		const emailEnabledValue = appSettings.email?.enabled ?? false;
-		const emailOverrides = appSettings.overrides?.email as Record<string, boolean> | undefined;
-		let emailSmtpConfig: {
-			host: string;
-			port: number;
-			username: string;
-			use_tls: boolean;
-			from_address: string;
-			from_name: string;
-			reply_to_address?: string;
-		} | undefined;
-
-		// Build email config whenever email is configured (enabled or has a provider)
-		// Common fields (from_address, from_name, reply_to_address) are at top level of email
-		// Provider-specific fields (host, port, etc.) are nested in smtp/sendgrid/etc.
-		if (appSettings.email?.enabled || appSettings.email?.provider) {
-			const smtp = appSettings.email?.smtp as any;
-			emailSmtpConfig = {
-				host: smtp?.host ?? '',
-				port: smtp?.port ?? 587,
-				username: smtp?.username ?? '',
-				use_tls: smtp?.tls ?? smtp?.use_tls ?? true,
-				from_address: appSettings.email?.from_address ?? '',
-				from_name: appSettings.email?.from_name ?? 'Wayli',
-				reply_to_address: appSettings.email?.reply_to_address
-			};
-		}
+		// Get Email settings using the new SDK email settings manager
+		const emailSettings = await fluxbase.admin.settings.email.get();
 
 		// Build settings with AI and Email from SDK data
 		const appSettingsWithAll = {
 			...appSettings,
-			email: {
-				enabled: emailEnabledValue,
-				provider: (appSettings.email?.provider ?? 'smtp') as 'smtp',
-				smtp: emailSmtpConfig,
-				overrides: emailOverrides
-			},
+			email: emailSettings,
 			ai: {
 				enabled: aiEnabled,
 				allow_user_provider_override: allowUserOverride,
@@ -1560,14 +1528,12 @@ export class ServiceAdapter {
 		const settings = fluxbase.admin.settings.app;
 
 		switch (action) {
-			case 'configureSMTP':
-				return await settings.configureSMTP(params);
+			case 'updateEmailSettings':
+				return await fluxbase.admin.settings.email.update(params);
 			case 'enableSignup':
 				return await settings.enableSignup();
 			case 'disableSignup':
 				return await settings.disableSignup();
-			case 'setEmailEnabled':
-				return await settings.setEmailEnabled(params.enabled);
 			case 'setEmailVerificationRequired':
 				return await settings.setEmailVerificationRequired(params.required);
 			case 'setPasswordMinLength':

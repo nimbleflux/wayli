@@ -1042,21 +1042,6 @@
 						</div>
 						<div>
 							<span class="font-medium text-gray-600 dark:text-gray-400"
-								>{t('statistics.type')}:</span
-							>
-							<div class="text-gray-800 dark:text-gray-200">{selectedPoint.type || 'N/A'}</div>
-						</div>
-					</div>
-
-					<div class="grid grid-cols-2 gap-2">
-						<div>
-							<span class="font-medium text-gray-600 dark:text-gray-400"
-								>{t('statistics.class')}:</span
-							>
-							<div class="text-gray-800 dark:text-gray-200">{selectedPoint.class || 'N/A'}</div>
-						</div>
-						<div>
-							<span class="font-medium text-gray-600 dark:text-gray-400"
 								>{t('statistics.country')}:</span
 							>
 							<div class="text-gray-800 dark:text-gray-200">

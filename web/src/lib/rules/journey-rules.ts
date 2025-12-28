@@ -134,8 +134,11 @@ export class TrainJourneyContinuationRule implements DetectionRule {
 	priority = 70;
 
 	canApply(context: DetectionContext): boolean {
+		const journey = context.currentJourney;
 		return (
-			context.currentJourney?.type === 'train' &&
+			journey?.type === 'train' &&
+			Boolean(journey?.startStation) &&
+			journey?.startStation !== 'Unknown' && // Require valid station name
 			context.currentSpeed >= 30 &&
 			context.currentSpeed <= 200
 		);

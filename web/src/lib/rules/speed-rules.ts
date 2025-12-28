@@ -380,6 +380,28 @@ export class SpeedSimilarityRule implements DetectionRule {
 		const lastSpeed = context.speedHistory[context.speedHistory.length - 1];
 		const speedDiff = Math.abs(context.currentSpeed - lastSpeed);
 
+		// If last mode was 'unknown' and time gap is reasonable, use speed bracket instead
+		// This resolves "continuing unknown" by detecting the actual mode from speed
+		const timeGap = context.current.timestamp - context.previous.timestamp;
+		const MAX_CONTINUITY_GAP = 5 * 60 * 1000; // 5 minutes in ms
+
+		if (lastMode === 'unknown' && timeGap < MAX_CONTINUITY_GAP) {
+			const speedBracket = getSpeedBracket(context.currentSpeed);
+			if (speedBracket !== 'unknown') {
+				return {
+					mode: speedBracket,
+					confidence: 0.65,
+					reason: `Speed ${context.currentSpeed.toFixed(1)} km/h indicates ${speedBracket} (resolving from unknown)`,
+					metadata: {
+						previousMode: 'unknown',
+						resolvedFromSpeed: true,
+						timeGap,
+						currentSpeed: context.currentSpeed
+					}
+				};
+			}
+		}
+
 		// Check if speed is physically possible for this mode
 		const limits = MODE_PHYSICAL_LIMITS[lastMode as keyof typeof MODE_PHYSICAL_LIMITS];
 		if (limits) {
@@ -390,7 +412,8 @@ export class SpeedSimilarityRule implements DetectionRule {
 		}
 
 		// If speed change is less than 20 km/h, likely same mode
-		if (speedDiff < 20 && lastMode !== 'stationary') {
+		// But never continue 'unknown' - always try to resolve it via other rules
+		if (speedDiff < 20 && lastMode !== 'stationary' && lastMode !== 'unknown') {
 			return {
 				mode: lastMode,
 				confidence: 0.7,

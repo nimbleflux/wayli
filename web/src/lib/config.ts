@@ -13,6 +13,18 @@ export interface RuntimeConfig {
 	fluxbaseAnonKey: string;
 }
 
+/**
+ * Check if a config value is valid (not empty and not an unsubstituted template placeholder).
+ * Template placeholders like {{FLUXBASE_PUBLIC_BASE_URL}} are used in app.html and replaced
+ * at runtime by startup.sh in production. In development, these remain unsubstituted.
+ */
+function isValidConfigValue(value: string | undefined): value is string {
+	if (!value) return false;
+	// Ignore unsubstituted template placeholders (e.g., {{FLUXBASE_PUBLIC_BASE_URL}})
+	if (value.startsWith('{{') && value.endsWith('}}')) return false;
+	return true;
+}
+
 export const config = {
 	/**
 	 * Get the public Fluxbase URL for client-side access.
@@ -28,18 +40,20 @@ export const config = {
 		// This must come BEFORE process.env check because Vite replaces process.env at build time
 		if (typeof window !== 'undefined') {
 			// Check if WAYLI_CONFIG is available (production runtime)
-			if ((window as any).WAYLI_CONFIG?.fluxbaseUrl) {
-				return (window as any).WAYLI_CONFIG.fluxbaseUrl;
+			const runtimeValue = (window as any).WAYLI_CONFIG?.fluxbaseUrl;
+			if (isValidConfigValue(runtimeValue)) {
+				return runtimeValue;
 			}
 
 			// In development, try to get from SvelteKit's dev environment
-			if ((window as any).__sveltekit_dev?.env?.FLUXBASE_PUBLIC_BASE_URL) {
-				return (window as any).__sveltekit_dev.env.FLUXBASE_PUBLIC_BASE_URL;
+			const devEnvValue = (window as any).__sveltekit_dev?.env?.FLUXBASE_PUBLIC_BASE_URL;
+			if (isValidConfigValue(devEnvValue)) {
+				return devEnvValue;
 			}
 		}
 
 		// In development mode, use environment variables from Vite (replaced at build time)
-		if (typeof process !== 'undefined' && process.env.FLUXBASE_PUBLIC_BASE_URL) {
+		if (typeof process !== 'undefined' && isValidConfigValue(process.env.FLUXBASE_PUBLIC_BASE_URL)) {
 			return process.env.FLUXBASE_PUBLIC_BASE_URL;
 		}
 
@@ -60,18 +74,20 @@ export const config = {
 		// This must come BEFORE process.env check because Vite replaces process.env at build time
 		if (typeof window !== 'undefined') {
 			// Check if WAYLI_CONFIG is available (production runtime)
-			if ((window as any).WAYLI_CONFIG?.fluxbaseAnonKey) {
-				return (window as any).WAYLI_CONFIG.fluxbaseAnonKey;
+			const runtimeValue = (window as any).WAYLI_CONFIG?.fluxbaseAnonKey;
+			if (isValidConfigValue(runtimeValue)) {
+				return runtimeValue;
 			}
 
 			// In development, try to get from SvelteKit's dev environment
-			if ((window as any).__sveltekit_dev?.env?.PUBLIC_FLUXBASE_ANON_KEY) {
-				return (window as any).__sveltekit_dev.env.PUBLIC_FLUXBASE_ANON_KEY;
+			const devEnvValue = (window as any).__sveltekit_dev?.env?.PUBLIC_FLUXBASE_ANON_KEY;
+			if (isValidConfigValue(devEnvValue)) {
+				return devEnvValue;
 			}
 		}
 
 		// In development mode, use environment variables from Vite (replaced at build time)
-		if (typeof process !== 'undefined' && process.env.PUBLIC_FLUXBASE_ANON_KEY) {
+		if (typeof process !== 'undefined' && isValidConfigValue(process.env.PUBLIC_FLUXBASE_ANON_KEY)) {
 			return process.env.PUBLIC_FLUXBASE_ANON_KEY;
 		}
 

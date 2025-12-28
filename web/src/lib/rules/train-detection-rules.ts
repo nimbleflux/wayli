@@ -179,10 +179,12 @@ export class StartingStationOnlyRule implements DetectionRule {
 	priority = 80;
 
 	canApply(context: DetectionContext): boolean {
+		const journey = context.currentJourney;
 		return (
-			context.currentJourney?.type === 'train' &&
-			Boolean(context.currentJourney?.startStation) &&
-			!context.currentJourney?.endStation
+			journey?.type === 'train' &&
+			Boolean(journey?.startStation) &&
+			journey?.startStation !== 'Unknown' && // Require valid station name
+			!journey?.endStation
 		);
 		// Note: Speed check removed to allow detection of slowdowns
 	}
@@ -292,19 +294,18 @@ export class StartingStationOnlyRule implements DetectionRule {
 
 /**
  * Train speed without station context rule
+ * DISABLED: Train mode now requires station detection to prevent false positives
+ * when driving at highway speeds with navigation enabled.
  */
 export class TrainSpeedWithoutStationRule implements DetectionRule {
 	name = 'Train Speed Without Station';
 	priority = 60;
 
-	canApply(context: DetectionContext): boolean {
-		return (
-			!context.atTrainStation &&
-			!context.onHighway &&
-			context.currentSpeed >= 60 && // Lowered from 80 to detect slower regional trains
-			context.currentSpeed <= 200 &&
-			context.modeHistory.length > 0
-		);
+	canApply(_context: DetectionContext): boolean {
+		// DISABLED: Train mode now requires station detection.
+		// Speed patterns alone are not sufficient to distinguish train from car.
+		// Use TrainStationRule or FinalStationOnlyRule instead.
+		return false;
 	}
 
 	detect(context: DetectionContext): DetectionResult | null {

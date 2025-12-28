@@ -108,6 +108,17 @@ export class SpeedPatternTrainDetectionRule implements DetectionRule {
 		const totalScore = trainScore + carScore;
 		const trainConfidence = trainScore / Math.max(totalScore, 1);
 
+		// GPS frequency override: active navigation = never detect train from speed patterns
+		// Active navigation means frequent GPS updates (typically car with nav enabled)
+		if (
+			context.gpsFrequency.frequencyType === 'active_navigation' &&
+			trainScore > carScore &&
+			trainConfidence >= 0.65
+		) {
+			// Return null to let other rules (highway detection, car detection) handle it
+			return null;
+		}
+
 		if (trainScore > carScore && trainConfidence >= 0.65) {
 			const baseConfidence = Math.min(0.75 + (trainConfidence - 0.65) * 0.5, 0.9);
 			// Apply GPS frequency modifier

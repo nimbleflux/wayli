@@ -752,32 +752,43 @@ export function detectEnhancedMode(
 		// Only detect train if NOT on highway/motorway
 		if (!onHighway) {
 			// Proactively start a train journey when at a station and moving at >= 30 km/h
-			if (!context.isInTrainJourney && atTrainStation && speedKmh >= 30) {
+			// IMPORTANT: Only start train journey if we have a valid station name (not null/Unknown)
+			if (!context.isInTrainJourney && atTrainStation && speedKmh >= 30 && stationName) {
 				context.isInTrainJourney = true;
 				context.trainJourneyStartTime = Date.now();
-				context.trainJourneyStartStation = stationName || 'Unknown';
+				context.trainJourneyStartStation = stationName;
 				detectedMode = 'train';
 				reason = TransportDetectionReason.TRAIN_STATION_AND_SPEED;
 			}
 
 			if (speedBracket === 'train' || (context.isInTrainJourney && speedKmh >= 30)) {
-				if (!context.isInTrainJourney && atTrainStation) {
+				if (!context.isInTrainJourney && atTrainStation && stationName) {
+					// Only start train journey with valid station name
 					context.isInTrainJourney = true;
 					context.trainJourneyStartTime = Date.now();
-					context.trainJourneyStartStation = stationName || 'Unknown';
+					context.trainJourneyStartStation = stationName;
 					detectedMode = 'train';
 					reason = TransportDetectionReason.TRAIN_STATION_AND_SPEED;
 				} else if (context.isInTrainJourney) {
-					detectedMode = 'train';
-					reason = TransportDetectionReason.TRAIN_SPEED_ONLY;
-					if (atTrainStation && context.trainJourneyStartStation !== stationName) {
+					// Only continue if the journey has a valid start station
+					if (context.trainJourneyStartStation) {
+						detectedMode = 'train';
+						reason = TransportDetectionReason.TRAIN_SPEED_ONLY;
+						if (atTrainStation && context.trainJourneyStartStation !== stationName) {
+							context.isInTrainJourney = false;
+							context.trainJourneyStartTime = undefined;
+							context.trainJourneyStartStation = undefined;
+							reason = TransportDetectionReason.TRAIN_STATION_AND_SPEED;
+						}
+					} else {
+						// Invalid journey (no valid start station) - end it
 						context.isInTrainJourney = false;
 						context.trainJourneyStartTime = undefined;
 						context.trainJourneyStartStation = undefined;
-						reason = TransportDetectionReason.TRAIN_STATION_AND_SPEED;
 					}
 				} else if (
 					context.lastTrainStation &&
+					context.lastTrainStation.name && // Ensure valid station name
 					Date.now() - context.lastTrainStation.timestamp < 3600000 &&
 					speedKmh >= 50 // Higher threshold for train detection without station
 				) {

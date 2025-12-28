@@ -1698,6 +1698,242 @@
 					</div>
 				</div>
 
+				<!-- AI Settings -->
+				<div
+					class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]"
+				>
+					<div class="mb-4 flex items-center gap-3">
+						<Bot class="h-6 w-6 text-purple-500" />
+						<div>
+							<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
+								{t('serverAdmin.aiSettings')}
+							</h2>
+							<p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
+								{t('serverAdmin.aiSettingsDescription')}
+							</p>
+						</div>
+					</div>
+
+					<div class="space-y-4">
+						{#if providerReadOnly}
+							<div
+								class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20"
+							>
+								<Lock class="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+								<div>
+									<span class="text-sm font-medium text-amber-800 dark:text-amber-200">
+										{t('serverAdmin.aiProviderReadOnly')}
+									</span>
+									<p class="text-xs text-amber-700 dark:text-amber-300">
+										{t('serverAdmin.aiProviderReadOnlyDescription')}
+									</p>
+								</div>
+							</div>
+						{/if}
+
+						<div class="flex items-center justify-between">
+							<div>
+								<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+									{t('serverAdmin.aiEnabled')}
+								</span>
+								<p class="text-xs text-gray-500 dark:text-gray-400">
+									{t('serverAdmin.aiEnabledDescription')}
+								</p>
+							</div>
+							<Switch
+								bind:checked={aiEnabled}
+								label={t('serverAdmin.aiEnabled')}
+								disabled={providerReadOnly}
+							/>
+						</div>
+
+						{#if aiEnabled}
+							<div class="flex items-center justify-between">
+								<div>
+									<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+										{t('serverAdmin.allowUserOverride')}
+									</span>
+									<p class="text-xs text-gray-500 dark:text-gray-400">
+										{t('serverAdmin.allowUserOverrideDescription')}
+									</p>
+								</div>
+								<Switch
+									bind:checked={aiAllowUserOverride}
+									label={t('serverAdmin.allowUserOverride')}
+									disabled={providerReadOnly}
+								/>
+							</div>
+
+							<div
+								class="space-y-3 rounded border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800"
+							>
+								<div class="grid grid-cols-2 gap-4">
+									<div>
+										<label
+											for="providerName"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
+											{t('serverAdmin.aiProviderName')}
+										</label>
+										<input
+											id="providerName"
+											type="text"
+											value={providerName}
+											disabled
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+											placeholder={t('serverAdmin.aiProviderNamePlaceholder')}
+										/>
+									</div>
+									<div>
+										<label
+											for="providerDisplayName"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
+											{t('serverAdmin.aiDisplayName')}
+										</label>
+										<input
+											id="providerDisplayName"
+											type="text"
+											bind:value={providerDisplayName}
+											disabled={providerReadOnly}
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+											placeholder={t('serverAdmin.aiDisplayNamePlaceholder')}
+										/>
+									</div>
+								</div>
+
+								<div>
+									<label
+										for="providerType"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
+										{t('serverAdmin.aiProvider')}
+									</label>
+									<select
+										id="providerType"
+										bind:value={providerType}
+										disabled={providerReadOnly}
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+									>
+										<option value="openai">{t('serverAdmin.aiProviders.openai')}</option>
+										<option value="azure">{t('serverAdmin.aiProviders.azure')}</option>
+										<option value="ollama">{t('serverAdmin.aiProviders.ollama')}</option>
+									</select>
+								</div>
+
+								<div>
+									<label
+										for="providerModel"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
+										{t('serverAdmin.aiModel')}
+									</label>
+									<input
+										id="providerModel"
+										type="text"
+										bind:value={providerModel}
+										disabled={providerReadOnly}
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+										placeholder="gpt-4-turbo"
+									/>
+									<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+										{t('serverAdmin.aiModelDescription')}
+									</p>
+								</div>
+
+								<div>
+									<label
+										for="providerApiKey"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
+										{t('serverAdmin.aiApiKey')}
+									</label>
+									<input
+										id="providerApiKey"
+										type="password"
+										bind:value={providerApiKey}
+										disabled={providerReadOnly}
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+										placeholder={t('serverAdmin.aiApiKeyPlaceholder')}
+									/>
+								</div>
+
+								{#if providerType === 'ollama' || providerType === 'azure' || providerType === 'custom'}
+									<div>
+										<label
+											for="providerApiEndpoint"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
+											{t('serverAdmin.aiApiEndpoint')}
+										</label>
+										<input
+											id="providerApiEndpoint"
+											type="text"
+											bind:value={providerApiEndpoint}
+											disabled={providerReadOnly}
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+											placeholder={t('serverAdmin.aiApiEndpointPlaceholder')}
+										/>
+										<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+											{t('serverAdmin.aiApiEndpointDescription')}
+										</p>
+									</div>
+								{/if}
+
+								<div class="grid grid-cols-2 gap-4">
+									<div>
+										<label
+											for="providerMaxTokens"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
+											{t('serverAdmin.aiMaxTokens')}
+										</label>
+										<input
+											id="providerMaxTokens"
+											type="number"
+											bind:value={providerMaxTokens}
+											disabled={providerReadOnly}
+											min="256"
+											max="128000"
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+										/>
+									</div>
+
+									<div>
+										<label
+											for="providerTemperature"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
+											{t('serverAdmin.aiTemperature')}
+										</label>
+										<input
+											id="providerTemperature"
+											type="number"
+											bind:value={providerTemperature}
+											disabled={providerReadOnly}
+											min="0"
+											max="2"
+											step="0.1"
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+										/>
+									</div>
+								</div>
+							</div>
+						{/if}
+
+						{#if !providerReadOnly}
+							<div class="flex justify-end">
+								<button
+									onclick={saveAISettings}
+									class="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium text-white"
+								>
+									{t('serverAdmin.saveSettings')}
+								</button>
+							</div>
+						{/if}
+					</div>
+				</div>
+
 				<!-- Database Maintenance -->
 				<div
 					class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]"
@@ -1950,242 +2186,6 @@
 						</div>
 					</div>
 				{/if}
-
-				<!-- AI Settings -->
-				<div
-					class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]"
-				>
-					<div class="mb-4 flex items-center gap-3">
-						<Bot class="h-6 w-6 text-purple-500" />
-						<div>
-							<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
-								{t('serverAdmin.aiSettings')}
-							</h2>
-							<p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
-								{t('serverAdmin.aiSettingsDescription')}
-							</p>
-						</div>
-					</div>
-
-					<div class="space-y-4">
-						{#if providerReadOnly}
-							<div
-								class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20"
-							>
-								<Lock class="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
-								<div>
-									<span class="text-sm font-medium text-amber-800 dark:text-amber-200">
-										{t('serverAdmin.aiProviderReadOnly')}
-									</span>
-									<p class="text-xs text-amber-700 dark:text-amber-300">
-										{t('serverAdmin.aiProviderReadOnlyDescription')}
-									</p>
-								</div>
-							</div>
-						{/if}
-
-						<div class="flex items-center justify-between">
-							<div>
-								<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-									{t('serverAdmin.aiEnabled')}
-								</span>
-								<p class="text-xs text-gray-500 dark:text-gray-400">
-									{t('serverAdmin.aiEnabledDescription')}
-								</p>
-							</div>
-							<Switch
-								bind:checked={aiEnabled}
-								label={t('serverAdmin.aiEnabled')}
-								disabled={providerReadOnly}
-							/>
-						</div>
-
-						{#if aiEnabled}
-							<div class="flex items-center justify-between">
-								<div>
-									<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-										{t('serverAdmin.allowUserOverride')}
-									</span>
-									<p class="text-xs text-gray-500 dark:text-gray-400">
-										{t('serverAdmin.allowUserOverrideDescription')}
-									</p>
-								</div>
-								<Switch
-									bind:checked={aiAllowUserOverride}
-									label={t('serverAdmin.allowUserOverride')}
-									disabled={providerReadOnly}
-								/>
-							</div>
-
-							<div
-								class="space-y-3 rounded border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800"
-							>
-								<div class="grid grid-cols-2 gap-4">
-									<div>
-										<label
-											for="providerName"
-											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
-										>
-											{t('serverAdmin.aiProviderName')}
-										</label>
-										<input
-											id="providerName"
-											type="text"
-											value={providerName}
-											disabled
-											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
-											placeholder={t('serverAdmin.aiProviderNamePlaceholder')}
-										/>
-									</div>
-									<div>
-										<label
-											for="providerDisplayName"
-											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
-										>
-											{t('serverAdmin.aiDisplayName')}
-										</label>
-										<input
-											id="providerDisplayName"
-											type="text"
-											bind:value={providerDisplayName}
-											disabled={providerReadOnly}
-											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
-											placeholder={t('serverAdmin.aiDisplayNamePlaceholder')}
-										/>
-									</div>
-								</div>
-
-								<div>
-									<label
-										for="providerType"
-										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
-									>
-										{t('serverAdmin.aiProvider')}
-									</label>
-									<select
-										id="providerType"
-										bind:value={providerType}
-										disabled={providerReadOnly}
-										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
-									>
-										<option value="openai">{t('serverAdmin.aiProviders.openai')}</option>
-										<option value="azure">{t('serverAdmin.aiProviders.azure')}</option>
-										<option value="ollama">{t('serverAdmin.aiProviders.ollama')}</option>
-									</select>
-								</div>
-
-								<div>
-									<label
-										for="providerModel"
-										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
-									>
-										{t('serverAdmin.aiModel')}
-									</label>
-									<input
-										id="providerModel"
-										type="text"
-										bind:value={providerModel}
-										disabled={providerReadOnly}
-										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
-										placeholder="gpt-4-turbo"
-									/>
-									<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-										{t('serverAdmin.aiModelDescription')}
-									</p>
-								</div>
-
-								<div>
-									<label
-										for="providerApiKey"
-										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
-									>
-										{t('serverAdmin.aiApiKey')}
-									</label>
-									<input
-										id="providerApiKey"
-										type="password"
-										bind:value={providerApiKey}
-										disabled={providerReadOnly}
-										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
-										placeholder={t('serverAdmin.aiApiKeyPlaceholder')}
-									/>
-								</div>
-
-								{#if providerType === 'ollama' || providerType === 'azure' || providerType === 'custom'}
-									<div>
-										<label
-											for="providerApiEndpoint"
-											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
-										>
-											{t('serverAdmin.aiApiEndpoint')}
-										</label>
-										<input
-											id="providerApiEndpoint"
-											type="text"
-											bind:value={providerApiEndpoint}
-											disabled={providerReadOnly}
-											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
-											placeholder={t('serverAdmin.aiApiEndpointPlaceholder')}
-										/>
-										<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-											{t('serverAdmin.aiApiEndpointDescription')}
-										</p>
-									</div>
-								{/if}
-
-								<div class="grid grid-cols-2 gap-4">
-									<div>
-										<label
-											for="providerMaxTokens"
-											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
-										>
-											{t('serverAdmin.aiMaxTokens')}
-										</label>
-										<input
-											id="providerMaxTokens"
-											type="number"
-											bind:value={providerMaxTokens}
-											disabled={providerReadOnly}
-											min="256"
-											max="128000"
-											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
-										/>
-									</div>
-
-									<div>
-										<label
-											for="providerTemperature"
-											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
-										>
-											{t('serverAdmin.aiTemperature')}
-										</label>
-										<input
-											id="providerTemperature"
-											type="number"
-											bind:value={providerTemperature}
-											disabled={providerReadOnly}
-											min="0"
-											max="2"
-											step="0.1"
-											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
-										/>
-									</div>
-								</div>
-							</div>
-						{/if}
-
-						{#if !providerReadOnly}
-							<div class="flex justify-end">
-								<button
-									onclick={saveAISettings}
-									class="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium text-white"
-								>
-									{t('serverAdmin.saveSettings')}
-								</button>
-							</div>
-						{/if}
-					</div>
-				</div>
 			</div>
 		{/if}
 	</div>

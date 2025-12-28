@@ -50,7 +50,8 @@ export interface PeliasProperties {
 	// Administrative hierarchy
 	continent?: string;
 	country?: string;
-	country_a?: string; // 3-letter ISO code (e.g., "USA")
+	country_a?: string; // 3-letter ISO code (e.g., "NLD")
+	country_code?: string; // 2-letter ISO code (e.g., "NL") - returned with layers=coarse
 	region?: string; // State/Province
 	region_a?: string; // State abbreviation (e.g., "NY")
 	county?: string;
@@ -323,7 +324,10 @@ export function fromPeliasResponse(feature: PeliasFeature): GeocodedLocation {
 	if (props.housenumber) address.house_number = props.housenumber;
 	if (props.postalcode) address.postcode = props.postalcode;
 	if (props.county) address.county = props.county;
-	if (props.country_a) {
+	// Pelias returns country_code as 2-letter ISO (e.g., 'NL') and country_a as 3-letter (e.g., 'NLD')
+	if (props.country_code) {
+		address.country_code = props.country_code.toUpperCase();
+	} else if (props.country_a) {
 		address.country_code = convertCountryCode3to2(props.country_a);
 	}
 

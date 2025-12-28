@@ -1071,7 +1071,15 @@
 		"run": "Run",
 		"running": "Running...",
 		"reverseGeocodeQueued": "Reverse geocoding job queued for all users",
-		"reverseGeocodeFailed": "Failed to queue reverse geocoding"
+		"reverseGeocodeFailed": "Failed to queue reverse geocoding",
+		"forceRegeocode": "Force Re-geocode All",
+		"forceRegeocodeDescription": "Re-geocode ALL tracker data points, replacing existing address data. Use with caution.",
+		"forceRegeocodeQueued": "Force re-geocoding job queued for all users",
+		"forceRegeocodeFailed": "Failed to queue force re-geocoding",
+		"fillCountryCodes": "Fill Missing Country Codes",
+		"fillCountryCodesDescription": "Update points that have geocode data but are missing country codes.",
+		"fillCountryCodesQueued": "Fill country codes job queued for all users",
+		"fillCountryCodesFailed": "Failed to queue fill country codes"
 	},
 	"wantToVisit": {
 		"addNewPlace": "Add new place",

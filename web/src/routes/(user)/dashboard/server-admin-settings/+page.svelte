@@ -100,6 +100,8 @@
 	let isSyncingPoiEmbeddings = $state(false);
 	let isSyncingTripEmbeddings = $state(false);
 	let isReverseGeocodingAllUsers = $state(false);
+	let isForceRegeocoding = $state(false);
+	let isFillingCountryCodes = $state(false);
 
 	// AI Settings - provider-based model
 	let aiEnabled = $state(false);
@@ -490,6 +492,56 @@
 			});
 		} finally {
 			isReverseGeocodingAllUsers = false;
+		}
+	}
+
+	async function forceRegeocodeAllData() {
+		if (isForceRegeocoding) return;
+
+		isForceRegeocoding = true;
+		try {
+			const { error } = await fluxbase.jobs.submit(
+				'reverse-geocoding',
+				{ all_users: true, force: true },
+				{
+					namespace: 'wayli',
+					priority: 3
+				}
+			);
+			if (error) throw error;
+			toast.success(t('serverAdmin.forceRegeocodeQueued'));
+		} catch (error: any) {
+			console.error('❌ Failed to queue force re-geocoding:', error);
+			toast.error(t('serverAdmin.forceRegeocodeFailed'), {
+				description: error?.message
+			});
+		} finally {
+			isForceRegeocoding = false;
+		}
+	}
+
+	async function fillMissingCountryCodes() {
+		if (isFillingCountryCodes) return;
+
+		isFillingCountryCodes = true;
+		try {
+			const { error } = await fluxbase.jobs.submit(
+				'reverse-geocoding',
+				{ all_users: true, fill_country_codes_only: true },
+				{
+					namespace: 'wayli',
+					priority: 4
+				}
+			);
+			if (error) throw error;
+			toast.success(t('serverAdmin.fillCountryCodesQueued'));
+		} catch (error: any) {
+			console.error('❌ Failed to queue fill country codes:', error);
+			toast.error(t('serverAdmin.fillCountryCodesFailed'), {
+				description: error?.message
+			});
+		} finally {
+			isFillingCountryCodes = false;
 		}
 	}
 
@@ -1679,6 +1731,44 @@
 							>
 								<RefreshCw class={`h-4 w-4 ${isReverseGeocodingAllUsers ? 'animate-spin' : ''}`} />
 								{isReverseGeocodingAllUsers ? t('serverAdmin.running') : t('serverAdmin.run')}
+							</button>
+						</div>
+
+						<div class="flex items-center justify-between">
+							<div>
+								<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+									{t('serverAdmin.forceRegeocode')}
+								</span>
+								<p class="text-xs text-gray-500 dark:text-gray-400">
+									{t('serverAdmin.forceRegeocodeDescription')}
+								</p>
+							</div>
+							<button
+								onclick={forceRegeocodeAllData}
+								disabled={isForceRegeocoding}
+								class="inline-flex items-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								<RefreshCw class={`h-4 w-4 ${isForceRegeocoding ? 'animate-spin' : ''}`} />
+								{isForceRegeocoding ? t('serverAdmin.running') : t('serverAdmin.run')}
+							</button>
+						</div>
+
+						<div class="flex items-center justify-between">
+							<div>
+								<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+									{t('serverAdmin.fillCountryCodes')}
+								</span>
+								<p class="text-xs text-gray-500 dark:text-gray-400">
+									{t('serverAdmin.fillCountryCodesDescription')}
+								</p>
+							</div>
+							<button
+								onclick={fillMissingCountryCodes}
+								disabled={isFillingCountryCodes}
+								class="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								<RefreshCw class={`h-4 w-4 ${isFillingCountryCodes ? 'animate-spin' : ''}`} />
+								{isFillingCountryCodes ? t('serverAdmin.running') : t('serverAdmin.run')}
 							</button>
 						</div>
 					</div>

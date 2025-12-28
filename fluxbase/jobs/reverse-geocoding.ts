@@ -12,6 +12,10 @@
  */
 
 import { reverseGeocode } from '_shared/services/external/pelias.service';
+import {
+	getCountryForPoint,
+	normalizeCountryCode
+} from '_shared/services/external/country-reverse-geocoding.service';
 import { isRetryableError } from '_shared/utils/geocoding-utils';
 import {
 	createGeocodeErrorGeoJSON,
@@ -39,6 +43,10 @@ interface ReverseGeocodingPayload {
 	target_user_id?: string;
 	/** Process all users' data (admin only) */
 	all_users?: boolean;
+	/** Force re-geocode all points, even those already geocoded */
+	force?: boolean;
+	/** Only fill missing country codes (skip full geocoding) */
+	fill_country_codes_only?: boolean;
 }
 
 // Safe wrapper for reportProgress - logs if method doesn't exist
@@ -106,8 +114,21 @@ export async function handler(
 	// This bypasses RLS and allows the job to query data for the specified user(s)
 	const db = processAllUsers ? fluxbaseService : (authenticatedUserId ? fluxbase : fluxbaseService);
 
+	// Check for force mode (re-geocode everything) or fill_country_codes_only mode
+	const forceMode = payload?.force === true;
+	const fillCountryCodesOnly = payload?.fill_country_codes_only === true;
+
+	// Authorization check: force and fill_country_codes_only are admin-only features
+	if ((forceMode || fillCountryCodesOnly) && !isAdmin) {
+		return {
+			success: false,
+			error: 'Unauthorized: only admins can use force or fill_country_codes_only modes'
+		};
+	}
+
 	try {
-		console.log(`🌍 Processing reverse geocoding missing job ${jobId}`);
+		const modeLabel = forceMode ? ' (FORCE MODE)' : fillCountryCodesOnly ? ' (FILL COUNTRY CODES)' : '';
+		console.log(`🌍 Processing reverse geocoding job ${jobId}${modeLabel}`);
 
 		// Show rate limiting settings
 		const rateLimit = parseInt(getEnv('PELIAS_RATE_LIMIT') || '1000', 10);
@@ -133,13 +154,30 @@ export async function handler(
 		const RATE_WINDOW_MS = 15_000;
 		const scanSamples: Array<{ time: number; scanned: number }> = [];
 
-		// First, count total points that need geocoding
-		console.log(`🔍 Checking for points that need geocoding${processAllUsers ? ' (all users)' : ''}...`);
-		let countQuery = db
-			.from('tracker_data')
-			.select('*', { count: 'exact', head: true })
-			.is('geocode->properties->>geocoded_at', null)
-			.is('geocode->properties->>geocode_error', null);
+		// First, count total points that need processing based on mode
+		const modeDescription = forceMode
+			? 'for re-geocoding (force mode)'
+			: fillCountryCodesOnly
+				? 'with missing country codes'
+				: 'that need geocoding';
+		console.log(`🔍 Checking for points ${modeDescription}${processAllUsers ? ' (all users)' : ''}...`);
+
+		let countQuery = db.from('tracker_data').select('*', { count: 'exact', head: true });
+
+		if (forceMode) {
+			// Force mode: count ALL points (we'll re-geocode everything)
+			// No filter needed - process all points
+		} else if (fillCountryCodesOnly) {
+			// Fill country codes mode: find points that have geocode data but missing country_code
+			countQuery = countQuery
+				.not('geocode->properties->>geocoded_at', 'is', null) // Has been geocoded
+				.or('geocode->properties->address->>country_code.is.null,geocode->properties->address->>country_code.eq.'); // But missing country_code
+		} else {
+			// Default mode: only points that haven't been geocoded yet
+			countQuery = countQuery
+				.is('geocode->properties->>geocoded_at', null)
+				.is('geocode->properties->>geocode_error', null);
+		}
 
 		if (!processAllUsers && userId) {
 			countQuery = countQuery.eq('user_id', userId);
@@ -152,16 +190,21 @@ export async function handler(
 		const totalToScan = totalPointsNeedingGeocoding || 0;
 		const totalPoints = totalToScan;
 
-		console.log(`📊 Found ${totalPoints.toLocaleString()} points that need geocoding`);
+		console.log(`📊 Found ${totalPoints.toLocaleString()} points ${modeDescription}`);
 
-		// If no points need geocoding, exit early
+		// If no points need processing, exit early
 		if (totalPoints === 0) {
-			console.log('✅ No points need geocoding');
-			safeReportProgress(job, 100, '✅ No tracker data points found needing geocoding');
+			const noPointsMessage = forceMode
+				? 'No tracker data points found'
+				: fillCountryCodesOnly
+					? 'No points with missing country codes found'
+					: 'No points need geocoding';
+			console.log(`✅ ${noPointsMessage}`);
+			safeReportProgress(job, 100, `✅ ${noPointsMessage}`);
 			return {
 				success: true,
 				result: {
-					message: 'No points need geocoding',
+					message: noPointsMessage,
 					totalProcessed: 0,
 					totalSuccess: 0,
 					totalErrors: 0
@@ -169,48 +212,75 @@ export async function handler(
 			};
 		}
 
+		const actionLabel = fillCountryCodesOnly ? 'updating country codes' : 'geocoding';
 		console.log(
-			`🌍 [REVERSE_GEOCODING] Found ${totalPoints.toLocaleString()} points needing geocoding. Starting processing...`
+			`🌍 [REVERSE_GEOCODING] Found ${totalPoints.toLocaleString()} points ${modeDescription}. Starting ${actionLabel}...`
 		);
 
 		safeReportProgress(
 			job,
 			0,
-			`🌍 Found ${totalPoints.toLocaleString()} tracker data points needing geocoding. Starting processing...`
+			`🌍 Found ${totalPoints.toLocaleString()} tracker data points ${modeDescription}. Starting ${actionLabel}...`
 		);
 
 		// Process in batches - fetch and process each batch directly from the database
-		// Since processed records no longer match the filter (they have country set),
-		// we can keep fetching batches until no more unprocessed records remain
+		// For force mode, we need offset-based pagination since records stay after processing
+		// For other modes, records are modified and no longer match the filter
 		let batchNumber = 0;
+		let offset = 0;
 
 		while (totalProcessed < totalPoints) {
 			batchNumber++;
 
-			// Fetch next batch of unprocessed points
+			// Build query based on mode
 			let batchQuery = db
 				.from('tracker_data')
-				.select('user_id, location, geocode, recorded_at, tracker_type')
-				.is('geocode->properties->>geocoded_at', null)
-				.is('geocode->properties->>geocode_error', null);
+				.select('user_id, location, geocode, recorded_at, tracker_type');
+
+			if (forceMode) {
+				// Force mode: no filter, use offset pagination
+				// No additional filters needed
+			} else if (fillCountryCodesOnly) {
+				// Fill country codes mode: find points that have geocode data but missing country_code
+				batchQuery = batchQuery
+					.not('geocode->properties->>geocoded_at', 'is', null)
+					.or('geocode->properties->address->>country_code.is.null,geocode->properties->address->>country_code.eq.');
+			} else {
+				// Default mode: only points that haven't been geocoded yet
+				batchQuery = batchQuery
+					.is('geocode->properties->>geocoded_at', null)
+					.is('geocode->properties->>geocode_error', null);
+			}
 
 			if (!processAllUsers && userId) {
 				batchQuery = batchQuery.eq('user_id', userId);
 			}
 
-			const { data: batch, error: fetchError } = await batchQuery
-				.order('recorded_at', { ascending: false })
-				.limit(BATCH_SIZE);
+			// For force mode, use offset-based pagination; otherwise, records drop out of filter after processing
+			let finalQuery = batchQuery.order('recorded_at', { ascending: false }).limit(BATCH_SIZE);
+			if (forceMode) {
+				finalQuery = finalQuery.range(offset, offset + BATCH_SIZE - 1);
+			}
+
+			const { data: batch, error: fetchError } = await finalQuery;
 
 			if (fetchError) throw fetchError;
 
 			// No more points to process
 			if (!batch || batch.length === 0) {
-				console.log(`📊 No more unprocessed points found after ${totalProcessed} processed`);
+				console.log(`📊 No more points found after ${totalProcessed} processed`);
 				break;
 			}
 
-			const results = await processPointsConcurrently(db, batch);
+			// Process points - use different processor for fill_country_codes_only mode
+			const results = fillCountryCodesOnly
+				? await processPointsForCountryCodeOnly(db, batch)
+				: await processPointsConcurrently(db, batch);
+
+			// Update offset for force mode pagination
+			if (forceMode) {
+				offset += batch.length;
+			}
 
 			totalScanned += batch.length;
 			totalProcessed += results.processed;
@@ -368,6 +438,142 @@ async function processPointsConcurrently(
 	}
 
 	return { processed: points.length, success, errors };
+}
+
+/**
+ * Process points to only fill in missing country codes.
+ * This re-geocodes the point but only updates the country_code field.
+ */
+async function processPointsForCountryCodeOnly(
+	fluxbase: FluxbaseClient,
+	points: Array<{
+		user_id: string;
+		location:
+		| string
+		| {
+			type: string;
+			coordinates: number[];
+			crs?: { type: string; properties: { name: string } };
+		};
+		geocode: unknown;
+		recorded_at: string;
+		tracker_type: string;
+	}>
+): Promise<{ processed: number; success: number; errors: number }> {
+	let success = 0;
+	let errors = 0;
+
+	// Process in concurrent chunks
+	for (let i = 0; i < points.length; i += CONCURRENCY) {
+		const chunk = points.slice(i, i + CONCURRENCY);
+		const results = await Promise.all(
+			chunk.map((point) => processSinglePointCountryCodeOnly(fluxbase, point))
+		);
+
+		for (const result of results) {
+			if (result) {
+				success++;
+			} else {
+				errors++;
+			}
+		}
+	}
+
+	return { processed: points.length, success, errors };
+}
+
+/**
+ * Process a single point to fill in the missing country code.
+ * Uses local GeoJSON point-in-polygon lookup instead of Pelias API for speed.
+ */
+async function processSinglePointCountryCodeOnly(
+	fluxbase: FluxbaseClient,
+	point: {
+		user_id: string;
+		location:
+		| string
+		| { type: string; coordinates: number[]; crs?: { type: string; properties: { name: string } } };
+		geocode: unknown;
+		recorded_at: string;
+		tracker_type: string;
+	}
+): Promise<boolean> {
+	try {
+		let lat: number, lon: number;
+		if (point.location && typeof point.location === 'object' && 'coordinates' in point.location) {
+			const coords = (point.location as { coordinates: number[] }).coordinates;
+			if (!Array.isArray(coords) || coords.length < 2) {
+				return false;
+			}
+			[lon, lat] = coords;
+		} else if (typeof point.location === 'string') {
+			const locationMatch = point.location.match(/POINT\(([-\d.]+)\s+([-\d.]+)\)/);
+			if (!locationMatch) {
+				return false;
+			}
+			[lon, lat] = locationMatch.slice(1).map(Number);
+		} else {
+			return false;
+		}
+
+		if (
+			typeof lat !== 'number' ||
+			typeof lon !== 'number' ||
+			isNaN(lat) ||
+			isNaN(lon) ||
+			lat < -90 ||
+			lat > 90 ||
+			lon < -180 ||
+			lon > 180
+		) {
+			return false;
+		}
+
+		// Use local GeoJSON point-in-polygon lookup (fast, no network request)
+		const rawCountryCode = getCountryForPoint(lat, lon);
+		const newCountryCode = normalizeCountryCode(rawCountryCode);
+
+		if (!newCountryCode) {
+			// Point is in ocean or not covered by countries.geojson
+			return false;
+		}
+
+		// Update the existing geocode data with the new country code
+		const existingGeocode = point.geocode as Record<string, unknown> | null;
+		if (!existingGeocode || typeof existingGeocode !== 'object') {
+			return false;
+		}
+
+		// Deep clone and update
+		const updatedGeocode = JSON.parse(JSON.stringify(existingGeocode));
+		if (!updatedGeocode.properties) {
+			updatedGeocode.properties = {};
+		}
+		if (!updatedGeocode.properties.address) {
+			updatedGeocode.properties.address = {};
+		}
+		updatedGeocode.properties.address.country_code = newCountryCode;
+
+		const { error: updateError } = await fluxbase
+			.from('tracker_data')
+			.update({
+				geocode: updatedGeocode,
+				country_code: newCountryCode,
+				updated_at: new Date().toISOString()
+			})
+			.eq('user_id', point.user_id)
+			.eq('recorded_at', point.recorded_at);
+
+		if (updateError) {
+			console.error(`❌ Database update error:`, updateError);
+			return false;
+		}
+
+		return true;
+	} catch (error: unknown) {
+		console.error(`❌ Error processing point for country code:`, (error as Error).message);
+		return false;
+	}
 }
 
 async function processSinglePoint(

@@ -74,7 +74,9 @@ function convertCountryCode3to2(code3: string): string {
 // Helper function to perform reverse geocoding using Pelias
 async function reverseGeocode(lat: number, lon: number): Promise<any | null> {
 	try {
-		const peliasUrl = `${PELIAS_ENDPOINT}/v1/reverse?point.lat=${lat}&point.lon=${lon}&size=1`;
+		// Use layers=coarse to get administrative boundaries (country, region, locality)
+		// instead of just address-level data which lacks country information
+		const peliasUrl = `${PELIAS_ENDPOINT}/v1/reverse?point.lat=${lat}&point.lon=${lon}&size=1&layers=coarse`;
 
 		const response = await fetch(peliasUrl, {
 			headers: {
@@ -108,7 +110,12 @@ async function reverseGeocode(lat: number, lon: number): Promise<any | null> {
 		if (props.street) address.road = props.street;
 		if (props.housenumber) address.house_number = props.housenumber;
 		if (props.postalcode) address.postcode = props.postalcode;
-		if (props.country_a) address.country_code = convertCountryCode3to2(props.country_a);
+		// Pelias returns country_code as 2-letter ISO (e.g., 'NL') and country_a as 3-letter (e.g., 'NLD')
+		if (props.country_code) {
+			address.country_code = props.country_code.toUpperCase();
+		} else if (props.country_a) {
+			address.country_code = convertCountryCode3to2(props.country_a);
+		}
 
 		// Return geocode data in the format expected by tracker_data.geocode column
 		return {

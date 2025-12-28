@@ -50,7 +50,8 @@ export interface PeliasProperties {
 	// Administrative hierarchy
 	continent?: string;
 	country?: string;
-	country_a?: string; // 3-letter ISO code (e.g., "USA")
+	country_a?: string; // 3-letter ISO code (e.g., "NLD")
+	country_code?: string; // 2-letter ISO code (e.g., "NL") - returned with layers=coarse
 	region?: string; // State/Province
 	region_a?: string; // State abbreviation (e.g., "NY")
 	county?: string;

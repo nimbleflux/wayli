@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { X, MapPin, Clock, Navigation } from 'lucide-svelte';
-	import { onMount, onDestroy } from 'svelte';
+	import { onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 	import { getAmenityStyle, getAmenityLabel } from '$lib/utils/amenity-icons';
 	import type { Map as LeafletMap } from 'leaflet';
@@ -102,12 +102,6 @@
 		setTimeout(() => map?.invalidateSize(), 100);
 	}
 
-	onMount(() => {
-		if (place) {
-			initMap();
-		}
-	});
-
 	onDestroy(() => {
 		if (map) {
 			map.remove();
@@ -115,15 +109,28 @@
 		}
 	});
 
-	// Re-init map when place changes
+	// Initialize map when place and container are ready
 	$effect(() => {
-		if (place && mapContainer && browser) {
-			if (map) {
-				map.remove();
-				map = undefined;
-			}
-			initMap();
+		// Track dependencies
+		const currentPlace = place;
+		const container = mapContainer;
+
+		if (!currentPlace || !container || !browser) return;
+
+		// Clean up previous map if it exists
+		if (map) {
+			map.remove();
+			map = undefined;
 		}
+
+		// Small delay to ensure DOM is ready
+		const timeoutId = setTimeout(() => {
+			initMap();
+		}, 50);
+
+		return () => {
+			clearTimeout(timeoutId);
+		};
 	});
 
 	function handleKeydown(event: KeyboardEvent) {

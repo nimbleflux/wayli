@@ -44,6 +44,8 @@
 	let lastNameInput = $state('');
 
 	let pexelsApiKeyInput = $state('');
+	let pexelsApiKeyConfigured = $state(false);
+	let pexelsApiKeyUpdatedAt = $state<string | null>(null);
 	let serverPexelsApiKeyAvailable = $state(false);
 	let error = $state<string | null>(null);
 	let homeAddressInput = $state('');
@@ -186,7 +188,22 @@
 				const preferencesData = (preferencesResult as any).data || preferencesResult;
 				preferences = preferencesData as UserPreferences;
 				// timezoneInput = preferences.timezone || 'UTC+00:00 (London, Dublin)'; // Timezone selection hidden
-				pexelsApiKeyInput = preferences.pexels_api_key || '';
+			}
+
+			// Load user Pexels API key secret metadata
+			try {
+				const secretMeta = await fluxbase.settings.getSecret('pexels_api_key');
+				if (secretMeta) {
+					pexelsApiKeyConfigured = true;
+					pexelsApiKeyUpdatedAt = secretMeta.updated_at;
+				} else {
+					pexelsApiKeyConfigured = false;
+					pexelsApiKeyUpdatedAt = null;
+				}
+			} catch {
+				// Secret doesn't exist yet
+				pexelsApiKeyConfigured = false;
+				pexelsApiKeyUpdatedAt = null;
 			}
 
 			// Check if server Pexels API key is available
@@ -499,16 +516,21 @@
 
 			const serviceAdapter = new ServiceAdapter({ session: session.data.session });
 
-			// Update preferences data (language is already updated via the language selector handler)
-			// preferences.timezone = timezoneInput; // Timezone selection hidden
-			preferences.pexels_api_key = pexelsApiKeyInput.trim();
-
-			// Update preferences using service adapter
+			// Update preferences using service adapter (without pexels_api_key - now stored as secret)
 			await serviceAdapter.updatePreferences({
-				language: preferences.language,
+				language: preferences.language
 				// timezone: preferences.timezone, // Timezone selection hidden
-				pexels_api_key: preferences.pexels_api_key
 			});
+
+			// Save Pexels API key as encrypted user secret
+			if (pexelsApiKeyInput.trim()) {
+				await fluxbase.settings.setSecret('pexels_api_key', pexelsApiKeyInput.trim(), {
+					description: 'Personal Pexels API key for trip image suggestions'
+				});
+				pexelsApiKeyConfigured = true;
+				pexelsApiKeyUpdatedAt = new Date().toISOString();
+				pexelsApiKeyInput = ''; // Clear input after save
+			}
 
 			// Only adjust client locale if it differs from the just-saved preference
 			if (preferences.language && preferences.language !== $currentLocale) {
@@ -521,6 +543,18 @@
 			toast.error('Failed to update preferences. Please try again.');
 		} finally {
 			isUpdatingPreferences = false;
+		}
+	}
+
+	async function clearPexelsApiKey() {
+		try {
+			await fluxbase.settings.deleteSecret('pexels_api_key');
+			pexelsApiKeyConfigured = false;
+			pexelsApiKeyUpdatedAt = null;
+			toast.success(t('accountSettings.pexelsKeyCleared'));
+		} catch (error) {
+			console.error('❌ [AccountSettings] Error clearing Pexels API key:', error);
+			toast.error('Failed to clear API key. Please try again.');
 		}
 	}
 
@@ -1377,17 +1411,48 @@
 							? t('accountSettings.personalPexelsApiKeyOptional')
 							: t('accountSettings.personalPexelsApiKey')}</label
 					>
-					<input
-						type="text"
-						id="pexels-api-key"
-						bind:value={pexelsApiKeyInput}
-						placeholder={serverPexelsApiKeyAvailable
-							? t('accountSettings.leaveEmptyToUseServerKey')
-							: t('accountSettings.enterPexelsApiKey')}
-						class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-primary dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
-					/>
+					{#if pexelsApiKeyConfigured}
+						<div class="flex items-center gap-2">
+							<div class="flex flex-1 items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 dark:border-green-800 dark:bg-green-900/20">
+								<span class="text-sm font-medium text-green-700 dark:text-green-300">
+									{t('accountSettings.secretConfigured')}
+								</span>
+								{#if pexelsApiKeyUpdatedAt}
+									<span class="text-xs text-green-600 dark:text-green-400">
+										({new Date(pexelsApiKeyUpdatedAt).toLocaleDateString()})
+									</span>
+								{/if}
+							</div>
+							<button
+								type="button"
+								onclick={clearPexelsApiKey}
+								class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40"
+							>
+								{t('accountSettings.clearSecret')}
+							</button>
+						</div>
+						<div class="mt-2">
+							<input
+								type="password"
+								id="pexels-api-key"
+								bind:value={pexelsApiKeyInput}
+								placeholder={t('accountSettings.enterNewKeyToReplace')}
+								class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-primary dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+							/>
+						</div>
+					{:else}
+						<input
+							type="password"
+							id="pexels-api-key"
+							bind:value={pexelsApiKeyInput}
+							placeholder={serverPexelsApiKeyAvailable
+								? t('accountSettings.leaveEmptyToUseServerKey')
+								: t('accountSettings.enterPexelsApiKey')}
+							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-primary dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+						/>
+					{/if}
 					<p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-						{#if pexelsApiKeyInput}
+						{#if pexelsApiKeyConfigured}
 							✅ {t('accountSettings.usingPersonalApiKey')}
 						{:else if serverPexelsApiKeyAvailable}
 							ℹ️ {t('accountSettings.usingServerApiKey')}

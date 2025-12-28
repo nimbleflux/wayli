@@ -1514,9 +1514,21 @@ export class ServiceAdapter {
 			}
 		};
 
+		// Get system secrets metadata
+		let secretsMetadata: any = {};
+		try {
+			const pexelsSecretMeta = await fluxbase.admin.settings.app.getSecretSetting('pexels_api_key');
+			if (pexelsSecretMeta) {
+				secretsMetadata.pexels_api_key = pexelsSecretMeta;
+			}
+		} catch {
+			// Secret doesn't exist yet
+		}
+
 		return {
 			app: appSettingsWithAll,
-			custom: wayliSettings
+			custom: wayliSettings,
+			secrets: secretsMetadata
 		};
 	}
 
@@ -1969,6 +1981,61 @@ export class ServiceAdapter {
 		}
 
 		return { message: 'Exclusion deleted successfully' };
+	}
+
+	// ==========================================
+	// System Secret Management (Admin only)
+	// ==========================================
+
+	/**
+	 * Set a system-level encrypted secret
+	 */
+	async setSystemSecret(key: string, value: string, description?: string) {
+		const { fluxbase } = await import('$lib/fluxbase');
+
+		await fluxbase.admin.settings.app.setSecretSetting(key, value, {
+			description: description || `System secret: ${key}`
+		});
+
+		return { updated: key };
+	}
+
+	/**
+	 * Get metadata for a system secret (value is never returned)
+	 */
+	async getSystemSecretMetadata(key: string) {
+		const { fluxbase } = await import('$lib/fluxbase');
+
+		try {
+			const metadata = await fluxbase.admin.settings.app.getSecretSetting(key);
+			return metadata || null;
+		} catch {
+			return null;
+		}
+	}
+
+	/**
+	 * List all system secrets (metadata only)
+	 */
+	async listSystemSecrets() {
+		const { fluxbase } = await import('$lib/fluxbase');
+
+		try {
+			const secrets = await fluxbase.admin.settings.app.listSecretSettings();
+			return secrets || [];
+		} catch {
+			return [];
+		}
+	}
+
+	/**
+	 * Delete a system secret
+	 */
+	async deleteSystemSecret(key: string) {
+		const { fluxbase } = await import('$lib/fluxbase');
+
+		await fluxbase.admin.settings.app.deleteSecretSetting(key);
+		return { deleted: key };
 	}
 }
 

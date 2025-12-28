@@ -117,10 +117,23 @@ export interface WayliCustomSettings {
 		value: string;
 		description?: string;
 	};
-	'wayli.server_pexels_api_key'?: {
-		value: string;
-		description?: string;
-	};
+}
+
+/**
+ * Metadata for an encrypted secret (value is never returned)
+ */
+export interface SecretMetadata {
+	key: string;
+	description?: string;
+	created_at: string;
+	updated_at: string;
+}
+
+/**
+ * System-level secrets metadata (admin only)
+ */
+export interface SystemSecretsMetadata {
+	pexels_api_key?: SecretMetadata;
 }
 
 /**
@@ -129,6 +142,7 @@ export interface WayliCustomSettings {
 export interface AdminSettingsResponse {
 	app: AppSettings;
 	custom: WayliCustomSettings;
+	secrets?: SystemSecretsMetadata;
 }
 
 /**

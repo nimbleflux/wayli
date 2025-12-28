@@ -3,12 +3,20 @@
  * Suggests images for trips based on travel data
  * Authentication required (enforced by platform)
  * @fluxbase:require-role authenticated
- * @fluxbase:allow-net
- * @fluxbase:allow-env
+ * @fluxbase:allow-net true
+ * @fluxbase:allow-env true
  * @fluxbase:timeout 30
  */
 
 import type { FluxbaseClient } from '../jobs/types';
+
+// Declare the secrets object that is automatically injected by Fluxbase
+declare const secrets: {
+	get(key: string): string | undefined;
+	getRequired(key: string): string;
+	getUser(key: string): string | undefined;
+	getSystem(key: string): string | undefined;
+};
 
 // ===== Type Definitions =====
 interface ApiResponse<T = unknown> {
@@ -132,28 +140,17 @@ function getCountryName(code: string): string {
 	return COUNTRY_NAMES[code.toUpperCase()] || code;
 }
 
-// Helper function to get the server-level Pexels API key via SDK
-async function getPexelsApiKey(fluxbaseService: FluxbaseClient): Promise<string | null> {
+// Helper function to get the Pexels API key
+// Uses the secrets object which is automatically available in edge functions
+// Falls back: user secret → system secret
+function getPexelsApiKey(): string | null {
 	try {
-		// Get server-level key using SDK settings API
-		const result = await (fluxbaseService as any).admin?.settings?.app?.getSetting('wayli.server_pexels_api_key');
-
-		// Extract the string value - SDK may return the value directly or wrapped in an object
-		let pexelsKey: string | null = null;
-		if (typeof result === 'string') {
-			pexelsKey = result;
-		} else if (result && typeof result === 'object') {
-			pexelsKey = result.value || result.data || null;
-		}
-
-		if (pexelsKey && typeof pexelsKey === 'string') {
-			return pexelsKey;
-		}
-
-		logError('No Pexels API key available', 'TRIPS-SUGGEST-IMAGE');
-		return null;
+		// secrets.getRequired throws if not found, secrets.get returns undefined
+		// Use getRequired for user→system fallback behavior
+		const pexelsKey = secrets.getRequired('pexels_api_key');
+		return pexelsKey;
 	} catch (error) {
-		logError(`Error getting Pexels API key: ${error}`, 'TRIPS-SUGGEST-IMAGE');
+		logError('No Pexels API key available', 'TRIPS-SUGGEST-IMAGE');
 		return null;
 	}
 }
@@ -161,7 +158,7 @@ async function getPexelsApiKey(fluxbaseService: FluxbaseClient): Promise<string 
 async function handler(
 	req: Request,
 	fluxbase: FluxbaseClient,
-	fluxbaseService: FluxbaseClient,
+	_fluxbaseService: FluxbaseClient,
 	utils?: { getExecutionContext?: () => { user?: { id: string; email: string; role: string } } }
 ): Promise<Response> {
 	try {
@@ -226,7 +223,7 @@ async function handler(
 						trip.metadata && typeof trip.metadata === 'object' ? (trip.metadata as any) : undefined;
 
 					// Get the best available Pexels API key
-					const apiKey = await getPexelsApiKey(fluxbaseService);
+					const apiKey = getPexelsApiKey();
 					if (!apiKey) {
 						return errorResponse(
 							'No Pexels API key available. Please configure your API key in preferences.',
@@ -342,7 +339,7 @@ async function handler(
 				}
 
 				// Get the best available Pexels API key
-				const apiKey = await getPexelsApiKey(fluxbaseService);
+				const apiKey = getPexelsApiKey();
 				if (!apiKey) {
 					return errorResponse(
 						'No Pexels API key available. Please configure your API key in preferences.',

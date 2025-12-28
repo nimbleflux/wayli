@@ -2,11 +2,20 @@
  * OwnTracks Points Edge Function
  * Receives and processes GPS tracking data from OwnTracks devices
  * @fluxbase:allow-unauthenticated
+ * @fluxbase:disable-execution-logs
  * @fluxbase:allow-net
  * @fluxbase:allow-env
  */
 
 import type { FluxbaseClient } from '../jobs/types';
+
+// Declare the secrets object that is automatically injected by Fluxbase
+declare const secrets: {
+	get(key: string): string | undefined;
+	getRequired(key: string): string;
+	getUser(key: string): string | undefined;
+	getSystem(key: string): string | undefined;
+};
 
 // ===== Type Definitions =====
 interface ApiResponse<T = unknown> {
@@ -175,20 +184,9 @@ async function handler(
 			return errorResponse('Invalid user ID format', 400);
 		}
 
-		// Verify API key by checking user preferences
-		// The API key is stored in user_preferences.owntracks_api_key
-		const { data: userData, error: userError } = await fluxbaseService
-			.from('user_preferences')
-			.select('owntracks_api_key')
-			.eq('id', userId)
-			.single();
-
-		if (userError || !userData) {
-			logError('User not found', 'OWNTRACKS_POINTS', { userId, userError: userError?.message || 'No data returned', userData });
-			return errorResponse('Invalid user ID', 401);
-		}
-
-		const storedApiKey = userData.owntracks_api_key;
+		// Verify API key using encrypted user secrets
+		// The API key is stored as an encrypted user secret
+		const storedApiKey = secrets.getUser('owntracks_api_key');
 		if (!storedApiKey || storedApiKey !== apiKey) {
 			logError('Invalid API key', 'OWNTRACKS_POINTS', { userId });
 			return errorResponse('Invalid or inactive API key', 401);

@@ -9,12 +9,14 @@
 		Trash2,
 		ChevronLeft,
 		ChevronRight,
+		ChevronDown,
 		X,
 		Mail,
 		Lock,
 		Bot,
 		Database,
-		RefreshCw
+		RefreshCw,
+		ArrowRight
 	} from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
@@ -48,6 +50,8 @@
 	// Initialize server settings
 	let serverName = $state('');
 	let serverPexelsApiKey = $state('');
+	let pexelsApiKeyConfigured = $state(false);
+	let pexelsApiKeyUpdatedAt = $state<string | null>(null);
 	let showAddUserModal = $state(false);
 	let isModalOpen = $state(false);
 	let selectedUser = $state<UserProfile | null>(null);
@@ -70,7 +74,6 @@
 	let authReadOnly = $state(false);
 
 	// Email Settings
-	let emailEnabled = $state(false);
 	let emailProvider = $state('smtp');
 	let smtpHost = $state('');
 	let smtpPort = $state(587);
@@ -80,11 +83,9 @@
 	let smtpFromAddress = $state('');
 	let smtpFromName = $state('Wayli');
 	// Per-field read-only status based on overrides
-	let emailEnabledReadOnly = $state(false);
 	let emailProviderReadOnly = $state(false);
 	let emailSmtpReadOnly = $state(false);
 	// Derived: true if configuration fields have overrides (for banner display)
-	// Note: emailEnabledReadOnly is excluded - it just enables the feature, not a config field
 	let hasEmailConfigOverrides = $derived(emailProviderReadOnly || emailSmtpReadOnly);
 
 	// Feature Toggles
@@ -102,6 +103,7 @@
 	let isReverseGeocodingAllUsers = $state(false);
 	let isForceRegeocoding = $state(false);
 	let isFillingCountryCodes = $state(false);
+	let showForceRegeocodeConfirm = $state(false);
 
 	// AI Settings - provider-based model
 	let aiEnabled = $state(false);
@@ -271,17 +273,39 @@
 				'Wayli server name for branding'
 			);
 
+			// Use encrypted secret storage for Pexels API key
 			if (serverPexelsApiKey) {
-				await serviceAdapter.updateCustomSetting(
-					'wayli.server_pexels_api_key',
+				await serviceAdapter.setSystemSecret(
+					'pexels_api_key',
 					serverPexelsApiKey,
-					'Server-level Pexels API key'
+					'Server-level Pexels API key for trip image suggestions'
 				);
+				pexelsApiKeyConfigured = true;
+				pexelsApiKeyUpdatedAt = new Date().toISOString();
+				serverPexelsApiKey = ''; // Clear input after save
 			}
 
 			toast.success(t('serverAdmin.wayliSettingsSaved'));
 		} catch (error: any) {
 			console.error('❌ Failed to save Wayli settings:', error);
+			toast.error(t('serverAdmin.failedToUpdateSettings'), {
+				description: error?.message
+			});
+		}
+	}
+
+	async function clearPexelsApiKey() {
+		try {
+			const session = $sessionStore;
+			if (!session) throw new Error('No session found');
+
+			const serviceAdapter = new ServiceAdapter({ session });
+			await serviceAdapter.deleteSystemSecret('pexels_api_key');
+			pexelsApiKeyConfigured = false;
+			pexelsApiKeyUpdatedAt = null;
+			toast.success(t('serverAdmin.pexelsKeyCleared'));
+		} catch (error: any) {
+			console.error('❌ Failed to clear Pexels API key:', error);
 			toast.error(t('serverAdmin.failedToUpdateSettings'), {
 				description: error?.message
 			});
@@ -334,7 +358,6 @@
 
 			// Update all email settings in a single call using the new SDK method
 			await serviceAdapter.updateAppSetting('updateEmailSettings', {
-				enabled: emailEnabled,
 				provider: emailProvider as 'smtp',
 				from_address: smtpFromAddress,
 				from_name: smtpFromName,
@@ -495,7 +518,16 @@
 		}
 	}
 
-	async function forceRegeocodeAllData() {
+	function promptForceRegeocode() {
+		showForceRegeocodeConfirm = true;
+	}
+
+	function cancelForceRegeocode() {
+		showForceRegeocodeConfirm = false;
+	}
+
+	async function confirmForceRegeocode() {
+		showForceRegeocodeConfirm = false;
 		if (isForceRegeocoding) return;
 
 		isForceRegeocoding = true;
@@ -680,7 +712,6 @@
 			authReadOnly = app.authentication.read_only ?? false;
 
 			// Email - now using flat EmailProviderSettings structure from SDK
-			emailEnabled = app.email.enabled;
 			emailProvider = app.email.provider;
 			smtpHost = app.email.smtp_host ?? '';
 			smtpPort = app.email.smtp_port ?? 587;
@@ -691,7 +722,6 @@
 			// Note: SMTP password is not returned for security (smtp_password_set indicates if configured)
 
 			// Per-field read-only status from _overrides
-			emailEnabledReadOnly = app.email._overrides?.enabled?.is_overridden ?? false;
 			emailProviderReadOnly = app.email._overrides?.provider?.is_overridden ?? false;
 			emailSmtpReadOnly = app.email._overrides?.smtp_host?.is_overridden ?? false;
 
@@ -726,7 +756,15 @@
 
 			// Custom Wayli settings
 			serverName = custom['wayli.server_name']?.value || '';
-			serverPexelsApiKey = custom['wayli.server_pexels_api_key']?.value || '';
+
+			// Load Pexels API key secret metadata (value is not returned)
+			if (result.secrets?.pexels_api_key) {
+				pexelsApiKeyConfigured = true;
+				pexelsApiKeyUpdatedAt = result.secrets.pexels_api_key.updated_at;
+			} else {
+				pexelsApiKeyConfigured = false;
+				pexelsApiKeyUpdatedAt = null;
+			}
 
 			console.log('✅ Settings loaded successfully');
 		} catch (error: any) {
@@ -1357,12 +1395,44 @@
 							>
 								{t('serverAdmin.serverPexelsKey')}
 							</label>
-							<input
-								type="text"
-								id="serverPexelsApiKey"
-								bind:value={serverPexelsApiKey}
-								class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
-							/>
+							{#if pexelsApiKeyConfigured}
+								<div class="mt-1 flex items-center gap-2">
+									<div class="flex flex-1 items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 dark:border-green-800 dark:bg-green-900/20">
+										<span class="text-sm font-medium text-green-700 dark:text-green-300">
+											{t('serverAdmin.secretConfigured')}
+										</span>
+										{#if pexelsApiKeyUpdatedAt}
+											<span class="text-xs text-green-600 dark:text-green-400">
+												({new Date(pexelsApiKeyUpdatedAt).toLocaleDateString()})
+											</span>
+										{/if}
+									</div>
+									<button
+										type="button"
+										onclick={clearPexelsApiKey}
+										class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40"
+									>
+										{t('serverAdmin.clearSecret')}
+									</button>
+								</div>
+								<div class="mt-2">
+									<input
+										type="password"
+										id="serverPexelsApiKey"
+										bind:value={serverPexelsApiKey}
+										class="focus:border-primary focus:ring-primary w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
+										placeholder={t('serverAdmin.enterNewKeyToReplace')}
+									/>
+								</div>
+							{:else}
+								<input
+									type="password"
+									id="serverPexelsApiKey"
+									bind:value={serverPexelsApiKey}
+									class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
+									placeholder={t('serverAdmin.enterPexelsApiKey')}
+								/>
+							{/if}
 							<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
 								{t('serverAdmin.serverPexelsKeyDescription')}
 							</p>
@@ -1492,21 +1562,9 @@
 							</div>
 						{/if}
 
-						<div class="flex items-center justify-between">
-							<span class="text-sm text-gray-700 dark:text-gray-300">
-								{t('serverAdmin.emailEnabled')}
-							</span>
-							<Switch
-								bind:checked={emailEnabled}
-								label={t('serverAdmin.emailEnabled')}
-								disabled={emailEnabledReadOnly}
-							/>
-						</div>
-
-						{#if emailEnabled}
-							<div
-								class="space-y-3 rounded border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800"
-							>
+						<div
+							class="space-y-3 rounded border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800"
+						>
 								<h3 class="font-medium text-gray-900 dark:text-gray-100">
 									{t('serverAdmin.smtpConfiguration')}
 								</h3>
@@ -1625,8 +1683,7 @@
 										placeholder={t('serverAdmin.smtpFromNamePlaceholder')}
 									/>
 								</div>
-							</div>
-						{/if}
+						</div>
 
 						{#if !emailSmtpReadOnly}
 							<div class="flex justify-end">
@@ -1645,7 +1702,7 @@
 				<div
 					class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]"
 				>
-					<div class="mb-4 flex items-center gap-3">
+					<div class="mb-6 flex items-center gap-3">
 						<Database class="h-6 w-6 text-emerald-500" />
 						<div>
 							<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
@@ -1657,122 +1714,242 @@
 						</div>
 					</div>
 
-					<div class="space-y-4">
-						<div class="flex items-center justify-between">
-							<div>
-								<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-									{t('serverAdmin.refreshPlaceVisits')}
-								</span>
-								<p class="text-xs text-gray-500 dark:text-gray-400">
-									{t('serverAdmin.refreshPlaceVisitsDescription')}
-								</p>
+					<div class="space-y-6">
+						<!-- Data Processing Pipeline -->
+						<div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+							<h3 class="mb-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
+								{t('serverAdmin.pipelineTitle')}
+							</h3>
+							<p class="mb-4 text-xs text-gray-500 dark:text-gray-400">
+								{t('serverAdmin.pipelineDescription')}
+							</p>
+
+							<!-- Pipeline Flow Diagram -->
+							<div class="space-y-3">
+								<!-- Row 1: Reverse Geocode → Refresh Place Visits -->
+								<div class="flex flex-wrap items-center gap-3">
+									<!-- Reverse Geocode Card -->
+									<div class="flex min-w-[200px] flex-1 items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-800">
+										<div class="min-w-0 flex-1">
+											<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+												{t('serverAdmin.reverseGeocode')}
+											</span>
+											<p class="truncate text-xs text-gray-500 dark:text-gray-400">
+												{t('serverAdmin.reverseGeocodeDescription')}
+											</p>
+										</div>
+										<button
+											onclick={reverseGeocodeAllUsers}
+											disabled={isReverseGeocodingAllUsers}
+											class="bg-primary hover:bg-primary/90 ml-3 inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+										>
+											<RefreshCw class={`h-3.5 w-3.5 ${isReverseGeocodingAllUsers ? 'animate-spin' : ''}`} />
+											{isReverseGeocodingAllUsers ? t('serverAdmin.running') : t('serverAdmin.run')}
+										</button>
+									</div>
+
+									<!-- Arrow -->
+									<div class="flex shrink-0 items-center">
+										<ArrowRight class="h-5 w-5 text-gray-400" />
+									</div>
+
+									<!-- Refresh Place Visits Card -->
+									<div class="flex min-w-[200px] flex-1 items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-800">
+										<div class="min-w-0 flex-1">
+											<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+												{t('serverAdmin.refreshPlaceVisits')}
+											</span>
+											<p class="truncate text-xs text-gray-500 dark:text-gray-400">
+												{t('serverAdmin.refreshPlaceVisitsDescription')}
+											</p>
+										</div>
+										<button
+											onclick={refreshPlaceVisits}
+											disabled={isRefreshingPlaceVisits}
+											class="bg-primary hover:bg-primary/90 ml-3 inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+										>
+											<RefreshCw class={`h-3.5 w-3.5 ${isRefreshingPlaceVisits ? 'animate-spin' : ''}`} />
+											{isRefreshingPlaceVisits ? t('serverAdmin.refreshing') : t('serverAdmin.refresh')}
+										</button>
+									</div>
+								</div>
+
+								<!-- Vertical Arrow with "auto" label -->
+								<div class="flex justify-center pl-[calc(50%+1.5rem)]">
+									<div class="flex flex-col items-center">
+										<ChevronDown class="h-5 w-5 text-gray-400" />
+										<span class="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+											{t('serverAdmin.autoTrigger')}
+										</span>
+									</div>
+								</div>
+
+								<!-- Row 2: Sync POI Embeddings -->
+								<div class="flex justify-center pl-[calc(50%+1.5rem)]">
+									<div class="flex min-w-[200px] max-w-md flex-1 items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-800">
+										<div class="min-w-0 flex-1">
+											<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+												{t('serverAdmin.syncPoiEmbeddings')}
+											</span>
+											<p class="truncate text-xs text-gray-500 dark:text-gray-400">
+												{t('serverAdmin.syncPoiEmbeddingsDescription')}
+											</p>
+										</div>
+										<button
+											onclick={syncPoiEmbeddingsForAllUsers}
+											disabled={isSyncingPoiEmbeddings}
+											class="bg-primary hover:bg-primary/90 ml-3 inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+										>
+											<RefreshCw class={`h-3.5 w-3.5 ${isSyncingPoiEmbeddings ? 'animate-spin' : ''}`} />
+											{isSyncingPoiEmbeddings ? t('serverAdmin.syncing') : t('serverAdmin.sync')}
+										</button>
+									</div>
+								</div>
+
+								<!-- Vertical Arrow with "auto" label -->
+								<div class="flex justify-center pl-[calc(50%+1.5rem)]">
+									<div class="flex flex-col items-center">
+										<ChevronDown class="h-5 w-5 text-gray-400" />
+										<span class="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+											{t('serverAdmin.autoTrigger')}
+										</span>
+									</div>
+								</div>
+
+								<!-- Row 3: User Preferences (info only) -->
+								<div class="flex justify-center pl-[calc(50%+1.5rem)]">
+									<div class="flex min-w-[200px] max-w-md flex-1 items-center rounded-lg border border-dashed border-gray-300 bg-gray-100/50 p-3 dark:border-gray-600 dark:bg-gray-800/50">
+										<span class="text-sm font-medium text-gray-500 dark:text-gray-400">
+											{t('serverAdmin.userPreferencesComputed')}
+										</span>
+										<span class="ml-2 text-xs text-gray-400 dark:text-gray-500">(computed)</span>
+									</div>
+								</div>
 							</div>
-							<button
-								onclick={refreshPlaceVisits}
-								disabled={isRefreshingPlaceVisits}
-								class="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-							>
-								<RefreshCw class={`h-4 w-4 ${isRefreshingPlaceVisits ? 'animate-spin' : ''}`} />
-								{isRefreshingPlaceVisits ? t('serverAdmin.refreshing') : t('serverAdmin.refresh')}
-							</button>
 						</div>
 
-						<div class="flex items-center justify-between">
-							<div>
-								<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-									{t('serverAdmin.syncPoiEmbeddings')}
-								</span>
-								<p class="text-xs text-gray-500 dark:text-gray-400">
-									{t('serverAdmin.syncPoiEmbeddingsDescription')}
-								</p>
+						<!-- Standalone Operations -->
+						<div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+							<h3 class="mb-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
+								{t('serverAdmin.standaloneTitle')}
+							</h3>
+							<p class="mb-4 text-xs text-gray-500 dark:text-gray-400">
+								{t('serverAdmin.standaloneDescription')}
+							</p>
+
+							<div class="flex flex-wrap gap-3">
+								<!-- Force Re-geocode Card -->
+								<div class="flex min-w-[200px] flex-1 items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-800">
+									<div class="min-w-0 flex-1">
+										<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+											{t('serverAdmin.forceRegeocode')}
+										</span>
+										<p class="truncate text-xs text-gray-500 dark:text-gray-400">
+											{t('serverAdmin.forceRegeocodeDescription')}
+										</p>
+									</div>
+									<button
+										onclick={promptForceRegeocode}
+										disabled={isForceRegeocoding}
+										class="bg-primary hover:bg-primary/90 ml-3 inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+									>
+										<RefreshCw class={`h-3.5 w-3.5 ${isForceRegeocoding ? 'animate-spin' : ''}`} />
+										{isForceRegeocoding ? t('serverAdmin.running') : t('serverAdmin.run')}
+									</button>
+								</div>
+
+								<!-- Fill Country Codes Card -->
+								<div class="flex min-w-[200px] flex-1 items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-800">
+									<div class="min-w-0 flex-1">
+										<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+											{t('serverAdmin.fillCountryCodes')}
+										</span>
+										<p class="truncate text-xs text-gray-500 dark:text-gray-400">
+											{t('serverAdmin.fillCountryCodesDescription')}
+										</p>
+									</div>
+									<button
+										onclick={fillMissingCountryCodes}
+										disabled={isFillingCountryCodes}
+										class="bg-primary hover:bg-primary/90 ml-3 inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+									>
+										<RefreshCw class={`h-3.5 w-3.5 ${isFillingCountryCodes ? 'animate-spin' : ''}`} />
+										{isFillingCountryCodes ? t('serverAdmin.running') : t('serverAdmin.run')}
+									</button>
+								</div>
 							</div>
-							<button
-								onclick={syncPoiEmbeddingsForAllUsers}
-								disabled={isSyncingPoiEmbeddings}
-								class="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-							>
-								<RefreshCw class={`h-4 w-4 ${isSyncingPoiEmbeddings ? 'animate-spin' : ''}`} />
-								{isSyncingPoiEmbeddings ? t('serverAdmin.syncing') : t('serverAdmin.sync')}
-							</button>
 						</div>
 
-						<div class="flex items-center justify-between">
-							<div>
-								<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-									{t('serverAdmin.syncTripEmbeddings')}
-								</span>
-								<p class="text-xs text-gray-500 dark:text-gray-400">
-									{t('serverAdmin.syncTripEmbeddingsDescription')}
-								</p>
-							</div>
-							<button
-								onclick={syncTripEmbeddingsForAllUsers}
-								disabled={isSyncingTripEmbeddings}
-								class="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-							>
-								<RefreshCw class={`h-4 w-4 ${isSyncingTripEmbeddings ? 'animate-spin' : ''}`} />
-								{isSyncingTripEmbeddings ? t('serverAdmin.syncing') : t('serverAdmin.sync')}
-							</button>
-						</div>
+						<!-- Trip Processing -->
+						<div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+							<h3 class="mb-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
+								{t('serverAdmin.tripProcessingTitle')}
+							</h3>
+							<p class="mb-4 text-xs text-gray-500 dark:text-gray-400">
+								{t('serverAdmin.tripProcessingDescription')}
+							</p>
 
-						<div class="flex items-center justify-between">
-							<div>
-								<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-									{t('serverAdmin.reverseGeocode')}
-								</span>
-								<p class="text-xs text-gray-500 dark:text-gray-400">
-									{t('serverAdmin.reverseGeocodeDescription')}
-								</p>
+							<div class="flex min-w-[200px] max-w-md items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-800">
+								<div class="min-w-0 flex-1">
+									<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+										{t('serverAdmin.syncTripEmbeddings')}
+									</span>
+									<p class="truncate text-xs text-gray-500 dark:text-gray-400">
+										{t('serverAdmin.syncTripEmbeddingsDescription')}
+									</p>
+								</div>
+								<button
+									onclick={syncTripEmbeddingsForAllUsers}
+									disabled={isSyncingTripEmbeddings}
+									class="bg-primary hover:bg-primary/90 ml-3 inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+								>
+									<RefreshCw class={`h-3.5 w-3.5 ${isSyncingTripEmbeddings ? 'animate-spin' : ''}`} />
+									{isSyncingTripEmbeddings ? t('serverAdmin.syncing') : t('serverAdmin.sync')}
+								</button>
 							</div>
-							<button
-								onclick={reverseGeocodeAllUsers}
-								disabled={isReverseGeocodingAllUsers}
-								class="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-							>
-								<RefreshCw class={`h-4 w-4 ${isReverseGeocodingAllUsers ? 'animate-spin' : ''}`} />
-								{isReverseGeocodingAllUsers ? t('serverAdmin.running') : t('serverAdmin.run')}
-							</button>
-						</div>
-
-						<div class="flex items-center justify-between">
-							<div>
-								<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-									{t('serverAdmin.forceRegeocode')}
-								</span>
-								<p class="text-xs text-gray-500 dark:text-gray-400">
-									{t('serverAdmin.forceRegeocodeDescription')}
-								</p>
-							</div>
-							<button
-								onclick={forceRegeocodeAllData}
-								disabled={isForceRegeocoding}
-								class="inline-flex items-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
-							>
-								<RefreshCw class={`h-4 w-4 ${isForceRegeocoding ? 'animate-spin' : ''}`} />
-								{isForceRegeocoding ? t('serverAdmin.running') : t('serverAdmin.run')}
-							</button>
-						</div>
-
-						<div class="flex items-center justify-between">
-							<div>
-								<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-									{t('serverAdmin.fillCountryCodes')}
-								</span>
-								<p class="text-xs text-gray-500 dark:text-gray-400">
-									{t('serverAdmin.fillCountryCodesDescription')}
-								</p>
-							</div>
-							<button
-								onclick={fillMissingCountryCodes}
-								disabled={isFillingCountryCodes}
-								class="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-							>
-								<RefreshCw class={`h-4 w-4 ${isFillingCountryCodes ? 'animate-spin' : ''}`} />
-								{isFillingCountryCodes ? t('serverAdmin.running') : t('serverAdmin.run')}
-							</button>
 						</div>
 					</div>
 				</div>
+
+				<!-- Force Re-geocode Confirmation Modal -->
+				{#if showForceRegeocodeConfirm}
+					<div
+						class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+						onclick={cancelForceRegeocode}
+						onkeydown={(e) => e.key === 'Escape' && cancelForceRegeocode()}
+						role="dialog"
+						aria-modal="true"
+						tabindex="-1"
+					>
+						<div
+							class="mx-4 w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-[#23232a]"
+							onclick={(e) => e.stopPropagation()}
+							onkeydown={(e) => e.stopPropagation()}
+							role="document"
+						>
+							<h3 class="mb-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
+								{t('serverAdmin.forceRegeocodeConfirmTitle')}
+							</h3>
+							<p class="mb-6 text-sm text-gray-600 dark:text-gray-300">
+								{t('serverAdmin.forceRegeocodeConfirmMessage')}
+							</p>
+							<div class="flex justify-end gap-3">
+								<button
+									onclick={cancelForceRegeocode}
+									class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+								>
+									{t('serverAdmin.cancel')}
+								</button>
+								<button
+									onclick={confirmForceRegeocode}
+									class="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium text-white"
+								>
+									{t('serverAdmin.confirm')}
+								</button>
+							</div>
+						</div>
+					</div>
+				{/if}
 
 				<!-- AI Settings -->
 				<div

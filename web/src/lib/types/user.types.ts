@@ -90,3 +90,21 @@ export interface TwoFactorDisableResponse {
 export interface TwoFactorStatusResponse {
 	totp_enabled: boolean;
 }
+
+/**
+ * Metadata for a user's encrypted secret (value is never returned)
+ */
+export interface UserSecretMetadata {
+	key: string;
+	description?: string;
+	created_at: string;
+	updated_at: string;
+}
+
+/**
+ * User secrets metadata (for displaying configured status)
+ */
+export interface UserSecretsMetadata {
+	pexels_api_key?: UserSecretMetadata;
+	owntracks_api_key?: UserSecretMetadata;
+}

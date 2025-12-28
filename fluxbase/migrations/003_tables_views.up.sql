@@ -439,7 +439,8 @@ SELECT
     MIN(started_at) as first_visit,
     MAX(started_at) as last_visit,
     ROUND(AVG(duration_minutes))::integer as avg_duration_minutes,
-    SUM(duration_minutes)::integer as total_duration_minutes
+    SUM(duration_minutes)::integer as total_duration_minutes,
+    MIN(started_at) as started_at
 FROM "public"."place_visits"
 WHERE user_id = auth.uid()
 GROUP BY poi_name, poi_amenity, poi_category, city, country_code;
@@ -456,7 +457,8 @@ SELECT
     country_code,
     geocode,
     accuracy,
-    created_at
+    created_at,
+    recorded_at as started_at
 FROM "public"."tracker_data"
 WHERE user_id = auth.uid();
 
@@ -483,7 +485,8 @@ SELECT
     array_to_string(ARRAY(SELECT jsonb_array_elements_text(metadata->'visitedCities')), ', ') as visited_cities,
     array_to_string(ARRAY(SELECT jsonb_array_elements_text(metadata->'visitedCountryCodes')), ', ') as visited_country_codes,
     created_at,
-    updated_at
+    updated_at,
+    start_date as started_at
 FROM "public"."trips"
 WHERE user_id = auth.uid() AND status IN ('active', 'planned', 'completed');
 

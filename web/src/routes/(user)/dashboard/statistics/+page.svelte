@@ -949,7 +949,7 @@
 
 <div class="space-y-6">
 	<!-- Map -->
-	<div class="relative h-96 w-full rounded-lg bg-gray-100 md:h-[600px] dark:bg-gray-900">
+	<div class="relative isolate z-0 h-96 w-full rounded-lg bg-gray-100 md:h-[600px] dark:bg-gray-900">
 		<div
 			bind:this={mapContainer}
 			class="h-full w-full rounded-lg"

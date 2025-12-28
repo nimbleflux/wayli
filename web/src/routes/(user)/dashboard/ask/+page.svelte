@@ -36,7 +36,7 @@
 	} from '$lib/services/chat.service';
 	import { sessionStore } from '$lib/stores/auth';
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
-	import { ChatResultRenderer, ConversationSidebar } from '$lib/components/chat';
+	import { ChatResultRenderer, ConversationSidebar, PlaceMapModal } from '$lib/components/chat';
 	import { detectResultType } from '$lib/utils/chat-result-detection';
 
 	let t = $derived($translate);
@@ -121,6 +121,27 @@
 	// Input element reference
 	let inputElement: HTMLInputElement | undefined = $state();
 
+	// Messages container reference for auto-scroll
+	let messagesContainer: HTMLDivElement | undefined = $state();
+
+	// Scroll to bottom of messages
+	function scrollToBottom() {
+		if (messagesContainer) {
+			messagesContainer.scrollTop = messagesContainer.scrollHeight;
+		}
+	}
+
+	// Place map modal state
+	let selectedPlace = $state<Record<string, unknown> | null>(null);
+
+	function handlePlaceClick(place: Record<string, unknown>) {
+		selectedPlace = place;
+	}
+
+	function closePlaceModal() {
+		selectedPlace = null;
+	}
+
 	// Example suggestions
 	const suggestions = [
 		{
@@ -193,6 +214,8 @@
 			await chatService.connect({
 				onContent: (delta, fullContent) => {
 					currentStreamingContent = fullContent;
+					// Scroll to bottom as content streams in
+					scrollToBottom();
 				},
 				onProgress: (step, message) => {
 					// Update current progress display
@@ -249,6 +272,9 @@
 							usage
 						};
 						messages = [...messages, assistantMessage];
+
+						// Scroll to bottom after adding assistant message
+						setTimeout(scrollToBottom, 0);
 					}
 					// Reset all state
 					currentStreamingContent = '';
@@ -324,6 +350,9 @@
 			timestamp: new Date()
 		};
 		messages = [...messages, userMessage];
+
+		// Scroll to bottom after adding user message
+		setTimeout(scrollToBottom, 0);
 
 		// Optimistically add conversation to sidebar on first message
 		if (isFirstMessage && currentConversationId) {
@@ -562,6 +591,9 @@
 
 			// Resume the conversation via WebSocket
 			await chatService.startChat('location-assistant', 'wayli', conversationId);
+
+			// Scroll to bottom after loading conversation
+			setTimeout(scrollToBottom, 0);
 		} catch (err) {
 			console.error('Failed to load conversation:', err);
 			toast.error('Failed to load conversation');
@@ -637,7 +669,7 @@
 	<!-- Chat Area -->
 	<div class="flex flex-1 flex-col overflow-hidden bg-gray-50 dark:bg-gray-900">
 		<!-- Messages Area -->
-		<div class="flex-1 overflow-y-auto">
+		<div bind:this={messagesContainer} class="flex-1 overflow-y-auto">
 		{#if isCheckingConfig}
 			<!-- Loading configuration -->
 			<div class="flex h-full flex-col items-center justify-center p-6">
@@ -755,6 +787,7 @@
 												{queryResult}
 												queryIndex={idx}
 												totalQueries={message.queryResults.length}
+												onPlaceClick={handlePlaceClick}
 											/>
 										{/each}
 									</div>
@@ -958,3 +991,6 @@
 		</div>
 	</div>
 {/if}
+
+<!-- Place Map Modal -->
+<PlaceMapModal place={selectedPlace} onClose={closePlaceModal} />

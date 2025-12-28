@@ -658,8 +658,8 @@ export class ClientStatisticsService {
 			this.statistics.uniqueCountries.set(point.country_code, existing);
 		}
 
-		// Process unique cities
-		if (point.type || point.addresstype) {
+		// Process unique cities (only if we have city data)
+		if (point.city) {
 			const cityKey = this.generateCityKey(point);
 			if (cityKey) {
 				const existing = this.statistics.uniqueCities.get(cityKey) || {
@@ -907,6 +907,12 @@ export class ClientStatisticsService {
 		const walking = transport.find((t) => t.mode === 'walking');
 		const steps = walking && walking.distance > 0 ? Math.round(walking.distance / 0.7) : 0;
 
+		// Count unique places where user spent at least 8 hours
+		const MIN_TIME_FOR_PLACE_MS = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+		const uniquePlacesCount = Array.from(this.statistics.uniqueCities.values()).filter(
+			(city) => city.timeSpent >= MIN_TIME_FOR_PLACE_MS
+		).length;
+
 		return {
 			totalDistance: isFinite(totalDistanceKm)
 				? totalDistanceKm >= 1000
@@ -916,7 +922,7 @@ export class ClientStatisticsService {
 			earthCircumferences: earthCircumferences,
 			geopoints: this.statistics.geopoints,
 			timeSpentMoving: `${timeSpentMovingHours}h`,
-			uniquePlaces: this.statistics.uniqueCities.size,
+			uniquePlaces: uniquePlacesCount,
 			countriesVisited: this.statistics.uniqueCountries.size,
 			steps,
 			transport,

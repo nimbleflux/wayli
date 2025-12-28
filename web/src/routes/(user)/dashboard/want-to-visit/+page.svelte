@@ -990,7 +990,7 @@
 
 	<!-- Map -->
 	<div
-		class="relative z-0 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
+		class="relative isolate z-0 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
 	>
 		<div bind:this={mapContainer} class="h-96 w-full md:h-[500px]"></div>
 

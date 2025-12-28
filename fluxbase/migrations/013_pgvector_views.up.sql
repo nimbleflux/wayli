@@ -33,7 +33,8 @@ SELECT
     avg_duration_minutes,
     embedded_at IS NOT NULL as has_embedding,
     created_at,
-    updated_at
+    updated_at,
+    created_at as started_at
 FROM "public"."poi_embeddings"
 WHERE user_id = auth.uid();
 
@@ -61,7 +62,8 @@ SELECT
     t.metadata->>'visitedCountries' as visited_countries,
     te.embedded_at IS NOT NULL as has_embedding,
     te.created_at,
-    te.updated_at
+    te.updated_at,
+    t.start_date as started_at
 FROM "public"."trip_embeddings" te
 JOIN "public"."trips" t ON te.trip_id = t.id
 WHERE te.user_id = auth.uid();
@@ -83,7 +85,8 @@ SELECT
     sample_count,
     computed_at,
     created_at,
-    updated_at
+    updated_at,
+    computed_at as started_at
 FROM "public"."user_preference_vectors"
 WHERE user_id = auth.uid()
     AND preference_embedding IS NOT NULL;
@@ -103,7 +106,8 @@ SELECT
     (SELECT COUNT(*) FROM poi_embeddings WHERE user_id = auth.uid() AND embedded_at IS NOT NULL) as poi_embedded,
     (SELECT COUNT(*) FROM trip_embeddings WHERE user_id = auth.uid()) as trip_total,
     (SELECT COUNT(*) FROM trip_embeddings WHERE user_id = auth.uid() AND embedded_at IS NOT NULL) as trip_embedded,
-    (SELECT COUNT(*) FROM user_preference_vectors WHERE user_id = auth.uid() AND preference_embedding IS NOT NULL) as preferences_computed;
+    (SELECT COUNT(*) FROM user_preference_vectors WHERE user_id = auth.uid() AND preference_embedding IS NOT NULL) as preferences_computed,
+    now() as started_at;
 
 COMMENT ON VIEW "public"."my_embedding_stats" IS 'Secure view showing user embedding coverage statistics.';
 

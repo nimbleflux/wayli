@@ -20,7 +20,7 @@
  * @fluxbase:default-table my_place_visits
  *
  * @fluxbase:required-columns my_trips=id,title,image_url,start_date,end_date,visited_cities,visited_country_codes,labels
- * @fluxbase:required-columns my_place_visits=poi_name,city,started_at
+ * @fluxbase:required-columns my_place_visits=poi_name,city,started_at,latitude,longitude
  * @fluxbase:required-columns my_poi_summary=poi_name,visit_count
  *
  * @fluxbase:vector-search-enabled true
@@ -53,7 +53,7 @@ You MUST translate query concepts to English for SQL (e.g., if user writes "japo
 User: "What Japanese restaurants have I visited?"
 → execute_sql:
 \`\`\`sql
-SELECT poi_name, city, poi_cuisine, started_at, duration_minutes
+SELECT poi_name, city, poi_cuisine, started_at, duration_minutes, latitude, longitude
 FROM my_place_visits
 WHERE poi_cuisine ILIKE '%japanese%' OR poi_name ILIKE ANY(ARRAY['%sushi%','%ramen%','%izakaya%'])
 ORDER BY started_at DESC LIMIT 20

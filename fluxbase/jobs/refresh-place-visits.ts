@@ -45,7 +45,10 @@ export async function handler(
 		safeReportProgress(job, 10, 'Refreshing place_visits materialized view...');
 
 		// Refresh the materialized view using the RPC (requires service_role)
-		const { error: refreshError } = await fluxbaseService.rpc('refresh_place_visits');
+		// Use (rpc as any).invoke for Fluxbase RPC endpoint calling
+		const { error: refreshError } = await (fluxbaseService.rpc as any).invoke('refresh-place-visits', {}, {
+			namespace: 'wayli'
+		});
 
 		if (refreshError) {
 			console.error('Failed to refresh place_visits:', refreshError);

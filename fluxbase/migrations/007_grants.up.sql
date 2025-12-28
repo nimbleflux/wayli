@@ -155,8 +155,9 @@ GRANT SELECT ON "public"."my_poi_summary" TO "authenticated";
 GRANT SELECT ON "public"."my_tracker_data" TO "authenticated";
 GRANT SELECT ON "public"."my_trips" TO "authenticated";
 
--- refresh_place_visits: service_role only (for job scheduler)
+-- refresh_place_visits: authenticated (for job scheduler via RPC)
 GRANT EXECUTE ON FUNCTION "public"."refresh_place_visits"() TO "service_role";
+GRANT EXECUTE ON FUNCTION "public"."refresh_place_visits"() TO "authenticated";
 
 -- Default privileges: Not configured for Fluxbase
 -- Note: Fluxbase doesn't have a 'postgres' role like Supabase

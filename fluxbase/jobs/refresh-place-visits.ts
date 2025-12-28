@@ -25,6 +25,48 @@ function safeReportProgress(job: JobUtils, percent: number, message: string): vo
 	}
 }
 
+/**
+ * Wait for an async RPC execution to complete by polling its status.
+ */
+async function waitForRpcCompletion(
+	fluxbase: FluxbaseClient,
+	executionId: string,
+	job: JobUtils,
+	maxWaitMs: number = 600000, // 10 minutes max for materialized view refresh
+	pollIntervalMs: number = 5000 // Poll every 5 seconds
+): Promise<boolean> {
+	const startTime = Date.now();
+	console.log(`⏳ Waiting for RPC execution ${executionId} to complete...`);
+
+	while (Date.now() - startTime < maxWaitMs) {
+		try {
+			const { data: status } = await (fluxbase.rpc as any).getStatus(executionId);
+			console.log(`📊 RPC status for ${executionId}:`, JSON.stringify(status));
+
+			if (status?.status === 'completed' || status?.status === 'success') {
+				console.log(`✅ RPC execution ${executionId} completed successfully`);
+				return true;
+			}
+
+			if (status?.status === 'failed' || status?.status === 'error') {
+				console.error(`❌ RPC execution ${executionId} failed: ${status?.error_message || status?.error || status?.message || 'unknown error'}`);
+				return false;
+			}
+
+			// Still running, update progress
+			const elapsed = Math.round((Date.now() - startTime) / 1000);
+			safeReportProgress(job, 10 + Math.min(35, elapsed), `Refreshing place_visits... (${elapsed}s)`);
+		} catch (err) {
+			console.warn(`⚠️ Error checking RPC status:`, err);
+		}
+
+		await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+	}
+
+	console.warn(`⚠️ RPC execution ${executionId} timed out after ${maxWaitMs / 1000}s`);
+	return false;
+}
+
 export async function handler(
 	_req: Request,
 	fluxbase: FluxbaseClient,
@@ -46,8 +88,10 @@ export async function handler(
 
 		// Refresh the materialized view using the RPC
 		// Use user-scoped client to pass the admin role context
-		const { error: refreshError } = await (fluxbase.rpc as any).invoke('refresh-place-visits', {}, {
-			namespace: 'wayli'
+		// Run async to avoid request timeout on large datasets
+		const { data: rpcResult, error: refreshError } = await (fluxbase.rpc as any).invoke('refresh-place-visits', {}, {
+			namespace: 'wayli',
+			async: true
 		});
 
 		if (refreshError) {
@@ -56,6 +100,20 @@ export async function handler(
 				success: false,
 				error: `Failed to refresh place_visits: ${refreshError.message}`
 			};
+		}
+
+		console.log(`✅ Place visits refresh RPC triggered: ${rpcResult || 'started'}`);
+
+		// Wait for async RPC to complete
+		const executionId = (rpcResult as any)?.execution_id || rpcResult;
+		if (executionId) {
+			const success = await waitForRpcCompletion(fluxbase, executionId, job);
+			if (!success) {
+				return {
+					success: false,
+					error: 'Place visits refresh timed out or failed'
+				};
+			}
 		}
 
 		console.log('✅ Place visits materialized view refreshed');

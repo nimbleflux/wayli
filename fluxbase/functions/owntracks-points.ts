@@ -9,14 +9,6 @@
 
 import type { FluxbaseClient } from '../jobs/types';
 
-// Declare the secrets object that is automatically injected by Fluxbase
-declare const secrets: {
-	get(key: string): string | undefined;
-	getRequired(key: string): string;
-	getUser(key: string): string | undefined;
-	getSystem(key: string): string | undefined;
-};
-
 // ===== Type Definitions =====
 interface ApiResponse<T = unknown> {
 	success: boolean;
@@ -184,9 +176,19 @@ async function handler(
 			return errorResponse('Invalid user ID format', 400);
 		}
 
-		// Verify API key using encrypted user secrets
-		// The API key is stored as an encrypted user secret
-		const storedApiKey = secrets.getUser('owntracks_api_key');
+		// Verify API key by retrieving and decrypting the user's stored secret
+		// This uses the service role client to access the admin API
+		let storedApiKey: string | null = null;
+		try {
+			storedApiKey = await fluxbaseService.admin.settings.app.getUserSecretValue(
+				userId,
+				'owntracks_api_key'
+			);
+		} catch (error) {
+			// Secret not found or decryption failed
+			logError('Failed to retrieve API key', 'OWNTRACKS_POINTS', { userId, error });
+		}
+
 		if (!storedApiKey || storedApiKey !== apiKey) {
 			logError('Invalid API key', 'OWNTRACKS_POINTS', { userId });
 			return errorResponse('Invalid or inactive API key', 401);

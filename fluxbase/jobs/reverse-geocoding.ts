@@ -169,9 +169,10 @@ export async function handler(
 			// No filter needed - process all points
 		} else if (fillCountryCodesOnly) {
 			// Fill country codes mode: find points that have geocode data but missing country_code
+			// Note: Using .is() instead of .or() to avoid parser bug with is.null in or() clauses
 			countQuery = countQuery
 				.not('geocode->properties->>geocoded_at', 'is', null) // Has been geocoded
-				.or('geocode->properties->address->>country_code.is.null,geocode->properties->address->>country_code.eq.'); // But missing country_code
+				.is('country_code', null); // But missing country_code
 		} else {
 			// Default mode: only points that haven't been geocoded yet
 			countQuery = countQuery
@@ -242,9 +243,10 @@ export async function handler(
 				// No additional filters needed
 			} else if (fillCountryCodesOnly) {
 				// Fill country codes mode: find points that have geocode data but missing country_code
+				// Note: Using .is() instead of .or() to avoid parser bug with is.null in or() clauses
 				batchQuery = batchQuery
 					.not('geocode->properties->>geocoded_at', 'is', null)
-					.or('geocode->properties->address->>country_code.is.null,geocode->properties->address->>country_code.eq.');
+					.is('country_code', null);
 			} else {
 				// Default mode: only points that haven't been geocoded yet
 				batchQuery = batchQuery

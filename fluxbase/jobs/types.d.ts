@@ -11,6 +11,23 @@
  */
 interface FluxbaseClient {
 	/**
+	 * Admin API for privileged operations (requires service_role)
+	 */
+	admin: {
+		settings: {
+			app: {
+				/**
+				 * Get the decrypted value of a user's secret setting
+				 * @param userId - The user ID whose secret to retrieve
+				 * @param key - Secret key
+				 * @returns Promise resolving to the decrypted secret value
+				 */
+				getUserSecretValue(userId: string, key: string): Promise<string>;
+			};
+		};
+	};
+
+	/**
 	 * Storage API for file operations
 	 */
 	storage: {

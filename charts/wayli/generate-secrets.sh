@@ -123,7 +123,7 @@ generate_base64() {
 
 # Generate encryption key (32 characters)
 generate_encryption_key() {
-    openssl rand -hex 16
+    openssl rand -hex 32
 }
 
 # Generate JWT secret (base64, 48 bytes)
@@ -245,16 +245,14 @@ main() {
     echo ""
 
     DB_PASSWORD=$(generate_password 40)
-    SECRET_KEY_BASE=$(generate_base64 48)
-    VAULT_ENC_KEY=$(generate_encryption_key)
-    DB_ENC_KEY=$(generate_encryption_key)
     JWT_SECRET=$(generate_jwt_secret)
+    FLUXBASE_ENCRYPTION_KEY=$(generate_encryption_key)
+    FLUXBASE_SECURITY_SETUP_TOKEN=$(generate_password 32)
 
     print_success "DB_PASSWORD: Generated (40 chars)"
-    print_success "SECRET_KEY_BASE: Generated (base64, 48 bytes)"
-    print_success "VAULT_ENC_KEY: Generated (32 chars)"
-    print_success "DB_ENC_KEY: Generated (32 chars)"
     print_success "JWT_SECRET: Generated (base64, 48 bytes)"
+    print_success "FLUXBASE_ENCRYPTION_KEY: Generated (32 chars)"
+    print_success "FLUXBASE_SECURITY_SETUP_TOKEN: Generated (32 chars)"
 
     # Generate JWT tokens
     ANON_KEY=""
@@ -301,9 +299,8 @@ data:
   anon-key: $(echo -n "$ANON_KEY" | base64 -w 0)
   service-role-key: $(echo -n "$SERVICE_ROLE_KEY" | base64 -w 0)
   db-password: $(echo -n "$DB_PASSWORD" | base64 -w 0)
-  db-enc-key: $(echo -n "$DB_ENC_KEY" | base64 -w 0)
-  vault-enc-key: $(echo -n "$VAULT_ENC_KEY" | base64 -w 0)
-  secret-key-base: $(echo -n "$SECRET_KEY_BASE" | base64 -w 0)
+  encryption-key: $(echo -n "$FLUXBASE_ENCRYPTION_KEY" | base64 -w 0)
+  security-setup-token: $(echo -n "$FLUXBASE_SECURITY_SETUP_TOKEN" | base64 -w 0)
   smtp-username: $(echo -n "$SMTP_USERNAME" | base64 -w 0)
   smtp-password: $(echo -n "$SMTP_PASSWORD" | base64 -w 0)"
 

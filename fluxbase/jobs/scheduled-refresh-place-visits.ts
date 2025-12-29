@@ -39,7 +39,7 @@ export async function handler(
 		safeReportProgress(job, 5, 'Refreshing place_visits materialized view...');
 
 		// Step 1: Refresh the materialized view (admin can do this for all users)
-		const { error: refreshError } = await fluxbaseService.rpc('refresh_place_visits');
+		const { error: refreshError } = await fluxbaseService.rpc('refresh-place-visits');
 
 		if (refreshError) {
 			console.error('Failed to refresh place_visits:', refreshError);

@@ -18,7 +18,7 @@
 # ------------------------------------------------------------------------------
 # Enable admin dashboard UI and API routes
 # Requires FLUXBASE_SECURITY_SETUP_TOKEN to also be set
-FLUXBASE_ADMIN_ENABLED=false
+FLUXBASE_ADMIN_ENABLED=true
 
 # ------------------------------------------------------------------------------
 # Security Configuration
@@ -27,30 +27,29 @@ FLUXBASE_ADMIN_ENABLED=false
 # This token is REQUIRED to use the admin dashboard and initial setup.
 # Generate a secure token: openssl rand -base64 32
 # Store this securely - it's needed only during initial setup.
-FLUXBASE_SECURITY_SETUP_TOKEN=your-secret-setup-token-change-in-production
+FLUXBASE_SECURITY_SETUP_TOKEN=your-secret
 
 # PostgreSQL Database password (REQUIRED)
 # Generate with: openssl rand -base64 32
-POSTGRES_PASSWORD=your-super-secret-and-long-postgres-password
+POSTGRES_PASSWORD=your-super-secret
 
 # JWT Secret for Fluxbase authentication (REQUIRED)
 # Must be at least 32 characters, recommended 48+ characters
 # Generate with: openssl rand -base64 48
-FLUXBASE_AUTH_JWT_SECRET=your-super-secret-jwt-token-with-at-least-32-characters-long
+FLUXBASE_AUTH_JWT_SECRET=gjhWax9pGalJSHsj0ZGSr+q4+kW3C4GxzfwNvW6SuzgQsK0Sq+GcTWQpNRx3g+DD
 
 ############
-# API Keys
+# API Keys (Compatibility with Supabase SDK)
 # These maintain compatibility with existing Wayli code patterns
 ############
 
 # Anonymous API key - used for client-side requests
 # In production, regenerate these using your JWT_SECRET!
 # See: https://supabase.com/docs/guides/self-hosting/docker#generate-api-keys
-FLUXBASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6ImZsdXhiYXNlIiwiaWF0IjoxNjQxNzY5MjAwLCJleHAiOjE3OTk1MzU2MDB9.iPr9o47ALu9iDLqL9rqq7rlvka9Q8ps2XV049R4l67E
+ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6ImZsdXhiYXNlIiwiaWF0IjoxNzY2NDMyOTYwLCJleHAiOjIwODE3OTI5NjB9.v-pqplvE_l0oFouZUNdy5BEGlQlAhdGjwGZsTUMOPY8
 
 # Service role API key - used for server-side admin operations
-FLUXBASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoiZmx1eGJhc2UiLCJpYXQiOjE2NDE3NjkyMDAsImV4cCI6MTc5OTUzNTYwMH0.2Sqa6QjzVSVUOkxrAQEGZshEyCDQxt2Ggx7v6y0lCBE
-
+SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoiZmx1eGJhc2UiLCJpYXQiOjE3NjY0MzI5NjAsImV4cCI6MjA4MTc5Mjk2MH0.f1nujQvV9ZjD3pxIcbw9880W5U1C6eNDoTPWH_kyE7E
 ############
 # Database Configuration
 ############
@@ -78,11 +77,11 @@ FLUXBASE_PORT=8080
 
 # Internal URL for Fluxbase API (used by workers/server within Docker network)
 # Uses Docker service name for internal container-to-container communication
-FLUXBASE_BASE_URL=http://fluxbase-dev:8080
+FLUXBASE_BASE_URL=http://fluxbase:8080
 
 # Public URL for Fluxbase API (used by browser clients)
 # ⚠️  Update this for production deployments!
-FLUXBASE_PUBLIC_BASE_URL=http://localhost:8080
+PUBLIC_FLUXBASE_BASE_URL=http://localhost:8080
 
 # Debug mode - enables verbose logging
 # ⚠️  WARNING: Do not enable in production as it may log sensitive data
@@ -125,15 +124,15 @@ FLUXBASE_AUTH_JWT_EXPIRY=1h
 # - Password reset functionality
 # - Magic link authentication
 
-# # Enable email functionality
-# FLUXBASE_EMAIL_ENABLED=true
+# Enable email functionality
+FLUXBASE_EMAIL_ENABLED=false
 
-# # Email provider: smtp, sendgrid, mailgun, ses
-# FLUXBASE_EMAIL_PROVIDER=smtp
+# Email provider: smtp, sendgrid, mailgun, ses
+FLUXBASE_EMAIL_PROVIDER=smtp
 
-# # Email sender details
-# FLUXBASE_EMAIL_FROM_ADDRESS=noreply@example.com
-# FLUXBASE_EMAIL_FROM_NAME=Wayli
+# Email sender details
+FLUXBASE_EMAIL_FROM_ADDRESS=noreply@example.com
+FLUXBASE_EMAIL_FROM_NAME=Wayli
 
 # SMTP Configuration (required if FLUXBASE_EMAIL_ENABLED=true and provider=smtp)
 # For local development, consider using Mailhog or similar SMTP testing tool
@@ -154,15 +153,15 @@ FLUXBASE_AUTH_JWT_EXPIRY=1h
 # Storage Configuration (MinIO/S3)
 ############
 
-# # MinIO ports
-# MINIO_PORT=9000
-# MINIO_CONSOLE_PORT=9001
+# MinIO ports
+MINIO_PORT=9000
+MINIO_CONSOLE_PORT=9001
 
-# # Storage bucket name for trip images and exports
-# STORAGE_S3_BUCKET=trip-images
+# Storage bucket name for trip images and exports
+STORAGE_S3_BUCKET=trip-images
 
-# # S3 region (for MinIO compatibility, any value works)
-# AWS_DEFAULT_REGION=us-east-1
+# S3 region (for MinIO compatibility, any value works)
+AWS_DEFAULT_REGION=us-east-1
 
 # Maximum upload size in bytes (Optional)
 # Default: 2147483648 (2GB)
@@ -186,7 +185,7 @@ FLUXBASE_AUTH_JWT_EXPIRY=1h
 ############
 
 # Enable edge functions (set to "false" to disable)
-# FLUXBASE_FUNCTIONS_ENABLED=true
+FLUXBASE_FUNCTIONS_ENABLED=true
 
 # Function timeouts and resource limits (Optional)
 # Uncomment to customize - defaults shown in comments
@@ -206,14 +205,14 @@ SITE_URL=http://localhost:4000
 # Pelias endpoint for geocoding (reverse geocoding trips)
 # Default: Wayli's public Pelias instance
 # For production, consider self-hosting Pelias: https://github.com/pelias/pelias
-# PELIAS_ENDPOINT=https://pelias.wayli.app
+PELIAS_ENDPOINT=https://pelias.wayli.app
 
 ############
 # Wayli Application
 ############
 
 # Wayli Docker image version
-WAYLI_VERSION=v2.0.0-rc.59
+WAYLI_VERSION=v2.0.0-rc.25
 
 # Wayli web server port
 WAYLI_WEB_PORT=4000
@@ -227,11 +226,6 @@ WAYLI_WEB_PORT=4000
 # Use combined mode for simpler single-container deployments
 # APP_MODE=combined
 
-# Skip Fluxbase resource sync on container startup
-# When false (default): Syncs functions, jobs, migrations, RPC, and chatbots on startup
-# When true: Skips sync (useful if resources are synced externally, e.g., via Kubernetes init container)
-# SKIP_SYNC=false
-
 ############
 # Worker Configuration
 ############
@@ -242,11 +236,11 @@ WAYLI_WEB_PORT=4000
 # - For I/O-bound jobs (data import, geocoding): 3-5
 # With multiple worker containers, total capacity = MAX_CONCURRENT_JOBS × number of workers
 # Default: 3
-# MAX_CONCURRENT_JOBS=3
+MAX_CONCURRENT_JOBS=3
 
 # Maximum number of job retries before marking as failed
 # Default: 3
-# MAX_JOB_RETRIES=3
+MAX_JOB_RETRIES=3
 
 ############
 # Security Settings (Optional)
@@ -263,7 +257,7 @@ WAYLI_WEB_PORT=4000
 # Before deploying to production, ensure you:
 # ✓ Changed all passwords and secrets (POSTGRES_PASSWORD, JWT_SECRET, MINIO_ROOT_PASSWORD)
 # ✓ Generated production ANON_KEY and SERVICE_ROLE_KEY using your JWT_SECRET
-# ✓ Updated FLUXBASE_PUBLIC_BASE_URL to your production domain
+# ✓ Updated PUBLIC_FLUXBASE_BASE_URL to your production domain
 # ✓ Updated SITE_URL to your production domain
 # ✓ Configured email (FLUXBASE_EMAIL_*) for password resets
 # ✓ Set FLUXBASE_DEBUG=false

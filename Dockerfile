@@ -39,7 +39,7 @@ RUN apk add --no-cache nginx wget bash curl deno && \
     mkdir -p /run/nginx
 
 # Install Fluxbase CLI for resource synchronization
-RUN curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- v0.0.1-rc.108
+RUN curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- v0.0.1-rc.109
 
 WORKDIR /app/web
 

@@ -23,7 +23,9 @@
       "Bash(tree:*)",
       "Bash(npm run test)",
       "Bash(make cli:*)",
-      "Bash(go build:*)"
+      "Bash(go build:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker build:*)"
     ],
     "deny": [],
     "ask": []

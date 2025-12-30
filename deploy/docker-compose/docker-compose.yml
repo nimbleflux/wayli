@@ -62,7 +62,7 @@ services:
 
   # Fluxbase API
   fluxbase:
-    image: ghcr.io/fluxbase-eu/fluxbase:0.0.1-rc.110
+    image: ghcr.io/fluxbase-eu/fluxbase:0.0.1-rc.111
     container_name: fluxbase
     ports:
       - '8080:8080'
@@ -86,7 +86,6 @@ services:
       # Enable features
       FLUXBASE_ADMIN_ENABLED: ${FLUXBASE_ADMIN_ENABLED-false}
       FLUXBASE_CORS_ALLOWED_ORIGINS: ${SITE_URL}
-      FLUXBASE_DEBUG: "true"
 
     volumes:
       - storage_data:/app/storage

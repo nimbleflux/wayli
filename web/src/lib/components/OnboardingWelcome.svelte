@@ -299,17 +299,17 @@
 					</p>
 					<div class="flex gap-4">
 						<button
+							onclick={handleSkip}
+							class="flex-1 rounded-lg border-2 border-gray-300 px-6 py-3 font-semibold text-gray-700 transition-all hover:scale-105 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+						>
+							{t('onboarding.skipForNow')}
+						</button>
+						<button
 							onclick={handleContinue}
 							disabled={!selectedHomeAddress}
 							class="flex-1 rounded-lg bg-primary px-6 py-3 font-semibold text-white transition-all hover:scale-105 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
 						>
 							{t('onboarding.continue')}
-						</button>
-						<button
-							onclick={handleSkip}
-							class="flex-1 rounded-lg border-2 border-gray-300 px-6 py-3 font-semibold text-gray-700 transition-all hover:scale-105 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-						>
-							{t('onboarding.skipForNow')}
 						</button>
 					</div>
 				</div>

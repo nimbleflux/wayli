@@ -89,9 +89,9 @@ generate_jwt_secret() {
     openssl rand -base64 48 | tr -d "\n"
 }
 
-# Generate encryption key (64 hex characters = 32 bytes)
+# Generate encryption key (exactly 32 characters for AES-256)
 generate_encryption_key() {
-    openssl rand -hex 32
+    openssl rand -base64 32 | head -c 32
 }
 
 # Generate JWT tokens using Node.js via Docker
@@ -231,7 +231,7 @@ main() {
 
     print_success "FLUXBASE_AUTH_JWT_SECRET generated (base64, 48 bytes)"
     print_success "POSTGRES_PASSWORD generated (40 chars)"
-    print_success "FLUXBASE_ENCRYPTION_KEY generated (64 hex chars)"
+    print_success "FLUXBASE_ENCRYPTION_KEY generated (32 chars)"
     print_success "FLUXBASE_SECURITY_SETUP_TOKEN generated (32 chars)"
 
     # Generate JWT tokens
@@ -317,7 +317,7 @@ EOF
 # Fluxbase Configuration
 # ═══════════════════════════════════════════════════════════════
 
-# Encryption key for secrets at rest (AES-256)
+# Encryption key for secrets at rest (AES-256, 32 chars)
 FLUXBASE_ENCRYPTION_KEY=${FLUXBASE_ENCRYPTION_KEY}
 
 # Admin setup token (required to access /admin/setup)

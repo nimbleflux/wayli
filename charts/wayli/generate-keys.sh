@@ -1,0 +1,1 @@
+../../deploy/docker-compose/generate-keys.sh

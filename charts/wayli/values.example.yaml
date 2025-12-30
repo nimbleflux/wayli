@@ -6,12 +6,16 @@
 # Documentation:
 #   See charts/wayli/README.md for full configuration options
 
+global:
+  ## Shared secret name anchor for Fluxbase
+  fluxbaseSecretName: fluxbase-secret
+
 ## Web deployment
 web:
-  ## Environment variables
+  ## Environ1ment variables
   env:
     ## Site URL for CORS and trusted origins (you MUST set this)
-    siteUrl: 'https://your-domain.com'
+    siteUrl: 'https://wayli.int.example.com'
 
 ## Worker deployment (StatefulSet)
 worker:
@@ -21,147 +25,116 @@ worker:
     pelias:
       endpoint: 'https://pelias.wayli.app'
 
-serviceAccount:
-  create: false
-
-## Wayli ingress configuration
-ingress:
+# Gateway API configuration for Wayli web interface
+httpRoute:
   enabled: true
-  ingressClassName: nginx
-  hostname: wayli.your-domain.com
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+  parentRefs:
+    - name: internal-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostname: wayli.int.example.com
+  path: /
+  pathType: PathPrefix
+
+# ## Wayli ingress configuration
+# ingress:
+#   enabled: true
+#   ingressClassName: nginx
+#   hostname: wayli.your-domain.com
+#   annotations:
+#     nginx.ingress.kubernetes.io/rewrite-target: /
+#     nginx.ingress.kubernetes.io/ssl-redirect: 'true'
 
 ## Fluxbase dependency configuration
 ## See: https://github.com/fluxbase-eu/fluxbase for full configuration options
 fluxbase:
-  enabled: true
-
-  ## Global parameters
   global:
-    storageClass: 'local-path'
+    storageClass: "local-storage"
+
+  extraEnvVars:
+    - name: DENO_DIR
+      value: "/tmp/deno"
+    - name: HOME
+      value: "/tmp"
+  extraVolumes:
+    - name: deno-cache
+      emptyDir: {}
+
+  extraVolumeMounts:
+    - name: deno-cache
+      mountPath: /tmp/deno
+  replicaCount: 1
+
+  httpRoute:
+    enabled: true
+    parentRefs:
+      - name: public-gateway
+        namespace: nginx-gateway
+        sectionName: https-example-com
+    hostname: flux.example.com
+    path: /
+    pathType: PathPrefix
+    annotations:
+      nginx.org/client-max-body-size: "0"  # Unlimited body size for uploads
+
+  # Persistence for Fluxbase storage (local file storage). This is mounted to /data/storage
+  persistence:
+    enabled: true
+    size: 50Gi
+    storageClass: "local-storage"
+    existingClaim: "wayli-fluxbase-storage-pvc"
 
   ## Fluxbase application configuration
   config:
-    ## Public base URL for the application (you MUST set this)
-    base_url: 'https://flux.internal.your-domain.com'
-    public_base_url: 'https://flux.your-domain.com'
+    ## REQUIRED: Public base URL for the application
+    ## This is used for generating links in emails, OAuth callbacks, etc.
+    base_url: "https://flux.example.com"
 
-    ## Authentication configuration
-    auth:
-      jwt_expiry: '1h'
-      refresh_expiry: '168h'
-      enable_signup: true
-      enable_magic_link: true
-      totp_issuer: 'Wayli'
+    ai:
+      enabled: true
 
     ## CORS configuration
     cors:
       allowed_origins:
-        - 'https://your-domain.com'
-        - 'https://wayli.your-domain.com'
-      allow_credentials: true
+        - "https://flux.example.com"
+        - "https://wayli.int.example.com"
 
-    ## Storage configuration
-    storage:
-      provider: 'local'
-      local_path: '/data/storage'
-      max_upload_size: 1073741824  # 1GB
-      default_buckets:
-        - 'trip-images'
-
-    ## Realtime/WebSocket configuration
-    realtime:
-      enabled: true
-      max_connections: 1000
-
-    ## Email configuration (optional)
-    email:
-      enabled: true
-      provider: 'smtp'
-      from_address: 'noreply@your-domain.com'
-      from_name: 'Wayli'
-      smtp_host: 'smtp.your-domain.com'
-      smtp_port: 587
-      smtp_tls: true
-      # smtp_username and smtp_password should be in existingSecret
-
-    ## Edge Functions configuration
-    functions:
-      enabled: true
-      functions_dir: '/app/functions'
-      auto_load_on_boot: true
-
-    ## Background Jobs configuration
-    jobs:
-      enabled: true
-      worker_mode: 'embedded'
-      embedded_worker_count: 4
-
-    ## Logging configuration
-    logging:
-      console_enabled: true
-      console_level: 'info'
-      console_format: 'json'
-      backend: 'postgres'
-      pubsub_enabled: true
-      retention_enabled: true
-
-    ## Admin dashboard configuration
-    admin:
-      enabled: false
-
-  ## Existing secret for sensitive configuration (you MUST create this secret)
-  ## Should contain keys: jwt-secret, setup-token, database-password, smtp-password
-  existingSecret: *fluxbaseSecret
-
-  ## Custom key names for existingSecret
-  existingSecretKeyRef:
-    jwtSecret: 'jwt-secret'
-    setupToken: 'setup-token'
-    databasePassword: 'database-password'
-    smtpPassword: 'smtp-password'
+  ## Secret containing sensitive values (REQUIRED)
+  ## See the kubectl command at the top of this file
+  existingSecret: &fluxbaseSecret "fluxbase-secret"
 
   ## Resource configuration
-  resourcesPreset: 'small'
+  resourcesPreset: "small"
 
-  ## Persistence configuration
-  persistence:
-    enabled: true
-    storageClass: 'local-path'
-    size: 50Gi
+  # ## Ingress configuration
+  # ingress:
+  #   enabled: true
+  #   ingressClassName: nginx
+  #   hostname: "flux.example.com"
+  #   annotations:
+  #     nginx.ingress.kubernetes.io/proxy-body-size: "1g"
+  #     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+  #     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  #   tls: false # Set to true if using cert-manager or providing TLS secrets
 
-  ## Ingress configuration for Fluxbase API
-  ingress:
-    enabled: true
-    ingressClassName: nginx
-    hostname: 'flux.your-domain.com'  # Use the same as config.base_url
-    annotations:
-      nginx.ingress.kubernetes.io/ssl-redirect: 'true'
-      nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
-      nginx.ingress.kubernetes.io/backend-protocol: 'HTTP'
-      nginx.ingress.kubernetes.io/proxy-body-size: '1g'
-      nginx.ingress.kubernetes.io/proxy-connect-timeout: '3600'
-      nginx.ingress.kubernetes.io/proxy-read-timeout: '3600'
-      nginx.ingress.kubernetes.io/proxy-send-timeout: '3600'
-    tls: false
-
-  ## PostgreSQL configuration (bundled)
+  ## PostgreSQL (bundled)
+  ## You can specify runtime credentials, admin credentials, or both.
+  ## If only one set is provided, the other will use the same credentials.
   postgresql:
     enabled: true
     auth:
-      database: fluxbase
-      username: fluxbase
+      database: wayli
+      ## Runtime user for normal queries (optional, falls back to adminUsername)
+      # username: fluxbase
+      ## Admin user for migrations (optional, falls back to username)
+      # adminUsername: postgres
       existingSecret: *fluxbaseSecret
+      secretKeys:
+        username: db-username
+        password: db-password
+        # adminUsername: db-admin-username  # Optional
+        # adminPassword: db-admin-password  # Optional
     persistence:
       enabled: true
-      size: 20Gi
-      storageClass: 'local-path'
-    resources:
-      requests:
-        memory: 512Mi
-        cpu: '250m'
-      limits:
-        memory: 2Gi
-        cpu: '2'
+      size: 10Gi
+      existingClaim: *fluxbaseSecret

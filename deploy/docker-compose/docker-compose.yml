@@ -23,7 +23,6 @@ services:
       APP_MODE: web
       HOST: '0.0.0.0'
       PORT: '80'
-      PUBLIC_TRUSTED_ORIGINS: ${SITE_URL}
 
       # Fluxbase connection
       FLUXBASE_PUBLIC_BASE_URL: ${FLUXBASE_PUBLIC_BASE_URL:-http://localhost:8080}
@@ -85,7 +84,9 @@ services:
       FLUXBASE_STORAGE_LOCAL_PATH: /app/storage
 
       # Enable features
-      FLUXBASE_ADMIN_ENABLED: "true"
+      FLUXBASE_ADMIN_ENABLED: ${FLUXBASE_ADMIN_ENABLED-false}
+      FLUXBASE_CORS_ALLOWED_ORIGINS: ${SITE_URL}
+      FLUXBASE_DEBUG: "true"
 
     volumes:
       - storage_data:/app/storage

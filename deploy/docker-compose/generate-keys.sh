@@ -210,9 +210,10 @@ main() {
     # Ask for URLs
     print_header "Configuration"
 
-    echo "Configure the Fluxbase URLs for your deployment."
+    echo "Configure the URLs for your deployment."
     echo ""
 
+    SITE_URL=$(prompt_with_default "SITE_URL (public URL for Wayli app)" "http://localhost:4000")
     FLUXBASE_PUBLIC_BASE_URL=$(prompt_with_default "FLUXBASE_PUBLIC_BASE_URL (public URL for Fluxbase API)" "http://localhost:8080")
     FLUXBASE_BASE_URL=$(prompt_with_default "FLUXBASE_BASE_URL (internal URL for container-to-container)" "http://fluxbase:8080")
 
@@ -272,14 +273,14 @@ main() {
 # URLs
 # ═══════════════════════════════════════════════════════════════
 
+# Public URL where Wayli app is accessible
+SITE_URL=${SITE_URL}
+
 # Public URL where Fluxbase API is accessible (used by browser)
 FLUXBASE_PUBLIC_BASE_URL=${FLUXBASE_PUBLIC_BASE_URL}
 
 # Internal URL for server-to-server communication
 FLUXBASE_BASE_URL=${FLUXBASE_BASE_URL}
-
-# Site URL (used for CORS and redirects)
-SITE_URL=${FLUXBASE_PUBLIC_BASE_URL}
 
 # ═══════════════════════════════════════════════════════════════
 # Database
@@ -353,6 +354,7 @@ EOF
         POSTGRES_PASSWORD_B64=$(echo -n "$POSTGRES_PASSWORD" | base64)
         FLUXBASE_ENCRYPTION_KEY_B64=$(echo -n "$FLUXBASE_ENCRYPTION_KEY" | base64)
         FLUXBASE_SECURITY_SETUP_TOKEN_B64=$(echo -n "$FLUXBASE_SECURITY_SETUP_TOKEN" | base64)
+        SITE_URL_B64=$(echo -n "$SITE_URL" | base64)
         FLUXBASE_PUBLIC_BASE_URL_B64=$(echo -n "$FLUXBASE_PUBLIC_BASE_URL" | base64)
         FLUXBASE_BASE_URL_B64=$(echo -n "$FLUXBASE_BASE_URL" | base64)
 
@@ -410,6 +412,7 @@ EOF
   setup-token: ${FLUXBASE_SECURITY_SETUP_TOKEN_B64}
 
   # URLs
+  site-url: ${SITE_URL_B64}
   fluxbase-public-url: ${FLUXBASE_PUBLIC_BASE_URL_B64}
   fluxbase-internal-url: ${FLUXBASE_BASE_URL_B64}
 EOF
@@ -436,6 +439,7 @@ EOF
 wayli:
   existingSecret: wayli-secrets
   existingSecretKeys:
+    siteUrl: site-url
     jwtSecret: jwt-secret
     anonKey: anon-key
     serviceRoleKey: service-role-key

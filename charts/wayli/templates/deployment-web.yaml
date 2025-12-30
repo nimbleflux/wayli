@@ -84,8 +84,6 @@ spec:
               {{- else }}
               value: {{ .Values.web.env.appMode | quote }}
               {{- end }}
-            - name: PUBLIC_TRUSTED_ORIGINS
-              value: {{ include "wayli.siteUrl" . | quote }}
             - name: HOST
               value: {{ .Values.web.env.host | quote }}
             - name: PORT

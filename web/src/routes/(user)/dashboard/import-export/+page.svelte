@@ -44,6 +44,12 @@
 			label: 'GeoJSON',
 			icon: MapPin,
 			description: t('importExport.geoJsonDescription')
+		},
+		{
+			value: 'KML',
+			label: 'KML',
+			icon: MapPin,
+			description: t('importExport.kmlDescription')
 		}
 		// { value: 'GPX', label: 'GPX', icon: Route, description: t('importExport.gpxDescription')},
 		// {
@@ -68,6 +74,7 @@
 	async function detectImportFormat(file: File): Promise<string> {
 		const name = file.name.toLowerCase();
 		if (name.endsWith('.geojson') || name.endsWith('.json')) return 'GeoJSON';
+		if (name.endsWith('.kml')) return 'KML';
 		// if (name.endsWith('.gpx')) return 'GPX';
 		// if (name.endsWith('.rec')) return 'OwnTracks';
 		return 'GeoJSON'; // Default
@@ -264,7 +271,7 @@
 							type="file"
 							id="fileInput"
 							bind:this={fileInputEl}
-							accept=".geojson,.json"
+							accept=".geojson,.json,.kml"
 							class="block w-full cursor-pointer rounded-md border border-gray-300 text-sm text-gray-500 file:mr-4 file:border-0 file:bg-primary/5 file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary hover:file:bg-primary/10 dark:border-gray-600 dark:text-gray-300 dark:file:bg-gray-700 dark:file:text-gray-300 dark:hover:file:bg-gray-600"
 							onchange={handleFileSelect}
 						/>

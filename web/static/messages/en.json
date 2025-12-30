@@ -501,6 +501,7 @@
 		"processingItems": "Processing {processed} of {total} items...",
 		"geoJsonDescription": "Geographic data in JSON format",
 		"gpxDescription": "GPS Exchange Format containing tracks, routes, and waypoints",
+		"kmlDescription": "Keyhole Markup Language files from Google Earth and other mapping applications",
 		"ownTracksDescription": "OwnTracks recording files (.REC) exported from the OwnTracks app",
 		"supportedFormats": "Supported formats",
 		"locationData": "Location data",

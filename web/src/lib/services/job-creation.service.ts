@@ -14,8 +14,7 @@ import {
 } from '$lib/stores/upload-store';
 
 type JobType =
-	| 'data-import-geojson'
-	| 'data-import-gpx'
+	| 'data-import'
 	| 'data-import-owntracks'
 	| 'data-export'
 	| 'trip-generation'
@@ -23,11 +22,11 @@ type JobType =
 	| 'reverse-geocoding'
 	| 'distance-calculation';
 
-const IMPORT_FORMAT_TO_JOB_TYPE: Record<string, JobType> = {
-	GeoJSON: 'data-import-geojson',
-	GPX: 'data-import-gpx',
-	OwnTracks: 'data-import-owntracks'
-};
+// Formats supported by the unified data-import job
+const UNIFIED_IMPORT_FORMATS = ['GeoJSON', 'GPX', 'KML'];
+
+// OwnTracks uses a separate job (different enough to warrant its own handler)
+const OWNTRACKS_FORMAT = 'OwnTracks';
 
 type JobPriority = number; // 1-10, where 10 is highest priority
 
@@ -109,8 +108,13 @@ class JobCreationService {
 		const uploadId = `upload-${Date.now()}`;
 
 		// Determine the job type based on format
-		const jobType = IMPORT_FORMAT_TO_JOB_TYPE[options.format];
-		if (!jobType) {
+		// Most formats use the unified data-import job, OwnTracks has its own handler
+		let jobType: JobType;
+		if (UNIFIED_IMPORT_FORMATS.includes(options.format)) {
+			jobType = 'data-import';
+		} else if (options.format === OWNTRACKS_FORMAT) {
+			jobType = 'data-import-owntracks';
+		} else {
 			throw new Error(`Unsupported import format: ${options.format}`);
 		}
 
@@ -143,14 +147,15 @@ class JobCreationService {
 			// Mark as processing (creating job)
 			markUploadProcessing(uploadId);
 
-			// Create import job using Fluxbase Jobs with format-specific job type
-			// Note: Job handlers expect camelCase property names in payload
+			// Create import job using Fluxbase Jobs
+			// The unified data-import job uses the format field to route to the correct parser
 			const jobResult = await this.createJob({
 				type: jobType,
 				data: {
 					storagePath: fileName,
 					fileName: file.name,
 					fileSize: file.size,
+					format: options.format.toLowerCase(), // Used by unified job to select parser
 					includeLocationData: options.includeLocationData,
 					includeWantToVisit: options.includeWantToVisit,
 					includeTrips: options.includeTrips

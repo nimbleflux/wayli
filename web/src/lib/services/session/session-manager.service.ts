@@ -296,9 +296,20 @@ export class SessionManagerService {
 	 */
 	private clearSessionData(): void {
 		if (typeof window === 'undefined') return;
+
+		// Clear wayli-specific localStorage
 		localStorage.removeItem(REMEMBER_ME_KEY);
 		localStorage.removeItem(SESSION_START_KEY);
 		localStorage.removeItem(REAUTH_TIME_KEY);
+
+		// Clear Fluxbase session from localStorage (failsafe if signOut fails)
+		localStorage.removeItem('fluxbase.auth.session');
+
+		// Clear job store cache (user-specific data)
+		localStorage.removeItem('wayli_finished_jobs');
+
+		// Clear sessionStorage items
+		sessionStorage.removeItem('pending_verification_email');
 	}
 
 	/**

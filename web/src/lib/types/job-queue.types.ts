@@ -30,8 +30,7 @@ export interface Job {
 
 export type JobType =
 	| 'reverse-geocoding'
-	| 'data-import-geojson'
-	| 'data-import-gpx'
+	| 'data-import'
 	| 'data-import-owntracks'
 	| 'trip-generation'
 	| 'data-export'

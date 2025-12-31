@@ -53,7 +53,10 @@ export const config = {
 		}
 
 		// In development mode, use environment variables from Vite (replaced at build time)
-		if (typeof process !== 'undefined' && isValidConfigValue(process.env.FLUXBASE_PUBLIC_BASE_URL)) {
+		if (
+			typeof process !== 'undefined' &&
+			isValidConfigValue(process.env.FLUXBASE_PUBLIC_BASE_URL)
+		) {
 			return process.env.FLUXBASE_PUBLIC_BASE_URL;
 		}
 
@@ -87,7 +90,10 @@ export const config = {
 		}
 
 		// In development mode, use environment variables from Vite (replaced at build time)
-		if (typeof process !== 'undefined' && isValidConfigValue(process.env.PUBLIC_FLUXBASE_ANON_KEY)) {
+		if (
+			typeof process !== 'undefined' &&
+			isValidConfigValue(process.env.PUBLIC_FLUXBASE_ANON_KEY)
+		) {
 			return process.env.PUBLIC_FLUXBASE_ANON_KEY;
 		}
 

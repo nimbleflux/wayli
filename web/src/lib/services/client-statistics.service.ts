@@ -190,7 +190,6 @@ export class ClientStatisticsService {
 	 * Get total count of tracker data points for a user
 	 */
 	async getTotalCount(userId: string, startDate?: string, endDate?: string): Promise<number> {
-
 		let query = this.fluxbase
 			.from('tracker_data')
 			.count('*')
@@ -218,7 +217,10 @@ export class ClientStatisticsService {
 	 * Calculate sampling strategy based on total count.
 	 * Returns the sample rate (1 = no sampling, N = keep every Nth point).
 	 */
-	private calculateSamplingStrategy(totalCount: number): { sampleRate: number; effectiveBatches: number } {
+	private calculateSamplingStrategy(totalCount: number): {
+		sampleRate: number;
+		effectiveBatches: number;
+	} {
 		if (totalCount <= this.SAMPLING_THRESHOLD) {
 			// No sampling needed
 			return {
@@ -232,7 +234,9 @@ export class ClientStatisticsService {
 		const expectedPoints = Math.ceil(totalCount / sampleRate);
 		const effectiveBatches = Math.ceil(expectedPoints / this.batchSize);
 
-		console.log(`🧮 Sampling strategy: ${totalCount} points → sample every ${sampleRate}th point → ~${expectedPoints} points`);
+		console.log(
+			`🧮 Sampling strategy: ${totalCount} points → sample every ${sampleRate}th point → ~${expectedPoints} points`
+		);
 
 		return { sampleRate, effectiveBatches };
 	}
@@ -583,7 +587,7 @@ export class ClientStatisticsService {
 				// Walking/cycling should have shorter intervals to avoid GPS drift
 				const longDistanceModes = ['train', 'car', 'plane', 'bus', 'tram', 'metro'];
 				const maxTimeSpent = longDistanceModes.includes(mode)
-					? 7200000  // 2 hours for long-distance travel
+					? 7200000 // 2 hours for long-distance travel
 					: 1800000; // 30 minutes for walking/cycling
 
 				if (mode !== 'stationary' && timeSpent > 0 && timeSpent < maxTimeSpent) {
@@ -606,8 +610,12 @@ export class ClientStatisticsService {
 
 					// Update country time distribution
 					if (point.country_code) {
-						const currentTime = this.statistics.countryTimeDistribution.get(point.country_code) || 0;
-						this.statistics.countryTimeDistribution.set(point.country_code, currentTime + timeSpent);
+						const currentTime =
+							this.statistics.countryTimeDistribution.get(point.country_code) || 0;
+						this.statistics.countryTimeDistribution.set(
+							point.country_code,
+							currentTime + timeSpent
+						);
 					}
 				}
 			}
@@ -703,7 +711,6 @@ export class ClientStatisticsService {
 		return null;
 	}
 
-
 	/**
 	 * Extract coordinates from GeoJSON location field or geocode coordinates
 	 */
@@ -777,13 +784,12 @@ export class ClientStatisticsService {
 	 * Finalize statistics calculations
 	 */
 	private finalizeStatistics(): void {
-
 		// Calculate geocoding success rate
 		this.statistics.geocodingStats.successRate =
 			this.statistics.geocodingStats.total > 0
 				? Math.round(
-					(this.statistics.geocodingStats.geocoded / this.statistics.geocodingStats.total) * 100
-				)
+						(this.statistics.geocodingStats.geocoded / this.statistics.geocodingStats.total) * 100
+					)
 				: 0;
 
 		// Filter out places and countries with short visits

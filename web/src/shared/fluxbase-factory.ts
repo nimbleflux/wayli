@@ -7,14 +7,10 @@ export function createFluxbaseClient(
 ): FluxbaseClient {
 	const { persist = false, autoRefresh = false } = options || {};
 
-	return createClient(
-		url,
-		key,
-		{
-			auth: {
-				autoRefresh,
-				persist
-			}
+	return createClient(url, key, {
+		auth: {
+			autoRefresh,
+			persist
 		}
-	);
+	});
 }

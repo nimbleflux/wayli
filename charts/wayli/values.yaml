@@ -31,11 +31,6 @@ image:
 nameOverride: ""
 fullnameOverride: ""
 
-## Deployment mode configuration
-## - combined: Run web and worker in the same pod (default, simpler for small deployments)
-## - split: Run web and worker as separate deployments (recommended for high-scale production)
-deploymentMode: combined
-
 ## Web deployment
 web:
   enabled: true
@@ -71,7 +66,6 @@ web:
   ## Environment variables
   env:
     nodeEnv: production
-    appMode: web
     host: "0.0.0.0"
     port: "80"
     ## Site URL for CORS and trusted origins
@@ -189,122 +183,6 @@ web:
   extraVolumeMounts: []
   #  - name: extra-volume
   #    mountPath: /extra
-
-## Worker deployment (StatefulSet)
-worker:
-  enabled: true
-  replicaCount: 2
-
-  ## Update strategy for StatefulSet
-  updateStrategy:
-    type: RollingUpdate
-
-  ## Pod management policy
-  podManagementPolicy: OrderedReady
-
-  ## Environment variables
-  env:
-    nodeEnv: production
-    appMode: worker
-    ## Worker concurrency configuration
-    ## Maximum number of concurrent jobs per worker pod (default: 3)
-    ## Adjust based on your resource limits and job characteristics
-    ## Recommended: 2-3 for CPU-intensive jobs, 3-5 for I/O-bound jobs
-    maxConcurrentJobs: 3
-    ## Maximum number of job retries before marking as failed (default: 3)
-    maxJobRetries: 3
-    ## External service endpoints
-    pelias:
-      endpoint: "http://pelias.pelias.svc.cluster.local:4000"
-
-  ## Extra environment variables
-  extraEnvVars: []
-  extraEnvVarsCM: ""
-  extraEnvVarsSecret: ""
-
-  ## Extra init containers (prepended before standard init containers)
-  ## Specify as a list of container definitions
-  extraInitContainers: []
-  #  - name: custom-init
-  #    image: busybox:latest
-  #    command: ['sh', '-c', 'echo "Custom init container"']
-
-  ## Service (headless for StatefulSet)
-  service:
-    enabled: true
-    type: ClusterIP
-    clusterIP: None  # Headless service
-    annotations: {}
-    labels: {}
-
-  ## Resources
-  resources:
-    requests:
-      memory: "128Mi"
-      cpu: "100m"
-    limits:
-      memory: "2Gi"
-      cpu: "1"
-
-  ## Lifecycle hooks
-  lifecycleHooks:
-    preStop:
-      exec:
-        command: ["/bin/sh", "-c", "sleep 5"]
-
-  ## Termination grace period (longer for workers to finish jobs)
-  terminationGracePeriodSeconds: 45
-
-  ## HPA for workers
-  autoscaling:
-    enabled: false
-    minReplicas: 2
-    maxReplicas: 10
-    targetCPU: 30
-    targetMemory: 80
-    behavior:
-      scaleDown:
-        stabilizationWindowSeconds: 900  # 15 min
-        policies:
-          - type: Percent
-            value: 25
-            periodSeconds: 300
-          - type: Pods
-            value: 1
-            periodSeconds: 300
-        selectPolicy: Min
-      scaleUp:
-        stabilizationWindowSeconds: 60
-        policies:
-          - type: Percent
-            value: 100
-            periodSeconds: 60
-          - type: Pods
-            value: 2
-            periodSeconds: 60
-        selectPolicy: Max
-
-  ## Pod Disruption Budget
-  podDisruptionBudget:
-    enabled: false
-    minAvailable: 2
-
-  ## Probes
-  livenessProbe:
-    enabled: false
-  readinessProbe:
-    enabled: false
-
-  podAnnotations: {}
-  podLabels: {}
-  affinity: {}
-  nodeSelector: {}
-  tolerations: []
-  priorityClassName: ""
-
-  ## Extra volumes and mounts
-  extraVolumes: []
-  extraVolumeMounts: []
 
 ## Ingress configuration
 ingress:

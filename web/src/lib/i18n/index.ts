@@ -6,7 +6,19 @@ import { writable, derived, get } from 'svelte/store';
 import { browser } from '$app/environment';
 
 // Supported locales
-export const SUPPORTED_LOCALES = ['en', 'nl', 'es', 'de', 'fr', 'it', 'ja', 'ko', 'pt', 'ru', 'zh'] as const;
+export const SUPPORTED_LOCALES = [
+	'en',
+	'nl',
+	'es',
+	'de',
+	'fr',
+	'it',
+	'ja',
+	'ko',
+	'pt',
+	'ru',
+	'zh'
+] as const;
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 
 // Default locale
@@ -17,10 +29,7 @@ export const currentLocale = writable<SupportedLocale>(DEFAULT_LOCALE);
 
 // Flatten nested objects into dot-notation keys
 // e.g., { common: { actions: { save: "Save" } } } => { "common.actions.save": "Save" }
-function flattenMessages(
-	obj: Record<string, unknown>,
-	prefix = ''
-): Record<string, string> {
+function flattenMessages(obj: Record<string, unknown>, prefix = ''): Record<string, string> {
 	const result: Record<string, string> = {};
 
 	for (const [key, value] of Object.entries(obj)) {

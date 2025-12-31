@@ -172,7 +172,9 @@
 			role="document"
 		>
 			<!-- Header -->
-			<div class="flex items-start justify-between border-b border-gray-200 p-4 dark:border-gray-700">
+			<div
+				class="flex items-start justify-between border-b border-gray-200 p-4 dark:border-gray-700"
+			>
 				<div class="flex items-start gap-3">
 					{#if amenityStyle}
 						<div
@@ -186,7 +188,9 @@
 						<h2 id="place-map-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">
 							{place.poi_name || 'Unknown Place'}
 						</h2>
-						<div class="mt-0.5 flex flex-wrap items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+						<div
+							class="mt-0.5 flex flex-wrap items-center gap-1 text-sm text-gray-500 dark:text-gray-400"
+						>
 							{#if place.poi_cuisine}
 								<span>{formatCuisine(place.poi_cuisine)}</span>
 								<span>•</span>
@@ -211,7 +215,7 @@
 				{:else}
 					<div class="flex h-full items-center justify-center bg-gray-100 dark:bg-gray-800">
 						<div class="text-center text-gray-500 dark:text-gray-400">
-							<MapPin class="mx-auto h-8 w-8 mb-2" />
+							<MapPin class="mx-auto mb-2 h-8 w-8" />
 							<p>No location data available</p>
 						</div>
 					</div>
@@ -220,7 +224,9 @@
 
 			<!-- Details -->
 			<div class="border-t border-gray-200 p-4 dark:border-gray-700">
-				<div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-600 dark:text-gray-400">
+				<div
+					class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-600 dark:text-gray-400"
+				>
 					{#if place.city || place.country}
 						<span class="flex items-center gap-1.5">
 							<MapPin class="h-4 w-4" />
@@ -245,7 +251,7 @@
 					<div class="mt-4 flex gap-2">
 						<button
 							onclick={openInMaps}
-							class="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
+							class="bg-primary hover:bg-primary/90 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors"
 						>
 							<Navigation class="h-4 w-4" />
 							Open in OpenStreetMap

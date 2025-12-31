@@ -231,7 +231,7 @@
 	<!-- Header -->
 	<div class="mb-8">
 		<div class="flex items-center gap-3">
-			<Import class="h-8 w-8 text-primary dark:text-gray-400" />
+			<Import class="text-primary h-8 w-8 dark:text-gray-400" />
 			<h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
 				{t('importExport.title')}
 			</h1>
@@ -272,7 +272,7 @@
 							id="fileInput"
 							bind:this={fileInputEl}
 							accept=".geojson,.json,.kml"
-							class="block w-full cursor-pointer rounded-md border border-gray-300 text-sm text-gray-500 file:mr-4 file:border-0 file:bg-primary/5 file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary hover:file:bg-primary/10 dark:border-gray-600 dark:text-gray-300 dark:file:bg-gray-700 dark:file:text-gray-300 dark:hover:file:bg-gray-600"
+							class="file:bg-primary/5 file:text-primary hover:file:bg-primary/10 block w-full cursor-pointer rounded-md border border-gray-300 text-sm text-gray-500 file:mr-4 file:border-0 file:px-4 file:py-2 file:text-sm file:font-medium dark:border-gray-600 dark:text-gray-300 dark:file:bg-gray-700 dark:file:text-gray-300 dark:hover:file:bg-gray-600"
 							onchange={handleFileSelect}
 						/>
 					</div>
@@ -305,7 +305,7 @@
 					type="button"
 					onclick={handleImport}
 					disabled={isImporting || !selectedFile}
-					class="mt-6 flex w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+					class="bg-primary hover:bg-primary/90 mt-6 flex w-full cursor-pointer items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
 				>
 					{#if isImporting}
 						<div class="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
@@ -343,7 +343,7 @@
 							<input
 								type="checkbox"
 								bind:checked={includeLocationDataExport}
-								class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-[rgb(34,51,95)]"
+								class="text-primary h-4 w-4 rounded border-gray-300 focus:ring-[rgb(34,51,95)]"
 							/>
 							<span class="text-sm text-gray-600 dark:text-gray-300"
 								>{t('importExport.locationData')}</span
@@ -353,7 +353,7 @@
 							<input
 								type="checkbox"
 								bind:checked={includeWantToVisitExport}
-								class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-[rgb(34,51,95)]"
+								class="text-primary h-4 w-4 rounded border-gray-300 focus:ring-[rgb(34,51,95)]"
 							/>
 							<span class="text-sm text-gray-600 dark:text-gray-300"
 								>{t('importExport.wantToVisit')}</span
@@ -363,7 +363,7 @@
 							<input
 								type="checkbox"
 								bind:checked={includeTripsExport}
-								class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-[rgb(34,51,95)]"
+								class="text-primary h-4 w-4 rounded border-gray-300 focus:ring-[rgb(34,51,95)]"
 							/>
 							<span class="text-sm text-gray-600 dark:text-gray-300">{t('importExport.trips')}</span
 							>
@@ -393,7 +393,7 @@
 
 			<button
 				onclick={handleExport}
-				class="mt-6 flex w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+				class="bg-primary hover:bg-primary/90 mt-6 flex w-full cursor-pointer items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white"
 			>
 				<FileDown class="h-4 w-4" />
 				{t('importExport.exportDataButton')}

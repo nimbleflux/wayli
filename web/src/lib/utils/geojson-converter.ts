@@ -58,7 +58,8 @@ export function convertPeliasToGeoJSON(
 		peliasResponse.borough ||
 		null;
 
-	const extractedCountry: string | null = peliasResponse.country || peliasResponse.address?.country || null;
+	const extractedCountry: string | null =
+		peliasResponse.country || peliasResponse.address?.country || null;
 
 	return {
 		type: 'Feature',
@@ -256,7 +257,8 @@ export function mergeGeocodingWithExisting(
 		peliasResponse.borough ||
 		null;
 
-	const extractedCountry: string | null = peliasResponse.country || peliasResponse.address?.country || null;
+	const extractedCountry: string | null =
+		peliasResponse.country || peliasResponse.address?.country || null;
 
 	// If there's no existing geocode data, return the new data with extracted fields
 	if (!existingGeocode || typeof existingGeocode !== 'object') {

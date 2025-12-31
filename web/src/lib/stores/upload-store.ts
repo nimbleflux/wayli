@@ -40,7 +40,12 @@ export function startUpload(id: string, fileName: string, total: number): void {
 /**
  * Update upload progress
  */
-export function updateUploadProgress(id: string, loaded: number, total: number, percentage: number): void {
+export function updateUploadProgress(
+	id: string,
+	loaded: number,
+	total: number,
+	percentage: number
+): void {
 	uploadsStore.update((uploads) => {
 		const upload = uploads.get(id);
 		if (upload) {

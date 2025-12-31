@@ -195,7 +195,7 @@
 				</button>
 				<button
 					onclick={saveUser}
-					class="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white hover:bg-primary/90"
+					class="bg-primary hover:bg-primary/90 rounded-lg px-5 py-2.5 text-sm font-medium text-white"
 				>
 					Save Changes
 				</button>

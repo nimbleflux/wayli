@@ -1,28 +1,11 @@
 #!/bin/bash
 
-# Startup script for Wayli - handles web mode
-# APP_MODE is set by docker-entrypoint.sh
+# Startup script for Wayli web server
+# Configures nginx, syncs Fluxbase resources, and starts serving
 
 set -e
 
-# Track child PIDs for cleanup
-NGINX_PID=""
-
-# Cleanup function for graceful shutdown
-cleanup() {
-    echo "Shutting down..."
-
-    if [ -n "$NGINX_PID" ] && kill -0 "$NGINX_PID" 2>/dev/null; then
-        echo "Stopping nginx (PID: $NGINX_PID)..."
-        kill -TERM "$NGINX_PID" 2>/dev/null || true
-        wait "$NGINX_PID" 2>/dev/null || true
-    fi
-
-    echo "Shutdown complete"
-    exit 0
-}
-
-# Configure nginx (used by web and combined modes)
+# Configure nginx for runtime
 configure_nginx() {
     echo "Configuring nginx for runtime..."
 
@@ -119,29 +102,13 @@ sync_all() {
     echo "All sync operations completed successfully"
 }
 
-# Start nginx in foreground (web-only mode)
-start_nginx_foreground() {
+# Start nginx in foreground
+start_nginx() {
     echo "Starting nginx..."
     exec nginx -c /tmp/nginx/nginx.conf -e /dev/stderr -g "daemon off;"
 }
 
-# Start nginx in background (combined mode)
-start_nginx_background() {
-    echo "Starting nginx in background..."
-    nginx -c /tmp/nginx/nginx.conf -e /dev/stderr -g "daemon off;" &
-    NGINX_PID=$!
-    echo "Nginx started (PID: $NGINX_PID)"
-}
-
-# Main execution based on APP_MODE
-case "${APP_MODE:-web}" in
-    "web"|"combined")
-        configure_nginx
-        sync_all
-        start_nginx_foreground
-        ;;
-    *)
-        echo "Unknown APP_MODE: ${APP_MODE}"
-        exit 1
-        ;;
-esac
+# Main execution
+configure_nginx
+sync_all
+start_nginx

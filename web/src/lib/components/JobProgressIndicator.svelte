@@ -6,7 +6,12 @@
 	import JobDetailModal from '$lib/components/modals/JobDetailModal.svelte';
 	import { fluxbase } from '$lib/fluxbase';
 	import { translate } from '$lib/i18n';
-	import { getActiveJobsMap, subscribe, removeJobFromStore, type JobStoreJob } from '$lib/stores/job-store';
+	import {
+		getActiveJobsMap,
+		subscribe,
+		removeJobFromStore,
+		type JobStoreJob
+	} from '$lib/stores/job-store';
 	import {
 		activeUploads,
 		subscribe as subscribeUploads,
@@ -256,16 +261,15 @@
 		jobsArray.filter((job) => job.status === 'pending' || job.status === 'running')
 	);
 	// Cancelled jobs stay visible until dismissed by user
-	let cancelledJobsList = $derived(
-		jobsArray.filter((job) => job.status === 'cancelled')
-	);
+	let cancelledJobsList = $derived(jobsArray.filter((job) => job.status === 'cancelled'));
 	// Failed jobs also stay visible until dismissed
-	let failedJobsList = $derived(
-		jobsArray.filter((job) => job.status === 'failed')
-	);
+	let failedJobsList = $derived(jobsArray.filter((job) => job.status === 'failed'));
 	let recentlyCompletedJobs = $derived(
 		jobsArray.filter(
-			(job) => job.status === 'completed' && job.updated_at && Date.now() - new Date(job.updated_at).getTime() < 5000
+			(job) =>
+				job.status === 'completed' &&
+				job.updated_at &&
+				Date.now() - new Date(job.updated_at).getTime() < 5000
 		)
 	);
 	let recentlyCompletedExportJobs = $derived(
@@ -312,7 +316,9 @@
 		visibleJobs = activeJobsList;
 
 		// Handle non-export completed jobs (5 second display)
-		const nonExportCompleted = recentlyCompletedJobs.filter((job) => job.job_name !== 'data-export');
+		const nonExportCompleted = recentlyCompletedJobs.filter(
+			(job) => job.job_name !== 'data-export'
+		);
 		manageJobTimers(
 			nonExportCompleted,
 			showCompletedJobs,
@@ -335,7 +341,7 @@
 {#snippet uploadCard(upload: UploadProgress)}
 	<div class="mb-3 flex items-center gap-3">
 		<div class="flex-shrink-0">
-			<Upload class="h-5 w-5 text-primary dark:text-primary-dark" />
+			<Upload class="text-primary dark:text-primary-dark h-5 w-5" />
 		</div>
 
 		<div class="min-w-0 flex-1">
@@ -347,7 +353,7 @@
 				<div class="relative mb-1">
 					<div class="h-4 w-full rounded-full bg-gray-200 dark:bg-gray-700">
 						<div
-							class="relative h-4 rounded-full bg-primary transition-all duration-300 dark:bg-blue-500"
+							class="bg-primary relative h-4 rounded-full transition-all duration-300 dark:bg-blue-500"
 							style="width: {upload.percentage}%"
 						>
 							{#if upload.percentage > 10}
@@ -366,14 +372,18 @@
 			{:else if upload.status === 'processing'}
 				<div class="relative mb-1">
 					<div class="h-4 w-full rounded-full bg-gray-200 dark:bg-gray-700">
-						<div class="h-4 w-full animate-pulse rounded-full bg-primary dark:bg-blue-500"></div>
+						<div class="bg-primary h-4 w-full animate-pulse rounded-full dark:bg-blue-500"></div>
 					</div>
 				</div>
 				<div class="text-xs text-gray-500 dark:text-gray-400">{t('jobProgress.creatingJob')}</div>
 			{:else if upload.status === 'completed'}
-				<div class="text-xs text-green-600 dark:text-green-400">✅ {t('jobProgress.uploadComplete')}</div>
+				<div class="text-xs text-green-600 dark:text-green-400">
+					✅ {t('jobProgress.uploadComplete')}
+				</div>
 			{:else if upload.status === 'failed'}
-				<div class="text-xs text-red-600 dark:text-red-400">❌ {upload.error || t('jobProgress.uploadFailed')}</div>
+				<div class="text-xs text-red-600 dark:text-red-400">
+					❌ {upload.error || t('jobProgress.uploadFailed')}
+				</div>
 			{/if}
 		</div>
 	</div>
@@ -406,7 +416,7 @@
 				<div class="relative mb-1">
 					<div class="h-4 w-full rounded-full bg-gray-200 dark:bg-gray-700">
 						<div
-							class="relative h-4 rounded-full bg-primary transition-all duration-300 dark:bg-blue-500"
+							class="bg-primary relative h-4 rounded-full transition-all duration-300 dark:bg-blue-500"
 							style="width: {job.progress_percent || 0}%"
 						>
 							{#if (job.progress_percent || 0) > 10}
@@ -447,7 +457,7 @@
 			<button
 				type="button"
 				onclick={(e) => handleDownloadExport(job, e)}
-				class="flex-shrink-0 rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-primary dark:hover:bg-gray-600 dark:hover:text-gray-300"
+				class="hover:text-primary flex-shrink-0 rounded p-1 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 dark:hover:text-gray-300"
 				title={t('jobProgress.downloadExport')}
 				aria-label={t('jobProgress.downloadExport')}
 			>
@@ -500,11 +510,7 @@
 {/if}
 
 <!-- Job Detail Modal -->
-<JobDetailModal
-	open={showDetailModal}
-	job={selectedJob}
-	onClose={closeJobDetail}
-/>
+<JobDetailModal open={showDetailModal} job={selectedJob} onClose={closeJobDetail} />
 
 <!-- Cancel Confirmation Modal -->
 {#if showCancelConfirm && jobToCancel}

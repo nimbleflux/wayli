@@ -22,8 +22,17 @@ export default ts.config(
 		},
 		rules: {
 			'no-undef': 'off',
-			'@typescript-eslint/no-explicit-any': 'off',
-			'@typescript-eslint/no-unused-vars': 'off'
+			// Enable type safety rules as warnings to track technical debt
+			// Goal: Convert to 'error' once all violations are fixed
+			'@typescript-eslint/no-explicit-any': 'warn',
+			'@typescript-eslint/no-unused-vars': [
+				'warn',
+				{
+					argsIgnorePattern: '^_',
+					varsIgnorePattern: '^_',
+					caughtErrorsIgnorePattern: '^_'
+				}
+			]
 		}
 	},
 	{

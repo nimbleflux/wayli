@@ -126,7 +126,7 @@
 	<!-- Header -->
 	<div class="mb-8">
 		<div class="flex items-center gap-3">
-			<Link class="h-8 w-8 text-primary dark:text-gray-400" />
+			<Link class="text-primary h-8 w-8 dark:text-gray-400" />
 			<h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
 				{t('connections.title')}
 			</h1>
@@ -186,7 +186,7 @@
 				<button
 					type="button"
 					onclick={generateApiKey}
-					class="flex cursor-pointer items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-primary-dark/90"
+					class="bg-primary hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-primary-dark/90 flex cursor-pointer items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors"
 				>
 					<RefreshCw class="h-4 w-4" />
 					{owntracksApiKeyConfigured
@@ -202,13 +202,13 @@
 
 				<!-- Instructions -->
 				<div
-					class="mt-4 rounded-lg border border-primary/30 bg-primary/5 p-4 dark:border-primary-dark/30 dark:bg-primary-dark/20"
+					class="border-primary/30 bg-primary/5 dark:border-primary-dark/30 dark:bg-primary-dark/20 mt-4 rounded-lg border p-4"
 				>
-					<h3 class="mb-2 text-sm font-medium text-primary dark:text-primary-dark">
+					<h3 class="text-primary dark:text-primary-dark mb-2 text-sm font-medium">
 						{t('connections.setupInstructions')}
 					</h3>
 					<ol
-						class="list-inside list-decimal space-y-1 text-sm text-primary dark:text-primary-dark/80"
+						class="text-primary dark:text-primary-dark/80 list-inside list-decimal space-y-1 text-sm"
 					>
 						<li>{t('connections.instruction1')}</li>
 						<li>{t('connections.instruction2')}</li>
@@ -294,7 +294,7 @@
 							type="text"
 							value={newlyGeneratedApiKey}
 							readonly
-							class="flex-1 rounded-md border border-[rgb(218,218,221)] bg-gray-50 px-3 py-2 text-sm font-mono text-gray-900 dark:border-[#3f3f46] dark:bg-[#1a1a1a] dark:text-gray-100"
+							class="flex-1 rounded-md border border-[rgb(218,218,221)] bg-gray-50 px-3 py-2 font-mono text-sm text-gray-900 dark:border-[#3f3f46] dark:bg-[#1a1a1a] dark:text-gray-100"
 						/>
 						<button
 							type="button"
@@ -317,7 +317,7 @@
 				<button
 					type="button"
 					onclick={closeApiKeyModal}
-					class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
+					class="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors"
 				>
 					{t('connections.iHaveSavedMyKey')}
 				</button>

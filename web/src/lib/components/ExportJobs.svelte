@@ -82,7 +82,9 @@
 				// Use the higher progress value
 				progress: Math.max(job.progress || 0, existing.progress || 0)
 			};
-			console.log(`🔄 Job ${job.id}: merged (new status=${job.status}, existing status=${existing.status})`);
+			console.log(
+				`🔄 Job ${job.id}: merged (new status=${job.status}, existing status=${existing.status})`
+			);
 			jobsById.set(job.id, mergedJob);
 		} else {
 			console.log(`🔄 Job ${job.id}: new job added`);
@@ -90,12 +92,15 @@
 		}
 
 		const finalJob = jobsById.get(job.id)!;
-		console.log(`🔄 Job ${job.id} final state:`, $state.snapshot({
-			status: finalJob.status,
-			hasDownload: !!getFilePath(finalJob.result),
-			filePath: getFilePath(finalJob.result),
-			resultKeys: finalJob.result ? Object.keys(finalJob.result as object) : null
-		}));
+		console.log(
+			`🔄 Job ${job.id} final state:`,
+			$state.snapshot({
+				status: finalJob.status,
+				hasDownload: !!getFilePath(finalJob.result),
+				filePath: getFilePath(finalJob.result),
+				resultKeys: finalJob.result ? Object.keys(finalJob.result as object) : null
+			})
+		);
 	}
 
 	function updateExportJobs(newJobs: ExportJob[]) {
@@ -154,7 +159,10 @@
 					const filePath = getFilePath(job.result);
 					const hasDownload = !!filePath;
 					const hasValidLink = isRecent && hasDownload;
-					console.log(`📋 Job ${job.id}: completed=${job.status === 'completed'}, hasDownload=${hasDownload}, filePath=${filePath}, isRecent=${isRecent}, showing=${hasValidLink}, result=`, job.result);
+					console.log(
+						`📋 Job ${job.id}: completed=${job.status === 'completed'}, hasDownload=${hasDownload}, filePath=${filePath}, isRecent=${isRecent}, showing=${hasValidLink}, result=`,
+						job.result
+					);
 					return hasValidLink;
 				}
 
@@ -196,7 +204,11 @@
 		// Parse result if it's a JSON string, then normalize
 		let normalizedResult = parseResultIfString(job.result) as ExportJob['result'];
 		// Handle old format with nested result
-		if (normalizedResult && (normalizedResult as any).result?.file_path && !normalizedResult.file_path) {
+		if (
+			normalizedResult &&
+			(normalizedResult as any).result?.file_path &&
+			!normalizedResult.file_path
+		) {
 			normalizedResult = {
 				...(normalizedResult as any).result,
 				...normalizedResult
@@ -244,14 +256,17 @@
 			// The service adapter returns jobs in API format (job_name, progress_percent, etc.)
 			// Convert to ExportJob format (type, progress, etc.)
 			if (Array.isArray(result)) {
-				console.log('📋 Raw API jobs:', result.map((j: any) => ({
-					id: j.id,
-					status: j.status,
-					hasResult: !!j.result,
-					resultType: j.result ? typeof j.result : 'undefined',
-					resultKeys: j.result && typeof j.result === 'object' ? Object.keys(j.result) : null,
-					file_path: j.result?.file_path
-				})));
+				console.log(
+					'📋 Raw API jobs:',
+					result.map((j: any) => ({
+						id: j.id,
+						status: j.status,
+						hasResult: !!j.result,
+						resultType: j.result ? typeof j.result : 'undefined',
+						resultKeys: j.result && typeof j.result === 'object' ? Object.keys(j.result) : null,
+						file_path: j.result?.file_path
+					}))
+				);
 				const convertedJobs = result.map((job: any) => {
 					// Parse result if it's a JSON string (API returns stringified JSON)
 					let normalizedResult = parseResultIfString(job.result);
@@ -351,7 +366,9 @@
 
 	{#if loading}
 		<div class="flex items-center justify-center py-8">
-			<div class="h-6 w-6 animate-spin rounded-full border-b-2 border-primary dark:border-primary-dark"></div>
+			<div
+				class="border-primary dark:border-primary-dark h-6 w-6 animate-spin rounded-full border-b-2"
+			></div>
 		</div>
 	{:else if filteredExportJobs.length === 0}
 		<div class="py-8 text-center text-gray-500 dark:text-gray-400">
@@ -367,9 +384,20 @@
 						<div class="flex items-center gap-3">
 							<!-- Status icon -->
 							<div
-								class="flex h-8 w-8 items-center justify-center rounded-full {job.status === 'completed' ? 'bg-green-100 dark:bg-green-900/20' : job.status === 'failed' ? 'bg-red-100 dark:bg-red-900/20' : 'bg-primary/10 dark:bg-primary-dark/20'}"
+								class="flex h-8 w-8 items-center justify-center rounded-full {job.status ===
+								'completed'
+									? 'bg-green-100 dark:bg-green-900/20'
+									: job.status === 'failed'
+										? 'bg-red-100 dark:bg-red-900/20'
+										: 'bg-primary/10 dark:bg-primary-dark/20'}"
 							>
-								<Check class="h-4 w-4 {job.status === 'completed' ? 'text-green-600 dark:text-green-400' : job.status === 'failed' ? 'text-red-600 dark:text-red-400' : 'text-primary dark:text-primary-dark'}" />
+								<Check
+									class="h-4 w-4 {job.status === 'completed'
+										? 'text-green-600 dark:text-green-400'
+										: job.status === 'failed'
+											? 'text-red-600 dark:text-red-400'
+											: 'text-primary dark:text-primary-dark'}"
+								/>
 							</div>
 
 							<!-- Job info -->
@@ -403,7 +431,7 @@
 						{#if job.status === 'completed' && new Date(new Date(job.created_at).getTime() + 7 * 24 * 60 * 60 * 1000) > new Date()}
 							<button
 								onclick={() => downloadExport(job.id)}
-								class="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-blue-600"
+								class="bg-primary hover:bg-primary/90 dark:bg-primary-dark inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-white transition-colors dark:hover:bg-blue-600"
 							>
 								<Download class="h-4 w-4" />
 								{t('exportJobs.download')}
@@ -420,7 +448,7 @@
 							</div>
 							<div class="h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700">
 								<div
-									class="h-2 rounded-full bg-primary transition-all duration-300 dark:bg-primary-dark"
+									class="bg-primary dark:bg-primary-dark h-2 rounded-full transition-all duration-300"
 									style="width: {job.progress}%"
 								></div>
 							</div>
@@ -433,7 +461,7 @@
 							<div class="flex flex-wrap gap-2">
 								{#if job.data.includeLocationData}
 									<span
-										class="inline-flex items-center rounded-full bg-primary/10 px-2 py-1 text-xs text-primary dark:bg-primary-dark/20 dark:text-primary-dark"
+										class="bg-primary/10 text-primary dark:bg-primary-dark/20 dark:text-primary-dark inline-flex items-center rounded-full px-2 py-1 text-xs"
 									>
 										{t('exportJobs.locationData')}
 									</span>

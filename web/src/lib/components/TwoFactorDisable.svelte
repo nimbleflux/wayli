@@ -77,7 +77,7 @@
 			<!-- Close Button -->
 			<button
 				onclick={handleClose}
-				class="absolute right-4 top-4 rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+				class="absolute top-4 right-4 rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
 				aria-label="Close"
 			>
 				<X class="h-5 w-5" />
@@ -94,9 +94,7 @@
 					<h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
 						Disable Two-Factor Authentication
 					</h2>
-					<p class="text-sm text-gray-600 dark:text-gray-400">
-						Confirm your password to continue
-					</p>
+					<p class="text-sm text-gray-600 dark:text-gray-400">Confirm your password to continue</p>
 				</div>
 			</div>
 
@@ -108,8 +106,8 @@
 				<div class="text-sm">
 					<p class="font-semibold text-yellow-900 dark:text-yellow-100">Warning</p>
 					<p class="mt-1 text-yellow-700 dark:text-yellow-300">
-						Disabling 2FA will make your account less secure. You'll only need your password to
-						sign in.
+						Disabling 2FA will make your account less secure. You'll only need your password to sign
+						in.
 					</p>
 				</div>
 			</div>
@@ -125,7 +123,10 @@
 
 			<!-- Password Input -->
 			<div class="mb-6">
-				<label for="disable-2fa-password" class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+				<label
+					for="disable-2fa-password"
+					class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+				>
 					Enter your password
 				</label>
 				<input
@@ -133,7 +134,7 @@
 					type="password"
 					bind:value={password}
 					placeholder="••••••••"
-					class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 text-gray-900 transition focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+					class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 text-gray-900 transition focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
 					onkeydown={(e) => {
 						if (e.key === 'Enter' && password) {
 							handleDisable();

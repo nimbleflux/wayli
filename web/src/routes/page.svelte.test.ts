@@ -15,8 +15,8 @@ vi.mock('$lib/i18n', () => ({
 			// Provide messages with actual content so messagesLoaded becomes true
 			fn({
 				'landing.welcomeTo': 'Welcome to',
-				'wayli': 'Wayli',
-				'wayliSubtitle': 'Your Journey Tracker',
+				wayli: 'Wayli',
+				wayliSubtitle: 'Your Journey Tracker',
 				'landing.yourPersonalTracker': 'Your Personal Journey Tracker',
 				'landing.selfHostedTagline': 'Self-hosted location tracking',
 				'landing.getStarted': 'Get Started',

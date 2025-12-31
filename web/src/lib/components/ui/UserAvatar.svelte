@@ -1,17 +1,22 @@
 <script lang="ts">
-	export let user: {
+	interface UserData {
 		first_name?: string;
 		last_name?: string;
 		full_name?: string;
 		email?: string;
 		avatar_url?: string;
-	} | null = null;
+	}
 
-	export let size: 'sm' | 'md' | 'lg' | 'xl' = 'md';
-	export let showFallback = true;
+	interface Props {
+		user?: UserData | null;
+		size?: 'sm' | 'md' | 'lg' | 'xl';
+		showFallback?: boolean;
+	}
+
+	let { user = null, size = 'md', showFallback = $bindable(true) }: Props = $props();
 
 	// Generate initials from user data
-	let initials = getInitials(user);
+	let initials = $derived(getInitials(user));
 
 	// Size classes
 	const sizeClasses = {
@@ -21,15 +26,7 @@
 		xl: 'h-16 w-16 text-xl'
 	};
 
-	function getInitials(
-		user: {
-			first_name?: string;
-			last_name?: string;
-			full_name?: string;
-			email?: string;
-			avatar_url?: string;
-		} | null
-	): string {
+	function getInitials(user: UserData | null): string {
 		if (!user) return '?';
 
 		// Try to get initials from first and last name

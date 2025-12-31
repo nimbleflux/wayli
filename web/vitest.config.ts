@@ -8,6 +8,7 @@ export default defineConfig({
 	plugins: [sveltekit(), svelteTesting()],
 	test: {
 		include: ['tests/**/*.{test,spec}.{js,ts}', 'src/**/*.{test,spec}.{js,ts}'],
+		exclude: ['tests/e2e/**', 'node_modules/**'],
 		environment: 'jsdom',
 		setupFiles: ['./tests/setup.ts'],
 		globals: true,

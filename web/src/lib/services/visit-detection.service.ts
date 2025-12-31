@@ -25,12 +25,7 @@ import type { NearbyPOI } from './external/pelias.service';
 /**
  * Calculate the Haversine distance between two points in meters
  */
-function haversineDistance(
-	lat1: number,
-	lon1: number,
-	lat2: number,
-	lon2: number
-): number {
+function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
 	const R = 6371000; // Earth's radius in meters
 	const dLat = ((lat2 - lat1) * Math.PI) / 180;
 	const dLon = ((lon2 - lon1) * Math.PI) / 180;
@@ -70,10 +65,7 @@ function calculateCentroid(points: TrackerPointForVisit[]): { lat: number; lon: 
 /**
  * Get the appropriate minimum duration based on point density
  */
-function getMinDurationForDensity(
-	density: number,
-	config: VisitDetectionConfig
-): number {
+function getMinDurationForDensity(density: number, config: VisitDetectionConfig): number {
 	// density = points per minute
 	if (density >= 1) {
 		return config.minDurationDenseSeconds;
@@ -130,10 +122,7 @@ function isVisitableAmenity(amenity: string | undefined): boolean {
 /**
  * Calculate confidence score for a POI match
  */
-function calculateConfidence(
-	poi: NearbyPOI,
-	clusterAvgAccuracy: number
-): number {
+function calculateConfidence(poi: NearbyPOI, clusterAvgAccuracy: number): number {
 	let confidence = 0.5; // Base confidence
 
 	// Distance factor (closer = higher confidence)
@@ -170,10 +159,7 @@ function calculateConfidence(
 /**
  * Match a cluster to nearby POIs
  */
-function matchClusterToPOIs(
-	cluster: GPSCluster,
-	config: VisitDetectionConfig
-): POIMatchResult {
+function matchClusterToPOIs(cluster: GPSCluster, config: VisitDetectionConfig): POIMatchResult {
 	// Collect all nearby POIs from all points in the cluster
 	const poiMap = new Map<string, { poi: NearbyPOI; count: number }>();
 
@@ -270,18 +256,12 @@ export function detectClusters(
 		const prevPoint = sortedPoints[i - 1];
 
 		// Calculate time gap
-		const timeGapSeconds =
-			(point.recorded_at.getTime() - prevPoint.recorded_at.getTime()) / 1000;
+		const timeGapSeconds = (point.recorded_at.getTime() - prevPoint.recorded_at.getTime()) / 1000;
 
 		// Calculate distance from cluster centroid
 		const centroid = calculateCentroid(currentCluster);
 		const [lon, lat] = point.location.coordinates;
-		const distanceFromCentroid = haversineDistance(
-			centroid.lat,
-			centroid.lon,
-			lat,
-			lon
-		);
+		const distanceFromCentroid = haversineDistance(centroid.lat, centroid.lon, lat, lon);
 
 		// Check if point belongs to current cluster
 		const withinSpatialThreshold = distanceFromCentroid <= config.spatialRadiusMeters;
@@ -538,7 +518,10 @@ export class VisitDetectionService {
 			if (start > 0) {
 				// Find overlap start point
 				const overlapTime = sortedPoints[start].recorded_at.getTime() - overlapMs;
-				while (chunkStart > 0 && sortedPoints[chunkStart - 1].recorded_at.getTime() >= overlapTime) {
+				while (
+					chunkStart > 0 &&
+					sortedPoints[chunkStart - 1].recorded_at.getTime() >= overlapTime
+				) {
 					chunkStart--;
 				}
 			}

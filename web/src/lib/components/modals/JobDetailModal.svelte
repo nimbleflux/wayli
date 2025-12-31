@@ -175,7 +175,11 @@
 			bgColor: 'bg-green-100 dark:bg-green-900/30',
 			labelKey: 'jobProgress.statusCompleted'
 		},
-		failed: { color: 'text-red-600', bgColor: 'bg-red-100 dark:bg-red-900/30', labelKey: 'jobProgress.statusFailed' },
+		failed: {
+			color: 'text-red-600',
+			bgColor: 'bg-red-100 dark:bg-red-900/30',
+			labelKey: 'jobProgress.statusFailed'
+		},
 		cancelled: {
 			color: 'text-gray-600',
 			bgColor: 'bg-gray-100 dark:bg-gray-900/30',
@@ -201,7 +205,8 @@
 	function formatEta(seconds: number | undefined): string {
 		if (!seconds || seconds <= 0) return '';
 		if (seconds < 60) return t('jobProgress.secondsRemaining', { seconds: Math.round(seconds) });
-		if (seconds < 3600) return t('jobProgress.minutesRemaining', { minutes: Math.ceil(seconds / 60) });
+		if (seconds < 3600)
+			return t('jobProgress.minutesRemaining', { minutes: Math.ceil(seconds / 60) });
 		return t('jobProgress.hoursRemaining', { hours: Math.ceil(seconds / 3600) });
 	}
 
@@ -456,7 +461,7 @@
 						</div>
 						<div class="h-3 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
 							<div
-								class="h-3 rounded-full bg-primary transition-all duration-300 dark:bg-primary-dark"
+								class="bg-primary dark:bg-primary-dark h-3 rounded-full transition-all duration-300"
 								style="width: {displayJob.progress_percent || 0}%"
 							></div>
 						</div>
@@ -563,7 +568,7 @@
 				{#if userHasScrolled && filteredLogs.length > 0}
 					<button
 						type="button"
-						class="mt-2 w-full rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-blue-600"
+						class="bg-primary hover:bg-primary/90 dark:bg-primary-dark mt-2 w-full rounded-lg px-3 py-1.5 text-xs font-medium text-white dark:hover:bg-blue-600"
 						onclick={() => {
 							userHasScrolled = false;
 							if (logsContainer) {

@@ -149,7 +149,7 @@
 	>
 		<!-- Modal Box -->
 		<div
-			class="animate-fade-in relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-8 shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+			class="animate-fade-in relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-200 bg-white p-8 shadow-2xl dark:border-gray-700 dark:bg-gray-900"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
@@ -159,7 +159,7 @@
 			<!-- Close Button -->
 			<button
 				onclick={handleClose}
-				class="absolute right-4 top-4 rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+				class="absolute top-4 right-4 rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
 				aria-label="Close"
 			>
 				<X class="h-5 w-5" />
@@ -168,9 +168,9 @@
 			<!-- Header -->
 			<div class="mb-6 flex items-center gap-3">
 				<div
-					class="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 dark:bg-primary/30"
+					class="bg-primary/10 dark:bg-primary/30 flex h-12 w-12 items-center justify-center rounded-full"
 				>
-					<Shield class="h-6 w-6 text-primary dark:text-gray-300" />
+					<Shield class="text-primary h-6 w-6 dark:text-gray-300" />
 				</div>
 				<div>
 					<h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
@@ -206,9 +206,7 @@
 						<div
 							class="h-12 w-12 animate-spin rounded-full border-4 border-[rgb(34,51,95)] border-t-transparent"
 						></div>
-						<p class="mt-4 text-sm text-gray-600 dark:text-gray-400">
-							Generating QR code...
-						</p>
+						<p class="mt-4 text-sm text-gray-600 dark:text-gray-400">Generating QR code...</p>
 					</div>
 				{:else if qrCodeSrc}
 					<div class="space-y-6">
@@ -231,7 +229,9 @@
 						</div>
 
 						<!-- Manual Entry -->
-						<div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
+						<div
+							class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800"
+						>
 							<p class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
 								Or enter this code manually:
 							</p>
@@ -258,7 +258,7 @@
 						<!-- Next Button -->
 						<button
 							onclick={() => (currentStep = 'verify')}
-							class="w-full rounded-lg bg-primary px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-primary/90"
+							class="bg-primary hover:bg-primary/90 w-full rounded-lg px-6 py-3 font-semibold text-white shadow transition-all duration-200"
 						>
 							Continue to Verification
 						</button>
@@ -280,7 +280,7 @@
 							maxlength="6"
 							pattern="[0-9]*"
 							inputmode="numeric"
-							class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 text-center font-mono text-2xl tracking-widest text-gray-900 transition focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-2 focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+							class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 text-center font-mono text-2xl tracking-widest text-gray-900 transition focus:border-[rgb(34,51,95)] focus:ring-2 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
 							oninput={(e) => {
 								const target = e.target as HTMLInputElement;
 								target.value = target.value.replace(/[^0-9]/g, '');
@@ -299,7 +299,7 @@
 						<button
 							onclick={handleVerifyCode}
 							disabled={isLoading || verificationCode.length !== 6}
-							class="flex-1 rounded-lg bg-primary px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+							class="bg-primary hover:bg-primary/90 flex-1 rounded-lg px-6 py-3 font-semibold text-white shadow transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50"
 						>
 							{isLoading ? 'Verifying...' : 'Verify & Enable'}
 						</button>
@@ -343,7 +343,11 @@
 						>
 							<div class="grid grid-cols-2 gap-2 font-mono text-sm">
 								{#each backupCodes as code}
-									<div class="rounded bg-white px-3 py-2 text-gray-900 dark:bg-gray-700 dark:text-gray-100">{code}</div>
+									<div
+										class="rounded bg-white px-3 py-2 text-gray-900 dark:bg-gray-700 dark:text-gray-100"
+									>
+										{code}
+									</div>
 								{/each}
 							</div>
 						</div>
@@ -368,7 +372,7 @@
 					<!-- Finish Button -->
 					<button
 						onclick={handleClose}
-						class="w-full rounded-lg bg-primary px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-primary/90"
+						class="bg-primary hover:bg-primary/90 w-full rounded-lg px-6 py-3 font-semibold text-white shadow transition-all duration-200"
 					>
 						Done
 					</button>

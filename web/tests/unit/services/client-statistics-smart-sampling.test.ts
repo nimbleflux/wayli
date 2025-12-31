@@ -4,12 +4,14 @@ import { ClientStatisticsService } from '../../../src/lib/services/client-statis
 import type { FluxbaseClient } from '@fluxbase/sdk';
 
 // Helper to create a chainable mock that supports all methods
-function createChainableMock(resolvedValue: { data: any[]; error: any } | { count: number; error: any }) {
+function createChainableMock(
+	resolvedValue: { data: any[]; error: any } | { count: number; error: any }
+) {
 	const mock: any = {};
 
 	const methods = ['select', 'eq', 'not', 'order', 'range', 'gte', 'lte', 'count'];
 
-	methods.forEach(method => {
+	methods.forEach((method) => {
 		mock[method] = vi.fn().mockImplementation(() => {
 			// Return a promise for the final call
 			if ('data' in resolvedValue || 'count' in resolvedValue) {
@@ -79,9 +81,7 @@ describe('ClientStatisticsService - Smart Sampling', () => {
 		);
 
 		// Verify that sampling strategy was logged (indicating large dataset handling)
-		expect(consoleSpy).toHaveBeenCalledWith(
-			expect.stringContaining('Sampling strategy')
-		);
+		expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Sampling strategy'));
 
 		consoleSpy.mockRestore();
 	});
@@ -117,8 +117,8 @@ describe('ClientStatisticsService - Smart Sampling', () => {
 		);
 
 		// Verify that sampling strategy was NOT logged for small datasets
-		const samplingLogCalls = consoleSpy.mock.calls.filter(
-			(call) => call[0]?.toString().includes('Sampling strategy')
+		const samplingLogCalls = consoleSpy.mock.calls.filter((call) =>
+			call[0]?.toString().includes('Sampling strategy')
 		);
 		expect(samplingLogCalls).toHaveLength(0);
 

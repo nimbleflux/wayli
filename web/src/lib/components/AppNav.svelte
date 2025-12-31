@@ -72,7 +72,11 @@
 
 	// Dynamic user navigation based on admin status - reactive to language changes
 	let navUser = $derived([
-		{ href: '/dashboard/account-settings', label: t('common.navigation.accountSettings'), icon: User },
+		{
+			href: '/dashboard/account-settings',
+			label: t('common.navigation.accountSettings'),
+			icon: User
+		},
 		...(isAdmin
 			? [
 					{
@@ -185,7 +189,7 @@
 						href={item.href}
 						class="flex cursor-pointer items-center rounded-md px-3 py-2 text-sm font-medium transition-colors {$page
 							.url.pathname === item.href
-							? 'bg-primary text-white dark:bg-primary-dark'
+							? 'bg-primary dark:bg-primary-dark text-white'
 							: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}"
 						onclick={handleCloseSidebar}
 					>
@@ -212,7 +216,8 @@
 				</button>
 				<button
 					onclick={() => handleThemeChange('dark')}
-					class="cursor-pointer rounded-lg p-2 font-medium transition-colors {currentTheme === 'dark'
+					class="cursor-pointer rounded-lg p-2 font-medium transition-colors {currentTheme ===
+					'dark'
 						? 'bg-primary/10 text-primary dark:bg-primary-dark/40 dark:text-primary-dark'
 						: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}"
 					title={t('common.navigation.darkMode')}
@@ -237,7 +242,7 @@
 							href={item.href}
 							class="relative flex cursor-pointer items-center rounded-md px-3 py-2 text-sm font-medium transition-colors {$page
 								.url.pathname === item.href
-								? 'bg-primary text-white dark:bg-primary-dark'
+								? 'bg-primary dark:bg-primary-dark text-white'
 								: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}"
 							onclick={handleCloseSidebar}
 						>

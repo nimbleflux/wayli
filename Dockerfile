@@ -1,16 +1,16 @@
 # Multi-stage Dockerfile for Wayli - optimized for minimal size
 # Stage 1: Build stage - includes all build dependencies
-# Stage 2: Production stage - only runtime dependencies and built artifacts
+# Stage 2: Production stage - nginx serves static files, Fluxbase CLI for sync
 #
-# Container structure mirrors repo layout:
+# Container structure:
 #   /app/
-#   ├── web/          (SvelteKit app, package.json, node_modules)
-#   └── fluxbase/     (functions, migrations, jobs)
+#   └── fluxbase/     (functions, migrations, jobs - synced at startup)
+#   /usr/share/nginx/html/  (static web files)
 
 #############################################
 # Stage 1: Builder
 #############################################
-FROM node:20-alpine AS builder
+FROM node:25-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache python3 make g++
@@ -32,10 +32,10 @@ RUN npm run prepare && npm run build
 #############################################
 # Stage 2: Production Runtime
 #############################################
-FROM node:20-alpine AS production
+FROM nginx:alpine AS production
 
-# Install nginx, wget, bash, curl, and deno for static file serving, health checks, entrypoint script, CLI installation, and background jobs
-RUN apk add --no-cache nginx wget bash curl deno && \
+# Install tools for health checks and Fluxbase CLI
+RUN apk add --no-cache wget bash curl && \
     mkdir -p /run/nginx
 
 # Install Fluxbase CLI for resource synchronization
@@ -44,42 +44,26 @@ RUN apk add --no-cache nginx wget bash curl deno && \
 ARG FLUXBASE_CLI_VERSION=v0.0.1-rc.112
 RUN curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- ${FLUXBASE_CLI_VERSION}
 
-WORKDIR /app/web
+WORKDIR /app
 
-# Copy package files and install production dependencies
-COPY web/package*.json ./
-RUN npm ci --omit=dev --legacy-peer-deps && \
-    npm cache clean --force
-
-# Copy entire web directory (node_modules, .svelte-kit excluded via .dockerignore)
-COPY web/ ./
-
-# Use production tsconfig (doesn't depend on .svelte-kit/tsconfig.json)
-RUN mv tsconfig.prod.json tsconfig.json
-
-# Copy built application from builder stage (overwrites empty build dir from COPY web/)
-COPY --from=builder /app/web/build ./build
-
-# Copy fluxbase directory
+# Copy fluxbase directory (synced to Fluxbase at startup)
 COPY fluxbase/ /app/fluxbase/
 
-# Setup nginx with static files
+# Copy built static files from builder
+COPY --from=builder /app/web/build /usr/share/nginx/html/
+COPY --from=builder /app/web/static /usr/share/nginx/html/static/
+
+# Copy nginx config and scripts
 COPY web/nginx.conf /etc/nginx/nginx.conf
-RUN mkdir -p /usr/share/nginx/html && \
-    rm -rf /usr/share/nginx/html/* && \
-    cp -r build/* /usr/share/nginx/html/ && \
-    cp -r static /usr/share/nginx/html/
+COPY web/startup.sh web/docker-entrypoint.sh /app/
+RUN chmod +x /app/startup.sh /app/docker-entrypoint.sh && \
+    cp /app/startup.sh /usr/local/bin/startup.sh
 
-# Make scripts executable
-RUN chmod +x startup.sh docker-entrypoint.sh && \
-    cp startup.sh /usr/local/bin/startup.sh
-
-# Create non-root user for security
+# Create wayli user and set up permissions
+# nginx:alpine runs as nginx user by default, but we use wayli for consistency
 RUN addgroup -S wayli && \
-    adduser -S -G wayli wayli
-
-# Create nginx directories with proper ownership
-RUN mkdir -p /var/cache/nginx /run /tmp/nginx && \
+    adduser -S -G wayli wayli && \
+    mkdir -p /var/cache/nginx /run /tmp/nginx && \
     chown -R wayli:wayli /var/cache/nginx /run /tmp/nginx /app /usr/share/nginx/html && \
     chmod -R 755 /var/cache/nginx /run /tmp/nginx /app /usr/share/nginx/html
 
@@ -95,8 +79,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 # Default environment
 ENV NODE_ENV=production
-ENV APP_MODE=web
 ENV PORT=80
 
-# Entrypoint script that handles different modes
+# Entrypoint script
 ENTRYPOINT ["./docker-entrypoint.sh"]

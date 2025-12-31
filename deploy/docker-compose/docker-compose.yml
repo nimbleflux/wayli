@@ -20,7 +20,6 @@ services:
       - '${WAYLI_WEB_PORT:-4000}:80'
     environment:
       NODE_ENV: production
-      APP_MODE: web
       HOST: '0.0.0.0'
       PORT: '80'
 

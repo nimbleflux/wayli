@@ -4,4 +4,4 @@
 export * from './pexels.service';
 export * from './image-upload.service';
 export * from './pelias.service';
-export * from './country-reverse-geocoding.service';
+// Note: country-reverse-geocoding.service removed - now running as Fluxbase job

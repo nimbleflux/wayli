@@ -21,7 +21,8 @@
 
 			if (error) {
 				// Expired or invalid tokens during signout are expected and can be ignored
-				const isExpiredToken = error.message?.includes('Invalid or expired token') ||
+				const isExpiredToken =
+					error.message?.includes('Invalid or expired token') ||
 					error.message?.includes('expired') ||
 					error.message?.includes('invalid');
 
@@ -36,7 +37,8 @@
 		} catch (error) {
 			// Don't log errors for expired sessions during signout
 			const errorMessage = error instanceof Error ? error.message : String(error);
-			const isExpiredToken = errorMessage.includes('Invalid or expired token') ||
+			const isExpiredToken =
+				errorMessage.includes('Invalid or expired token') ||
 				errorMessage.includes('expired') ||
 				errorMessage.includes('invalid');
 
@@ -54,9 +56,11 @@
 	});
 </script>
 
-<div class="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+<div
+	class="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900"
+>
 	<div class="text-center">
-		<Loader2 class="mx-auto mb-4 h-8 w-8 animate-spin text-primary dark:text-primary-dark" />
+		<Loader2 class="text-primary dark:text-primary-dark mx-auto mb-4 h-8 w-8 animate-spin" />
 		<h2 class="mb-2 text-xl font-semibold text-gray-900 dark:text-gray-100">Signing out...</h2>
 		<p class="text-gray-600 dark:text-gray-400">Please wait while we sign you out.</p>
 		<p class="mt-2 text-sm text-gray-500 dark:text-gray-500">Redirecting to home page...</p>

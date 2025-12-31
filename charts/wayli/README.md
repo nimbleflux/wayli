@@ -78,8 +78,6 @@ The following table lists the main configurable parameters of the Wayli chart an
 | `web.env.siteUrl` | Site URL for CORS and trusted origins | `https://wayli.app` |
 | `web.service.type` | Kubernetes service type | `ClusterIP` |
 | `web.service.port` | Service port | `80` |
-| `worker.enabled` | Enable worker deployment | `true` |
-| `worker.replicaCount` | Number of worker replicas | `2` |
 | `ingress.enabled` | Enable ingress controller resource | `true` |
 | `ingress.hostname` | Ingress hostname | `console.wayli.app` |
 | `fluxbase.enabled` | Enable Fluxbase subchart | `true` |
@@ -87,19 +85,13 @@ The following table lists the main configurable parameters of the Wayli chart an
 
 ### Environment Variables
 
-Configure Wayli through the `web.env` and `worker.env` sections in `values.yaml`:
+Configure Wayli through the `web.env` section in `values.yaml`:
 
 ```yaml
 web:
   env:
     nodeEnv: production
     siteUrl: "https://wayli.domain.com"  # Used for CORS and trusted origins
-
-worker:
-  env:
-    nodeEnv: production
-    pelias:
-      endpoint: "http://pelias.pelias.svc.cluster.local:4000"
 
 fluxbase:
   global:
@@ -176,15 +168,6 @@ Configure resource requests and limits:
 
 ```yaml
 web:
-  resources:
-    limits:
-      cpu: 500m
-      memory: 512Mi
-    requests:
-      cpu: 250m
-      memory: 256Mi
-
-worker:
   resources:
     limits:
       cpu: 500m
@@ -312,16 +295,6 @@ web:
     enabled: true
     minReplicas: 3
     maxReplicas: 20
-  resources:
-    limits:
-      cpu: 1000m
-      memory: 1Gi
-    requests:
-      cpu: 500m
-      memory: 512Mi
-
-worker:
-  replicaCount: 2
   resources:
     limits:
       cpu: 1000m

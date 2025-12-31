@@ -59,11 +59,6 @@ Component-specific selector labels
 app.kubernetes.io/component: web
 {{- end }}
 
-{{- define "wayli.selectorLabels.worker" -}}
-{{ include "wayli.selectorLabels" . }}
-app.kubernetes.io/component: worker
-{{- end }}
-
 {{- define "wayli.selectorLabels.public" -}}
 {{ include "wayli.selectorLabels" . }}
 app.kubernetes.io/component: public

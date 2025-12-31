@@ -66,7 +66,7 @@
 	type="button"
 	class="group flex w-full items-start gap-3 rounded-lg border border-gray-200 bg-white p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-gray-700 dark:bg-gray-800"
 	class:p-2={compact}
-	onclick={onclick}
+	{onclick}
 >
 	<!-- Icon anchor -->
 	<div
@@ -95,7 +95,9 @@
 		</div>
 
 		<!-- Location and time info -->
-		<div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-400 dark:text-gray-500">
+		<div
+			class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-400 dark:text-gray-500"
+		>
 			{#if place.city || place.country}
 				<span class="flex items-center gap-1">
 					<MapPin class="h-3 w-3" />

@@ -38,9 +38,7 @@
 	// Safely access data with fallback to empty array
 	const safeData = $derived(queryResult.data ?? []);
 
-	const detection = $derived(
-		detectResultType(queryResult.query, safeData, queryResult.rowCount)
-	);
+	const detection = $derived(detectResultType(queryResult.query, safeData, queryResult.rowCount));
 
 	const showAsCards = $derived(
 		detection.suggestedView === 'cards' && safeData.length <= maxCardsToShow
@@ -48,11 +46,7 @@
 
 	// For table view, show 5 initially or all if expanded
 	const displayData = $derived(
-		showAsCards
-			? safeData
-			: showAllResults
-				? safeData
-				: safeData.slice(0, maxInitialResults)
+		showAsCards ? safeData : showAllResults ? safeData : safeData.slice(0, maxInitialResults)
 	);
 
 	// Clean up summary by removing "Sample X values: ..." text
@@ -83,7 +77,11 @@
 	}
 </script>
 
-<div class={showAsCards ? '' : 'rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900'}>
+<div
+	class={showAsCards
+		? ''
+		: 'rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900'}
+>
 	<!-- Header and Summary - only show for table view, not cards -->
 	{#if !showAsCards}
 		<div class="mb-2 flex items-center justify-between">
@@ -113,19 +111,13 @@
 			{#if detection.type === 'trip'}
 				<ChatCardGrid columns={displayData.length > 2 ? 2 : 1}>
 					{#each displayData as trip, idx (idx)}
-						<ChatTripCard
-							trip={trip}
-							onclick={() => handleTripClick(trip)}
-						/>
+						<ChatTripCard {trip} onclick={() => handleTripClick(trip)} />
 					{/each}
 				</ChatCardGrid>
 			{:else if detection.type === 'place_visit'}
 				<ChatCardGrid columns={displayData.length > 2 ? 2 : 1}>
 					{#each displayData as place, idx (idx)}
-						<ChatPlaceCard
-							place={place}
-							onclick={() => handlePlaceClick(place)}
-						/>
+						<ChatPlaceCard {place} onclick={() => handlePlaceClick(place)} />
 					{/each}
 				</ChatCardGrid>
 			{:else}
@@ -176,7 +168,9 @@
 									{row.title || 'Untitled Trip'}
 								</span>
 								{#if row.status}
-									<span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+									<span
+										class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+									>
 										{row.status}
 									</span>
 								{/if}
@@ -211,7 +205,7 @@
 				{#if safeData.length > maxInitialResults}
 					<button
 						onclick={() => (showAllResults = !showAllResults)}
-						class="mt-2 flex w-full items-center justify-center gap-1 text-xs text-blue-500 hover:text-blue-600 dark:text-primary-dark dark:hover:text-primary-dark/80"
+						class="dark:text-primary-dark dark:hover:text-primary-dark/80 mt-2 flex w-full items-center justify-center gap-1 text-xs text-blue-500 hover:text-blue-600"
 					>
 						{#if showAllResults}
 							<ChevronUp class="h-3 w-3" />

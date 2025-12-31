@@ -945,7 +945,7 @@
 	<!-- Header -->
 	<div class="mb-8">
 		<div class="flex items-center gap-3">
-			<User class="h-8 w-8 text-primary dark:text-primary-dark" />
+			<User class="text-primary dark:text-primary-dark h-8 w-8" />
 			<h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
 				Account Settings
 			</h1>
@@ -993,7 +993,7 @@
 						type="email"
 						value={profile?.email}
 						disabled
-						class="w-full rounded-md border border-[rgb(218,218,221)] bg-gray-50 px-3 py-2 text-sm text-gray-500 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-primary dark:bg-gray-700 dark:text-gray-400 dark:placeholder:text-gray-400"
+						class="focus:ring-primary w-full rounded-md border border-[rgb(218,218,221)] bg-gray-50 px-3 py-2 text-sm text-gray-500 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:outline-none dark:bg-gray-700 dark:text-gray-400 dark:placeholder:text-gray-400"
 					/>
 					<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
 						{t('accountSettings.emailCannotChange')}
@@ -1009,7 +1009,7 @@
 						{t('accountSettings.homeLocationOptional')}
 						{#if !homeAddressInput && !profile?.home_address_skipped}
 							<span
-								class="ml-2 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary dark:bg-primary/30 dark:text-gray-300"
+								class="bg-primary/10 text-primary dark:bg-primary/30 ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium dark:text-gray-300"
 							>
 								{t('accountSettings.recommended')}
 							</span>
@@ -1030,10 +1030,10 @@
 							oninput={handleHomeAddressInput}
 							onkeydown={handleHomeAddressKeydown}
 							placeholder={t('accountSettings.startTypingHomeAddress')}
-							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-primary dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+							class="focus:ring-primary w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:outline-none dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 						/>
 						{#if isHomeAddressSearching}
-							<div class="absolute right-3 top-1/2 -translate-y-1/2">
+							<div class="absolute top-1/2 right-3 -translate-y-1/2">
 								<div
 									class="h-4 w-4 animate-spin rounded-full border-2 border-[rgb(34,51,95)] border-t-transparent"
 								></div>
@@ -1065,7 +1065,7 @@
 							{/each}
 							{#if homeAddressSearchError}
 								<div
-									class="cursor-default select-none px-3 py-2 text-center text-sm text-gray-500 dark:text-gray-400"
+									class="cursor-default px-3 py-2 text-center text-sm text-gray-500 select-none dark:text-gray-400"
 								>
 									{homeAddressSearchError}
 								</div>
@@ -1076,7 +1076,7 @@
 							class="mt-1 max-h-48 overflow-y-auto rounded-md border border-[rgb(218,218,221)] bg-white shadow-lg dark:border-[#3f3f46] dark:bg-[#23232a]"
 						>
 							<div
-								class="cursor-default select-none px-3 py-2 text-center text-sm text-gray-500 dark:text-gray-400"
+								class="cursor-default px-3 py-2 text-center text-sm text-gray-500 select-none dark:text-gray-400"
 							>
 								{homeAddressSearchError}
 							</div>
@@ -1125,7 +1125,7 @@
 							type="text"
 							bind:value={firstNameInput}
 							placeholder={t('accountSettings.enterFirstName')}
-							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-primary dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+							class="focus:ring-primary w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:outline-none dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 						/>
 					</div>
 
@@ -1140,14 +1140,14 @@
 							type="text"
 							bind:value={lastNameInput}
 							placeholder={t('accountSettings.enterLastName')}
-							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-primary dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+							class="focus:ring-primary w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:outline-none dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 						/>
 					</div>
 				</div>
 			</div>
 
 			<button
-				class="mt-6 cursor-pointer rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+				class="bg-primary hover:bg-primary/90 mt-6 cursor-pointer rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
 				onclick={handleSaveProfile}
 				disabled={isUpdatingProfile}
 			>
@@ -1182,7 +1182,7 @@
 						id="currentPassword"
 						type="password"
 						bind:value={currentPassword}
-						class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-primary dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+						class="focus:ring-primary w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:outline-none dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 					/>
 				</div>
 
@@ -1197,7 +1197,7 @@
 							id="newPassword"
 							type="password"
 							bind:value={newPassword}
-							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-primary dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+							class="focus:ring-primary w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:outline-none dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 						/>
 					</div>
 
@@ -1211,13 +1211,13 @@
 							id="confirmPassword"
 							type="password"
 							bind:value={confirmPassword}
-							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-primary dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+							class="focus:ring-primary w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:outline-none dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 						/>
 					</div>
 				</div>
 
 				<button
-					class="cursor-pointer rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+					class="bg-primary hover:bg-primary/90 cursor-pointer rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
 					onclick={handleUpdatePassword}
 					disabled={isUpdatingPassword}
 				>
@@ -1292,7 +1292,7 @@
 						{:else}
 							<button
 								onclick={handleEnable2FA}
-								class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
+								class="bg-primary hover:bg-primary/90 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors"
 							>
 								{t('accountSettings.enable2FA')}
 							</button>
@@ -1301,10 +1301,10 @@
 
 					<!-- Info Message -->
 					<div
-						class="flex items-start gap-3 rounded-lg border border-[rgb(34,51,95)]/20 bg-primary/5 p-3 dark:border-[rgb(34,51,95)]/30 dark:bg-primary/20"
+						class="bg-primary/5 dark:bg-primary/20 flex items-start gap-3 rounded-lg border border-[rgb(34,51,95)]/20 p-3 dark:border-[rgb(34,51,95)]/30"
 					>
-						<Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-primary dark:text-gray-400" />
-						<p class="text-xs text-primary dark:text-gray-300">
+						<Info class="text-primary mt-0.5 h-4 w-4 flex-shrink-0 dark:text-gray-400" />
+						<p class="text-primary text-xs dark:text-gray-300">
 							{t('accountSettings.2faInfoMessage')}
 						</p>
 					</div>
@@ -1347,7 +1347,7 @@
 			</div>
 
 			<button
-				class="mt-6 cursor-pointer rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+				class="bg-primary hover:bg-primary/90 mt-6 cursor-pointer rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
 				onclick={handleSavePreferences}
 				disabled={isUpdatingPreferences}
 			>
@@ -1413,7 +1413,9 @@
 					>
 					{#if pexelsApiKeyConfigured}
 						<div class="flex items-center gap-2">
-							<div class="flex flex-1 items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 dark:border-green-800 dark:bg-green-900/20">
+							<div
+								class="flex flex-1 items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 dark:border-green-800 dark:bg-green-900/20"
+							>
 								<span class="text-sm font-medium text-green-700 dark:text-green-300">
 									{t('accountSettings.secretConfigured')}
 								</span>
@@ -1437,7 +1439,7 @@
 								id="pexels-api-key"
 								bind:value={pexelsApiKeyInput}
 								placeholder={t('accountSettings.enterNewKeyToReplace')}
-								class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-primary dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+								class="focus:ring-primary w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:outline-none dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 							/>
 						</div>
 					{:else}
@@ -1448,7 +1450,7 @@
 							placeholder={serverPexelsApiKeyAvailable
 								? t('accountSettings.leaveEmptyToUseServerKey')
 								: t('accountSettings.enterPexelsApiKey')}
-							class="w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-primary dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
+							class="focus:ring-primary w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:outline-none dark:bg-[#23232a] dark:text-gray-100 dark:placeholder:text-gray-400"
 						/>
 					{/if}
 					<p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
@@ -1464,16 +1466,16 @@
 
 				<!-- Info notification -->
 				<div
-					class="mt-4 flex items-start gap-3 rounded-lg border border-[rgb(34,51,95)]/20 bg-primary/5 p-3 dark:border-[rgb(34,51,95)]/30 dark:bg-primary/20"
+					class="bg-primary/5 dark:bg-primary/20 mt-4 flex items-start gap-3 rounded-lg border border-[rgb(34,51,95)]/20 p-3 dark:border-[rgb(34,51,95)]/30"
 				>
-					<Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-primary dark:text-gray-400" />
-					<p class="text-xs text-primary dark:text-gray-300">
+					<Info class="text-primary mt-0.5 h-4 w-4 flex-shrink-0 dark:text-gray-400" />
+					<p class="text-primary text-xs dark:text-gray-300">
 						{t('accountSettings.dontHavePexelsApiKey')}
 						<a
 							href="https://www.pexels.com/api/"
 							target="_blank"
 							rel="noopener noreferrer"
-							class="font-medium underline hover:text-primary/80 dark:hover:text-gray-200"
+							class="hover:text-primary/80 font-medium underline dark:hover:text-gray-200"
 							>{t('accountSettings.getApiKey')}</a
 						>.
 					</p>
@@ -1516,7 +1518,7 @@
 								<div class="flex items-center gap-2">
 									<button
 										onclick={() => handleEditExclusion(exclusion)}
-										class="rounded-lg p-2 text-primary transition-colors hover:bg-primary/5 hover:text-primary/80 dark:hover:bg-primary/20"
+										class="text-primary hover:bg-primary/5 hover:text-primary/80 dark:hover:bg-primary/20 rounded-lg p-2 transition-colors"
 									>
 										<Pencil class="h-4 w-4" />
 									</button>
@@ -1558,7 +1560,7 @@
 
 			<!-- Save Button for Trips Section -->
 			<button
-				class="mt-6 cursor-pointer rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+				class="bg-primary hover:bg-primary/90 mt-6 cursor-pointer rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
 				onclick={handleSavePreferences}
 				disabled={isUpdatingPreferences}
 			>
@@ -1601,20 +1603,22 @@
 				<div>
 					<label
 						for="add-exclusion-name"
-						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('common.fields.name')}</label
+						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+						>{t('common.fields.name')}</label
 					>
 					<input
 						id="add-exclusion-name"
 						type="text"
 						bind:value={newExclusion.name}
 						placeholder={t('accountSettings.exclusionExampleLabel')}
-						class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+						class="focus:ring-primary w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:ring-2 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
 					/>
 				</div>
 				<div>
 					<label
 						for="add-exclusion-address"
-						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('common.fields.address')}</label
+						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+						>{t('common.fields.address')}</label
 					>
 					<div class="relative">
 						<input
@@ -1625,10 +1629,10 @@
 							oninput={handleExclusionAddressInput}
 							onkeydown={handleExclusionAddressKeydown}
 							placeholder={t('accountSettings.startTypingAddress')}
-							class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+							class="focus:ring-primary w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:ring-2 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
 						/>
 						{#if isExclusionAddressSearching}
-							<div class="absolute right-3 top-1/2 -translate-y-1/2">
+							<div class="absolute top-1/2 right-3 -translate-y-1/2">
 								<div
 									class="h-4 w-4 animate-spin rounded-full border-2 border-[rgb(34,51,95)] border-t-transparent"
 								></div>
@@ -1660,7 +1664,7 @@
 							{/each}
 							{#if exclusionAddressSearchError}
 								<div
-									class="cursor-default select-none px-3 py-2 text-center text-sm text-gray-500 dark:text-gray-400"
+									class="cursor-default px-3 py-2 text-center text-sm text-gray-500 select-none dark:text-gray-400"
 								>
 									{exclusionAddressSearchError}
 								</div>
@@ -1671,7 +1675,7 @@
 							class="mt-1 max-h-48 overflow-y-auto rounded-md border border-gray-300 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800"
 						>
 							<div
-								class="cursor-default select-none px-3 py-2 text-center text-sm text-gray-500 dark:text-gray-400"
+								class="cursor-default px-3 py-2 text-center text-sm text-gray-500 select-none dark:text-gray-400"
 							>
 								{exclusionAddressSearchError}
 							</div>
@@ -1696,7 +1700,7 @@
 					<button
 						onclick={handleAddExclusion}
 						disabled={isAddingExclusion || !newExclusion.name || !newExclusion.location}
-						class="flex-1 cursor-pointer rounded-lg bg-primary px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+						class="bg-primary hover:bg-primary/90 flex-1 cursor-pointer rounded-lg px-6 py-3 font-semibold text-white shadow transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50"
 					>
 						{isAddingExclusion ? t('common.status.adding') : t('accountSettings.addExclusion')}
 					</button>
@@ -1743,20 +1747,22 @@
 				<div>
 					<label
 						for="edit-exclusion-name"
-						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('common.fields.name')}</label
+						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+						>{t('common.fields.name')}</label
 					>
 					<input
 						id="edit-exclusion-name"
 						type="text"
 						bind:value={editingExclusion.name}
 						placeholder={t('accountSettings.exclusionExampleLabel')}
-						class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+						class="focus:ring-primary w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:ring-2 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
 					/>
 				</div>
 				<div>
 					<label
 						for="edit-exclusion-address"
-						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('common.fields.address')}</label
+						class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+						>{t('common.fields.address')}</label
 					>
 					<div class="relative">
 						<input
@@ -1767,10 +1773,10 @@
 							oninput={handleEditExclusionAddressInput}
 							onkeydown={handleEditExclusionAddressKeydown}
 							placeholder={t('accountSettings.startTypingAddress')}
-							class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+							class="focus:ring-primary w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900 transition focus:ring-2 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
 						/>
 						{#if isEditExclusionAddressSearching}
-							<div class="absolute right-3 top-1/2 -translate-y-1/2">
+							<div class="absolute top-1/2 right-3 -translate-y-1/2">
 								<div
 									class="h-4 w-4 animate-spin rounded-full border-2 border-[rgb(34,51,95)] border-t-transparent"
 								></div>
@@ -1802,7 +1808,7 @@
 							{/each}
 							{#if editExclusionAddressSearchError}
 								<div
-									class="cursor-default select-none px-3 py-2 text-center text-sm text-gray-500 dark:text-gray-400"
+									class="cursor-default px-3 py-2 text-center text-sm text-gray-500 select-none dark:text-gray-400"
 								>
 									{editExclusionAddressSearchError}
 								</div>
@@ -1813,7 +1819,7 @@
 							class="mt-1 max-h-48 overflow-y-auto rounded-md border border-gray-300 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800"
 						>
 							<div
-								class="cursor-default select-none px-3 py-2 text-center text-sm text-gray-500 dark:text-gray-400"
+								class="cursor-default px-3 py-2 text-center text-sm text-gray-500 select-none dark:text-gray-400"
 							>
 								{editExclusionAddressSearchError}
 							</div>
@@ -1838,9 +1844,11 @@
 					<button
 						onclick={handleUpdateExclusion}
 						disabled={isEditingExclusion || !editingExclusion.name || !editingExclusion.location}
-						class="flex-1 cursor-pointer rounded-lg bg-primary px-6 py-3 font-semibold text-white shadow transition-all duration-200 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+						class="bg-primary hover:bg-primary/90 flex-1 cursor-pointer rounded-lg px-6 py-3 font-semibold text-white shadow transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50"
 					>
-						{isEditingExclusion ? t('common.status.updating') : t('accountSettings.updateExclusion')}
+						{isEditingExclusion
+							? t('common.status.updating')
+							: t('accountSettings.updateExclusion')}
 					</button>
 					<button
 						onclick={() => (showEditExclusionModal = false)}

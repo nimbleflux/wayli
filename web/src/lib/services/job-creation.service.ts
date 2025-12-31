@@ -64,14 +64,10 @@ class JobCreationService {
 	 * Create a new job using Fluxbase Jobs API
 	 */
 	async createJob(options: CreateJobOptions): Promise<JobResult> {
-		const { data, error } = await fluxbase.jobs.submit(
-			options.type,
-			options.data,
-			{
-				namespace: 'wayli',
-				priority: options.priority || 5 // Default to medium priority
-			}
-		);
+		const { data, error } = await fluxbase.jobs.submit(options.type, options.data, {
+			namespace: 'wayli',
+			priority: options.priority || 5 // Default to medium priority
+		});
 
 		if (error) {
 			throw new Error(`Failed to create job: ${error.message}`);

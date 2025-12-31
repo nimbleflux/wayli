@@ -16,9 +16,7 @@ export class UserProfileService {
 	// Lazy-load client - throws if not configured
 	private static get fluxbase(): FluxbaseClientLike {
 		if (!this._fluxbase) {
-			throw new Error(
-				'UserProfileService not configured. Call setFluxbaseClient() first.'
-			);
+			throw new Error('UserProfileService not configured. Call setFluxbaseClient() first.');
 		}
 		return this._fluxbase;
 	}

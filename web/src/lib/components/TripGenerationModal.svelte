@@ -219,11 +219,11 @@
 
 		<!-- Date Range Help Text -->
 		<div
-			class="rounded-md border border-[rgb(34,51,95)]/20 bg-primary/5 p-3 dark:border-[rgb(34,51,95)]/40 dark:bg-primary/20"
+			class="bg-primary/5 dark:bg-primary/20 rounded-md border border-[rgb(34,51,95)]/20 p-3 dark:border-[rgb(34,51,95)]/40"
 		>
 			<div class="flex items-start gap-2">
-				<div class="mt-0.5 h-4 w-4 flex-shrink-0 text-primary dark:text-gray-300">ℹ️</div>
-				<div class="text-sm text-primary dark:text-gray-300">
+				<div class="text-primary mt-0.5 h-4 w-4 flex-shrink-0 dark:text-gray-300">ℹ️</div>
+				<div class="text-primary text-sm dark:text-gray-300">
 					<strong>Dates are optional:</strong> Leave both dates empty to generate trip suggestions from
 					all your available location data. Set specific dates to limit the analysis to a particular
 					time period.
@@ -238,7 +238,7 @@
 				type="checkbox"
 				bind:checked={useCustomHomeAddress}
 				onchange={handleCustomHomeAddressToggle}
-				class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-[rgb(34,51,95)] dark:border-gray-600"
+				class="text-primary h-4 w-4 rounded border-gray-300 focus:ring-[rgb(34,51,95)] dark:border-gray-600"
 			/>
 			<label
 				for="custom-home-address-toggle"
@@ -341,7 +341,7 @@
 			</button>
 			<button
 				onclick={generateTrip}
-				class="flex flex-1 items-center justify-center rounded-lg bg-primary px-4 py-2 font-medium text-white transition-colors hover:bg-primary/90 focus:ring-2 focus:ring-[rgb(34,51,95)] focus:ring-offset-2 focus:outline-none dark:bg-primary dark:hover:bg-primary/90"
+				class="bg-primary hover:bg-primary/90 dark:bg-primary dark:hover:bg-primary/90 flex flex-1 items-center justify-center rounded-lg px-4 py-2 font-medium text-white transition-colors focus:ring-2 focus:ring-[rgb(34,51,95)] focus:ring-offset-2 focus:outline-none"
 			>
 				<Route class="mr-2 h-4 w-4 flex-shrink-0" />
 				<span class="truncate">{t('tripGenerationModal.generateSuggestions')}</span>

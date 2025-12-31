@@ -241,9 +241,10 @@ export const CATEGORY_COLORS: Record<string, { color: string; bgColor: string }>
 /**
  * Get colors for a category
  */
-export function getCategoryColors(
-	category: string | null | undefined
-): { color: string; bgColor: string } {
+export function getCategoryColors(category: string | null | undefined): {
+	color: string;
+	bgColor: string;
+} {
 	if (!category) {
 		return { color: '#6B7280', bgColor: '#F3F4F6' };
 	}

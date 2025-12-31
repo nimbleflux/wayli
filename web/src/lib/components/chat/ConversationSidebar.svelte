@@ -116,7 +116,7 @@
 		<button
 			type="button"
 			onclick={onNewConversation}
-			class="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 font-medium text-white transition-colors hover:bg-primary/90"
+			class="bg-primary hover:bg-primary/90 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-medium text-white transition-colors"
 		>
 			<Plus class="h-5 w-5" />
 			New Conversation
@@ -126,12 +126,12 @@
 	<!-- Search -->
 	<div class="flex-shrink-0 border-b border-gray-200 p-3 dark:border-gray-700">
 		<div class="relative">
-			<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+			<Search class="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
 			<input
 				type="text"
 				placeholder="Search conversations..."
 				bind:value={searchQuery}
-				class="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm transition-colors placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:outline-none focus:ring-1 focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+				class="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pr-3 pl-9 text-sm transition-colors placeholder:text-gray-400 focus:border-[rgb(34,51,95)] focus:ring-1 focus:ring-[rgb(34,51,95)] focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white"
 			/>
 		</div>
 	</div>
@@ -153,7 +153,9 @@
 			<!-- Today -->
 			{#if groupedConversations.today.length > 0}
 				<div class="px-3 pt-3">
-					<h3 class="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+					<h3
+						class="mb-1 text-xs font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500"
+					>
 						Today
 					</h3>
 				</div>
@@ -189,7 +191,7 @@
 						<button
 							type="button"
 							onclick={(e) => handleDeleteClick(e, conv.id)}
-							class="flex-shrink-0 rounded p-1 text-gray-400 opacity-0 transition-opacity hover:bg-gray-200 hover:text-gray-600 group-hover:opacity-100 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+							class="flex-shrink-0 rounded p-1 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
 							title="Delete conversation"
 						>
 							<Trash2 class="h-4 w-4" />
@@ -201,7 +203,9 @@
 			<!-- Yesterday -->
 			{#if groupedConversations.yesterday.length > 0}
 				<div class="px-3 pt-4">
-					<h3 class="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+					<h3
+						class="mb-1 text-xs font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500"
+					>
 						Yesterday
 					</h3>
 				</div>
@@ -237,7 +241,7 @@
 						<button
 							type="button"
 							onclick={(e) => handleDeleteClick(e, conv.id)}
-							class="flex-shrink-0 rounded p-1 text-gray-400 opacity-0 transition-opacity hover:bg-gray-200 hover:text-gray-600 group-hover:opacity-100 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+							class="flex-shrink-0 rounded p-1 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
 							title="Delete conversation"
 						>
 							<Trash2 class="h-4 w-4" />
@@ -249,7 +253,9 @@
 			<!-- This Week -->
 			{#if groupedConversations.thisWeek.length > 0}
 				<div class="px-3 pt-4">
-					<h3 class="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+					<h3
+						class="mb-1 text-xs font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500"
+					>
 						This Week
 					</h3>
 				</div>
@@ -285,7 +291,7 @@
 						<button
 							type="button"
 							onclick={(e) => handleDeleteClick(e, conv.id)}
-							class="flex-shrink-0 rounded p-1 text-gray-400 opacity-0 transition-opacity hover:bg-gray-200 hover:text-gray-600 group-hover:opacity-100 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+							class="flex-shrink-0 rounded p-1 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
 							title="Delete conversation"
 						>
 							<Trash2 class="h-4 w-4" />
@@ -297,7 +303,9 @@
 			<!-- Older -->
 			{#if groupedConversations.older.length > 0}
 				<div class="px-3 pt-4">
-					<h3 class="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+					<h3
+						class="mb-1 text-xs font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500"
+					>
 						Older
 					</h3>
 				</div>
@@ -333,7 +341,7 @@
 						<button
 							type="button"
 							onclick={(e) => handleDeleteClick(e, conv.id)}
-							class="flex-shrink-0 rounded p-1 text-gray-400 opacity-0 transition-opacity hover:bg-gray-200 hover:text-gray-600 group-hover:opacity-100 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+							class="flex-shrink-0 rounded p-1 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
 							title="Delete conversation"
 						>
 							<Trash2 class="h-4 w-4" />

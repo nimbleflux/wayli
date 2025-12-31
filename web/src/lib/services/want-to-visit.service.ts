@@ -93,7 +93,10 @@ export class WantToVisitService {
 		let coordinates = '';
 		if (placeData.location) {
 			try {
-				const geojson = typeof placeData.location === 'string' ? JSON.parse(placeData.location) : placeData.location;
+				const geojson =
+					typeof placeData.location === 'string'
+						? JSON.parse(placeData.location)
+						: placeData.location;
 				if (geojson?.coordinates) {
 					const [returnedLng, returnedLat] = geojson.coordinates;
 					coordinates = `${returnedLat}, ${returnedLng}`;
@@ -153,7 +156,8 @@ export class WantToVisitService {
 		let coordinates = '';
 		if (data.location) {
 			try {
-				const geojson = typeof data.location === 'string' ? JSON.parse(data.location) : data.location;
+				const geojson =
+					typeof data.location === 'string' ? JSON.parse(data.location) : data.location;
 				if (geojson?.coordinates) {
 					const [returnedLng, returnedLat] = geojson.coordinates;
 					coordinates = `${returnedLat}, ${returnedLng}`;

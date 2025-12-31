@@ -47,9 +47,7 @@ export function getVenueTypeFromAddendum(
  * Checks if the person is at a known venue type (restaurant, golf course, etc.)
  * This is useful for improving stationary detection confidence.
  */
-export function isAtVenue(
-	reverseGeocode: GeocodeGeoJSONFeature | null | undefined
-): boolean {
+export function isAtVenue(reverseGeocode: GeocodeGeoJSONFeature | null | undefined): boolean {
 	return getVenueTypeFromAddendum(reverseGeocode) !== null;
 }
 
@@ -66,24 +64,66 @@ export function isStationaryVenue(
 	// Venue types where people typically stay stationary
 	const stationaryVenueTypes = [
 		// Leisure
-		'golf_course', 'sports_centre', 'fitness_centre', 'swimming_pool',
-		'park', 'playground', 'garden', 'nature_reserve', 'stadium',
+		'golf_course',
+		'sports_centre',
+		'fitness_centre',
+		'swimming_pool',
+		'park',
+		'playground',
+		'garden',
+		'nature_reserve',
+		'stadium',
 		// Amenity - Food & Drink
-		'restaurant', 'cafe', 'bar', 'pub', 'fast_food', 'food_court', 'biergarten',
+		'restaurant',
+		'cafe',
+		'bar',
+		'pub',
+		'fast_food',
+		'food_court',
+		'biergarten',
 		// Amenity - Entertainment
-		'cinema', 'theatre', 'nightclub', 'casino', 'arts_centre',
+		'cinema',
+		'theatre',
+		'nightclub',
+		'casino',
+		'arts_centre',
 		// Amenity - Education
-		'school', 'university', 'college', 'library', 'kindergarten',
+		'school',
+		'university',
+		'college',
+		'library',
+		'kindergarten',
 		// Amenity - Healthcare
-		'hospital', 'clinic', 'doctors', 'dentist', 'pharmacy',
+		'hospital',
+		'clinic',
+		'doctors',
+		'dentist',
+		'pharmacy',
 		// Amenity - Other
-		'place_of_worship', 'community_centre', 'social_facility',
-		'bank', 'post_office', 'townhall', 'courthouse',
+		'place_of_worship',
+		'community_centre',
+		'social_facility',
+		'bank',
+		'post_office',
+		'townhall',
+		'courthouse',
 		// Tourism
-		'hotel', 'motel', 'hostel', 'guest_house', 'camp_site',
-		'museum', 'gallery', 'attraction', 'theme_park', 'zoo', 'aquarium',
+		'hotel',
+		'motel',
+		'hostel',
+		'guest_house',
+		'camp_site',
+		'museum',
+		'gallery',
+		'attraction',
+		'theme_park',
+		'zoo',
+		'aquarium',
 		// Shop (major ones where people browse)
-		'supermarket', 'department_store', 'mall', 'shopping_centre'
+		'supermarket',
+		'department_store',
+		'mall',
+		'shopping_centre'
 	];
 
 	return stationaryVenueTypes.includes(venueType.toLowerCase());
@@ -179,9 +219,7 @@ export function isAtTrainStation(
 		if (
 			category.some(
 				(c) =>
-					c === 'transport:station' ||
-					c === 'transport:rail' ||
-					c.startsWith('transport:rail:')
+					c === 'transport:station' || c === 'transport:rail' || c.startsWith('transport:rail:')
 			)
 		) {
 			return true;
@@ -197,7 +235,14 @@ export function isAtTrainStation(
 		const building = osm.building as string | undefined;
 
 		// Railway station types
-		const railwayStationTypes = ['station', 'halt', 'platform', 'stop', 'subway_entrance', 'tram_stop'];
+		const railwayStationTypes = [
+			'station',
+			'halt',
+			'platform',
+			'stop',
+			'subway_entrance',
+			'tram_stop'
+		];
 		if (railway && railwayStationTypes.includes(railway)) {
 			return true;
 		}
@@ -260,7 +305,16 @@ export function isAtAirport(reverseGeocode: GeocodeGeoJSONFeature | null | undef
 		const building = osm.building as string | undefined;
 
 		// Aeroway types that indicate airport
-		const aerowayTypes = ['aerodrome', 'terminal', 'gate', 'helipad', 'heliport', 'runway', 'taxiway', 'apron'];
+		const aerowayTypes = [
+			'aerodrome',
+			'terminal',
+			'gate',
+			'helipad',
+			'heliport',
+			'runway',
+			'taxiway',
+			'apron'
+		];
 		if (aeroway && aerowayTypes.includes(aeroway)) {
 			return true;
 		}
@@ -450,7 +504,14 @@ export function isOnHighwayOrMotorway(
 	const props = reverseGeocode.properties;
 
 	// OSM highway types that indicate major roads (motorways, trunk roads, primary roads)
-	const majorHighwayTypes = ['motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link'];
+	const majorHighwayTypes = [
+		'motorway',
+		'motorway_link',
+		'trunk',
+		'trunk_link',
+		'primary',
+		'primary_link'
+	];
 
 	// Pelias addendum/OSM-based detection
 	const osm = getOsmDataFromAddendum(reverseGeocode);

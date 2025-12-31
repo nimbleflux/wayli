@@ -134,10 +134,10 @@ const config = getNodeEnvironmentConfig();
 
 There are two Fluxbase URL environment variables:
 
-| Variable | Purpose | Usage |
-|----------|---------|-------|
-| `FLUXBASE_PUBLIC_BASE_URL` | Public URL accessible from browsers | Client-side code, browser requests |
-| `FLUXBASE_BASE_URL` | Internal URL for cluster communication | Server-side, workers, edge functions, jobs |
+| Variable                   | Purpose                                | Usage                                      |
+| -------------------------- | -------------------------------------- | ------------------------------------------ |
+| `FLUXBASE_PUBLIC_BASE_URL` | Public URL accessible from browsers    | Client-side code, browser requests         |
+| `FLUXBASE_BASE_URL`        | Internal URL for cluster communication | Server-side, workers, edge functions, jobs |
 
 In Kubernetes deployments, `FLUXBASE_BASE_URL` typically points to an internal service (e.g., `http://fluxbase:8080`) while `FLUXBASE_PUBLIC_BASE_URL` points to the external ingress URL (e.g., `https://flux.your-domain.com`).
 

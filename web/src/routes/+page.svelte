@@ -138,7 +138,7 @@
 	</div>
 {:else}
 	<!-- Theme Toggle, Language Selector, and User/Login Button in Top Right -->
-	<div class="fixed right-4 top-4 z-50 flex items-center gap-3">
+	<div class="fixed top-4 right-4 z-50 flex items-center gap-3">
 		<!-- Language Selector -->
 		<LanguageSelector variant="minimal" size="sm" showLabel={false} position="bottom-right" />
 
@@ -178,7 +178,7 @@
 
 				<!-- Dropdown Menu -->
 				<div
-					class="invisible absolute right-0 top-full mt-2 w-48 rounded-lg border border-gray-200 bg-white opacity-0 shadow-lg transition-all duration-200 group-hover:visible group-hover:opacity-100 dark:border-gray-700 dark:bg-gray-800"
+					class="invisible absolute top-full right-0 mt-2 w-48 rounded-lg border border-gray-200 bg-white opacity-0 shadow-lg transition-all duration-200 group-hover:visible group-hover:opacity-100 dark:border-gray-700 dark:bg-gray-800"
 				>
 					<div class="py-2">
 						<a
@@ -208,7 +208,7 @@
 			<!-- Login Button -->
 			<button
 				onclick={handleLogin}
-				class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 py-2 font-medium text-white shadow-lg transition-colors hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-primary-dark/90"
+				class="bg-primary hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-primary-dark/90 inline-flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 font-medium text-white shadow-lg transition-colors"
 			>
 				<LogIn class="h-4 w-4" />
 				{t('landing.login')}
@@ -251,7 +251,7 @@
 					</a>
 					<a
 						href="/auth/signin"
-						class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-8 py-4 font-semibold text-white shadow-lg transition-colors hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-primary-dark/90"
+						class="bg-primary hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-primary-dark/90 inline-flex cursor-pointer items-center gap-2 rounded-lg px-8 py-4 font-semibold text-white shadow-lg transition-colors"
 					>
 						{t('landing.signIn')}
 					</a>
@@ -265,9 +265,9 @@
 					class="rounded-xl border border-gray-200/50 bg-white/50 p-6 text-center backdrop-blur-sm transition-all duration-300 hover:scale-105 hover:shadow-lg dark:border-gray-700/50 dark:bg-gray-800/50"
 				>
 					<div
-						class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 transition-colors duration-300 dark:bg-primary/20"
+						class="bg-primary/10 dark:bg-primary/20 mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full transition-colors duration-300"
 					>
-						<Shield class="h-8 w-8 text-primary dark:text-gray-300" />
+						<Shield class="text-primary h-8 w-8 dark:text-gray-300" />
 					</div>
 					<h3
 						class="mb-2 text-xl font-semibold text-gray-900 transition-colors duration-300 dark:text-gray-100"

@@ -26,6 +26,6 @@ export * from './audit-logger.service';
 export * from './user-profile.service';
 export * from './want-to-visit.service';
 // Note: statistics.service removed - now using client-statistics.service
-export * from './trip-detection.service';
+// Note: trip-detection.service removed - now running as Fluxbase job
 export * from './trip-locations.service';
 export * from './trips.service';

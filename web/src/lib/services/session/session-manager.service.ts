@@ -58,9 +58,7 @@ export class SessionManagerService {
 					event,
 					hasSession: !!session,
 					userId: session?.user?.id,
-					expiresAt: session?.expires_at
-						? new Date(session.expires_at).toISOString()
-						: null,
+					expiresAt: session?.expires_at ? new Date(session.expires_at).toISOString() : null,
 					expiresIn: session?.expires_at
 						? `${Math.round((session.expires_at - Date.now()) / 1000 / 60)} minutes`
 						: null
@@ -125,7 +123,10 @@ export class SessionManagerService {
 			return true; // Token is valid
 		}
 
-		console.warn('⚠️ [SessionManager] Token validation failed, attempting refresh:', userError.message);
+		console.warn(
+			'⚠️ [SessionManager] Token validation failed, attempting refresh:',
+			userError.message
+		);
 
 		// Second attempt: try to refresh the token
 		try {

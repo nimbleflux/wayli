@@ -75,7 +75,10 @@ export { connectionStatusStore };
 /**
  * Handle new job creation
  */
-function handleJobInsert(job: JobStoreJob, currentJobs: Map<string, JobStoreJob>): Map<string, JobStoreJob> {
+function handleJobInsert(
+	job: JobStoreJob,
+	currentJobs: Map<string, JobStoreJob>
+): Map<string, JobStoreJob> {
 	const newJobs = new Map(currentJobs);
 	newJobs.set(job.id, job);
 	return newJobs;
@@ -84,7 +87,10 @@ function handleJobInsert(job: JobStoreJob, currentJobs: Map<string, JobStoreJob>
 /**
  * Handle job updates (progress, status changes)
  */
-function handleJobUpdate(job: JobStoreJob, currentJobs: Map<string, JobStoreJob>): Map<string, JobStoreJob> {
+function handleJobUpdate(
+	job: JobStoreJob,
+	currentJobs: Map<string, JobStoreJob>
+): Map<string, JobStoreJob> {
 	const newJobs = new Map(currentJobs);
 	const existing = currentJobs.get(job.id);
 
@@ -101,7 +107,11 @@ function handleJobUpdate(job: JobStoreJob, currentJobs: Map<string, JobStoreJob>
 	newJobs.set(job.id, updatedJob);
 
 	// Persist finished jobs to localStorage for refresh persistence
-	if (updatedJob.status === 'completed' || updatedJob.status === 'failed' || updatedJob.status === 'cancelled') {
+	if (
+		updatedJob.status === 'completed' ||
+		updatedJob.status === 'failed' ||
+		updatedJob.status === 'cancelled'
+	) {
 		persistFinishedJobs(updatedJob);
 	}
 
@@ -111,7 +121,10 @@ function handleJobUpdate(job: JobStoreJob, currentJobs: Map<string, JobStoreJob>
 /**
  * Handle job deletion/cleanup
  */
-function handleJobDelete(jobId: string, currentJobs: Map<string, JobStoreJob>): Map<string, JobStoreJob> {
+function handleJobDelete(
+	jobId: string,
+	currentJobs: Map<string, JobStoreJob>
+): Map<string, JobStoreJob> {
 	const newJobs = new Map(currentJobs);
 	newJobs.delete(jobId);
 	return newJobs;
@@ -145,7 +158,10 @@ function loadPersistedFinishedJobs(): JobStoreJob[] {
 		// Update storage if we filtered any out
 		if (validJobs.length !== jobs.length) {
 			if (validJobs.length > 0) {
-				localStorage.setItem(FINISHED_JOBS_STORAGE_KEY, JSON.stringify({ jobs: validJobs, timestamp: now }));
+				localStorage.setItem(
+					FINISHED_JOBS_STORAGE_KEY,
+					JSON.stringify({ jobs: validJobs, timestamp: now })
+				);
 			} else {
 				localStorage.removeItem(FINISHED_JOBS_STORAGE_KEY);
 			}
@@ -209,7 +225,10 @@ function removeFromPersistedJobs(jobId: string) {
 		const jobs = (parsed.jobs || []).filter((j) => j.id !== jobId);
 
 		if (jobs.length > 0) {
-			localStorage.setItem(FINISHED_JOBS_STORAGE_KEY, JSON.stringify({ jobs, timestamp: Date.now() }));
+			localStorage.setItem(
+				FINISHED_JOBS_STORAGE_KEY,
+				JSON.stringify({ jobs, timestamp: Date.now() })
+			);
 		} else {
 			localStorage.removeItem(FINISHED_JOBS_STORAGE_KEY);
 		}
@@ -398,13 +417,14 @@ async function fetchActiveJobs() {
 		const persistedJobs = loadPersistedFinishedJobs();
 
 		// Fetch pending, running, and recently finished jobs in parallel
-		const [pendingResult, runningResult, completedResult, failedResult, cancelledResult] = await Promise.all([
-			fluxbase.jobs.list({ status: 'pending' }),
-			fluxbase.jobs.list({ status: 'running' }),
-			fluxbase.jobs.list({ status: 'completed', limit: 10, includeResult: true }),
-			fluxbase.jobs.list({ status: 'failed', limit: 10 }),
-			fluxbase.jobs.list({ status: 'cancelled', limit: 10 })
-		]);
+		const [pendingResult, runningResult, completedResult, failedResult, cancelledResult] =
+			await Promise.all([
+				fluxbase.jobs.list({ status: 'pending' }),
+				fluxbase.jobs.list({ status: 'running' }),
+				fluxbase.jobs.list({ status: 'completed', limit: 10, includeResult: true }),
+				fluxbase.jobs.list({ status: 'failed', limit: 10 }),
+				fluxbase.jobs.list({ status: 'cancelled', limit: 10 })
+			]);
 
 		if (pendingResult.error) {
 			console.error('[JobStore] Error fetching pending jobs:', pendingResult.error);
@@ -438,7 +458,8 @@ async function fetchActiveJobs() {
 			(job) => job.completed_at && job.completed_at > oneMinuteAgo
 		);
 		const recentCancelled = cancelledJobs.filter(
-			(job) => (job.completed_at || job.updated_at) && (job.completed_at || job.updated_at)! > oneMinuteAgo
+			(job) =>
+				(job.completed_at || job.updated_at) && (job.completed_at || job.updated_at)! > oneMinuteAgo
 		);
 
 		// Merge all jobs into the store (API jobs take precedence over persisted)
@@ -566,93 +587,97 @@ async function initializeRealtimeSubscription(_userId: string) {
 		// Fetch existing active jobs before setting up realtime
 		await fetchActiveJobs();
 
-	// Note: If jobs were loaded successfully, the API connection is working
-	// Realtime subscription may or may not work depending on Fluxbase configuration
+		// Note: If jobs were loaded successfully, the API connection is working
+		// Realtime subscription may or may not work depending on Fluxbase configuration
 
-	// Subscribe to Fluxbase job updates channel
-	// Use table:jobs.queue channel format as per Fluxbase documentation
-	// RLS automatically filters by authenticated user - no filter needed
-	const channelName = 'table:jobs.queue';
+		// Subscribe to Fluxbase job updates channel
+		// Use table:jobs.queue channel format as per Fluxbase documentation
+		// RLS automatically filters by authenticated user - no filter needed
+		const channelName = 'table:jobs.queue';
 
-	// Handler function for processing job changes
-	const handlePostgresChange = async (message: any) => {
-		// Handle both raw format (payload.type) and Supabase-style format (eventType)
-		const eventType = message?.eventType || message?.payload?.type || message?.type;
-		// Handle both raw format (payload.record) and Supabase-style format (new)
-		const record = message?.new || extractRecordFromMessage(message);
+		// Handler function for processing job changes
+		const handlePostgresChange = async (message: any) => {
+			// Handle both raw format (payload.type) and Supabase-style format (eventType)
+			const eventType = message?.eventType || message?.payload?.type || message?.type;
+			// Handle both raw format (payload.record) and Supabase-style format (new)
+			const record = message?.new || extractRecordFromMessage(message);
 
-		if (!record) return;
+			if (!record) return;
 
-		let job = normalizeJob(record);
+			let job = normalizeJob(record);
 
-		// If job just completed, refetch to get the full result
-		// (Realtime broadcasts may not include large JSONB columns like result)
-		if (eventType === 'UPDATE' && job.status === 'completed') {
-			try {
-				const { data } = await fluxbase.jobs.get(job.id);
-				if (data) {
-					job = normalizeJob(data as unknown as Record<string, unknown>);
+			// If job just completed, refetch to get the full result
+			// (Realtime broadcasts may not include large JSONB columns like result)
+			if (eventType === 'UPDATE' && job.status === 'completed') {
+				try {
+					const { data } = await fluxbase.jobs.get(job.id);
+					if (data) {
+						job = normalizeJob(data as unknown as Record<string, unknown>);
+					}
+				} catch (e) {
+					console.warn('[JobStore] Failed to refetch completed job:', e);
 				}
-			} catch (e) {
-				console.warn('[JobStore] Failed to refetch completed job:', e);
 			}
-		}
 
-		if (eventType === 'INSERT') {
-			jobsStore.update(current => handleJobInsert(job, current));
-		} else if (eventType === 'UPDATE') {
-			jobsStore.update(current => handleJobUpdate(job, current));
-			scheduleJobCleanup(job.id, job.status);
-		} else if (eventType === 'DELETE') {
-			jobsStore.update(current => handleJobDelete(job.id, current));
-		}
-	};
+			if (eventType === 'INSERT') {
+				jobsStore.update((current) => handleJobInsert(job, current));
+			} else if (eventType === 'UPDATE') {
+				jobsStore.update((current) => handleJobUpdate(job, current));
+				scheduleJobCleanup(job.id, job.status);
+			} else if (eventType === 'DELETE') {
+				jobsStore.update((current) => handleJobDelete(job.id, current));
+			}
+		};
 
-	const channel = fluxbase.realtime
-		.channel(channelName)
-		.on('postgres_changes', {
-			event: '*',
-			schema: 'jobs',
-			table: 'queue',
-			filter: `created_by=eq.${_userId}`
-		}, handlePostgresChange)
-		.subscribe((status) => {
-			if (status === 'SUBSCRIBED') {
-				// Check if this was a reconnection (reconnectAttempts > 0 means we had failed before)
-				const wasReconnection = reconnectAttempts > 0;
-				connectionStatusStore.set('connected');
-				// Reset reconnection state on successful connection
-				resetReconnectState();
-				// Signal reconnection to UI components
-				if (wasReconnection) {
-					console.log('✅ [JobStore] Realtime reconnected successfully');
-					reconnectedStore.set(true);
+		const channel = fluxbase.realtime
+			.channel(channelName)
+			.on(
+				'postgres_changes',
+				{
+					event: '*',
+					schema: 'jobs',
+					table: 'queue',
+					filter: `created_by=eq.${_userId}`
+				},
+				handlePostgresChange
+			)
+			.subscribe((status) => {
+				if (status === 'SUBSCRIBED') {
+					// Check if this was a reconnection (reconnectAttempts > 0 means we had failed before)
+					const wasReconnection = reconnectAttempts > 0;
+					connectionStatusStore.set('connected');
+					// Reset reconnection state on successful connection
+					resetReconnectState();
+					// Signal reconnection to UI components
+					if (wasReconnection) {
+						console.log('✅ [JobStore] Realtime reconnected successfully');
+						reconnectedStore.set(true);
+					}
+				} else if (status === 'CHANNEL_ERROR') {
+					connectionStatusStore.set('error');
+					// Attempt to reconnect
+					scheduleReconnect();
+				} else if (status === 'TIMED_OUT') {
+					connectionStatusStore.set('error');
+					scheduleReconnect();
+				} else if (status === 'CLOSED') {
+					connectionStatusStore.set('disconnected');
+					scheduleReconnect();
 				}
-			} else if (status === 'CHANNEL_ERROR') {
-				connectionStatusStore.set('error');
-				// Attempt to reconnect
-				scheduleReconnect();
-			} else if (status === 'TIMED_OUT') {
-				connectionStatusStore.set('error');
-				scheduleReconnect();
-			} else if (status === 'CLOSED') {
+			});
+
+		// Store channel reference (both locally and in globalThis for HMR)
+		realtimeChannel = channel;
+		(globalThis as any).__jobStoreChannel = channel;
+
+		// Timeout: If not connected after 10 seconds, trigger reconnect
+		setTimeout(() => {
+			const currentStatus = get(connectionStatusStore);
+			if (currentStatus === 'connecting') {
 				connectionStatusStore.set('disconnected');
 				scheduleReconnect();
 			}
-		});
-
-	// Store channel reference (both locally and in globalThis for HMR)
-	realtimeChannel = channel;
-	(globalThis as any).__jobStoreChannel = channel;
-
-	// Timeout: If not connected after 10 seconds, trigger reconnect
-	setTimeout(() => {
-		const currentStatus = get(connectionStatusStore);
-		if (currentStatus === 'connecting') {
-			connectionStatusStore.set('disconnected');
-			scheduleReconnect();
-		}
-	}, 10000);
+		}, 10000);
 	} finally {
 		isInitializing = false;
 	}

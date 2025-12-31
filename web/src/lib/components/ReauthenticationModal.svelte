@@ -75,7 +75,7 @@
 			<!-- Close Button -->
 			<button
 				onclick={handleClose}
-				class="absolute right-4 top-4 rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+				class="absolute top-4 right-4 rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
 				aria-label="Close"
 			>
 				<X class="h-5 w-5" />
@@ -100,7 +100,9 @@
 
 			<!-- Account Info -->
 			{#if userEmail}
-				<div class="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800">
+				<div
+					class="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800"
+				>
 					<p class="text-xs text-gray-500 dark:text-gray-400">{t('auth.account')}</p>
 					<p class="font-medium text-gray-900 dark:text-gray-100">{userEmail}</p>
 				</div>
@@ -118,17 +120,20 @@
 
 			<!-- Password Input -->
 			<div class="mb-6">
-				<label for="reauth-password" class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+				<label
+					for="reauth-password"
+					class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+				>
 					{t('auth.password')}
 				</label>
 				<div class="relative">
-					<Lock class="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+					<Lock class="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 text-gray-400" />
 					<input
 						id="reauth-password"
 						type="password"
 						bind:value={password}
 						placeholder={t('auth.enterPasswordPlaceholder')}
-						class="w-full rounded-lg border border-gray-300 bg-white py-3 pl-10 pr-4 text-gray-900 placeholder-gray-400 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+						class="w-full rounded-lg border border-gray-300 bg-white py-3 pr-4 pl-10 text-gray-900 placeholder-gray-400 transition-colors focus:border-transparent focus:ring-2 focus:ring-[rgb(34,51,95)] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
 						disabled={isLoading}
 						onkeydown={(e) => {
 							if (e.key === 'Enter' && !isLoading && password) {
@@ -150,7 +155,7 @@
 				</button>
 				<button
 					onclick={handleVerify}
-					class="flex-1 rounded-lg bg-primary px-4 py-3 font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+					class="bg-primary hover:bg-primary/90 flex-1 rounded-lg px-4 py-3 font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
 					disabled={isLoading || !password}
 				>
 					{#if isLoading}

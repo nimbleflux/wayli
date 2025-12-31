@@ -15,9 +15,7 @@ const FLUXBASE_PUBLIC_URL = config.fluxbaseUrl;
 const FLUXBASE_ANON_KEY = config.fluxbaseAnonKey;
 
 if (!FLUXBASE_ANON_KEY) {
-	console.warn(
-		'⚠️ PUBLIC_FLUXBASE_ANON_KEY is not set. Please add it to your .env file.'
-	);
+	console.warn('⚠️ PUBLIC_FLUXBASE_ANON_KEY is not set. Please add it to your .env file.');
 }
 
 // Create client-side Fluxbase client with browser-safe settings

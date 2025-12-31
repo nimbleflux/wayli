@@ -1,17 +1,17 @@
 <script lang="ts">
 	import { MapPin, Edit, BarChart2, Trash2, Map } from 'lucide-svelte';
 
-	export let title: string;
-	export let labels: string[];
-	export let distance: string;
-	export let duration: string;
-	export let image: string;
-	export let countries: string[];
-	export let onDelete: () => void;
-
-	function handleDelete() {
-		onDelete();
+	interface Props {
+		title: string;
+		labels: string[];
+		distance: string;
+		duration: string;
+		image: string;
+		countries: string[];
+		onDelete: () => void;
 	}
+
+	let { title, labels, distance, duration, image, countries, onDelete }: Props = $props();
 </script>
 
 <div
@@ -79,7 +79,7 @@
 			<button
 				class="cursor-pointer rounded p-1 text-red-600 hover:bg-red-50"
 				aria-label="Delete"
-				onclick={handleDelete}
+				onclick={onDelete}
 			>
 				<Trash2 class="h-4 w-4" />
 			</button>

@@ -78,12 +78,6 @@ spec:
           env:
             - name: NODE_ENV
               value: {{ .Values.web.env.nodeEnv | quote }}
-            - name: APP_MODE
-              {{- if eq .Values.deploymentMode "combined" }}
-              value: "combined"
-              {{- else }}
-              value: {{ .Values.web.env.appMode | quote }}
-              {{- end }}
             - name: HOST
               value: {{ .Values.web.env.host | quote }}
             - name: PORT
@@ -106,15 +100,6 @@ spec:
             {{- if .Values.web.initContainers.syncResources.enabled }}
             - name: SKIP_SYNC
               value: "true"
-            {{- end }}
-            {{- /* Include worker-specific env vars in combined mode */}}
-            {{- if eq .Values.deploymentMode "combined" }}
-            - name: PELIAS_ENDPOINT
-              value: {{ .Values.worker.env.pelias.endpoint | quote }}
-            - name: MAX_CONCURRENT_JOBS
-              value: {{ .Values.worker.env.maxConcurrentJobs | default 3 | quote }}
-            - name: MAX_JOB_RETRIES
-              value: {{ .Values.worker.env.maxJobRetries | default 3 | quote }}
             {{- end }}
             {{- if .Values.web.extraEnvVars }}
             {{- toYaml .Values.web.extraEnvVars | nindent 12 }}

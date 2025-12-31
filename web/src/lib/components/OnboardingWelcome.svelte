@@ -183,7 +183,7 @@
 				<!-- Step 1: Welcome -->
 				<div class="text-center">
 					<div
-						class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-4xl dark:bg-primary/20"
+						class="bg-primary/10 dark:bg-primary/20 mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full text-4xl"
 					>
 						👋
 					</div>
@@ -198,7 +198,7 @@
 					</p>
 					<button
 						onclick={handleContinue}
-						class="inline-flex items-center gap-2 rounded-lg bg-primary px-8 py-3 font-semibold text-white transition-all hover:scale-105 hover:bg-primary/90"
+						class="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-lg px-8 py-3 font-semibold text-white transition-all hover:scale-105"
 					>
 						{t('onboarding.continue')}
 						<ArrowRight class="h-5 w-5" />
@@ -307,7 +307,7 @@
 						<button
 							onclick={handleContinue}
 							disabled={!selectedHomeAddress}
-							class="flex-1 rounded-lg bg-primary px-6 py-3 font-semibold text-white transition-all hover:scale-105 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+							class="bg-primary hover:bg-primary/90 flex-1 rounded-lg px-6 py-3 font-semibold text-white transition-all hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
 						>
 							{t('onboarding.continue')}
 						</button>

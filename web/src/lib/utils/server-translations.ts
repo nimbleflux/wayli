@@ -41,10 +41,7 @@ function readFileSync(filePath: string): string | null {
 
 // Cross-runtime path join
 function joinPath(...segments: string[]): string {
-	return segments
-		.join('/')
-		.replace(/\/+/g, '/')
-		.replace(/\/$/, '');
+	return segments.join('/').replace(/\/+/g, '/').replace(/\/$/, '');
 }
 
 // Cross-runtime cwd

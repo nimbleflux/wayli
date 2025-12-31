@@ -62,7 +62,7 @@
 			// Generate a secure random API key (16 bytes = 32 hex characters)
 			const array = new Uint8Array(16);
 			crypto.getRandomValues(array);
-			const newApiKey = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+			const newApiKey = Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('');
 
 			console.log('🔑 Generating new API key for user:', data.user.id);
 
@@ -128,7 +128,7 @@
 	<!-- Header -->
 	<div class="mb-8">
 		<div class="flex items-center gap-3">
-			<Link class="h-8 w-8 text-primary dark:text-gray-400" />
+			<Link class="text-primary h-8 w-8 dark:text-gray-400" />
 			<h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
 				{t('connections.title')}
 			</h1>
@@ -161,7 +161,9 @@
 						for="owntracksApiKey">{t('connections.apiKey')}</label
 					>
 					{#if owntracksApiKeyConfigured}
-						<div class="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 dark:border-green-800 dark:bg-green-900/20">
+						<div
+							class="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 dark:border-green-800 dark:bg-green-900/20"
+						>
 							<Check class="h-4 w-4 text-green-600 dark:text-green-400" />
 							<span class="text-sm font-medium text-green-700 dark:text-green-300">
 								{t('connections.apiKeyConfigured')}
@@ -171,7 +173,9 @@
 							{t('connections.apiKeyConfiguredDescription')}
 						</p>
 					{:else}
-						<div class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-900/20">
+						<div
+							class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-900/20"
+						>
 							<AlertTriangle class="h-4 w-4 text-amber-600 dark:text-amber-400" />
 							<span class="text-sm font-medium text-amber-700 dark:text-amber-300">
 								{t('connections.noApiKeyGenerated')}
@@ -184,10 +188,12 @@
 				<button
 					type="button"
 					onclick={generateApiKey}
-					class="flex cursor-pointer items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-primary-dark/90"
+					class="bg-primary hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-primary-dark/90 flex cursor-pointer items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors"
 				>
 					<RefreshCw class="h-4 w-4" />
-					{owntracksApiKeyConfigured ? t('connections.regenerateApiKey') : t('connections.generateApiKey')}
+					{owntracksApiKeyConfigured
+						? t('connections.regenerateApiKey')
+						: t('connections.generateApiKey')}
 				</button>
 
 				{#if owntracksApiKeyConfigured}
@@ -198,12 +204,14 @@
 
 				<!-- Instructions -->
 				<div
-					class="mt-4 rounded-lg border border-primary/30 bg-primary/5 p-4 dark:border-primary-dark/30 dark:bg-primary-dark/20"
+					class="border-primary/30 bg-primary/5 dark:border-primary-dark/30 dark:bg-primary-dark/20 mt-4 rounded-lg border p-4"
 				>
-					<h3 class="mb-2 text-sm font-medium text-primary dark:text-primary-dark">
+					<h3 class="text-primary dark:text-primary-dark mb-2 text-sm font-medium">
 						{t('connections.setupInstructions')}
 					</h3>
-					<ol class="list-inside list-decimal space-y-1 text-sm text-primary dark:text-primary-dark/80">
+					<ol
+						class="text-primary dark:text-primary-dark/80 list-inside list-decimal space-y-1 text-sm"
+					>
 						<li>{t('connections.instruction1')}</li>
 						<li>{t('connections.instruction2')}</li>
 						<li>{t('connections.instruction3')}</li>
@@ -241,7 +249,9 @@
 				</button>
 			</div>
 
-			<div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+			<div
+				class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20"
+			>
 				<p class="text-sm text-amber-800 dark:text-amber-200">
 					{t('connections.apiKeyWarning')}
 				</p>
@@ -262,7 +272,9 @@
 						/>
 						<button
 							type="button"
-							onclick={() => newlyGeneratedEndpoint && copyToClipboard(newlyGeneratedEndpoint, t('connections.apiEndpoint'))}
+							onclick={() =>
+								newlyGeneratedEndpoint &&
+								copyToClipboard(newlyGeneratedEndpoint, t('connections.apiEndpoint'))}
 							class="flex items-center gap-2 rounded-md border border-[rgb(218,218,221)] px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:border-[#3f3f46] dark:text-gray-300 dark:hover:bg-[#1a1a1a]"
 						>
 							{#if copiedField === t('connections.apiEndpoint')}
@@ -284,11 +296,13 @@
 							type="text"
 							value={newlyGeneratedApiKey}
 							readonly
-							class="flex-1 rounded-md border border-[rgb(218,218,221)] bg-gray-50 px-3 py-2 text-sm font-mono text-gray-900 dark:border-[#3f3f46] dark:bg-[#1a1a1a] dark:text-gray-100"
+							class="flex-1 rounded-md border border-[rgb(218,218,221)] bg-gray-50 px-3 py-2 font-mono text-sm text-gray-900 dark:border-[#3f3f46] dark:bg-[#1a1a1a] dark:text-gray-100"
 						/>
 						<button
 							type="button"
-							onclick={() => newlyGeneratedApiKey && copyToClipboard(newlyGeneratedApiKey, t('connections.apiKey'))}
+							onclick={() =>
+								newlyGeneratedApiKey &&
+								copyToClipboard(newlyGeneratedApiKey, t('connections.apiKey'))}
 							class="flex items-center gap-2 rounded-md border border-[rgb(218,218,221)] px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:border-[#3f3f46] dark:text-gray-300 dark:hover:bg-[#1a1a1a]"
 						>
 							{#if copiedField === t('connections.apiKey')}
@@ -305,7 +319,7 @@
 				<button
 					type="button"
 					onclick={closeApiKeyModal}
-					class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
+					class="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors"
 				>
 					{t('connections.iHaveSavedMyKey')}
 				</button>

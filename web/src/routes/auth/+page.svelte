@@ -53,7 +53,7 @@
 			<div class="space-y-4">
 				<a
 					href="/auth/signin"
-					class="flex w-full items-center justify-center gap-3 rounded-lg bg-primary px-4 py-3 font-medium text-white transition-colors hover:bg-primary/90"
+					class="bg-primary hover:bg-primary/90 flex w-full items-center justify-center gap-3 rounded-lg px-4 py-3 font-medium text-white transition-colors"
 				>
 					<Mail class="h-5 w-5" />
 					Sign in with email

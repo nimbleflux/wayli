@@ -1,18 +1,33 @@
 <script lang="ts">
+	import type { Component } from 'svelte';
 	import { AlertTriangle, Trash2 } from 'lucide-svelte';
 
 	import AccessibleButton from '$lib/components/ui/accessible-button/index.svelte';
 	import Modal from '$lib/components/ui/modal/index.svelte';
 
-	export let open = false;
-	export let title = 'Confirm Action';
-	export let message = 'Are you sure you want to proceed?';
-	export let confirmText = 'Confirm';
-	export let cancelText = 'Cancel';
-	export let variant: 'danger' | 'warning' | 'info' = 'warning';
-	export let icon: typeof AlertTriangle | typeof Trash2 = AlertTriangle;
-	export let onConfirm: (() => void) | undefined = undefined;
-	export let onCancel: (() => void) | undefined = undefined;
+	interface Props {
+		open?: boolean;
+		title?: string;
+		message?: string;
+		confirmText?: string;
+		cancelText?: string;
+		variant?: 'danger' | 'warning' | 'info';
+		icon?: Component;
+		onConfirm?: () => void;
+		onCancel?: () => void;
+	}
+
+	let {
+		open = false,
+		title = 'Confirm Action',
+		message = 'Are you sure you want to proceed?',
+		confirmText = 'Confirm',
+		cancelText = 'Cancel',
+		variant = 'warning',
+		icon = AlertTriangle,
+		onConfirm,
+		onCancel
+	}: Props = $props();
 
 	const variantConfig = {
 		danger: {
@@ -33,15 +48,11 @@
 	};
 
 	function handleConfirm() {
-		if (onConfirm) {
-			onConfirm();
-		}
+		onConfirm?.();
 	}
 
 	function handleCancel() {
-		if (onCancel) {
-			onCancel();
-		}
+		onCancel?.();
 	}
 </script>
 

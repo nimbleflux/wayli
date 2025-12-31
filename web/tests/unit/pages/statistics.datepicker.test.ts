@@ -41,8 +41,23 @@ vi.mock('$lib/i18n', async () => {
 // Create a chainable fluxbase mock that handles both auth and database queries
 function createChainableMock(resolvedValue: any = { data: [], count: 0 }) {
 	const chain: any = {};
-	const methods = ['select', 'eq', 'in', 'single', 'not', 'order', 'range', 'gte', 'lte', 'insert', 'update', 'delete', 'limit', 'count'];
-	methods.forEach(method => {
+	const methods = [
+		'select',
+		'eq',
+		'in',
+		'single',
+		'not',
+		'order',
+		'range',
+		'gte',
+		'lte',
+		'insert',
+		'update',
+		'delete',
+		'limit',
+		'count'
+	];
+	methods.forEach((method) => {
 		chain[method] = vi.fn().mockReturnValue(chain);
 	});
 	chain.then = (resolve: (value: any) => void) => {

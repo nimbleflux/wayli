@@ -335,7 +335,10 @@ export class ServiceAdapter {
 		if (error || !data) return 0;
 
 		// Sum up all distances, treating null/undefined as 0
-		return data.reduce((sum, row) => sum + (typeof row.distance === 'number' ? row.distance : 0), 0);
+		return data.reduce(
+			(sum, row) => sum + (typeof row.distance === 'number' ? row.distance : 0),
+			0
+		);
 	}
 
 	async getTrips(options?: { limit?: number; offset?: number; search?: string }) {
@@ -608,7 +611,11 @@ export class ServiceAdapter {
 		const offset = options?.offset || 0;
 
 		// Query trips with status='pending' (suggested trips) with count
-		const { data: trips, error, count } = await fluxbase
+		const {
+			data: trips,
+			error,
+			count
+		} = await fluxbase
 			.from('trips')
 			.select('*', { count: 'exact' })
 			.eq('user_id', userData.user.id)
@@ -756,9 +763,15 @@ export class ServiceAdapter {
 				);
 
 				if (embedError) {
-					console.warn('⚠️ [SERVICE] Failed to queue sync-trip-embeddings job:', embedError.message);
+					console.warn(
+						'⚠️ [SERVICE] Failed to queue sync-trip-embeddings job:',
+						embedError.message
+					);
 				} else {
-					console.log('✅ [SERVICE] sync-trip-embeddings job queued:', (embedJob as any)?.job_id || 'unknown');
+					console.log(
+						'✅ [SERVICE] sync-trip-embeddings job queued:',
+						(embedJob as any)?.job_id || 'unknown'
+					);
 				}
 			} catch (embedQueueError) {
 				// Non-fatal - log but don't fail the approval
@@ -769,16 +782,18 @@ export class ServiceAdapter {
 			// This chains to sync-poi-embeddings -> compute-user-preferences
 			try {
 				console.log('🔗 [SERVICE] Queueing refresh-place-visits job...');
-				fluxbase.jobs.submit(
-					'refresh-place-visits',
-					{},
-					{
-						namespace: 'wayli',
-						priority: 4
-					}
-				).catch(err =>
-					console.warn('⚠️ [SERVICE] Failed to queue refresh-place-visits job:', err)
-				);
+				fluxbase.jobs
+					.submit(
+						'refresh-place-visits',
+						{},
+						{
+							namespace: 'wayli',
+							priority: 4
+						}
+					)
+					.catch((err) =>
+						console.warn('⚠️ [SERVICE] Failed to queue refresh-place-visits job:', err)
+					);
 			} catch (refreshError) {
 				// Non-fatal - log but don't fail the approval
 				console.warn('⚠️ [SERVICE] Error queueing refresh-place-visits job:', refreshError);
@@ -937,7 +952,12 @@ export class ServiceAdapter {
 			// Fetch jobs with all statuses to include completed exports
 			// Use includeResult: true for completed jobs to get the file_path for download links
 			const [completedResult, runningResult, pendingResult, failedResult] = await Promise.all([
-				fluxbase.jobs.list({ namespace: 'wayli', status: 'completed', limit: options?.limit || 50, includeResult: true }),
+				fluxbase.jobs.list({
+					namespace: 'wayli',
+					status: 'completed',
+					limit: options?.limit || 50,
+					includeResult: true
+				}),
 				fluxbase.jobs.list({ namespace: 'wayli', status: 'running', limit: 20 }),
 				fluxbase.jobs.list({ namespace: 'wayli', status: 'pending', limit: 20 }),
 				fluxbase.jobs.list({ namespace: 'wayli', status: 'failed', limit: 20 })
@@ -957,12 +977,9 @@ export class ServiceAdapter {
 			const failedJobs = toArray(failedResult.data);
 
 			// Combine all jobs and filter for data-export only (client-side)
-			const allJobs = [
-				...completedJobs,
-				...runningJobs,
-				...pendingJobs,
-				...failedJobs
-			].filter((job) => job.job_name === 'data-export');
+			const allJobs = [...completedJobs, ...runningJobs, ...pendingJobs, ...failedJobs].filter(
+				(job) => job.job_name === 'data-export'
+			);
 
 			// Sort by created_at descending
 			allJobs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -1098,7 +1115,7 @@ export class ServiceAdapter {
 		const response = await fetch(url, {
 			headers: {
 				'X-Client-App': 'WayliApp/1.0',
-				'Accept': 'application/json'
+				Accept: 'application/json'
 			}
 		});
 
@@ -1163,7 +1180,10 @@ export class ServiceAdapter {
 
 		// Check if job has completed and has a file path
 		// Handle JSON string result (API returns stringified JSON) and nested formats
-		let result = job.result as { file_path?: string; result?: { file_path?: string } } | string | null;
+		let result = job.result as
+			| { file_path?: string; result?: { file_path?: string } }
+			| string
+			| null;
 
 		// Parse if it's a JSON string
 		if (typeof result === 'string') {
@@ -1190,9 +1210,7 @@ export class ServiceAdapter {
 
 		// Use the public URL through the Fluxbase API gateway (handles auth via session)
 		// This avoids issues with presigned URLs using internal hostnames (e.g., minio:9000)
-		const { data: urlData } = fluxbase.storage
-			.from('temp-files')
-			.getPublicUrl(filePath);
+		const { data: urlData } = fluxbase.storage.from('temp-files').getPublicUrl(filePath);
 
 		console.log('[ServiceAdapter] getExportDownloadUrl - download URL generated successfully');
 		return { downloadUrl: urlData.publicUrl };
@@ -1219,9 +1237,7 @@ export class ServiceAdapter {
 
 			// Filter by type if provided (client-side filtering)
 			// Handle both array response and paginated object response { jobs: [...] }
-			let filteredJobs: any[] = Array.isArray(jobs)
-				? jobs
-				: (jobs as any)?.jobs || [];
+			let filteredJobs: any[] = Array.isArray(jobs) ? jobs : (jobs as any)?.jobs || [];
 			if (options?.type) {
 				filteredJobs = filteredJobs.filter((job) => job.job_name === options.type);
 			}
@@ -1459,10 +1475,13 @@ export class ServiceAdapter {
 		const customSettings = await fluxbase.admin.settings.app.listSettings();
 		const wayliSettings = (customSettings || [])
 			.filter((s: any) => s.key.startsWith('wayli.'))
-			.reduce((acc: any, s: any) => ({
-				...acc,
-				[s.key]: s.value
-			}), {});
+			.reduce(
+				(acc: any, s: any) => ({
+					...acc,
+					[s.key]: s.value
+				}),
+				{}
+			);
 
 		// Get AI providers from FluxbaseAdmin SDK first
 		let providers: any[] = [];
@@ -1626,7 +1645,7 @@ export class ServiceAdapter {
 					provider_type: params.provider.provider_type,
 					is_default: params.provider.is_default ?? true,
 					config: params.provider.config,
-					enabled: true,
+					enabled: true
 				});
 			}
 		}
@@ -1649,12 +1668,12 @@ export class ServiceAdapter {
 			description: description || `Wayli setting: ${key}`,
 			is_public: false,
 			is_secret: key.includes('api_key') || key.includes('secret'),
-			value_type: typeof value === 'object' ? 'json' : typeof value as 'string' | 'number' | 'boolean'
+			value_type:
+				typeof value === 'object' ? 'json' : (typeof value as 'string' | 'number' | 'boolean')
 		});
 
 		return { updated: key };
 	}
-
 
 	async getAdminWorkers() {
 		const { fluxbase } = await import('$lib/fluxbase');
@@ -1754,10 +1773,7 @@ export class ServiceAdapter {
 			}
 
 			case 'delete': {
-				const { error } = await fluxbase
-					.from('workers')
-					.delete()
-					.eq('id', action.id);
+				const { error } = await fluxbase.from('workers').delete().eq('id', action.id);
 
 				if (error) {
 					throw new Error(error.message || 'Failed to delete worker');
@@ -1918,7 +1934,12 @@ export class ServiceAdapter {
 		const currentExclusions = userPreferences?.trip_exclusions || [];
 		const updatedExclusions = currentExclusions.map((ex: any) =>
 			ex.id === exclusion.id
-				? { ...ex, name: exclusion.name, location: exclusion.location, updated_at: new Date().toISOString() }
+				? {
+						...ex,
+						name: exclusion.name,
+						location: exclusion.location,
+						updated_at: new Date().toISOString()
+					}
 				: ex
 		);
 

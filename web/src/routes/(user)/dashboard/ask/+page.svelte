@@ -265,8 +265,7 @@
 							role: 'assistant',
 							content: currentStreamingContent,
 							timestamp: new Date(),
-							queryResults:
-								enrichedQueryResults.length > 0 ? [...enrichedQueryResults] : undefined,
+							queryResults: enrichedQueryResults.length > 0 ? [...enrichedQueryResults] : undefined,
 							executionLogs:
 								currentExecutionLogs.length > 0 ? [...currentExecutionLogs] : undefined,
 							usage
@@ -670,223 +669,255 @@
 	<div class="flex flex-1 flex-col overflow-hidden bg-gray-50 dark:bg-gray-900">
 		<!-- Messages Area -->
 		<div bind:this={messagesContainer} class="flex-1 overflow-y-auto">
-		{#if isCheckingConfig}
-			<!-- Loading configuration -->
-			<div class="flex h-full flex-col items-center justify-center p-6">
-				<Loader2 class="mb-4 h-12 w-12 animate-spin text-gray-400" />
-				<p class="text-sm text-gray-500 dark:text-gray-400">
-					{t('ask.connectingToChat')}
-				</p>
-			</div>
-		{:else if configurationError}
-			<!-- Configuration Error State -->
-			<div class="flex h-full flex-col items-center justify-center p-6">
-				<div class="max-w-md text-center">
-					<div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
-						<AlertCircle class="h-8 w-8 text-orange-600 dark:text-orange-400" />
-					</div>
-					<h3 class="mb-2 text-xl font-semibold text-gray-900 dark:text-gray-100">
-						{t('ask.notConfigured')}
-					</h3>
-					<p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
-						{t('ask.notConfiguredDescription')}
+			{#if isCheckingConfig}
+				<!-- Loading configuration -->
+				<div class="flex h-full flex-col items-center justify-center p-6">
+					<Loader2 class="mb-4 h-12 w-12 animate-spin text-gray-400" />
+					<p class="text-sm text-gray-500 dark:text-gray-400">
+						{t('ask.connectingToChat')}
 					</p>
-					<ul class="mb-6 text-left text-sm text-gray-500 dark:text-gray-400">
-						<li class="flex items-start gap-2 py-1">
-							<span class="text-gray-400">•</span>
-							<span>{t('ask.notConfiguredReasons.disabled')}</span>
-						</li>
-						<li class="flex items-start gap-2 py-1">
-							<span class="text-gray-400">•</span>
-							<span>{t('ask.notConfiguredReasons.notSynced')}</span>
-						</li>
-						<li class="flex items-start gap-2 py-1">
-							<span class="text-gray-400">•</span>
-							<span>{t('ask.notConfiguredReasons.configError')}</span>
-						</li>
-					</ul>
-
-					{#if isAdmin}
-						<!-- Admin can configure settings -->
-						<a
-							href="/dashboard/server-admin-settings"
-							class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
+				</div>
+			{:else if configurationError}
+				<!-- Configuration Error State -->
+				<div class="flex h-full flex-col items-center justify-center p-6">
+					<div class="max-w-md text-center">
+						<div
+							class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30"
 						>
-							<Settings class="h-4 w-4" />
-							{t('ask.configureAsAdmin')}
-						</a>
-					{:else if allowUserOverride}
-						<!-- User can configure their own provider -->
-						<a
-							href="/dashboard/account-settings"
-							class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
-						>
-							<Settings class="h-4 w-4" />
-							{t('ask.configureAsUser')}
-						</a>
-					{:else}
-						<!-- User cannot configure, contact admin -->
-						<p class="text-sm text-gray-500 dark:text-gray-400">
-							{t('ask.contactAdmin')}
+							<AlertCircle class="h-8 w-8 text-orange-600 dark:text-orange-400" />
+						</div>
+						<h3 class="mb-2 text-xl font-semibold text-gray-900 dark:text-gray-100">
+							{t('ask.notConfigured')}
+						</h3>
+						<p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
+							{t('ask.notConfiguredDescription')}
 						</p>
+						<ul class="mb-6 text-left text-sm text-gray-500 dark:text-gray-400">
+							<li class="flex items-start gap-2 py-1">
+								<span class="text-gray-400">•</span>
+								<span>{t('ask.notConfiguredReasons.disabled')}</span>
+							</li>
+							<li class="flex items-start gap-2 py-1">
+								<span class="text-gray-400">•</span>
+								<span>{t('ask.notConfiguredReasons.notSynced')}</span>
+							</li>
+							<li class="flex items-start gap-2 py-1">
+								<span class="text-gray-400">•</span>
+								<span>{t('ask.notConfiguredReasons.configError')}</span>
+							</li>
+						</ul>
+
+						{#if isAdmin}
+							<!-- Admin can configure settings -->
+							<a
+								href="/dashboard/server-admin-settings"
+								class="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors"
+							>
+								<Settings class="h-4 w-4" />
+								{t('ask.configureAsAdmin')}
+							</a>
+						{:else if allowUserOverride}
+							<!-- User can configure their own provider -->
+							<a
+								href="/dashboard/account-settings"
+								class="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors"
+							>
+								<Settings class="h-4 w-4" />
+								{t('ask.configureAsUser')}
+							</a>
+						{:else}
+							<!-- User cannot configure, contact admin -->
+							<p class="text-sm text-gray-500 dark:text-gray-400">
+								{t('ask.contactAdmin')}
+							</p>
+						{/if}
+					</div>
+				</div>
+			{:else if messages.length === 0 && !isLoading}
+				<!-- Empty State with Suggestions -->
+				<div class="flex h-full flex-col items-center justify-center p-6">
+					<Bot class="mb-4 h-12 w-12 text-gray-400" />
+					<h3 class="mb-2 text-lg font-medium text-gray-700 dark:text-gray-300">
+						{t('ask.startConversation')}
+					</h3>
+					<p class="mb-6 text-center text-sm text-gray-500 dark:text-gray-400">
+						{t('ask.askAnything')}
+					</p>
+					<div class="grid w-full max-w-2xl gap-2 sm:grid-cols-2">
+						{#each suggestions.slice(0, 4) as suggestion (suggestion.question)}
+							<button
+								onclick={() => useSuggestion(suggestion)}
+								class="hover:border-primary/50 dark:hover:border-primary rounded-lg border border-gray-200 bg-white p-3 text-left text-sm transition-all hover:shadow-sm dark:border-gray-700 dark:bg-gray-800"
+							>
+								<div class="font-medium text-gray-700 dark:text-gray-300">
+									{suggestion.question}
+								</div>
+							</button>
+						{/each}
+					</div>
+				</div>
+			{:else}
+				<!-- Messages -->
+				<div class="space-y-4 p-4">
+					{#each messages as message (message.id)}
+						<div class="flex gap-3 {message.role === 'user' ? 'justify-end' : ''}">
+							{#if message.role === 'assistant'}
+								<div
+									class="bg-primary/10 dark:bg-primary/20 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full"
+								>
+									<Bot class="text-primary dark:text-primary-dark h-5 w-5" />
+								</div>
+							{/if}
+							<div
+								class="max-w-[80%] rounded-xl px-4 py-3 {message.role === 'user'
+									? 'bg-primary text-white'
+									: 'bg-white dark:bg-gray-800'}"
+							>
+								{#if message.role === 'assistant'}
+									{@const hasQueryResults = message.queryResults && message.queryResults.length > 0}
+									<!-- Always show text response first (with Markdown rendering, strip images if cards shown) -->
+									{#if message.content}
+										<div
+											class="prose prose-sm dark:prose-invert max-w-none text-gray-800 dark:text-gray-200"
+										>
+											{@html renderMarkdown(message.content, hasQueryResults)}
+										</div>
+									{/if}
+
+									<!-- Query Results (shown inline as cards below text) -->
+									{#if message.queryResults && message.queryResults.length > 0}
+										<div class="mt-4 space-y-3">
+											{#each message.queryResults as queryResult, idx}
+												<ChatResultRenderer
+													{queryResult}
+													queryIndex={idx}
+													totalQueries={message.queryResults.length}
+													onPlaceClick={handlePlaceClick}
+												/>
+											{/each}
+										</div>
+									{/if}
+
+									<!-- View Execution Logs button -->
+									{#if message.executionLogs && message.executionLogs.length > 0}
+										<button
+											onclick={() => openExecutionLogs(message.executionLogs)}
+											class="text-primary hover:text-primary/80 dark:text-primary-dark dark:hover:text-primary-dark/80 mt-2 flex items-center gap-1 text-xs hover:underline"
+										>
+											<FileText class="h-3 w-3" />
+											{t('ask.viewExecutionLogs', { count: message.executionLogs.length })}
+										</button>
+									{/if}
+								{:else}
+									<div>{message.content}</div>
+								{/if}
+							</div>
+							{#if message.role === 'user'}
+								<div
+									class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700"
+								>
+									<User class="h-5 w-5 text-gray-600 dark:text-gray-400" />
+								</div>
+							{/if}
+						</div>
+					{/each}
+
+					<!-- Streaming Response -->
+					{#if isLoading}
+						<div class="flex gap-3">
+							<div
+								class="bg-primary/10 dark:bg-primary/20 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full"
+							>
+								<Bot class="text-primary dark:text-primary-dark h-5 w-5" />
+							</div>
+							<div class="max-w-[80%] rounded-xl bg-white px-4 py-3 dark:bg-gray-800">
+								<!-- Collapsible Query Summary -->
+								{#if currentQueryResults.length > 0}
+									<button
+										type="button"
+										onclick={() => (streamingDetailsExpanded = !streamingDetailsExpanded)}
+										class="mt-1 flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+									>
+										{#if streamingDetailsExpanded}
+											<ChevronDown class="h-3.5 w-3.5 flex-shrink-0" />
+										{:else}
+											<ChevronRight class="h-3.5 w-3.5 flex-shrink-0" />
+										{/if}
+										<Database class="h-3 w-3 flex-shrink-0" />
+										<span
+											>{currentQueryResults.length}
+											{currentQueryResults.length === 1
+												? t('ask.queryExecuted')
+												: t('ask.queriesExecutedPlural')}</span
+										>
+									</button>
+
+									<!-- Expanded Query Details -->
+									{#if streamingDetailsExpanded}
+										<div
+											class="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900"
+										>
+											{#each currentQueryResults as queryResult, idx}
+												<div
+													class="flex items-center justify-between py-1 text-xs {idx > 0
+														? 'border-t border-gray-200 dark:border-gray-700'
+														: ''}"
+												>
+													<span class="text-gray-600 dark:text-gray-400">
+														{getQueriedTable(queryResult.query)}
+													</span>
+													<span class="text-gray-400">
+														{queryResult.rowCount} rows
+													</span>
+												</div>
+											{/each}
+										</div>
+									{/if}
+								{/if}
+
+								<!-- Streaming content (with live Markdown rendering) -->
+								{#if currentStreamingContent}
+									<div
+										class="prose prose-sm dark:prose-invert max-w-none text-gray-800 dark:text-gray-200"
+									>
+										{@html renderMarkdown(currentStreamingContent, currentQueryResults.length > 0)}
+									</div>
+									<span class="mt-1 inline-block h-4 w-2 animate-pulse bg-gray-400"></span>
+								{:else if !currentQueryResults.length}
+									<!-- Status Indicator - only show when no content or query results have arrived yet -->
+									<div
+										class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400"
+										style="min-height: 24px;"
+									>
+										<Loader2
+											class="text-primary dark:text-primary-dark h-4 w-4 flex-shrink-0 animate-spin"
+										/>
+										<span class="transition-opacity duration-150">
+											{currentProgress?.message || t('ask.thinking')}
+										</span>
+									</div>
+								{/if}
+							</div>
+						</div>
+					{/if}
+
+					<!-- Error -->
+					{#if error}
+						<div
+							class="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400"
+						>
+							<AlertCircle class="h-4 w-4 flex-shrink-0" />
+							{error}
+						</div>
 					{/if}
 				</div>
-			</div>
-		{:else if messages.length === 0 && !isLoading}
-			<!-- Empty State with Suggestions -->
-			<div class="flex h-full flex-col items-center justify-center p-6">
-				<Bot class="mb-4 h-12 w-12 text-gray-400" />
-				<h3 class="mb-2 text-lg font-medium text-gray-700 dark:text-gray-300">
-					{t('ask.startConversation')}
-				</h3>
-				<p class="mb-6 text-center text-sm text-gray-500 dark:text-gray-400">
-					{t('ask.askAnything')}
-				</p>
-				<div class="grid w-full max-w-2xl gap-2 sm:grid-cols-2">
-					{#each suggestions.slice(0, 4) as suggestion (suggestion.question)}
-						<button
-							onclick={() => useSuggestion(suggestion)}
-							class="rounded-lg border border-gray-200 bg-white p-3 text-left text-sm transition-all hover:border-primary/50 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:hover:border-primary"
-						>
-							<div class="font-medium text-gray-700 dark:text-gray-300">
-								{suggestion.question}
-							</div>
-						</button>
-					{/each}
-				</div>
-			</div>
-		{:else}
-			<!-- Messages -->
-			<div class="space-y-4 p-4">
-				{#each messages as message (message.id)}
-					<div class="flex gap-3 {message.role === 'user' ? 'justify-end' : ''}">
-						{#if message.role === 'assistant'}
-							<div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 dark:bg-primary/20">
-								<Bot class="h-5 w-5 text-primary dark:text-primary-dark" />
-							</div>
-						{/if}
-						<div
-							class="max-w-[80%] rounded-xl px-4 py-3 {message.role === 'user'
-								? 'bg-primary text-white'
-								: 'bg-white dark:bg-gray-800'}"
-						>
-							{#if message.role === 'assistant'}
-								{@const hasQueryResults = message.queryResults && message.queryResults.length > 0}
-								<!-- Always show text response first (with Markdown rendering, strip images if cards shown) -->
-								{#if message.content}
-									<div class="prose prose-sm dark:prose-invert max-w-none text-gray-800 dark:text-gray-200">
-										{@html renderMarkdown(message.content, hasQueryResults)}
-									</div>
-								{/if}
-
-								<!-- Query Results (shown inline as cards below text) -->
-								{#if message.queryResults && message.queryResults.length > 0}
-									<div class="mt-4 space-y-3">
-										{#each message.queryResults as queryResult, idx}
-											<ChatResultRenderer
-												{queryResult}
-												queryIndex={idx}
-												totalQueries={message.queryResults.length}
-												onPlaceClick={handlePlaceClick}
-											/>
-										{/each}
-									</div>
-								{/if}
-
-								<!-- View Execution Logs button -->
-								{#if message.executionLogs && message.executionLogs.length > 0}
-									<button
-										onclick={() => openExecutionLogs(message.executionLogs)}
-										class="mt-2 flex items-center gap-1 text-xs text-primary hover:text-primary/80 hover:underline dark:text-primary-dark dark:hover:text-primary-dark/80"
-									>
-										<FileText class="h-3 w-3" />
-										{t('ask.viewExecutionLogs', { count: message.executionLogs.length })}
-									</button>
-								{/if}
-							{:else}
-								<div>{message.content}</div>
-							{/if}
-						</div>
-						{#if message.role === 'user'}
-							<div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700">
-								<User class="h-5 w-5 text-gray-600 dark:text-gray-400" />
-							</div>
-						{/if}
-					</div>
-				{/each}
-
-				<!-- Streaming Response -->
-				{#if isLoading}
-					<div class="flex gap-3">
-						<div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 dark:bg-primary/20">
-							<Bot class="h-5 w-5 text-primary dark:text-primary-dark" />
-						</div>
-						<div class="max-w-[80%] rounded-xl bg-white px-4 py-3 dark:bg-gray-800">
-							<!-- Collapsible Query Summary -->
-							{#if currentQueryResults.length > 0}
-								<button
-									type="button"
-									onclick={() => streamingDetailsExpanded = !streamingDetailsExpanded}
-									class="mt-1 flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-								>
-									{#if streamingDetailsExpanded}
-										<ChevronDown class="h-3.5 w-3.5 flex-shrink-0" />
-									{:else}
-										<ChevronRight class="h-3.5 w-3.5 flex-shrink-0" />
-									{/if}
-									<Database class="h-3 w-3 flex-shrink-0" />
-									<span>{currentQueryResults.length} {currentQueryResults.length === 1 ? t('ask.queryExecuted') : t('ask.queriesExecutedPlural')}</span>
-								</button>
-
-								<!-- Expanded Query Details -->
-								{#if streamingDetailsExpanded}
-									<div class="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900">
-										{#each currentQueryResults as queryResult, idx}
-											<div class="flex items-center justify-between py-1 text-xs {idx > 0 ? 'border-t border-gray-200 dark:border-gray-700' : ''}">
-												<span class="text-gray-600 dark:text-gray-400">
-													{getQueriedTable(queryResult.query)}
-												</span>
-												<span class="text-gray-400">
-													{queryResult.rowCount} rows
-												</span>
-											</div>
-										{/each}
-									</div>
-								{/if}
-							{/if}
-
-							<!-- Streaming content (with live Markdown rendering) -->
-							{#if currentStreamingContent}
-								<div class="prose prose-sm dark:prose-invert max-w-none text-gray-800 dark:text-gray-200">
-									{@html renderMarkdown(currentStreamingContent, currentQueryResults.length > 0)}
-								</div>
-								<span class="inline-block h-4 w-2 animate-pulse bg-gray-400 mt-1"></span>
-							{:else if !currentQueryResults.length}
-								<!-- Status Indicator - only show when no content or query results have arrived yet -->
-								<div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400" style="min-height: 24px;">
-									<Loader2 class="h-4 w-4 flex-shrink-0 animate-spin text-primary dark:text-primary-dark" />
-									<span class="transition-opacity duration-150">
-										{currentProgress?.message || t('ask.thinking')}
-									</span>
-								</div>
-							{/if}
-						</div>
-					</div>
-				{/if}
-
-				<!-- Error -->
-				{#if error}
-					<div class="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
-						<AlertCircle class="h-4 w-4 flex-shrink-0" />
-						{error}
-					</div>
-				{/if}
-			</div>
-		{/if}
-	</div>
+			{/if}
+		</div>
 
 		<!-- Input Area -->
-		<div class="flex-shrink-0 border-t border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+		<div
+			class="flex-shrink-0 border-t border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900"
+		>
 			<div class="relative flex items-center gap-2">
 				<input
 					type="text"
@@ -895,7 +926,7 @@
 					onkeydown={(e) => e.key === 'Enter' && sendMessage()}
 					placeholder={isConnected ? t('ask.inputPlaceholder') : t('ask.inputConnecting')}
 					disabled={isLoading || !isConnected}
-					class="flex-1 rounded-xl border border-gray-300 bg-white py-3 pl-4 pr-12 shadow-sm transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-primary"
+					class="focus:border-primary focus:ring-primary/20 dark:focus:border-primary flex-1 rounded-xl border border-gray-300 bg-white py-3 pr-12 pl-4 shadow-sm transition-all focus:ring-2 focus:outline-none disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
 				/>
 				{#if isLoading}
 					<button
@@ -909,7 +940,7 @@
 					<button
 						onclick={sendMessage}
 						disabled={!question.trim() || !isConnected}
-						class="absolute right-3 rounded-lg bg-primary p-2 text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+						class="bg-primary hover:bg-primary/90 absolute right-3 rounded-lg p-2 text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
 					>
 						<Send class="h-5 w-5" />
 					</button>
@@ -947,7 +978,10 @@
 		>
 			<!-- Header -->
 			<div class="mb-4 flex items-center justify-between">
-				<h3 id="execution-logs-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+				<h3
+					id="execution-logs-title"
+					class="text-lg font-semibold text-gray-900 dark:text-gray-100"
+				>
 					{t('ask.executionLogs')}
 				</h3>
 				<button

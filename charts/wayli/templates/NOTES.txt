@@ -1,5 +1,4 @@
 {{- $web := printf "%s-web" (include "wayli.fullname" .) -}}
-{{- $worker := printf "%s-worker" (include "wayli.fullname" .) -}}
 
 ** Wayli has been deployed! **
 
@@ -66,13 +65,6 @@ COMPONENTS DEPLOYED
 {{- end }}
 {{- end }}
 
-{{- if .Values.worker.enabled }}
-✓ Worker StatefulSet ({{ .Values.worker.replicaCount }} replicas)
-{{- if .Values.worker.autoscaling.enabled }}
-  - HPA enabled: {{ .Values.worker.autoscaling.minReplicas }}-{{ .Values.worker.autoscaling.maxReplicas }} replicas
-{{- end }}
-{{- end }}
-
 {{- if .Values.fluxbase.enabled }}
 ✓ Fluxbase (subchart)
 {{- if .Values.fluxbase.postgresql.enabled }}
@@ -85,15 +77,13 @@ USEFUL COMMANDS
 ===================
 
 View logs:
-  Web:    kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=web -f
-  Worker: kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=worker -f
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=web -f
 
 Get pod status:
   kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
 
-Describe deployments:
+Describe deployment:
   kubectl describe deployment -n {{ .Release.Namespace }} {{ $web }}
-  kubectl describe statefulset -n {{ .Release.Namespace }} {{ $worker }}
 
 ===================
 CONFIGURATION

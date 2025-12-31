@@ -91,7 +91,7 @@
 					</th>
 					<th class="px-6 py-4">
 						<button
-							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-primary dark:text-gray-100 dark:hover:text-primary-dark"
+							class="hover:text-primary dark:hover:text-primary-dark flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 dark:text-gray-100"
 							onclick={() => toggleSort('title')}
 						>
 							Trip Name
@@ -108,7 +108,7 @@
 					</th>
 					<th class="px-6 py-4">
 						<button
-							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-primary dark:text-gray-100 dark:hover:text-primary-dark"
+							class="hover:text-primary dark:hover:text-primary-dark flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 dark:text-gray-100"
 							onclick={() => toggleSort('labels')}
 						>
 							Labels
@@ -125,7 +125,7 @@
 					</th>
 					<th class="px-6 py-4">
 						<button
-							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-primary dark:text-gray-100 dark:hover:text-primary-dark"
+							class="hover:text-primary dark:hover:text-primary-dark flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 dark:text-gray-100"
 							onclick={() => toggleSort('distance')}
 						>
 							Distance
@@ -142,7 +142,7 @@
 					</th>
 					<th class="px-6 py-4">
 						<button
-							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-primary dark:text-gray-100 dark:hover:text-primary-dark"
+							class="hover:text-primary dark:hover:text-primary-dark flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 dark:text-gray-100"
 							onclick={() => toggleSort('startDate')}
 						>
 							Start Date
@@ -159,7 +159,7 @@
 					</th>
 					<th class="px-6 py-4">
 						<button
-							class="flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 hover:text-primary dark:text-gray-100 dark:hover:text-primary-dark"
+							class="hover:text-primary dark:hover:text-primary-dark flex cursor-pointer items-center gap-1 text-left text-sm font-medium text-gray-900 dark:text-gray-100"
 							onclick={() => toggleSort('duration')}
 						>
 							Duration

@@ -48,8 +48,7 @@ export class ExportService {
 			// Filter for data_export jobs that are queued or running
 			const activeExports = jobsList.filter(
 				(job: any) =>
-					job.job_name === 'data-export' &&
-					(job.status === 'pending' || job.status === 'running')
+					job.job_name === 'data-export' && (job.status === 'pending' || job.status === 'running')
 			);
 
 			if (activeExports.length > 0) {
@@ -294,7 +293,9 @@ export class ExportService {
 			signedUrlObj.port = publicUrlObj.port;
 
 			const finalUrl = signedUrlObj.toString();
-			console.log(`🔄 Replaced internal URL (${signedUrlObj.host}) with public URL (${publicUrlObj.host})`);
+			console.log(
+				`🔄 Replaced internal URL (${signedUrlObj.host}) with public URL (${publicUrlObj.host})`
+			);
 			return finalUrl;
 		} catch (error) {
 			console.error('❌ Error replacing URL hostname:', error);

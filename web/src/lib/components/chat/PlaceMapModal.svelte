@@ -29,6 +29,8 @@
 	let mapContainer: HTMLDivElement | undefined = $state();
 	let map: LeafletMap | undefined = $state();
 	let L: typeof import('leaflet') | undefined = $state();
+	let mapLoading = $state(true);
+	let mapError = $state(false);
 
 	const amenityStyle = $derived(place ? getAmenityStyle(place.poi_amenity) : null);
 
@@ -72,34 +74,56 @@
 	async function initMap() {
 		if (!browser || !mapContainer || !place?.latitude || !place?.longitude) return;
 
-		L = (await import('leaflet')).default;
+		mapLoading = true;
+		mapError = false;
 
-		const lat = place.latitude;
-		const lng = place.longitude;
+		try {
+			L = (await import('leaflet')).default;
 
-		map = L.map(mapContainer, {
-			center: [lat, lng],
-			zoom: 16,
-			zoomControl: true,
-			attributionControl: false
-		});
+			const lat = place.latitude;
+			const lng = place.longitude;
 
-		// Use theme-aware tiles
-		const isDark = document.documentElement.classList.contains('dark');
-		const tileUrl = isDark
-			? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-			: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+			map = L.map(mapContainer, {
+				center: [lat, lng],
+				zoom: 16,
+				zoomControl: true,
+				attributionControl: false
+			});
 
-		L.tileLayer(tileUrl, {
-			maxZoom: 19
-		}).addTo(map);
+			// Use theme-aware tiles
+			const isDark = document.documentElement.classList.contains('dark');
+			const tileUrl = isDark
+				? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+				: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 
-		// Add marker at the place location
-		const marker = L.marker([lat, lng]).addTo(map);
-		marker.bindPopup(`<strong>${place.poi_name || 'Location'}</strong>`).openPopup();
+			const tileLayer = L.tileLayer(tileUrl, {
+				maxZoom: 19
+			}).addTo(map);
 
-		// Invalidate size after render
-		setTimeout(() => map?.invalidateSize(), 100);
+			// Wait for tiles to start loading before marking as ready
+			tileLayer.once('load', () => {
+				mapLoading = false;
+			});
+
+			// Fallback: mark as loaded after a short delay even if 'load' doesn't fire
+			setTimeout(() => {
+				mapLoading = false;
+			}, 500);
+
+			// Add marker at the place location
+			const marker = L.marker([lat, lng]).addTo(map);
+			marker.bindPopup(`<strong>${place.poi_name || 'Location'}</strong>`).openPopup();
+
+			// Invalidate size multiple times to ensure proper rendering
+			// This handles cases where the container size isn't final on first render
+			setTimeout(() => map?.invalidateSize(), 100);
+			setTimeout(() => map?.invalidateSize(), 300);
+			setTimeout(() => map?.invalidateSize(), 500);
+		} catch (error) {
+			console.error('Failed to initialize map:', error);
+			mapError = true;
+			mapLoading = false;
+		}
 	}
 
 	onDestroy(() => {
@@ -211,7 +235,23 @@
 			<!-- Map -->
 			<div class="relative h-64 w-full sm:h-80">
 				{#if place.latitude && place.longitude}
-					<div bind:this={mapContainer} class="h-full w-full"></div>
+					<div bind:this={mapContainer} class="h-full w-full" style="min-height: 256px;"></div>
+					{#if mapLoading}
+						<div class="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+							<div class="text-center text-gray-500 dark:text-gray-400">
+								<div class="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-blue-500"></div>
+								<p>Loading map...</p>
+							</div>
+						</div>
+					{/if}
+					{#if mapError}
+						<div class="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+							<div class="text-center text-gray-500 dark:text-gray-400">
+								<MapPin class="mx-auto mb-2 h-8 w-8" />
+								<p>Failed to load map</p>
+							</div>
+						</div>
+					{/if}
 				{:else}
 					<div class="flex h-full items-center justify-center bg-gray-100 dark:bg-gray-800">
 						<div class="text-center text-gray-500 dark:text-gray-400">

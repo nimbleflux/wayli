@@ -63,7 +63,6 @@
 	// Authentication Settings
 	let enableSignup = $state(false);
 	let enableMagicLink = $state(false);
-	let passwordMinLength = $state(8);
 	let requireEmailVerification = $state(false);
 	let requireUppercase = $state(false);
 	let requireLowercase = $state(false);
@@ -87,6 +86,29 @@
 	let emailSmtpReadOnly = $state(false);
 	// Derived: true if configuration fields have overrides (for banner display)
 	let hasEmailConfigOverrides = $derived(emailProviderReadOnly || emailSmtpReadOnly);
+
+	// OAuth Settings
+	interface OAuthProvider {
+		id: string;
+		provider_name: string;
+		display_name: string;
+		enabled: boolean;
+		client_id: string;
+		redirect_url: string;
+		scopes: string[];
+		is_custom: boolean;
+	}
+	let oauthProviders = $state<OAuthProvider[]>([]);
+	let isLoadingOAuth = $state(false);
+	let isSavingOAuth = $state(false);
+	// Form state for adding/editing providers
+	let oauthFormProvider = $state('google');
+	let oauthFormDisplayName = $state('');
+	let oauthFormClientId = $state('');
+	let oauthFormClientSecret = $state('');
+	let oauthFormEnabled = $state(true);
+	let oauthEditingId = $state<string | null>(null);
+	let showOAuthForm = $state(false);
 
 	// Feature Toggles
 	let enableRealtime = $state(true);
@@ -327,11 +349,6 @@
 				required: requireEmailVerification
 			});
 
-			// Update password min length
-			await serviceAdapter.updateAppSetting('setPasswordMinLength', {
-				length: passwordMinLength
-			});
-
 			// Update password complexity
 			await serviceAdapter.updateAppSetting('setPasswordComplexity', {
 				require_uppercase: requireUppercase,
@@ -371,11 +388,151 @@
 
 			toast.success(t('serverAdmin.emailSettingsSaved'));
 		} catch (error: any) {
-			console.error('❌ Failed to save email settings:', error);
+			console.error('Failed to save email settings:', error);
 			toast.error(t('serverAdmin.failedToUpdateSettings'), {
 				description: error?.message
 			});
 		}
+	}
+
+	// OAuth Functions
+	async function loadOAuthProviders() {
+		isLoadingOAuth = true;
+		try {
+			const providers = await fluxbase.admin.oauth.providers.listProviders();
+			oauthProviders = providers || [];
+		} catch (error: any) {
+			console.error('Failed to load OAuth providers:', error);
+			// Don't show error toast - OAuth might not be configured yet
+		} finally {
+			isLoadingOAuth = false;
+		}
+	}
+
+	async function saveOAuthProvider() {
+		if (!oauthFormClientId || !oauthFormClientSecret) {
+			toast.error(t('serverAdmin.oauthClientIdSecretRequired'));
+			return;
+		}
+
+		isSavingOAuth = true;
+		try {
+			const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+			const redirectUrl = `${baseUrl}/auth/callback`;
+
+			// Get default scopes based on provider
+			const scopes = getDefaultScopes(oauthFormProvider);
+
+			if (oauthEditingId) {
+				// Update existing provider
+				await fluxbase.admin.oauth.providers.updateProvider(oauthEditingId, {
+					display_name: oauthFormDisplayName || getDefaultDisplayName(oauthFormProvider),
+					client_id: oauthFormClientId,
+					client_secret: oauthFormClientSecret,
+					redirect_url: redirectUrl,
+					scopes,
+					enabled: oauthFormEnabled
+				});
+				toast.success(t('serverAdmin.oauthProviderUpdated'));
+			} else {
+				// Create new provider
+				await fluxbase.admin.oauth.providers.createProvider({
+					provider_name: oauthFormProvider,
+					display_name: oauthFormDisplayName || getDefaultDisplayName(oauthFormProvider),
+					client_id: oauthFormClientId,
+					client_secret: oauthFormClientSecret,
+					redirect_url: redirectUrl,
+					scopes,
+					enabled: oauthFormEnabled,
+					is_custom: false
+				});
+				toast.success(t('serverAdmin.oauthProviderAdded'));
+			}
+
+			// Reset form and reload
+			resetOAuthForm();
+			await loadOAuthProviders();
+		} catch (error: any) {
+			console.error('Failed to save OAuth provider:', error);
+			toast.error(t('serverAdmin.oauthProviderSaveFailed'), {
+				description: error?.message
+			});
+		} finally {
+			isSavingOAuth = false;
+		}
+	}
+
+	async function deleteOAuthProvider(providerId: string) {
+		try {
+			await fluxbase.admin.oauth.providers.deleteProvider(providerId);
+			toast.success(t('serverAdmin.oauthProviderDeleted'));
+			await loadOAuthProviders();
+		} catch (error: any) {
+			console.error('Failed to delete OAuth provider:', error);
+			toast.error(t('serverAdmin.oauthProviderDeleteFailed'), {
+				description: error?.message
+			});
+		}
+	}
+
+	async function toggleOAuthProvider(providerId: string, enabled: boolean) {
+		try {
+			if (enabled) {
+				await fluxbase.admin.oauth.providers.enableProvider(providerId);
+			} else {
+				await fluxbase.admin.oauth.providers.disableProvider(providerId);
+			}
+			await loadOAuthProviders();
+		} catch (error: any) {
+			console.error('Failed to toggle OAuth provider:', error);
+			toast.error(t('serverAdmin.failedToUpdateSettings'), {
+				description: error?.message
+			});
+		}
+	}
+
+	function editOAuthProvider(provider: OAuthProvider) {
+		oauthEditingId = provider.id;
+		oauthFormProvider = provider.provider_name;
+		oauthFormDisplayName = provider.display_name;
+		oauthFormClientId = provider.client_id;
+		oauthFormClientSecret = ''; // Never pre-fill secrets
+		oauthFormEnabled = provider.enabled;
+		showOAuthForm = true;
+	}
+
+	function resetOAuthForm() {
+		oauthEditingId = null;
+		oauthFormProvider = 'google';
+		oauthFormDisplayName = '';
+		oauthFormClientId = '';
+		oauthFormClientSecret = '';
+		oauthFormEnabled = true;
+		showOAuthForm = false;
+	}
+
+	function getDefaultDisplayName(provider: string): string {
+		const names: Record<string, string> = {
+			google: 'Google',
+			github: 'GitHub',
+			gitlab: 'GitLab',
+			discord: 'Discord',
+			azure: 'Microsoft',
+			bitbucket: 'Bitbucket'
+		};
+		return names[provider] || provider.charAt(0).toUpperCase() + provider.slice(1);
+	}
+
+	function getDefaultScopes(provider: string): string[] {
+		const scopes: Record<string, string[]> = {
+			google: ['openid', 'email', 'profile'],
+			github: ['user:email', 'read:user'],
+			gitlab: ['openid', 'email', 'profile'],
+			discord: ['identify', 'email'],
+			azure: ['openid', 'email', 'profile'],
+			bitbucket: ['account', 'email']
+		};
+		return scopes[provider] || ['openid', 'email', 'profile'];
 	}
 
 	async function saveAISettings() {
@@ -422,19 +579,16 @@
 
 		isRefreshingPlaceVisits = true;
 		try {
-			// Submit the refresh-place-visits job which has service_role access to the RPC
-			const { error } = await fluxbase.jobs.submit(
+			// Directly invoke the incremental place visit detection RPC
+			const { error } = await (fluxbase.rpc as any).invoke(
 				'refresh-place-visits',
 				{},
-				{
-					namespace: 'wayli',
-					priority: 5
-				}
+				{ namespace: 'wayli' }
 			);
 			if (error) throw error;
 			toast.success(t('serverAdmin.refreshPlaceVisitsQueued'));
 		} catch (error: any) {
-			console.error('❌ Failed to refresh place visits:', error);
+			console.error('Failed to refresh place visits:', error);
 			toast.error(t('serverAdmin.refreshPlaceVisitsFailed'), {
 				description: error?.message
 			});
@@ -707,7 +861,6 @@
 			// Authentication
 			enableSignup = app.authentication.enable_signup;
 			enableMagicLink = app.authentication.enable_magic_link;
-			passwordMinLength = app.authentication.password_min_length;
 			requireEmailVerification = app.authentication.require_email_verification;
 			authReadOnly = app.authentication.read_only ?? false;
 
@@ -778,6 +931,7 @@
 	onMount(() => {
 		// Load all settings when component mounts
 		loadAllSettings();
+		loadOAuthProviders();
 	});
 
 	// Add User Modal State
@@ -1503,24 +1657,6 @@
 							/>
 						</div>
 
-						<div>
-							<label
-								for="passwordMinLength"
-								class="block text-sm font-medium text-gray-700 dark:text-gray-300"
-							>
-								{t('serverAdmin.passwordMinLength')}
-							</label>
-							<input
-								type="number"
-								id="passwordMinLength"
-								bind:value={passwordMinLength}
-								disabled={authReadOnly}
-								min="8"
-								max="128"
-								class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 focus:ring-1 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
-							/>
-						</div>
-
 						{#if !authReadOnly}
 							<div class="flex justify-end">
 								<button
@@ -1696,6 +1832,197 @@
 									{t('serverAdmin.saveSettings')}
 								</button>
 							</div>
+						{/if}
+					</div>
+				</div>
+
+				<!-- OAuth Settings -->
+				<div
+					class="rounded-xl border border-[rgb(218,218,221)] bg-white p-6 dark:border-[#23232a] dark:bg-[#23232a]"
+				>
+					<div class="mb-4 flex items-center gap-3">
+						<Lock class="h-6 w-6 text-indigo-500" />
+						<div>
+							<h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
+								{t('serverAdmin.oauthSettings')}
+							</h2>
+							<p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
+								{t('serverAdmin.oauthSettingsDescription')}
+							</p>
+						</div>
+					</div>
+
+					<div class="space-y-4">
+						<!-- Configured Providers List -->
+						{#if isLoadingOAuth}
+							<div class="flex items-center justify-center py-8">
+								<RefreshCw class="h-5 w-5 animate-spin text-gray-400" />
+							</div>
+						{:else if oauthProviders.length > 0}
+							<div class="space-y-2">
+								{#each oauthProviders as provider}
+									<div
+										class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800"
+									>
+										<div class="flex items-center gap-3">
+											<div
+												class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900"
+											>
+												<span class="text-sm font-medium text-indigo-600 dark:text-indigo-400">
+													{provider.display_name.charAt(0).toUpperCase()}
+												</span>
+											</div>
+											<div>
+												<div class="text-sm font-medium text-gray-900 dark:text-gray-100">
+													{provider.display_name}
+												</div>
+												<div class="text-xs text-gray-500 dark:text-gray-400">
+													{provider.provider_name}
+												</div>
+											</div>
+										</div>
+										<div class="flex items-center gap-2">
+											<Switch
+												checked={provider.enabled}
+												label={t('serverAdmin.enabled')}
+												onchange={() => toggleOAuthProvider(provider.id, !provider.enabled)}
+											/>
+											<button
+												onclick={() => editOAuthProvider(provider)}
+												class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+												title={t('serverAdmin.edit')}
+											>
+												<Edit class="h-4 w-4" />
+											</button>
+											<button
+												onclick={() => deleteOAuthProvider(provider.id)}
+												class="rounded p-1.5 text-gray-500 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+												title={t('serverAdmin.delete')}
+											>
+												<Trash2 class="h-4 w-4" />
+											</button>
+										</div>
+									</div>
+								{/each}
+							</div>
+						{:else}
+							<p class="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+								{t('serverAdmin.noOAuthProviders')}
+							</p>
+						{/if}
+
+						<!-- Add/Edit Provider Form -->
+						{#if showOAuthForm}
+							<div
+								class="space-y-3 rounded-lg border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-800 dark:bg-indigo-900/20"
+							>
+								<h3 class="font-medium text-gray-900 dark:text-gray-100">
+									{oauthEditingId ? t('serverAdmin.editOAuthProvider') : t('serverAdmin.addOAuthProvider')}
+								</h3>
+
+								<div>
+									<label
+										for="oauthProvider"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
+										{t('serverAdmin.oauthProvider')}
+									</label>
+									<select
+										id="oauthProvider"
+										bind:value={oauthFormProvider}
+										disabled={!!oauthEditingId}
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-1 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:disabled:bg-gray-800"
+									>
+										<option value="google">Google</option>
+										<option value="github">GitHub</option>
+										<option value="gitlab">GitLab</option>
+										<option value="discord">Discord</option>
+										<option value="azure">Microsoft Azure</option>
+										<option value="bitbucket">Bitbucket</option>
+									</select>
+								</div>
+
+								<div>
+									<label
+										for="oauthDisplayName"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
+										{t('serverAdmin.oauthDisplayName')}
+									</label>
+									<input
+										id="oauthDisplayName"
+										type="text"
+										bind:value={oauthFormDisplayName}
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-1 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+										placeholder={getDefaultDisplayName(oauthFormProvider)}
+									/>
+								</div>
+
+								<div>
+									<label
+										for="oauthClientId"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
+										{t('serverAdmin.oauthClientId')}
+									</label>
+									<input
+										id="oauthClientId"
+										type="text"
+										bind:value={oauthFormClientId}
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-1 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+										placeholder={t('serverAdmin.oauthClientIdPlaceholder')}
+									/>
+								</div>
+
+								<div>
+									<label
+										for="oauthClientSecret"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
+										{t('serverAdmin.oauthClientSecret')}
+									</label>
+									<input
+										id="oauthClientSecret"
+										type="password"
+										bind:value={oauthFormClientSecret}
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-1 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+										placeholder={oauthEditingId ? t('serverAdmin.oauthClientSecretPlaceholderEdit') : t('serverAdmin.oauthClientSecretPlaceholder')}
+									/>
+								</div>
+
+								<div class="flex items-center justify-between">
+									<span class="text-sm text-gray-700 dark:text-gray-300">
+										{t('serverAdmin.oauthEnabled')}
+									</span>
+									<Switch bind:checked={oauthFormEnabled} label={t('serverAdmin.oauthEnabled')} />
+								</div>
+
+								<div class="flex justify-end gap-2">
+									<button
+										onclick={resetOAuthForm}
+										class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+									>
+										{t('serverAdmin.cancel')}
+									</button>
+									<button
+										onclick={saveOAuthProvider}
+										disabled={isSavingOAuth}
+										class="bg-primary hover:bg-primary/90 flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+									>
+										{#if isSavingOAuth}
+											<RefreshCw class="h-4 w-4 animate-spin" />
+										{/if}
+										{oauthEditingId ? t('serverAdmin.updateProvider') : t('serverAdmin.addProvider')}
+									</button>
+								</div>
+							</div>
+						{:else}
+							<button
+								onclick={() => (showOAuthForm = true)}
+								class="w-full rounded-md border border-dashed border-gray-300 py-3 text-sm font-medium text-gray-600 hover:border-gray-400 hover:text-gray-700 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500 dark:hover:text-gray-300"
+							>
+								+ {t('serverAdmin.addOAuthProvider')}
+							</button>
 						{/if}
 					</div>
 				</div>
@@ -1974,7 +2301,7 @@
 											<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
 												{t('serverAdmin.reverseGeocode')}
 											</span>
-											<p class="truncate text-xs text-gray-500 dark:text-gray-400">
+											<p class="text-xs text-gray-500 dark:text-gray-400">
 												{t('serverAdmin.reverseGeocodeDescription')}
 											</p>
 										</div>
@@ -2003,7 +2330,7 @@
 											<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
 												{t('serverAdmin.refreshPlaceVisits')}
 											</span>
-											<p class="truncate text-xs text-gray-500 dark:text-gray-400">
+											<p class="text-xs text-gray-500 dark:text-gray-400">
 												{t('serverAdmin.refreshPlaceVisitsDescription')}
 											</p>
 										</div>
@@ -2041,7 +2368,7 @@
 											<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
 												{t('serverAdmin.syncPoiEmbeddings')}
 											</span>
-											<p class="truncate text-xs text-gray-500 dark:text-gray-400">
+											<p class="text-xs text-gray-500 dark:text-gray-400">
 												{t('serverAdmin.syncPoiEmbeddingsDescription')}
 											</p>
 										</div>
@@ -2100,7 +2427,7 @@
 										<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
 											{t('serverAdmin.forceRegeocode')}
 										</span>
-										<p class="truncate text-xs text-gray-500 dark:text-gray-400">
+										<p class="text-xs text-gray-500 dark:text-gray-400">
 											{t('serverAdmin.forceRegeocodeDescription')}
 										</p>
 									</div>
@@ -2122,7 +2449,7 @@
 										<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
 											{t('serverAdmin.fillCountryCodes')}
 										</span>
-										<p class="truncate text-xs text-gray-500 dark:text-gray-400">
+										<p class="text-xs text-gray-500 dark:text-gray-400">
 											{t('serverAdmin.fillCountryCodesDescription')}
 										</p>
 									</div>
@@ -2156,7 +2483,7 @@
 									<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
 										{t('serverAdmin.syncTripEmbeddings')}
 									</span>
-									<p class="truncate text-xs text-gray-500 dark:text-gray-400">
+									<p class="text-xs text-gray-500 dark:text-gray-400">
 										{t('serverAdmin.syncTripEmbeddingsDescription')}
 									</p>
 								</div>

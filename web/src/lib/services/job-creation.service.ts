@@ -15,18 +15,14 @@ import {
 
 type JobType =
 	| 'data-import'
-	| 'data-import-owntracks'
 	| 'data-export'
 	| 'trip-generation'
 	| 'trip-detection'
 	| 'reverse-geocoding'
 	| 'distance-calculation';
 
-// Formats supported by the unified data-import job
-const UNIFIED_IMPORT_FORMATS = ['GeoJSON', 'GPX', 'KML'];
-
-// OwnTracks uses a separate job (different enough to warrant its own handler)
-const OWNTRACKS_FORMAT = 'OwnTracks';
+// All formats now use the unified data-import job
+const SUPPORTED_IMPORT_FORMATS = ['GeoJSON', 'GPX', 'KML', 'OwnTracks'];
 
 type JobPriority = number; // 1-10, where 10 is highest priority
 
@@ -103,16 +99,11 @@ class JobCreationService {
 		// Generate unique upload ID for tracking
 		const uploadId = `upload-${Date.now()}`;
 
-		// Determine the job type based on format
-		// Most formats use the unified data-import job, OwnTracks has its own handler
-		let jobType: JobType;
-		if (UNIFIED_IMPORT_FORMATS.includes(options.format)) {
-			jobType = 'data-import';
-		} else if (options.format === OWNTRACKS_FORMAT) {
-			jobType = 'data-import-owntracks';
-		} else {
+		// All formats now use the unified data-import job
+		if (!SUPPORTED_IMPORT_FORMATS.includes(options.format)) {
 			throw new Error(`Unsupported import format: ${options.format}`);
 		}
+		const jobType: JobType = 'data-import';
 
 		// Start tracking upload progress in the store
 		startUpload(uploadId, file.name, file.size);

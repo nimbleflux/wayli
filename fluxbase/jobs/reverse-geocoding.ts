@@ -355,34 +355,24 @@ export async function handler(
 			`✅ Reverse geocoding completed: ${totalSuccess} successful, ${totalErrors} errors out of ${totalProcessed} total`
 		);
 
-		// Chain: Refresh place_visits and sync POI embeddings after geocoding completes
-		// The refresh-place-visits job handles both the MV refresh and chains to sync-poi-embeddings
+		// Chain: Run incremental place visit detection after geocoding completes
+		// This directly invokes the RPC which processes new data since last refresh
 		if (totalSuccess > 0) {
-			console.log(`🔗 Queueing refresh-place-visits job (chains to sync-poi-embeddings)...`);
+			console.log(`Running incremental place visit detection...`);
 			try {
-				const onBehalfOf = context.user ? {
-					user_id: context.user.id,
-					user_email: context.user.email,
-					user_role: context.user.role
-				} : undefined;
-
-				const { data: refreshJob, error: refreshError } = await fluxbaseService.jobs.submit(
+				const { data: refreshResult, error: refreshError } = await (fluxbaseService.rpc as any).invoke(
 					'refresh-place-visits',
 					{},
-					{
-						namespace: 'wayli',
-						priority: 5,
-						onBehalfOf
-					}
+					{ namespace: 'wayli' }
 				);
 
 				if (refreshError) {
-					console.warn(`⚠️ Failed to queue refresh-place-visits job: ${refreshError.message}`);
+					console.warn(`Failed to run place visit detection: ${refreshError.message}`);
 				} else {
-					console.log(`✅ refresh-place-visits job queued: ${(refreshJob as any)?.job_id || 'unknown'}`);
+					console.log(`Place visit detection completed:`, refreshResult);
 				}
-			} catch (refreshQueueError) {
-				console.warn(`⚠️ Error queueing refresh-place-visits job:`, refreshQueueError);
+			} catch (refreshError) {
+				console.warn(`Error running place visit detection:`, refreshError);
 			}
 		}
 

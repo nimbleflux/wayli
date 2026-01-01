@@ -462,7 +462,9 @@
 		"saveYourApiKey": "Save Your API Key",
 		"apiKeyWarning": "This is the only time you'll see your API key. Copy it now and save it in a secure location. If you lose it, you'll need to generate a new one.",
 		"iHaveSavedMyKey": "I have saved my key",
-		"userNotAuthenticated": "User not authenticated"
+		"userNotAuthenticated": "User not authenticated",
+		"downloadAndroid": "Get for Android",
+		"downloadIOS": "Get for iOS"
 	},
 	"importExport": {
 		"title": "Import/Export",
@@ -1109,7 +1111,31 @@
 		"forceRegeocodeConfirmTitle": "Confirm Force Re-geocode",
 		"forceRegeocodeConfirmMessage": "This will re-geocode ALL tracker data points, replacing existing address data. This operation cannot be undone. Are you sure you want to continue?",
 		"confirm": "Confirm",
-		"cancel": "Cancel"
+		"cancel": "Cancel",
+		"oauthSettings": "OAuth Settings",
+		"oauthSettingsDescription": "Configure OAuth providers for social login.",
+		"noOAuthProviders": "No OAuth providers configured. Add a provider to enable social login.",
+		"addOAuthProvider": "Add OAuth Provider",
+		"editOAuthProvider": "Edit OAuth Provider",
+		"oauthProvider": "Provider",
+		"oauthDisplayName": "Display Name",
+		"oauthClientId": "Client ID",
+		"oauthClientIdPlaceholder": "Enter your OAuth client ID",
+		"oauthClientSecret": "Client Secret",
+		"oauthClientSecretPlaceholder": "Enter your OAuth client secret",
+		"oauthClientSecretPlaceholderEdit": "Leave empty to keep existing secret",
+		"oauthEnabled": "Enabled",
+		"oauthClientIdSecretRequired": "Client ID and Client Secret are required",
+		"oauthProviderAdded": "OAuth provider added successfully",
+		"oauthProviderUpdated": "OAuth provider updated successfully",
+		"oauthProviderDeleted": "OAuth provider deleted successfully",
+		"oauthProviderSaveFailed": "Failed to save OAuth provider",
+		"oauthProviderDeleteFailed": "Failed to delete OAuth provider",
+		"addProvider": "Add Provider",
+		"updateProvider": "Update Provider",
+		"enabled": "Enabled",
+		"edit": "Edit",
+		"delete": "Delete"
 	},
 	"wantToVisit": {
 		"addNewPlace": "Add new place",

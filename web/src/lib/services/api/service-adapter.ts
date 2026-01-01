@@ -778,25 +778,17 @@ export class ServiceAdapter {
 				console.warn('⚠️ [SERVICE] Error queueing sync-trip-embeddings job:', embedQueueError);
 			}
 
-			// 2. Queue refresh-place-visits job to update POI data
-			// This chains to sync-poi-embeddings -> compute-user-preferences
+			// 2. Run incremental place visit detection
 			try {
-				console.log('🔗 [SERVICE] Queueing refresh-place-visits job...');
-				fluxbase.jobs
-					.submit(
-						'refresh-place-visits',
-						{},
-						{
-							namespace: 'wayli',
-							priority: 4
-						}
-					)
-					.catch((err) =>
-						console.warn('⚠️ [SERVICE] Failed to queue refresh-place-visits job:', err)
+				console.log('[SERVICE] Running incremental place visit detection...');
+				(fluxbase.rpc as any)
+					.invoke('refresh-place-visits', {}, { namespace: 'wayli' })
+					.catch((err: Error) =>
+						console.warn('[SERVICE] Failed to run place visit detection:', err)
 					);
 			} catch (refreshError) {
 				// Non-fatal - log but don't fail the approval
-				console.warn('⚠️ [SERVICE] Error queueing refresh-place-visits job:', refreshError);
+				console.warn('[SERVICE] Error running place visit detection:', refreshError);
 			}
 		}
 

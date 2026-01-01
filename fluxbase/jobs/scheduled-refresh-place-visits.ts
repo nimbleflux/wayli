@@ -1,9 +1,12 @@
 /**
- * Scheduled refresh of place_visits and POI embeddings for all users
+ * Scheduled nightly incremental refresh of place_visits
  *
- * Runs daily at 2 AM to:
- * 1. Refresh the place_visits materialized view
+ * Runs daily at 3 AM to:
+ * 1. Run incremental place visit detection (only new data since last refresh)
  * 2. Submit sync-poi-embeddings jobs for all users with place visit data
+ *
+ * The incremental approach only processes tracker_data since the last refresh,
+ * making it much more efficient than a full materialized view refresh.
  *
  * Each user's sync-poi-embeddings job will chain to compute-user-preferences.
  *
@@ -11,7 +14,7 @@
  * @fluxbase:timeout 3600
  * @fluxbase:allow-net true
  * @fluxbase:allow-env true
- * @fluxbase:schedule 0 2 * * *
+ * @fluxbase:schedule 0 3 * * *
  */
 
 import type { FluxbaseClient, JobUtils } from './types';
@@ -36,20 +39,24 @@ export async function handler(
 	job: JobUtils
 ) {
 	try {
-		safeReportProgress(job, 5, 'Refreshing place_visits materialized view...');
+		safeReportProgress(job, 5, 'Running incremental place visit detection...');
 
-		// Step 1: Refresh the materialized view (admin can do this for all users)
-		const { error: refreshError } = await fluxbaseService.rpc('refresh-place-visits');
+		// Step 1: Run incremental place visit detection (processes only new data)
+		const { data: refreshResult, error: refreshError } = await (fluxbaseService.rpc as any).invoke(
+			'refresh-place-visits',
+			{},
+			{ namespace: 'wayli' }
+		);
 
 		if (refreshError) {
-			console.error('Failed to refresh place_visits:', refreshError);
+			console.error('Failed to run incremental place visit detection:', refreshError);
 			return {
 				success: false,
 				error: `Failed to refresh place_visits: ${refreshError.message}`
 			};
 		}
 
-		console.log('✅ Place visits materialized view refreshed');
+		console.log('Place visits incrementally refreshed:', refreshResult);
 		safeReportProgress(job, 20, 'Place visits refreshed. Fetching users...');
 
 		// Step 2: Get all users with place visit data
@@ -68,7 +75,7 @@ export async function handler(
 
 		// Get unique user IDs
 		const uniqueUserIds = [...new Set(users?.map((u) => u.user_id) || [])];
-		console.log(`📊 Found ${uniqueUserIds.length} users with place visit data`);
+		console.log(`Found ${uniqueUserIds.length} users with place visit data`);
 
 		if (uniqueUserIds.length === 0) {
 			safeReportProgress(job, 100, 'No users with place visit data found');
@@ -140,7 +147,7 @@ export async function handler(
 			`Completed: ${submitted} jobs submitted, ${errors} errors`
 		);
 
-		console.log(`✅ Scheduled refresh complete: ${submitted} jobs submitted, ${errors} errors`);
+		console.log(`Scheduled incremental refresh complete: ${submitted} jobs submitted, ${errors} errors`);
 
 		return {
 			success: errors === 0,
@@ -151,7 +158,7 @@ export async function handler(
 			}
 		};
 	} catch (error: unknown) {
-		console.error('❌ Error in scheduled-refresh-place-visits job:', error);
+		console.error('Error in scheduled-refresh-place-visits job:', error);
 		throw error;
 	}
 }

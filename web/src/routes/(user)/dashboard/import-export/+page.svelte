@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Import, FileDown, MapPin } from 'lucide-svelte';
+	import { Import, FileDown, MapPin, Route } from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
@@ -50,14 +50,19 @@
 			label: 'KML',
 			icon: MapPin,
 			description: t('importExport.kmlDescription')
+		},
+		{
+			value: 'GPX',
+			label: 'GPX',
+			icon: Route,
+			description: t('importExport.gpxDescription')
+		},
+		{
+			value: 'OwnTracks',
+			label: 'OwnTracks (.REC)',
+			icon: Route,
+			description: t('importExport.ownTracksDescription')
 		}
-		// { value: 'GPX', label: 'GPX', icon: Route, description: t('importExport.gpxDescription')},
-		// {
-		// 	value: 'OwnTracks',
-		// 	label: 'OwnTracks (.REC)',
-		// 	icon: Route,
-		// 	description: t('importExport.ownTracksDescription')
-		// }
 	]);
 
 	function handleFileSelect(event: Event) {
@@ -75,8 +80,8 @@
 		const name = file.name.toLowerCase();
 		if (name.endsWith('.geojson') || name.endsWith('.json')) return 'GeoJSON';
 		if (name.endsWith('.kml')) return 'KML';
-		// if (name.endsWith('.gpx')) return 'GPX';
-		// if (name.endsWith('.rec')) return 'OwnTracks';
+		if (name.endsWith('.gpx')) return 'GPX';
+		if (name.endsWith('.rec')) return 'OwnTracks';
 		return 'GeoJSON'; // Default
 	}
 

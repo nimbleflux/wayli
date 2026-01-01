@@ -623,8 +623,8 @@ export class TripsAdapter extends BaseAdapter {
 			}
 
 			try {
-				fluxbase.jobs
-					.submit('refresh-place-visits', {}, { namespace: 'wayli', priority: 4 })
+				(fluxbase.rpc as any)
+					.invoke('refresh-place-visits', {}, { namespace: 'wayli' })
 					.catch(() => {});
 			} catch {
 				// Non-fatal

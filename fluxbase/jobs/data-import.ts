@@ -1,7 +1,7 @@
 /**
  * Unified Data Import Job
  *
- * Imports GPS data from various formats (GeoJSON, GPX, KML).
+ * Imports GPS data from various formats (GeoJSON, GPX, KML, OwnTracks).
  * Routes to format-specific streaming parsers based on the format parameter.
  *
  * @fluxbase:require-role authenticated
@@ -14,6 +14,7 @@
 import { parseStream as parseGeoJSON } from './_shared/parsers/geojson-parser.ts';
 import { parseStream as parseGPX } from './_shared/parsers/gpx-parser.ts';
 import { parseStream as parseKML } from './_shared/parsers/kml-parser.ts';
+import { parseStream as parseOwnTracks } from './_shared/parsers/owntracks-parser.ts';
 import { safeReportProgress, waitForRpcCompletion, type ParseResult } from './_shared/utils/import-helpers.ts';
 
 import type { FluxbaseClient, JobUtils } from './types';
@@ -37,7 +38,8 @@ type FormatParser = (
 const FORMAT_PARSERS: Record<string, FormatParser> = {
 	geojson: parseGeoJSON,
 	gpx: parseGPX,
-	kml: parseKML
+	kml: parseKML,
+	owntracks: parseOwnTracks
 };
 
 const SUPPORTED_FORMATS = Object.keys(FORMAT_PARSERS);

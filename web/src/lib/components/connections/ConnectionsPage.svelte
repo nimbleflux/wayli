@@ -3,7 +3,17 @@
 <!-- NOTE: This component is deprecated. Use the route at /dashboard/connections instead -->
 
 <script lang="ts">
-	import { Link, Database, RefreshCw, Copy, Check, AlertTriangle, X } from 'lucide-svelte';
+	import {
+		Link,
+		Database,
+		RefreshCw,
+		Copy,
+		Check,
+		AlertTriangle,
+		X,
+		Smartphone,
+		ExternalLink
+	} from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
@@ -149,6 +159,29 @@
 				<p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
 					{t('connections.owntracksDescription')}
 				</p>
+				<!-- App Download Links -->
+				<div class="mt-3 flex flex-wrap gap-2">
+					<a
+						href="https://play.google.com/store/apps/details?id=org.owntracks.android"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+					>
+						<Smartphone class="h-4 w-4" />
+						{t('connections.downloadAndroid')}
+						<ExternalLink class="h-3 w-3 opacity-50" />
+					</a>
+					<a
+						href="https://apps.apple.com/app/owntracks/id692424691"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+					>
+						<Smartphone class="h-4 w-4" />
+						{t('connections.downloadIOS')}
+						<ExternalLink class="h-3 w-3 opacity-50" />
+					</a>
+				</div>
 			</div>
 
 			<div class="space-y-4">

@@ -75,9 +75,8 @@ function convertCountryCode3to2(code3: string): string {
 // Helper function to perform reverse geocoding using Pelias
 async function reverseGeocode(lat: number, lon: number): Promise<any | null> {
 	try {
-		// Use layers=coarse to get administrative boundaries (country, region, locality)
 		// instead of just address-level data which lacks country information
-		const peliasUrl = `${PELIAS_ENDPOINT}/v1/reverse?point.lat=${lat}&point.lon=${lon}&size=1&layers=coarse`;
+		const peliasUrl = `${PELIAS_ENDPOINT}/v1/reverse?point.lat=${lat}&point.lon=${lon}&size=1`;
 
 		const response = await fetch(peliasUrl, {
 			headers: {

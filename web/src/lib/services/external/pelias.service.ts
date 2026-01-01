@@ -283,9 +283,8 @@ export async function reverseGeocode(lat: number, lon: number): Promise<PeliasRe
 
 	for (const endpoint of endpoints) {
 		try {
-			// Use layers=coarse to get administrative boundaries (country, region, locality)
 			// instead of just address-level data which lacks country information
-			const url = `${endpoint}/v1/reverse?point.lat=${encodeURIComponent(lat)}&point.lon=${encodeURIComponent(lon)}&layers=coarse`;
+			const url = `${endpoint}/v1/reverse?point.lat=${encodeURIComponent(lat)}&point.lon=${encodeURIComponent(lon)}`;
 
 			const response = await fetch(url, {
 				headers: {

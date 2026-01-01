@@ -20,7 +20,7 @@ echo ""
 
 # Update .devcontainer/docker-compose.yml
 echo "Updating .devcontainer/docker-compose.yml..."
-sed -i '' "s|ghcr.io/wayli-app/fluxbase:[0-9a-zA-Z.-]*|ghcr.io/wayli-app/fluxbase:$NEW_VERSION|g" "$ROOT_DIR/.devcontainer/docker-compose.yml"
+sed -i '' "s|ghcr.io/fluxbase-eu/fluxbase:[0-9a-zA-Z.-]*|ghcr.io/fluxbase-eu/fluxbase:$NEW_VERSION|g" "$ROOT_DIR/.devcontainer/docker-compose.yml"
 
 # Update deploy/docker-compose/docker-compose.yml
 echo "Updating deploy/docker-compose/docker-compose.yml..."

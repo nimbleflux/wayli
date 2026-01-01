@@ -25,7 +25,8 @@
       "Bash(make cli:*)",
       "Bash(go build:*)",
       "Bash(docker compose:*)",
-      "Bash(docker build:*)"
+      "Bash(docker build:*)",
+      "Bash(/workspace/deploy/docker-compose/generate-keys.sh:*)"
     ],
     "deny": [],
     "ask": []

@@ -3,6 +3,7 @@
 	"dockerComposeFile": "docker-compose.yml",
 	"service": "dev",
 	"workspaceFolder": "/workspace",
+	"initializeCommand": "[ -f .devcontainer/.env ] || ./deploy/docker-compose/generate-keys.sh --stdout > .devcontainer/.env",
 	"features": {
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {
 			"version": "latest",

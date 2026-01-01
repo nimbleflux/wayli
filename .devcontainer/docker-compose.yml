@@ -32,7 +32,8 @@ services:
   #     - fluxbase
   # ============================================================================
   fluxbase:
-    image: ghcr.io/fluxbase-eu/fluxbase:0.0.1-rc.113
+    image: ghcr.io/fluxbase-eu/fluxbase:0.0.1-rc.114
+    container_name: fluxbase
     depends_on:
       postgres:
         condition: service_healthy
@@ -57,11 +58,15 @@ services:
       # Storage
       FLUXBASE_STORAGE_PROVIDER: local
       FLUXBASE_STORAGE_LOCAL_PATH: /app/storage
+      FLUXBASE_CORS_ALLOWED_ORIGINS: http://localhost:4000
 
       # Enable features
       FLUXBASE_ADMIN_ENABLED: 'true'
+      FLUXBASE_DEBUG: 'true'
     ports:
       - '8080:8080'
+    networks:
+      - fluxbase-network
 
   postgres:
     image: ghcr.io/fluxbase-eu/fluxbase-postgres:18
@@ -72,13 +77,13 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fluxbase}
       POSTGRES_DB: ${POSTGRES_DB:-fluxbase}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - '${POSTGRES_PORT:-5432}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql
     networks:
       - fluxbase-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
       interval: 10s
       timeout: 5s
       retries: 5

@@ -17,7 +17,14 @@ import { defineConfig, loadEnv } from 'vite';
 export default defineConfig(({ mode }) => {
 	// Load env file based on mode (development, production, etc.)
 	// The third argument '' means load all env vars, not just VITE_ prefixed ones
-	const env = loadEnv(mode, process.cwd(), '');
+	// Note: loadEnv only reads from .env files, not container environment variables
+	const fileEnv = loadEnv(mode, process.cwd(), '');
+
+	// Merge: .env file values take precedence, fall back to container env vars
+	const env = {
+		...process.env,
+		...fileEnv
+	};
 
 	return {
 		plugins: [tailwindcss(), sveltekit()],
@@ -27,12 +34,12 @@ export default defineConfig(({ mode }) => {
 			// FLUXBASE_BASE_URL is for server-to-server communication (internal cluster URLs)
 			// FLUXBASE_PUBLIC_BASE_URL is for browser access (externally accessible URLs)
 			'process.env': {
-				// Client-side URL: In development, use the Vite proxy to avoid CORS issues
-				// The proxy forwards /api/* requests to the actual Fluxbase server
+				// Client-side URL for browser access to Fluxbase
 				// In production, window.WAYLI_CONFIG (injected at runtime) takes priority over this
-				FLUXBASE_PUBLIC_BASE_URL: 'http://localhost:4000',
+				FLUXBASE_PUBLIC_BASE_URL: env.FLUXBASE_PUBLIC_BASE_URL || 'http://localhost:8080',
 				PUBLIC_FLUXBASE_ANON_KEY:
 					env.PUBLIC_FLUXBASE_ANON_KEY ||
+					env.FLUXBASE_ANON_KEY ||
 					'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6ImZsdXhiYXNlIiwiaWF0IjoxNjQxNzY5MjAwLCJleHAiOjE3OTk1MzU2MDB9.iPr9o47ALu9iDLqL9rqq7rlvka9Q8ps2XV049R4l67E',
 				NODE_ENV: env.NODE_ENV || 'development'
 			}
@@ -93,36 +100,7 @@ export default defineConfig(({ mode }) => {
 			// Enable HMR with optimized settings
 			hmr: {
 				overlay: false
-			},
-			// Proxy API requests to Fluxbase to avoid CORS issues in development
-			proxy: env.FLUXBASE_PUBLIC_BASE_URL
-				? {
-						'/api': {
-							target: env.FLUXBASE_PUBLIC_BASE_URL,
-							changeOrigin: true
-						},
-						'/auth': {
-							target: env.FLUXBASE_PUBLIC_BASE_URL,
-							changeOrigin: true
-						},
-						'/rest': {
-							target: env.FLUXBASE_PUBLIC_BASE_URL,
-							changeOrigin: true
-						},
-						'/storage': {
-							target: env.FLUXBASE_PUBLIC_BASE_URL,
-							changeOrigin: true
-						},
-						'/functions': {
-							target: env.FLUXBASE_PUBLIC_BASE_URL,
-							changeOrigin: true
-						},
-						'/graphql': {
-							target: env.FLUXBASE_PUBLIC_BASE_URL,
-							changeOrigin: true
-						}
-					}
-				: undefined
+			}
 		},
 
 		// Preview configuration

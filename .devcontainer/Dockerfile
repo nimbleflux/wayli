@@ -43,6 +43,10 @@ RUN curl -L "https://github.com/dandavison/delta/releases/download/${GIT_DELTA_V
 # Install pnpm globally
 RUN npm install -g pnpm
 
+# Install Fluxbase CLI for resource synchronization
+ARG FLUXBASE_CLI_VERSION=v0.0.1-rc.114
+RUN curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- ${FLUXBASE_CLI_VERSION}
+
 # Set up non-root user
 ARG USERNAME=node
 ARG USER_UID=1000

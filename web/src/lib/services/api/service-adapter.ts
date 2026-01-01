@@ -782,7 +782,7 @@ export class ServiceAdapter {
 			try {
 				console.log('[SERVICE] Running incremental place visit detection...');
 				(fluxbase.rpc as any)
-					.invoke('refresh-place-visits', {}, { namespace: 'wayli' })
+					.invoke('detect-place-visits-incremental', {}, { namespace: 'wayli' })
 					.catch((err: Error) =>
 						console.warn('[SERVICE] Failed to run place visit detection:', err)
 					);

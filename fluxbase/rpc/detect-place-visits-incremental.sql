@@ -1,13 +1,21 @@
 -- @fluxbase:require-role admin
--- @fluxbase:max-execution-time 3600s
--- Full refresh of place visits (truncates and rebuilds from all tracker data)
+-- @fluxbase:max-execution-time 1800s
+-- Detect place visits incrementally (processes only new data since last refresh)
 
--- Truncate existing data
-TRUNCATE "public"."place_visits";
-
--- Process all data from the beginning of time
+-- Determine the starting point for incremental processing
 WITH config AS (
-    SELECT '1970-01-01'::timestamp with time zone as v_since
+    SELECT COALESCE(
+        (SELECT last_processed_at FROM "public"."place_visits_state" WHERE id = 1),
+        NOW() - INTERVAL '30 days'
+    ) as v_since
+),
+
+-- Delete visits that may be affected by new tracker_data
+-- (visits that started within 1 hour before our since timestamp, as they might extend)
+deleted_visits AS (
+    DELETE FROM "public"."place_visits"
+    WHERE started_at >= (SELECT v_since FROM config) - INTERVAL '1 hour'
+    RETURNING 1
 ),
 
 -- Extract venue points from tracker_data
@@ -75,7 +83,7 @@ venue_points AS (
         ORDER BY (poi->>'distance_meters')::numeric
         LIMIT 1
     ) nearest_poi ON true
-    WHERE td.recorded_at >= config.v_since
+    WHERE td.recorded_at >= config.v_since - INTERVAL '1 hour'
       AND (
           (
               td.geocode->'properties'->'addendum'->'osm'->>'name' IS NOT NULL
@@ -265,19 +273,48 @@ new_visits AS (
     GROUP BY user_id, visit_id, poi_name
     HAVING COUNT(*) >= 2
        AND ROUND(EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) / 60)::integer >= 15
+    ON CONFLICT (user_id, started_at, poi_name)
+    DO UPDATE SET
+        duration_minutes = EXCLUDED.duration_minutes,
+        location = EXCLUDED.location,
+        poi_layer = EXCLUDED.poi_layer,
+        poi_amenity = EXCLUDED.poi_amenity,
+        poi_cuisine = EXCLUDED.poi_cuisine,
+        poi_sport = EXCLUDED.poi_sport,
+        poi_category = EXCLUDED.poi_category,
+        confidence_score = EXCLUDED.confidence_score,
+        avg_distance_meters = EXCLUDED.avg_distance_meters,
+        poi_tags = EXCLUDED.poi_tags,
+        city = EXCLUDED.city,
+        country_code = EXCLUDED.country_code,
+        gps_points_count = EXCLUDED.gps_points_count,
+        visit_hour = EXCLUDED.visit_hour,
+        visit_time_of_day = EXCLUDED.visit_time_of_day,
+        day_of_week = EXCLUDED.day_of_week,
+        is_weekend = EXCLUDED.is_weekend,
+        duration_category = EXCLUDED.duration_category,
+        poi_name_search = EXCLUDED.poi_name_search,
+        alt_poi_name = EXCLUDED.alt_poi_name,
+        alt_poi_amenity = EXCLUDED.alt_poi_amenity,
+        alt_poi_cuisine = EXCLUDED.alt_poi_cuisine,
+        alt_poi_sport = EXCLUDED.alt_poi_sport,
+        alt_poi_distance = EXCLUDED.alt_poi_distance,
+        alt_poi_tags = EXCLUDED.alt_poi_tags,
+        alt_poi_confidence = EXCLUDED.alt_poi_confidence,
+        updated_at = NOW()
     RETURNING 1
 ),
 
--- Update state with full refresh timestamp
+-- Update state
 state_update AS (
     UPDATE "public"."place_visits_state"
-    SET
-        last_processed_at = NOW(),
-        last_full_refresh_at = NOW(),
-        updated_at = NOW()
+    SET last_processed_at = NOW(), updated_at = NOW()
     WHERE id = 1
     RETURNING 1
 )
 
--- Return count
-SELECT (SELECT COUNT(*) FROM new_visits)::integer as inserted_count;
+-- Return counts
+SELECT
+    (SELECT COUNT(*) FROM new_visits)::integer as inserted_count,
+    0::integer as updated_count,
+    (SELECT COUNT(*) FROM deleted_visits)::integer as deleted_count;

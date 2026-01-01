@@ -62,6 +62,6 @@
 			"onAutoForward": "notify"
 		}
 	},
-	"postCreateCommand": "bash -c 'npm config set prefix /home/node/.npm-global && echo \"export PATH=/home/node/.npm-global/bin:\\$PATH\" >> ~/.bashrc && export PATH=/home/node/.npm-global/bin:$PATH && cd /workspace/web && npm install'",
+	"postCreateCommand": "bash -c 'npm config set prefix /home/node/.npm-global && echo \"export PATH=/home/node/.npm-global/bin:\\$PATH\" >> ~/.bashrc && export PATH=/home/node/.npm-global/bin:$PATH && cd /workspace/web && npm install && ln -sf ../fluxbase fluxbase && npm run sync:all || echo \"Fluxbase sync skipped (service may not be ready)\"'",
 	"remoteUser": "node"
 }

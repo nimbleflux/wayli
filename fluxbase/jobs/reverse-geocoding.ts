@@ -361,7 +361,7 @@ export async function handler(
 			console.log(`Running incremental place visit detection...`);
 			try {
 				const { data: refreshResult, error: refreshError } = await (fluxbaseService.rpc as any).invoke(
-					'refresh-place-visits',
+					'detect-place-visits-incremental',
 					{},
 					{ namespace: 'wayli' }
 				);

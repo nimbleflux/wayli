@@ -624,7 +624,7 @@ export class TripsAdapter extends BaseAdapter {
 
 			try {
 				(fluxbase.rpc as any)
-					.invoke('refresh-place-visits', {}, { namespace: 'wayli' })
+					.invoke('detect-place-visits-incremental', {}, { namespace: 'wayli' })
 					.catch(() => {});
 			} catch {
 				// Non-fatal

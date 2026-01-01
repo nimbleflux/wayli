@@ -581,7 +581,7 @@
 		try {
 			// Directly invoke the incremental place visit detection RPC
 			const { error } = await (fluxbase.rpc as any).invoke(
-				'refresh-place-visits',
+				'detect-place-visits-incremental',
 				{},
 				{ namespace: 'wayli' }
 			);
@@ -602,8 +602,17 @@
 
 		isSyncingPoiEmbeddings = true;
 		try {
+			// First refresh place visits
+			const { error: rpcError } = await (fluxbase.rpc as any).invoke(
+				'detect-place-visits-incremental',
+				{},
+				{ namespace: 'wayli' }
+			);
+			if (rpcError) throw rpcError;
+
+			// Then sync POI embeddings
 			const { error } = await fluxbase.jobs.submit(
-				'scheduled-refresh-place-visits',
+				'sync-poi-embeddings',
 				{},
 				{
 					namespace: 'wayli',

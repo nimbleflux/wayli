@@ -129,7 +129,14 @@ COMMENT ON COLUMN "public"."user_preference_vectors"."sample_count" IS 'Number o
 -- RLS policies will enforce user access instead
 -- =============================================================================
 
--- Trip embeddings must reference a valid trip
-ALTER TABLE "public"."trip_embeddings"
-    ADD CONSTRAINT "trip_embeddings_trip_id_fkey"
-    FOREIGN KEY ("trip_id") REFERENCES "public"."trips"("id") ON DELETE CASCADE;
+-- Trip embeddings must reference a valid trip (idempotent)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'trip_embeddings_trip_id_fkey'
+    ) THEN
+        ALTER TABLE "public"."trip_embeddings"
+            ADD CONSTRAINT "trip_embeddings_trip_id_fkey"
+            FOREIGN KEY ("trip_id") REFERENCES "public"."trips"("id") ON DELETE CASCADE;
+    END IF;
+END $$;

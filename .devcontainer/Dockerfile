@@ -40,6 +40,18 @@ RUN curl -L "https://github.com/dandavison/delta/releases/download/${GIT_DELTA_V
     && dpkg -i /tmp/git-delta.deb \
     && rm /tmp/git-delta.deb
 
+# Install Deno (required for edge functions bundling)
+RUN ARCH=$(dpkg --print-architecture) \
+    && if [ "$ARCH" = "amd64" ]; then DENO_ARCH="x86_64-unknown-linux-gnu"; \
+    elif [ "$ARCH" = "arm64" ]; then DENO_ARCH="aarch64-unknown-linux-gnu"; \
+    else echo "Unsupported architecture: $ARCH" && exit 1; fi \
+    && DENO_VERSION=$(curl -s https://api.github.com/repos/denoland/deno/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/') \
+    && curl -fsSL "https://github.com/denoland/deno/releases/download/v${DENO_VERSION}/deno-${DENO_ARCH}.zip" -o /tmp/deno.zip \
+    && unzip -q /tmp/deno.zip -d /usr/local/bin \
+    && chmod +x /usr/local/bin/deno \
+    && rm /tmp/deno.zip \
+    && deno --version
+
 # Install pnpm globally
 RUN npm install -g pnpm
 

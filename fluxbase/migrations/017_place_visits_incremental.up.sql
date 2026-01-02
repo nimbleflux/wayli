@@ -54,7 +54,14 @@ END $$;
 -- Drop the materialized view and dependent views
 DROP VIEW IF EXISTS "public"."my_place_visits" CASCADE;
 DROP VIEW IF EXISTS "public"."my_poi_summary" CASCADE;
-DROP MATERIALIZED VIEW IF EXISTS "public"."place_visits" CASCADE;
+
+-- Drop materialized view only if it exists as a matview (idempotent)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_matviews WHERE matviewname = 'place_visits' AND schemaname = 'public') THEN
+        DROP MATERIALIZED VIEW "public"."place_visits" CASCADE;
+    END IF;
+END $$;
 
 -- Create the new table
 CREATE TABLE IF NOT EXISTS "public"."place_visits" (

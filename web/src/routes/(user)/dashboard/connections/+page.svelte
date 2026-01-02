@@ -260,11 +260,15 @@
 			<div class="space-y-4">
 				<!-- API Endpoint -->
 				<div>
-					<label class="mb-1.5 block text-sm font-medium text-gray-900 dark:text-gray-100">
+					<label
+						for="api-endpoint"
+						class="mb-1.5 block text-sm font-medium text-gray-900 dark:text-gray-100"
+					>
 						{t('connections.apiEndpoint')}
 					</label>
 					<div class="flex gap-2">
 						<input
+							id="api-endpoint"
 							type="text"
 							value={newlyGeneratedEndpoint}
 							readonly
@@ -288,11 +292,15 @@
 
 				<!-- API Key -->
 				<div>
-					<label class="mb-1.5 block text-sm font-medium text-gray-900 dark:text-gray-100">
+					<label
+						for="api-key"
+						class="mb-1.5 block text-sm font-medium text-gray-900 dark:text-gray-100"
+					>
 						{t('connections.apiKey')}
 					</label>
 					<div class="flex gap-2">
 						<input
+							id="api-key"
 							type="text"
 							value={newlyGeneratedApiKey}
 							readonly

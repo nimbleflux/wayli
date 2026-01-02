@@ -1589,15 +1589,23 @@ COMMENT ON FUNCTION "public"."validate_tracking_query_limits"(
 
 -- =============================================================================
 -- Place Visits Materialized View Refresh Function
+-- NOTE: Migration 017 converts place_visits to a regular table with incremental updates.
+--       This function is kept for backwards compatibility but will no-op if place_visits is a table.
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION "public"."refresh_place_visits"()
 RETURNS void
-LANGUAGE sql
+LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
-    REFRESH MATERIALIZED VIEW CONCURRENTLY "public"."place_visits";
+BEGIN
+    -- Only refresh if place_visits is a materialized view (not a table from migration 017)
+    IF EXISTS (SELECT 1 FROM pg_matviews WHERE matviewname = 'place_visits' AND schemaname = 'public') THEN
+        REFRESH MATERIALIZED VIEW CONCURRENTLY "public"."place_visits";
+    END IF;
+    -- If it's a table, do nothing - it's updated incrementally by the RPC
+END;
 $$;
 
-COMMENT ON FUNCTION "public"."refresh_place_visits"() IS 'Refreshes the place_visits materialized view. Call hourly via job scheduler.';
+COMMENT ON FUNCTION "public"."refresh_place_visits"() IS 'Refreshes the place_visits materialized view. No-op if place_visits is a table (migration 017+).';

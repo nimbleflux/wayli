@@ -58,6 +58,29 @@ GRANT EXECUTE ON FUNCTION auth.role() TO anon, authenticated, service_role;
 -- ============================================================================
 
 -- Note: server_settings RLS policies removed - use Fluxbase AppSettingsManager instead
+
+-- Drop existing policies first to ensure idempotency
+DROP POLICY IF EXISTS "User preferences can be deleted" ON "public"."user_preferences";
+DROP POLICY IF EXISTS "User preferences can be inserted" ON "public"."user_preferences";
+DROP POLICY IF EXISTS "User preferences can be updated" ON "public"."user_preferences";
+DROP POLICY IF EXISTS "User preferences can be viewed" ON "public"."user_preferences";
+DROP POLICY IF EXISTS "User profiles can be deleted" ON "public"."user_profiles";
+DROP POLICY IF EXISTS "User profiles can be inserted" ON "public"."user_profiles";
+DROP POLICY IF EXISTS "User profiles can be updated" ON "public"."user_profiles";
+DROP POLICY IF EXISTS "User profiles can be viewed" ON "public"."user_profiles";
+DROP POLICY IF EXISTS "Users can delete their own tracker data" ON "public"."tracker_data";
+DROP POLICY IF EXISTS "Users can delete their own trips" ON "public"."trips";
+DROP POLICY IF EXISTS "Users can delete their own want to visit places" ON "public"."want_to_visit_places";
+DROP POLICY IF EXISTS "Users can insert their own tracker data" ON "public"."tracker_data";
+DROP POLICY IF EXISTS "Users can insert their own trips" ON "public"."trips";
+DROP POLICY IF EXISTS "Users can insert their own want to visit places" ON "public"."want_to_visit_places";
+DROP POLICY IF EXISTS "Users can update their own tracker data" ON "public"."tracker_data";
+DROP POLICY IF EXISTS "Users can update their own trips" ON "public"."trips";
+DROP POLICY IF EXISTS "Users can update their own want to visit places" ON "public"."want_to_visit_places";
+DROP POLICY IF EXISTS "Users can view their own tracker data" ON "public"."tracker_data";
+DROP POLICY IF EXISTS "Users can view their own trips" ON "public"."trips";
+DROP POLICY IF EXISTS "Users can view their own want to visit places" ON "public"."want_to_visit_places";
+
 CREATE POLICY "User preferences can be deleted" ON "public"."user_preferences" FOR DELETE USING (
     (
         (
@@ -281,6 +304,20 @@ ALTER TABLE "public"."want_to_visit_places" ENABLE ROW LEVEL SECURITY;
 -- ============================================================================
 -- STORAGE POLICIES
 -- ============================================================================
+
+-- Drop existing storage policies first to ensure idempotency
+DROP POLICY IF EXISTS "Public can view trip images" ON "storage"."objects";
+DROP POLICY IF EXISTS "Users access own exports" ON "storage"."objects";
+DROP POLICY IF EXISTS "Users access own temp files" ON "storage"."objects";
+DROP POLICY IF EXISTS "Users delete own exports" ON "storage"."objects";
+DROP POLICY IF EXISTS "Users delete own temp files" ON "storage"."objects";
+DROP POLICY IF EXISTS "Users delete own trip images" ON "storage"."objects";
+DROP POLICY IF EXISTS "Users update own exports" ON "storage"."objects";
+DROP POLICY IF EXISTS "Users update own temp files" ON "storage"."objects";
+DROP POLICY IF EXISTS "Users update own trip images" ON "storage"."objects";
+DROP POLICY IF EXISTS "Users upload own exports" ON "storage"."objects";
+DROP POLICY IF EXISTS "Users upload own temp files" ON "storage"."objects";
+DROP POLICY IF EXISTS "Users upload own trip images" ON "storage"."objects";
 
 CREATE POLICY "Public can view trip images" ON "storage"."objects" FOR
 SELECT USING (("bucket_id" = 'trip-images'::"text"));

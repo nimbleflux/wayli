@@ -41,8 +41,6 @@ services:
         condition: service_healthy
     volumes:
       - storage_data:/storage
-      - ../fluxbase/functions:/functions
-      - ../fluxbase/migrations:/migrations/user
     environment:
       # Database
       FLUXBASE_DATABASE_HOST: fluxbase-postgres

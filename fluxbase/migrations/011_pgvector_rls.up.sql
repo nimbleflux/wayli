@@ -26,6 +26,20 @@ ALTER TABLE "public"."user_preference_vectors" ENABLE ROW LEVEL SECURITY;
 -- Service role has full access for sync jobs
 -- =============================================================================
 
+-- Drop existing policies first to ensure idempotency
+DROP POLICY IF EXISTS "poi_embeddings_select_own" ON "public"."poi_embeddings";
+DROP POLICY IF EXISTS "poi_embeddings_insert_own" ON "public"."poi_embeddings";
+DROP POLICY IF EXISTS "poi_embeddings_update_own" ON "public"."poi_embeddings";
+DROP POLICY IF EXISTS "poi_embeddings_delete_own" ON "public"."poi_embeddings";
+DROP POLICY IF EXISTS "trip_embeddings_select_own" ON "public"."trip_embeddings";
+DROP POLICY IF EXISTS "trip_embeddings_insert_own" ON "public"."trip_embeddings";
+DROP POLICY IF EXISTS "trip_embeddings_update_own" ON "public"."trip_embeddings";
+DROP POLICY IF EXISTS "trip_embeddings_delete_own" ON "public"."trip_embeddings";
+DROP POLICY IF EXISTS "user_preference_vectors_select_own" ON "public"."user_preference_vectors";
+DROP POLICY IF EXISTS "user_preference_vectors_insert_own" ON "public"."user_preference_vectors";
+DROP POLICY IF EXISTS "user_preference_vectors_update_own" ON "public"."user_preference_vectors";
+DROP POLICY IF EXISTS "user_preference_vectors_delete_own" ON "public"."user_preference_vectors";
+
 CREATE POLICY "poi_embeddings_select_own" ON "public"."poi_embeddings"
 FOR SELECT USING (
     (

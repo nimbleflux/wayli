@@ -357,12 +357,13 @@ export async function handler(
 
 		// Chain: Run incremental place visit detection after geocoding completes
 		// This directly invokes the RPC which processes new data since last refresh
+		// Pass user_id to only process that user's data (per-user watermarks)
 		if (totalSuccess > 0) {
-			console.log(`Running incremental place visit detection...`);
+			console.log(`Running incremental place visit detection for user ${userId || 'all users'}...`);
 			try {
 				const { data: refreshResult, error: refreshError } = await (fluxbaseService.rpc as any).invoke(
 					'detect-place-visits-incremental',
-					{},
+					{ user_id: userId || null },
 					{ namespace: 'wayli' }
 				);
 

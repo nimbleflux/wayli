@@ -277,6 +277,8 @@
 		"tryDifferentMethod": "Try a different method",
 		"signInWith": "Sign in with",
 		"signUpWith": "Sign up with",
+		"signUpWithProvider": "Sign up with a provider",
+		"orContinueWith": "Or continue with",
 		"or": "or",
 		"password": "Password",
 		"signingIn": "Signing in...",
@@ -1135,7 +1137,10 @@
 		"updateProvider": "Update Provider",
 		"enabled": "Enabled",
 		"edit": "Edit",
-		"delete": "Delete"
+		"delete": "Delete",
+		"disablePasswordLogin": "Disable Password Login",
+		"disablePasswordLoginDescription": "When enabled, users can only sign in using configured OAuth providers. Password-based login will be disabled.",
+		"noOAuthProvidersWarning": "Warning: No OAuth providers are enabled. Please enable at least one OAuth provider before disabling password login."
 	},
 	"wantToVisit": {
 		"addNewPlace": "Add new place",

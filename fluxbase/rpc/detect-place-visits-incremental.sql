@@ -1,24 +1,42 @@
 -- @fluxbase:require-role admin
 -- @fluxbase:max-execution-time 1800s
+-- @fluxbase:param user_id uuid - Optional user ID to process only that user's data
 -- Detect place visits incrementally (processes only new data since last refresh)
+-- When user_id is provided: processes only that user's data since their watermark
+-- When user_id is NULL: processes all users, each from their respective watermarks
 
--- Determine the starting point for incremental processing
-WITH config AS (
-    SELECT COALESCE(
-        (SELECT last_processed_at FROM "public"."place_visits_state" WHERE id = 1),
-        NOW() - INTERVAL '30 days'
-    ) as v_since
+-- Get all users to process with their watermarks
+WITH users_to_process AS (
+    SELECT
+        COALESCE(ps.user_id, td.user_id) as target_user_id,
+        COALESCE(ps.last_processed_at, NOW() - INTERVAL '30 days') as v_since
+    FROM (
+        -- Get existing per-user watermarks
+        SELECT user_id, last_processed_at
+        FROM "public"."place_visits_state"
+        WHERE user_id IS NOT NULL
+          AND ($1::uuid IS NULL OR user_id = $1::uuid)
+    ) ps
+    FULL OUTER JOIN (
+        -- Get distinct users from tracker_data (for users without state yet)
+        SELECT DISTINCT user_id
+        FROM "public"."tracker_data"
+        WHERE $1::uuid IS NULL OR user_id = $1::uuid
+    ) td ON ps.user_id = td.user_id
+    WHERE COALESCE(ps.user_id, td.user_id) IS NOT NULL
 ),
 
--- Delete visits that may be affected by new tracker_data
--- (visits that started within 1 hour before our since timestamp, as they might extend)
+-- Delete visits that may be affected by new tracker_data for each user
+-- (visits that started within 1 hour before the user's watermark)
 deleted_visits AS (
-    DELETE FROM "public"."place_visits"
-    WHERE started_at >= (SELECT v_since FROM config) - INTERVAL '1 hour'
-    RETURNING 1
+    DELETE FROM "public"."place_visits" pv
+    USING users_to_process utp
+    WHERE pv.user_id = utp.target_user_id
+      AND pv.started_at >= utp.v_since - INTERVAL '1 hour'
+    RETURNING pv.user_id
 ),
 
--- Extract venue points from tracker_data
+-- Extract venue points from tracker_data for all users to process
 venue_points AS (
     SELECT
         td.user_id,
@@ -63,7 +81,7 @@ venue_points AS (
         nearest_poi.confidence as nearby_confidence,
         nearest_poi.distance as nearby_distance
     FROM "public"."tracker_data" td
-    CROSS JOIN config
+    INNER JOIN users_to_process utp ON td.user_id = utp.target_user_id
     LEFT JOIN LATERAL (
         SELECT
             poi->>'name' as name,
@@ -83,7 +101,7 @@ venue_points AS (
         ORDER BY (poi->>'distance_meters')::numeric
         LIMIT 1
     ) nearest_poi ON true
-    WHERE td.recorded_at >= config.v_since - INTERVAL '1 hour'
+    WHERE td.recorded_at >= utp.v_since - INTERVAL '1 hour'
       AND (
           (
               td.geocode->'properties'->'addendum'->'osm'->>'name' IS NOT NULL
@@ -302,19 +320,27 @@ new_visits AS (
         alt_poi_tags = EXCLUDED.alt_poi_tags,
         alt_poi_confidence = EXCLUDED.alt_poi_confidence,
         updated_at = NOW()
-    RETURNING 1
+    RETURNING user_id
 ),
 
--- Update state
-state_update AS (
-    UPDATE "public"."place_visits_state"
-    SET last_processed_at = NOW(), updated_at = NOW()
-    WHERE id = 1
-    RETURNING 1
+-- Get distinct users that were processed
+processed_users AS (
+    SELECT DISTINCT target_user_id as user_id FROM users_to_process
+),
+
+-- Upsert per-user state for each processed user
+state_upsert AS (
+    INSERT INTO "public"."place_visits_state" (user_id, last_processed_at, updated_at)
+    SELECT user_id, NOW(), NOW()
+    FROM processed_users
+    ON CONFLICT (user_id) DO UPDATE SET
+        last_processed_at = NOW(),
+        updated_at = NOW()
+    RETURNING user_id
 )
 
 -- Return counts
 SELECT
     (SELECT COUNT(*) FROM new_visits)::integer as inserted_count,
-    0::integer as updated_count,
+    (SELECT COUNT(DISTINCT user_id) FROM processed_users)::integer as users_processed,
     (SELECT COUNT(*) FROM deleted_visits)::integer as deleted_count;

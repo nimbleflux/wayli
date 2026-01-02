@@ -24,7 +24,12 @@
 	let show2FAModal = $state(false);
 	let twoFactorUserId = $state('');
 
-	onMount(() => {
+	// OAuth-only mode
+	let oauthOnlyMode = $state(false);
+	let oauthProviders = $state<Array<{ id: string; provider_name: string; display_name: string; enabled: boolean }>>([]);
+	let isLoadingSettings = $state(true);
+
+	onMount(async () => {
 		// Subscribe to user store for authentication state changes
 		userStore.subscribe((user) => {
 			if (user && $page.url.pathname === '/auth/signin') {
@@ -32,7 +37,64 @@
 				// This prevents the brief flash of the dashboard
 			}
 		});
+
+		// Load OAuth settings
+		await loadAuthSettings();
 	});
+
+	async function loadAuthSettings() {
+		try {
+			// Check if password login is disabled
+			const { data: setting } = await fluxbase
+				.from('app.settings')
+				.select('value')
+				.eq('key', 'wayli.disable_password_login')
+				.single();
+
+			oauthOnlyMode = setting?.value?.value === true;
+
+			// Load available OAuth providers
+			const providers = await fluxbase.admin.oauth.providers.listProviders();
+			oauthProviders = (providers || []).filter((p: any) => p.enabled);
+		} catch (error) {
+			console.log('Could not load auth settings:', error);
+			// Default to password login if settings can't be loaded
+			oauthOnlyMode = false;
+		} finally {
+			isLoadingSettings = false;
+		}
+	}
+
+	async function signInWithOAuth(providerName: string) {
+		loading = true;
+		try {
+			const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/statistics';
+			const { error } = await fluxbase.auth.signInWithOAuth({
+				provider: providerName,
+				options: {
+					redirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
+				}
+			});
+
+			if (error) throw error;
+		} catch (error: any) {
+			console.error('OAuth sign in error:', error);
+			toast.error(error.message || t('auth.signInFailed'));
+			loading = false;
+		}
+	}
+
+	function getProviderIcon(providerName: string): string {
+		const icons: Record<string, string> = {
+			google: '🔵',
+			github: '⚫',
+			gitlab: '🟠',
+			discord: '🟣',
+			azure: '🔷',
+			bitbucket: '🔵'
+		};
+		return icons[providerName] || '🔑';
+	}
 
 	async function handleSignIn(event: Event) {
 		event.preventDefault();
@@ -248,7 +310,11 @@
 				</p>
 			</div>
 
-			{#if isMagicLinkSent}
+			{#if isLoadingSettings}
+				<div class="flex items-center justify-center py-8">
+					<div class="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-primary dark:border-gray-700"></div>
+				</div>
+			{:else if isMagicLinkSent}
 				<div class="text-center">
 					<div
 						class="mb-4 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20"
@@ -264,6 +330,33 @@
 					>
 						{t('auth.backToSignIn')}
 					</button>
+				</div>
+			{:else if oauthOnlyMode && oauthProviders.length > 0}
+				<!-- OAuth-only mode: show only OAuth buttons -->
+				<div class="space-y-4">
+					{#each oauthProviders as provider}
+						<button
+							type="button"
+							onclick={() => signInWithOAuth(provider.provider_name)}
+							disabled={loading}
+							class="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 bg-white px-4 py-3 font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+						>
+							<span class="text-xl">{getProviderIcon(provider.provider_name)}</span>
+							{t('auth.signInWith')} {provider.display_name}
+						</button>
+					{/each}
+				</div>
+
+				<div class="mt-6 text-center">
+					<p class="text-sm text-gray-600 dark:text-gray-400">
+						{t('auth.dontHaveAccount')}
+						<a
+							href="/auth/signup"
+							class="text-primary hover:text-primary/80 dark:text-primary-dark dark:hover:text-primary-dark/80 cursor-pointer font-medium transition-colors"
+						>
+							{t('auth.signUp')}
+						</a>
+					</p>
 				</div>
 			{:else}
 				<form onsubmit={handleSignIn} class="space-y-6">
@@ -355,6 +448,33 @@
 						{loading ? t('auth.signingIn') : t('auth.signIn')}
 					</button>
 				</form>
+
+				<!-- OAuth providers as secondary option -->
+				{#if oauthProviders.length > 0}
+					<div class="relative my-6">
+						<div class="absolute inset-0 flex items-center">
+							<div class="w-full border-t border-gray-300 dark:border-gray-600"></div>
+						</div>
+						<div class="relative flex justify-center text-sm">
+							<span class="bg-white px-2 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+								{t('auth.orContinueWith')}
+							</span>
+						</div>
+					</div>
+					<div class="grid gap-3 {oauthProviders.length > 2 ? 'grid-cols-1' : 'grid-cols-' + oauthProviders.length}">
+						{#each oauthProviders as provider}
+							<button
+								type="button"
+								onclick={() => signInWithOAuth(provider.provider_name)}
+								disabled={loading}
+								class="flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+							>
+								<span>{getProviderIcon(provider.provider_name)}</span>
+								{provider.display_name}
+							</button>
+						{/each}
+					</div>
+				{/if}
 
 				<div class="mt-6 text-center">
 					<p class="text-sm text-gray-600 dark:text-gray-400">

@@ -109,6 +109,7 @@
 	let oauthFormEnabled = $state(true);
 	let oauthEditingId = $state<string | null>(null);
 	let showOAuthForm = $state(false);
+	let disablePasswordLogin = $state(false);
 
 	// Feature Toggles
 	let enableRealtime = $state(true);
@@ -356,6 +357,13 @@
 				require_number: requireNumber,
 				require_special: requireSpecial
 			});
+
+			// Update disable password login (OAuth-only mode)
+			await serviceAdapter.updateCustomSetting(
+				'wayli.disable_password_login',
+				disablePasswordLogin,
+				'Disable password-based login'
+			);
 
 			toast.success(t('serverAdmin.authSettingsSaved'));
 		} catch (error: any) {
@@ -918,6 +926,7 @@
 
 			// Custom Wayli settings
 			serverName = custom['wayli.server_name']?.value || '';
+			disablePasswordLogin = custom['wayli.disable_password_login']?.value === true;
 
 			// Load Pexels API key secret metadata (value is not returned)
 			if (result.secrets?.pexels_api_key) {
@@ -1665,6 +1674,33 @@
 								disabled={authReadOnly}
 							/>
 						</div>
+
+						<div class="flex items-center justify-between">
+							<div>
+								<span class="text-sm text-gray-700 dark:text-gray-300">
+									{t('serverAdmin.disablePasswordLogin')}
+								</span>
+								<p class="text-xs text-gray-500 dark:text-gray-400">
+									{t('serverAdmin.disablePasswordLoginDescription')}
+								</p>
+							</div>
+							<Switch
+								bind:checked={disablePasswordLogin}
+								label={t('serverAdmin.disablePasswordLogin')}
+								disabled={authReadOnly || oauthProviders.filter(p => p.enabled).length === 0}
+							/>
+						</div>
+
+						{#if disablePasswordLogin && oauthProviders.filter(p => p.enabled).length === 0}
+							<div
+								class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20"
+							>
+								<Lock class="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+								<span class="text-sm text-amber-800 dark:text-amber-200">
+									{t('serverAdmin.noOAuthProvidersWarning')}
+								</span>
+							</div>
+						{/if}
 
 						{#if !authReadOnly}
 							<div class="flex justify-end">

@@ -27,6 +27,10 @@
 	let isFirstUser = $state(false);
 	let hasRedirected = false; // Guard to prevent multiple redirects
 
+	// OAuth-only mode
+	let oauthOnlyMode = $state(false);
+	let oauthProviders = $state<Array<{ id: string; provider_name: string; display_name: string; enabled: boolean }>>([]);
+
 	// Password requirements from server (defaults match current behavior)
 	let passwordMinLength = $state(8);
 	let requireUppercase = $state(true);
@@ -57,7 +61,8 @@
 				'wayli.password_require_uppercase',
 				'wayli.password_require_lowercase',
 				'wayli.password_require_number',
-				'wayli.password_require_special'
+				'wayli.password_require_special',
+				'wayli.disable_password_login'
 			]);
 
 			// The value is wrapped in an object: {"value": false}
@@ -67,6 +72,20 @@
 
 			// First user can always sign up
 			isFirstUser = !is_setup_complete;
+
+			// Check if password login is disabled (OAuth-only mode)
+			oauthOnlyMode = publicSettings['wayli.disable_password_login']?.value === true;
+
+			// Load OAuth providers if OAuth-only mode is enabled
+			if (oauthOnlyMode) {
+				try {
+					const providers = await fluxbase.admin.oauth.providers.listProviders();
+					oauthProviders = (providers || []).filter((p: any) => p.enabled);
+				} catch {
+					// OAuth providers not available, disable OAuth-only mode
+					oauthOnlyMode = false;
+				}
+			}
 
 			// Read password requirements from public settings
 			if (publicSettings['wayli.password_min_length']?.value !== undefined) {
@@ -93,6 +112,8 @@
 				is_setup_complete,
 				registrationDisabled,
 				isFirstUser,
+				oauthOnlyMode,
+				oauthProviders: oauthProviders.length,
 				passwordRequirements: {
 					minLength: passwordMinLength,
 					requireUppercase,
@@ -106,6 +127,7 @@
 			// Default to allowing registration if we can't fetch settings
 			registrationDisabled = false;
 			isFirstUser = false;
+			oauthOnlyMode = false;
 		} finally {
 			isLoadingSettings = false;
 		}
@@ -275,6 +297,37 @@
 	function toggleConfirmPassword() {
 		showConfirmPassword = !showConfirmPassword;
 	}
+
+	async function signInWithOAuth(providerName: string) {
+		loading = true;
+		try {
+			const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/statistics';
+			const { error } = await fluxbase.auth.signInWithOAuth({
+				provider: providerName,
+				options: {
+					redirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
+				}
+			});
+
+			if (error) throw error;
+		} catch (error: any) {
+			console.error('OAuth sign in error:', error);
+			toast.error(error.message || t('auth.signUpFailed'));
+			loading = false;
+		}
+	}
+
+	function getProviderIcon(providerName: string): string {
+		const icons: Record<string, string> = {
+			google: '🔵',
+			github: '⚫',
+			gitlab: '🟠',
+			discord: '🟣',
+			azure: '🔷',
+			bitbucket: '🔵'
+		};
+		return icons[providerName] || '🔑';
+	}
 </script>
 
 <svelte:head>
@@ -381,6 +434,36 @@
 							{t('auth.checkEmailConfirmation')}
 						</p>
 					</div>
+				</div>
+			{:else if oauthOnlyMode && oauthProviders.length > 0 && !isFirstUser}
+				<!-- OAuth-only mode: show only OAuth buttons -->
+				<div class="space-y-4">
+					<p class="text-center text-sm text-gray-600 dark:text-gray-400">
+						{t('auth.signUpWithProvider')}
+					</p>
+					{#each oauthProviders as provider}
+						<button
+							type="button"
+							onclick={() => signInWithOAuth(provider.provider_name)}
+							disabled={loading}
+							class="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 bg-white px-4 py-3 font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+						>
+							<span class="text-xl">{getProviderIcon(provider.provider_name)}</span>
+							{t('auth.signUpWith')} {provider.display_name}
+						</button>
+					{/each}
+				</div>
+
+				<div class="mt-6 text-center">
+					<p class="text-sm text-gray-600 dark:text-gray-400">
+						{t('auth.alreadyHaveAccount')}
+						<a
+							href="/auth/signin"
+							class="text-primary hover:text-primary/80 dark:text-primary-dark dark:hover:text-primary-dark/80 cursor-pointer font-medium transition-colors"
+						>
+							{t('auth.signIn')}
+						</a>
+					</p>
 				</div>
 			{:else}
 				<form onsubmit={handleSignUp} class="space-y-6">

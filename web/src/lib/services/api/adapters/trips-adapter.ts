@@ -616,15 +616,19 @@ export class TripsAdapter extends BaseAdapter {
 		// Trigger follow-up jobs
 		const successfullyApproved = approvedTrips.filter((t) => t.success);
 		if (successfullyApproved.length > 0) {
-			try {
-				await fluxbase.jobs.submit('sync-trip-embeddings', {}, { namespace: 'wayli', priority: 5 });
-			} catch {
-				// Non-fatal
+			// Queue sync-trip-embeddings job only if AI is enabled
+			const aiEnabled = await this.isAIEnabled();
+			if (aiEnabled) {
+				try {
+					await fluxbase.jobs.submit('sync-trip-embeddings', {}, { namespace: 'wayli', priority: 5 });
+				} catch {
+					// Non-fatal
+				}
 			}
 
 			try {
 				(fluxbase.rpc as any)
-					.invoke('detect-place-visits-incremental', {}, { namespace: 'wayli' })
+					.invoke('detect-place-visits-incremental', { user_id: null }, { namespace: 'wayli' })
 					.catch(() => {});
 			} catch {
 				// Non-fatal

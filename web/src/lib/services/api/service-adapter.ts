@@ -750,39 +750,44 @@ export class ServiceAdapter {
 		// Trigger jobs if any trips were approved successfully
 		const successfullyApproved = approvedTrips.filter((t) => t.success);
 		if (successfullyApproved.length > 0) {
-			// 1. Queue sync-trip-embeddings job for the approved trips
-			try {
-				console.log('🔗 [SERVICE] Queueing sync-trip-embeddings job for approved trips...');
-				const { data: embedJob, error: embedError } = await fluxbase.jobs.submit(
-					'sync-trip-embeddings',
-					{},
-					{
-						namespace: 'wayli',
-						priority: 5
-					}
-				);
+			// 1. Queue sync-trip-embeddings job for the approved trips (only if AI is enabled)
+			const aiEnabled = await this.isAIEnabled();
+			if (aiEnabled) {
+				try {
+					console.log('🔗 [SERVICE] Queueing sync-trip-embeddings job for approved trips...');
+					const { data: embedJob, error: embedError } = await fluxbase.jobs.submit(
+						'sync-trip-embeddings',
+						{},
+						{
+							namespace: 'wayli',
+							priority: 5
+						}
+					);
 
-				if (embedError) {
-					console.warn(
-						'⚠️ [SERVICE] Failed to queue sync-trip-embeddings job:',
-						embedError.message
-					);
-				} else {
-					console.log(
-						'✅ [SERVICE] sync-trip-embeddings job queued:',
-						(embedJob as any)?.job_id || 'unknown'
-					);
+					if (embedError) {
+						console.warn(
+							'⚠️ [SERVICE] Failed to queue sync-trip-embeddings job:',
+							embedError.message
+						);
+					} else {
+						console.log(
+							'✅ [SERVICE] sync-trip-embeddings job queued:',
+							(embedJob as any)?.job_id || 'unknown'
+						);
+					}
+				} catch (embedQueueError) {
+					// Non-fatal - log but don't fail the approval
+					console.warn('⚠️ [SERVICE] Error queueing sync-trip-embeddings job:', embedQueueError);
 				}
-			} catch (embedQueueError) {
-				// Non-fatal - log but don't fail the approval
-				console.warn('⚠️ [SERVICE] Error queueing sync-trip-embeddings job:', embedQueueError);
+			} else {
+				console.log('🔗 [SERVICE] Skipping sync-trip-embeddings - AI not enabled');
 			}
 
 			// 2. Run incremental place visit detection
 			try {
 				console.log('[SERVICE] Running incremental place visit detection...');
 				(fluxbase.rpc as any)
-					.invoke('detect-place-visits-incremental', {}, { namespace: 'wayli' })
+					.invoke('detect-place-visits-incremental', { user_id: null }, { namespace: 'wayli' })
 					.catch((err: Error) =>
 						console.warn('[SERVICE] Failed to run place visit detection:', err)
 					);

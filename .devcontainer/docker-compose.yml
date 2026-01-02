@@ -40,7 +40,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - storage_data:/storage
+      - storage_data:/app/storage
     environment:
       # Database
       FLUXBASE_DATABASE_HOST: fluxbase-postgres

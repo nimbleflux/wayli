@@ -590,7 +590,7 @@
 			// Directly invoke the incremental place visit detection RPC
 			const { error } = await (fluxbase.rpc as any).invoke(
 				'detect-place-visits-incremental',
-				{},
+				{ user_id: null },
 				{ namespace: 'wayli' }
 			);
 			if (error) throw error;
@@ -607,6 +607,12 @@
 
 	async function syncPoiEmbeddingsForAllUsers() {
 		if (isSyncingPoiEmbeddings) return;
+
+		// Check if AI is enabled before syncing embeddings
+		if (!aiEnabled) {
+			toast.error(t('serverAdmin.aiNotEnabled'));
+			return;
+		}
 
 		isSyncingPoiEmbeddings = true;
 		try {
@@ -641,6 +647,12 @@
 
 	async function syncTripEmbeddingsForAllUsers() {
 		if (isSyncingTripEmbeddings) return;
+
+		// Check if AI is enabled before syncing embeddings
+		if (!aiEnabled) {
+			toast.error(t('serverAdmin.aiNotEnabled'));
+			return;
+		}
 
 		isSyncingTripEmbeddings = true;
 		try {
@@ -2557,6 +2569,7 @@
 						aria-modal="true"
 						tabindex="-1"
 					>
+						<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 						<div
 							class="mx-4 w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-[#23232a]"
 							onclick={(e) => e.stopPropagation()}

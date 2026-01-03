@@ -97,6 +97,9 @@
 		redirect_url: string;
 		scopes: string[];
 		is_custom: boolean;
+		authorization_url?: string;
+		token_url?: string;
+		user_info_url?: string;
 	}
 	let oauthProviders = $state<OAuthProvider[]>([]);
 	let isLoadingOAuth = $state(false);
@@ -109,6 +112,14 @@
 	let oauthFormEnabled = $state(true);
 	let oauthEditingId = $state<string | null>(null);
 	let showOAuthForm = $state(false);
+	// Custom OAuth provider fields
+	let oauthFormCustomName = $state('');
+	let oauthFormDiscoveryUrl = $state('');
+	let oauthFormAuthorizationUrl = $state('');
+	let oauthFormTokenUrl = $state('');
+	let oauthFormUserInfoUrl = $state('');
+	let oauthFormScopes = $state('openid email profile');
+	let isDiscoveringOAuth = $state(false);
 	let disablePasswordLogin = $state(false);
 
 	// Feature Toggles
@@ -134,7 +145,7 @@
 	let providerName = $state('wayli-default');
 	let providerDisplayName = $state('OpenAI (Production)');
 	let providerType = $state('openai');
-	let providerModel = $state('gpt-4-turbo');
+	let providerModel = $state('gpt-4.1-mini-2025-04-14');
 	let providerApiKey = $state('');
 	let providerApiEndpoint = $state('');
 	let providerMaxTokens = $state(4096);
@@ -423,37 +434,72 @@
 			return;
 		}
 
+		const isCustomProvider = oauthFormProvider === 'custom';
+
+		// Validate custom provider fields
+		if (isCustomProvider) {
+			if (!oauthFormCustomName) {
+				toast.error(t('serverAdmin.oauthCustomNameRequired'));
+				return;
+			}
+			if (!oauthFormAuthorizationUrl || !oauthFormTokenUrl || !oauthFormUserInfoUrl) {
+				toast.error(t('serverAdmin.oauthEndpointsRequired'));
+				return;
+			}
+		}
+
 		isSavingOAuth = true;
 		try {
 			const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
 			const redirectUrl = `${baseUrl}/auth/callback`;
 
-			// Get default scopes based on provider
-			const scopes = getDefaultScopes(oauthFormProvider);
+			// Get scopes - use custom scopes for custom provider, defaults otherwise
+			const scopes = isCustomProvider
+				? oauthFormScopes.split(/[\s,]+/).filter(Boolean)
+				: getDefaultScopes(oauthFormProvider);
+
+			const providerName = isCustomProvider ? oauthFormCustomName : oauthFormProvider;
+			const displayName = oauthFormDisplayName || (isCustomProvider ? oauthFormCustomName : getDefaultDisplayName(oauthFormProvider));
 
 			if (oauthEditingId) {
 				// Update existing provider
-				await fluxbase.admin.oauth.providers.updateProvider(oauthEditingId, {
-					display_name: oauthFormDisplayName || getDefaultDisplayName(oauthFormProvider),
+				const updatePayload: Record<string, unknown> = {
+					display_name: displayName,
 					client_id: oauthFormClientId,
 					client_secret: oauthFormClientSecret,
 					redirect_url: redirectUrl,
 					scopes,
 					enabled: oauthFormEnabled
-				});
+				};
+
+				// Include custom provider fields if editing a custom provider
+				if (isCustomProvider) {
+					updatePayload.authorization_url = oauthFormAuthorizationUrl;
+					updatePayload.token_url = oauthFormTokenUrl;
+					updatePayload.user_info_url = oauthFormUserInfoUrl;
+				}
+
+				await fluxbase.admin.oauth.providers.updateProvider(oauthEditingId, updatePayload);
 				toast.success(t('serverAdmin.oauthProviderUpdated'));
 			} else {
 				// Create new provider
-				await fluxbase.admin.oauth.providers.createProvider({
-					provider_name: oauthFormProvider,
-					display_name: oauthFormDisplayName || getDefaultDisplayName(oauthFormProvider),
+				const createPayload = {
+					provider_name: providerName,
+					display_name: displayName,
 					client_id: oauthFormClientId,
 					client_secret: oauthFormClientSecret,
 					redirect_url: redirectUrl,
 					scopes,
 					enabled: oauthFormEnabled,
-					is_custom: false
-				});
+					is_custom: isCustomProvider,
+					...(isCustomProvider && {
+						authorization_url: oauthFormAuthorizationUrl,
+						token_url: oauthFormTokenUrl,
+						user_info_url: oauthFormUserInfoUrl
+					})
+				};
+
+				await fluxbase.admin.oauth.providers.createProvider(createPayload);
 				toast.success(t('serverAdmin.oauthProviderAdded'));
 			}
 
@@ -501,11 +547,29 @@
 
 	function editOAuthProvider(provider: OAuthProvider) {
 		oauthEditingId = provider.id;
-		oauthFormProvider = provider.provider_name;
 		oauthFormDisplayName = provider.display_name;
 		oauthFormClientId = provider.client_id;
 		oauthFormClientSecret = ''; // Never pre-fill secrets
 		oauthFormEnabled = provider.enabled;
+
+		// Handle custom providers
+		if (provider.is_custom) {
+			oauthFormProvider = 'custom';
+			oauthFormCustomName = provider.provider_name;
+			oauthFormAuthorizationUrl = provider.authorization_url || '';
+			oauthFormTokenUrl = provider.token_url || '';
+			oauthFormUserInfoUrl = provider.user_info_url || '';
+			oauthFormScopes = provider.scopes?.join(' ') || 'openid email profile';
+		} else {
+			oauthFormProvider = provider.provider_name;
+			// Reset custom fields
+			oauthFormCustomName = '';
+			oauthFormAuthorizationUrl = '';
+			oauthFormTokenUrl = '';
+			oauthFormUserInfoUrl = '';
+			oauthFormScopes = 'openid email profile';
+		}
+
 		showOAuthForm = true;
 	}
 
@@ -516,6 +580,13 @@
 		oauthFormClientId = '';
 		oauthFormClientSecret = '';
 		oauthFormEnabled = true;
+		// Reset custom provider fields
+		oauthFormCustomName = '';
+		oauthFormDiscoveryUrl = '';
+		oauthFormAuthorizationUrl = '';
+		oauthFormTokenUrl = '';
+		oauthFormUserInfoUrl = '';
+		oauthFormScopes = 'openid email profile';
 		showOAuthForm = false;
 	}
 
@@ -541,6 +612,56 @@
 			bitbucket: ['account', 'email']
 		};
 		return scopes[provider] || ['openid', 'email', 'profile'];
+	}
+
+	async function discoverOAuthEndpoints() {
+		if (!oauthFormDiscoveryUrl) {
+			toast.error(t('serverAdmin.oauthDiscoveryUrlRequired'));
+			return;
+		}
+
+		isDiscoveringOAuth = true;
+		try {
+			// Ensure the URL ends with the well-known path
+			const discoveryUrl = oauthFormDiscoveryUrl.endsWith('/.well-known/openid-configuration')
+				? oauthFormDiscoveryUrl
+				: `${oauthFormDiscoveryUrl.replace(/\/$/, '')}/.well-known/openid-configuration`;
+
+			const response = await fetch(discoveryUrl);
+			if (!response.ok) {
+				throw new Error(`Failed to fetch discovery document: ${response.status}`);
+			}
+
+			const config = await response.json();
+
+			// Auto-fill the endpoint fields
+			if (config.authorization_endpoint) {
+				oauthFormAuthorizationUrl = config.authorization_endpoint;
+			}
+			if (config.token_endpoint) {
+				oauthFormTokenUrl = config.token_endpoint;
+			}
+			if (config.userinfo_endpoint) {
+				oauthFormUserInfoUrl = config.userinfo_endpoint;
+			}
+			if (config.scopes_supported && Array.isArray(config.scopes_supported)) {
+				// Filter to common scopes if available
+				const commonScopes = ['openid', 'email', 'profile'];
+				const supportedCommon = commonScopes.filter((s) => config.scopes_supported.includes(s));
+				if (supportedCommon.length > 0) {
+					oauthFormScopes = supportedCommon.join(' ');
+				}
+			}
+
+			toast.success(t('serverAdmin.oauthDiscoverySuccess'));
+		} catch (error: any) {
+			console.error('Failed to discover OAuth endpoints:', error);
+			toast.error(t('serverAdmin.oauthDiscoveryFailed'), {
+				description: error?.message
+			});
+		} finally {
+			isDiscoveringOAuth = false;
+		}
 	}
 
 	async function saveAISettings() {
@@ -926,7 +1047,7 @@
 					providerName = 'wayli-default'; // Always use fixed provider name
 					providerDisplayName = defaultProvider.display_name ?? 'OpenAI (Production)';
 					providerType = defaultProvider.provider_type ?? 'openai';
-					providerModel = defaultProvider.config?.model ?? 'gpt-4-turbo';
+					providerModel = defaultProvider.config?.model ?? 'gpt-4.1-mini-2025-04-14';
 					providerApiEndpoint = defaultProvider.config?.api_endpoint ?? '';
 					providerMaxTokens = defaultProvider.config?.max_tokens ?? 4096;
 					providerTemperature = defaultProvider.config?.temperature ?? 0.7;
@@ -1996,8 +2117,137 @@
 										<option value="discord">Discord</option>
 										<option value="azure">Microsoft Azure</option>
 										<option value="bitbucket">Bitbucket</option>
+										<option value="custom">{t('serverAdmin.oauthCustomProvider')}</option>
 									</select>
 								</div>
+
+								{#if oauthFormProvider === 'custom'}
+									<!-- Custom Provider Name -->
+									<div>
+										<label
+											for="oauthCustomName"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
+											{t('serverAdmin.oauthCustomName')}
+										</label>
+										<input
+											id="oauthCustomName"
+											type="text"
+											bind:value={oauthFormCustomName}
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-1 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											placeholder={t('serverAdmin.oauthCustomNamePlaceholder')}
+										/>
+										<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+											{t('serverAdmin.oauthCustomNameHint')}
+										</p>
+									</div>
+
+									<!-- Discovery URL -->
+									<div>
+										<label
+											for="oauthDiscoveryUrl"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
+											{t('serverAdmin.oauthDiscoveryUrl')}
+										</label>
+										<div class="mt-1 flex gap-2">
+											<input
+												id="oauthDiscoveryUrl"
+												type="url"
+												bind:value={oauthFormDiscoveryUrl}
+												class="focus:border-primary focus:ring-primary w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-1 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+												placeholder={t('serverAdmin.oauthDiscoveryUrlPlaceholder')}
+											/>
+											<button
+												type="button"
+												onclick={discoverOAuthEndpoints}
+												disabled={isDiscoveringOAuth || !oauthFormDiscoveryUrl}
+												class="bg-primary hover:bg-primary/90 flex shrink-0 items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+											>
+												{#if isDiscoveringOAuth}
+													<RefreshCw class="h-4 w-4 animate-spin" />
+												{:else}
+													<Search class="h-4 w-4" />
+												{/if}
+												{t('serverAdmin.oauthDiscover')}
+											</button>
+										</div>
+										<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+											{t('serverAdmin.oauthDiscoveryUrlHint')}
+										</p>
+									</div>
+
+									<!-- Authorization URL -->
+									<div>
+										<label
+											for="oauthAuthorizationUrl"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
+											{t('serverAdmin.oauthAuthorizationUrl')}
+										</label>
+										<input
+											id="oauthAuthorizationUrl"
+											type="url"
+											bind:value={oauthFormAuthorizationUrl}
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-1 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											placeholder={t('serverAdmin.oauthAuthorizationUrlPlaceholder')}
+										/>
+									</div>
+
+									<!-- Token URL -->
+									<div>
+										<label
+											for="oauthTokenUrl"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
+											{t('serverAdmin.oauthTokenUrl')}
+										</label>
+										<input
+											id="oauthTokenUrl"
+											type="url"
+											bind:value={oauthFormTokenUrl}
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-1 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											placeholder={t('serverAdmin.oauthTokenUrlPlaceholder')}
+										/>
+									</div>
+
+									<!-- User Info URL -->
+									<div>
+										<label
+											for="oauthUserInfoUrl"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
+											{t('serverAdmin.oauthUserInfoUrl')}
+										</label>
+										<input
+											id="oauthUserInfoUrl"
+											type="url"
+											bind:value={oauthFormUserInfoUrl}
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-1 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											placeholder={t('serverAdmin.oauthUserInfoUrlPlaceholder')}
+										/>
+									</div>
+
+									<!-- Scopes -->
+									<div>
+										<label
+											for="oauthScopes"
+											class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+										>
+											{t('serverAdmin.oauthScopes')}
+										</label>
+										<input
+											id="oauthScopes"
+											type="text"
+											bind:value={oauthFormScopes}
+											class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-1 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+											placeholder={t('serverAdmin.oauthScopesPlaceholder')}
+										/>
+										<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+											{t('serverAdmin.oauthScopesHint')}
+										</p>
+									</div>
+								{/if}
 
 								<div>
 									<label
@@ -2011,7 +2261,7 @@
 										type="text"
 										bind:value={oauthFormDisplayName}
 										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-1 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
-										placeholder={getDefaultDisplayName(oauthFormProvider)}
+										placeholder={oauthFormProvider === 'custom' ? t('serverAdmin.oauthDisplayNamePlaceholder') : getDefaultDisplayName(oauthFormProvider)}
 									/>
 								</div>
 
@@ -2220,7 +2470,7 @@
 										bind:value={providerModel}
 										disabled={providerReadOnly}
 										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-1 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
-										placeholder="gpt-4-turbo"
+										placeholder="gpt-4.1-mini-2025-04-14"
 									/>
 									<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
 										{t('serverAdmin.aiModelDescription')}

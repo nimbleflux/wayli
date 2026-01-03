@@ -352,7 +352,9 @@
 		"confirmYourIdentity": "Bestätigen Sie Ihre Identität",
 		"confirmYourIdentityDescription": "Geben Sie zu Ihrer Sicherheit bitte Ihr Passwort ein, um fortzufahren.",
 		"incorrectPassword": "Falsches Passwort. Bitte versuchen Sie es erneut.",
-		"confirm": "Bestätigen"
+		"confirm": "Bestätigen",
+		"signUpWithProvider": "Melden Sie sich bei einem Anbieter an",
+		"orContinueWith": "Oder fahren Sie fort mit"
 	},
 	"signup": {
 		"firstUserWelcome": "Willkommen! Sie richten Wayli zum ersten Mal ein.",
@@ -462,7 +464,9 @@
 		"saveYourApiKey": "Speichern Sie Ihren API-Schlüssel",
 		"apiKeyWarning": "Dies ist das einzige Mal, dass Sie Ihren API-Schlüssel sehen. Kopieren Sie ihn jetzt und speichern Sie ihn an einem sicheren Ort. Wenn Sie ihn verlieren, müssen Sie einen neuen generieren.",
 		"iHaveSavedMyKey": "Ich habe meinen Schlüssel gespeichert",
-		"userNotAuthenticated": "Benutzer nicht authentifiziert"
+		"userNotAuthenticated": "Benutzer nicht authentifiziert",
+		"downloadAndroid": "Holen Sie sich für Android",
+		"downloadIOS": "Holen Sie sich für iOS"
 	},
 	"importExport": {
 		"title": "Import/Export",
@@ -506,7 +510,8 @@
 		"locationData": "Standortdaten",
 		"wantToVisit": "Willst du besuchen",
 		"trips": "Ausflüge",
-		"exportAllDataHint": "Kein Datumsbereich ausgewählt – alle Daten werden exportiert"
+		"exportAllDataHint": "Kein Datumsbereich ausgewählt – alle Daten werden exportiert",
+		"kmlDescription": "Keyhole Markup Language-Dateien von Google Earth und anderen Kartenanwendungen"
 	},
 	"trips": {
 		"title": "Ausflüge",
@@ -688,7 +693,15 @@
 		"last90Days": "Letzte 90 Tage",
 		"thisYear": "Dieses Jahr",
 		"lastYear": "Letztes Jahr",
-		"dowLabels": ["Sie sind", "Mo", "Di", "Wir", "Th", "Fr", "An"],
+		"dowLabels": [
+			"Sie sind",
+			"Mo",
+			"Di",
+			"Wir",
+			"Th",
+			"Fr",
+			"An"
+		],
 		"monthLabels": [
 			"Januar",
 			"Februar",
@@ -1057,8 +1070,8 @@
 		"aiProviderReadOnly": "Schreibgeschützt",
 		"aiProviderReadOnlyDescription": "Dieser KI-Anbieter wird über Umgebungsvariablen oder YAML-Konfiguration konfiguriert und kann nicht über die Benutzeroberfläche geändert werden.",
 		"aiProviders": {
-			"openai": "Opene (GPT-4, GPT-3.5)",
-			"anthropic": "Anthropisch (Claude)",
+			"openai": "OpenAI (GPT-4, GPT-3.5)",
+			"anthropic": "Anthropic (Claude)",
 			"ollama": "Ollama (lokal)",
 			"openrouter": "OpenRouter",
 			"azure": "Azure OpenAI",
@@ -1132,7 +1145,34 @@
 		"updateProvider": "Anbieter aktualisieren",
 		"enabled": "Aktiviert",
 		"edit": "Bearbeiten",
-		"delete": "Löschen"
+		"delete": "Löschen",
+		"aiNotEnabled": "KI-Funktionen sind nicht aktiviert.Bitte aktivieren Sie zuerst AI in den Einstellungen.",
+		"oauthCustomProvider": "Benutzerdefinierter Anbieter",
+		"oauthCustomName": "Anbietername",
+		"oauthCustomNamePlaceholder": "mein-oidc-anbieter",
+		"oauthCustomNameHint": "Eine eindeutige Kennung für diesen Anbieter (Kleinbuchstaben, keine Leerzeichen)",
+		"oauthCustomNameRequired": "Für benutzerdefinierte Anbieter ist der Anbietername erforderlich",
+		"oauthDiscoveryUrl": "Erkennungs-URL",
+		"oauthDiscoveryUrlPlaceholder": "https://auth.example.com",
+		"oauthDiscoveryUrlHint": "Basis-URL des OAuth/OIDC-Anbieters oder die vollständige .well-known-URL",
+		"oauthDiscoveryUrlRequired": "Bitte geben Sie eine Discovery-URL ein",
+		"oauthDiscover": "Entdecken",
+		"oauthDiscoverySuccess": "Endpunkte erfolgreich erkannt",
+		"oauthDiscoveryFailed": "OAuth-Endpunkte konnten nicht erkannt werden",
+		"oauthAuthorizationUrl": "Autorisierungs-URL",
+		"oauthAuthorizationUrlPlaceholder": "https://auth.example.com/oauth/authorize",
+		"oauthTokenUrl": "Token-URL",
+		"oauthTokenUrlPlaceholder": "https://auth.example.com/oauth/token",
+		"oauthUserInfoUrl": "Benutzerinformations-URL",
+		"oauthUserInfoUrlPlaceholder": "https://auth.example.com/oauth/userinfo",
+		"oauthScopes": "Bereiche",
+		"oauthScopesPlaceholder": "openid-E-Mail-Profil",
+		"oauthScopesHint": "Durch Leerzeichen getrennte Liste der anzufordernden OAuth-Bereiche",
+		"oauthEndpointsRequired": "Autorisierungs-URL, Token-URL und Benutzerinformations-URL sind erforderlich",
+		"oauthDisplayNamePlaceholder": "Mein individueller Anbieter",
+		"disablePasswordLogin": "Deaktivieren Sie die Passwortanmeldung",
+		"disablePasswordLoginDescription": "Wenn diese Option aktiviert ist, können sich Benutzer nur mit konfigurierten OAuth-Anbietern anmelden.Die passwortbasierte Anmeldung wird deaktiviert.",
+		"noOAuthProvidersWarning": "Warnung: Es sind keine OAuth-Anbieter aktiviert.Bitte aktivieren Sie mindestens einen OAuth-Anbieter, bevor Sie die Passwortanmeldung deaktivieren."
 	},
 	"wantToVisit": {
 		"addNewPlace": "Neuen Ort hinzufügen",

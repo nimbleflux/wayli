@@ -352,7 +352,9 @@
 		"confirmYourIdentity": "Confirmez votre identité",
 		"confirmYourIdentityDescription": "Pour votre sécurité, veuillez saisir votre mot de passe pour continuer.",
 		"incorrectPassword": "Mot de passe incorrect. Veuillez réessayer.",
-		"confirm": "Confirmer"
+		"confirm": "Confirmer",
+		"signUpWithProvider": "S'inscrire auprès d'un fournisseur",
+		"orContinueWith": "Ou continuez avec"
 	},
 	"signup": {
 		"firstUserWelcome": "Accueillir! Vous configurez Wayli pour la première fois.",
@@ -462,7 +464,9 @@
 		"saveYourApiKey": "Enregistrez votre clé API",
 		"apiKeyWarning": "C'est la seule fois que vous verrez votre clé API. Copiez-la maintenant et enregistrez-la dans un endroit sécurisé. Si vous la perdez, vous devrez en générer une nouvelle.",
 		"iHaveSavedMyKey": "J'ai enregistré ma clé",
-		"userNotAuthenticated": "Utilisateur non authentifié"
+		"userNotAuthenticated": "Utilisateur non authentifié",
+		"downloadAndroid": "Obtenez pour Android",
+		"downloadIOS": "Obtenir pour iOS"
 	},
 	"importExport": {
 		"title": "Importer/Exporter",
@@ -506,7 +510,8 @@
 		"locationData": "Données de localisation",
 		"wantToVisit": "Envie de visiter",
 		"trips": "Voyages",
-		"exportAllDataHint": "Aucune plage de dates sélectionnée : toutes les données seront exportées"
+		"exportAllDataHint": "Aucune plage de dates sélectionnée : toutes les données seront exportées",
+		"kmlDescription": "Fichiers Keyhole Markup Language de Google Earth et d'autres applications cartographiques"
 	},
 	"trips": {
 		"title": "Voyages",
@@ -688,7 +693,15 @@
 		"last90Days": "90 derniers jours",
 		"thisYear": "Cette année",
 		"lastYear": "L'année dernière",
-		"dowLabels": ["Ils sont", "Mo", "Tu", "Nous", "Ème", "Fr", "sur"],
+		"dowLabels": [
+			"Ils sont",
+			"Mo",
+			"Tu",
+			"Nous",
+			"Ème",
+			"Fr",
+			"sur"
+		],
 		"monthLabels": [
 			"Janvier",
 			"Février",
@@ -1057,10 +1070,10 @@
 		"aiProviderReadOnly": "Lecture seule",
 		"aiProviderReadOnlyDescription": "Ce fournisseur d'IA est configuré via des variables d'environnement ou une configuration YAML et ne peut pas être modifié via l'interface utilisateur.",
 		"aiProviders": {
-			"openai": "Ouvert (GPT-4, GPT-3.5)",
-			"anthropic": "Anthropique (Claude)",
+			"openai": "OpenAI (GPT-4, GPT-3.5)",
+			"anthropic": "Anthropic (Claude)",
 			"ollama": "Ollama (local)",
-			"openrouter": "OuvrirRouter",
+			"openrouter": "OpenRouter",
 			"azure": "Azure OpenAI",
 			"custom": "Point de terminaison personnalisé"
 		},
@@ -1132,7 +1145,34 @@
 		"updateProvider": "Mettre à jour le Fournisseur",
 		"enabled": "Activé",
 		"edit": "Modifier",
-		"delete": "Supprimer"
+		"delete": "Supprimer",
+		"aiNotEnabled": "Les fonctionnalités d'IA ne sont pas activées.Veuillez d'abord activer l'IA dans les paramètres.",
+		"oauthCustomProvider": "Fournisseur personnalisé",
+		"oauthCustomName": "Nom du fournisseur",
+		"oauthCustomNamePlaceholder": "mon-fournisseur-oidc",
+		"oauthCustomNameHint": "Un identifiant unique pour ce fournisseur (minuscules, sans espaces)",
+		"oauthCustomNameRequired": "Le nom du fournisseur est requis pour les fournisseurs personnalisés",
+		"oauthDiscoveryUrl": "URL de découverte",
+		"oauthDiscoveryUrlPlaceholder": "https://auth.example.com",
+		"oauthDiscoveryUrlHint": "URL de base du fournisseur OAuth/OIDC, ou URL complète .well-known",
+		"oauthDiscoveryUrlRequired": "Veuillez saisir une URL de découverte",
+		"oauthDiscover": "Découvrir",
+		"oauthDiscoverySuccess": "Points de terminaison découverts avec succès",
+		"oauthDiscoveryFailed": "Échec de la découverte des points de terminaison OAuth",
+		"oauthAuthorizationUrl": "URL d'autorisation",
+		"oauthAuthorizationUrlPlaceholder": "https://auth.example.com/oauth/authorize",
+		"oauthTokenUrl": "URL du jeton",
+		"oauthTokenUrlPlaceholder": "https://auth.example.com/oauth/token",
+		"oauthUserInfoUrl": "URL des informations utilisateur",
+		"oauthUserInfoUrlPlaceholder": "https://auth.example.com/oauth/userinfo",
+		"oauthScopes": "Portées",
+		"oauthScopesPlaceholder": "profil de messagerie openid",
+		"oauthScopesHint": "Liste séparée par des espaces des étendues OAuth à demander",
+		"oauthEndpointsRequired": "L'URL d'autorisation, l'URL de jeton et l'URL d'informations utilisateur sont requises.",
+		"oauthDisplayNamePlaceholder": "Mon fournisseur personnalisé",
+		"disablePasswordLogin": "Désactiver la connexion par mot de passe",
+		"disablePasswordLoginDescription": "Lorsqu'il est activé, les utilisateurs peuvent uniquement se connecter à l'aide des fournisseurs OAuth configurés.La connexion par mot de passe sera désactivée.",
+		"noOAuthProvidersWarning": "Avertissement : aucun fournisseur OAuth n'est activé.Veuillez activer au moins un fournisseur OAuth avant de désactiver la connexion par mot de passe."
 	},
 	"wantToVisit": {
 		"addNewPlace": "Ajouter un nouveau lieu",

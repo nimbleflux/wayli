@@ -352,7 +352,9 @@
 		"confirmYourIdentity": "确认您的身份",
 		"confirmYourIdentityDescription": "为了您的安全，请输入您的密码以继续。",
 		"incorrectPassword": "密码不正确。请再试一次。",
-		"confirm": "确认"
+		"confirm": "确认",
+		"signUpWithProvider": "与提供商注册",
+		"orContinueWith": "或者继续"
 	},
 	"signup": {
 		"firstUserWelcome": "欢迎！您是第一次设置 Wayli。",
@@ -462,7 +464,9 @@
 		"saveYourApiKey": "保存您的 API 密钥",
 		"apiKeyWarning": "这是您唯一一次看到 API 密钥的机会。请立即复制并保存到安全的地方。如果丢失，您需要生成新的密钥。",
 		"iHaveSavedMyKey": "我已保存密钥",
-		"userNotAuthenticated": "用户未认证"
+		"userNotAuthenticated": "用户未认证",
+		"downloadAndroid": "获取 Android 版",
+		"downloadIOS": "获取 iOS 版"
 	},
 	"importExport": {
 		"title": "导入/导出",
@@ -506,7 +510,8 @@
 		"locationData": "位置数据",
 		"wantToVisit": "想要参观",
 		"trips": "行程",
-		"exportAllDataHint": "未选择日期范围 - 将导出所有数据"
+		"exportAllDataHint": "未选择日期范围 - 将导出所有数据",
+		"kmlDescription": "来自 Google Earth 和其他地图应用程序的 Keyhole 标记语言文件"
 	},
 	"trips": {
 		"title": "行程",
@@ -688,7 +693,15 @@
 		"last90Days": "过去 90 天",
 		"thisYear": "今年",
 		"lastYear": "去年",
-		"dowLabels": ["他们是", "莫", "涂", "我们", "钍", "Fr", "在"],
+		"dowLabels": [
+			"他们是",
+			"莫",
+			"涂",
+			"我们",
+			"钍",
+			"Fr",
+			"在"
+		],
 		"monthLabels": [
 			"一月",
 			"二月",
@@ -1057,11 +1070,11 @@
 		"aiProviderReadOnly": "只读",
 		"aiProviderReadOnlyDescription": "此 AI 提供程序通过环境变量或 YAML 配置进行配置，无法通过 UI 进行修改。",
 		"aiProviders": {
-			"openai": "打开（GPT-4、GPT-3.5）",
-			"anthropic": "人类（克劳德）",
-			"ollama": "奥拉马（当地）",
-			"openrouter": "开放路由器",
-			"azure": "Azure 开放人工智能",
+			"openai": "OpenAI (GPT-4, GPT-3.5)",
+			"anthropic": "Anthropic (Claude)",
+			"ollama": "Ollama (本地)",
+			"openrouter": "OpenRouter",
+			"azure": "Azure OpenAI",
 			"custom": "自定义端点"
 		},
 		"databaseMaintenance": "数据库维护",
@@ -1132,7 +1145,34 @@
 		"updateProvider": "更新提供商",
 		"enabled": "已启用",
 		"edit": "编辑",
-		"delete": "删除"
+		"delete": "删除",
+		"aiNotEnabled": "AI 功能未启用。请先在设置中启用AI。",
+		"oauthCustomProvider": "定制提供商",
+		"oauthCustomName": "提供商名称",
+		"oauthCustomNamePlaceholder": "my-oidc-提供者",
+		"oauthCustomNameHint": "该提供商的唯一标识符（小写，无空格）",
+		"oauthCustomNameRequired": "自定义提供商需要提供商名称",
+		"oauthDiscoveryUrl": "发现网址",
+		"oauthDiscoveryUrlPlaceholder": "https://auth.example.com",
+		"oauthDiscoveryUrlHint": "OAuth/OIDC 提供商的基本 URL，或完整的 .well-known URL",
+		"oauthDiscoveryUrlRequired": "请输入发现 URL",
+		"oauthDiscover": "发现",
+		"oauthDiscoverySuccess": "成功发现端点",
+		"oauthDiscoveryFailed": "无法发现 OAuth 端点",
+		"oauthAuthorizationUrl": "授权网址",
+		"oauthAuthorizationUrlPlaceholder": "https://auth.example.com/oauth/authorize",
+		"oauthTokenUrl": "令牌网址",
+		"oauthTokenUrlPlaceholder": "https://auth.example.com/oauth/token",
+		"oauthUserInfoUrl": "用户信息网址",
+		"oauthUserInfoUrlPlaceholder": "https://auth.example.com/oauth/userinfo",
+		"oauthScopes": "范围",
+		"oauthScopesPlaceholder": "openid 电子邮件配置文件",
+		"oauthScopesHint": "要请求的 OAuth 范围的空格分隔列表",
+		"oauthEndpointsRequired": "授权 URL、令牌 URL 和用户信息 URL 为必填项",
+		"oauthDisplayNamePlaceholder": "我的定制提供商",
+		"disablePasswordLogin": "禁用密码登录",
+		"disablePasswordLoginDescription": "启用后，用户只能使用配置的 OAuth 提供程序登录。基于密码的登录将被禁用。",
+		"noOAuthProvidersWarning": "警告：未启用任何 OAuth 提供程序。在禁用密码登录之前，请至少启用一个 OAuth 提供程序。"
 	},
 	"wantToVisit": {
 		"addNewPlace": "添加新地点",

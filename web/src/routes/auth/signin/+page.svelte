@@ -26,7 +26,7 @@
 
 	// OAuth-only mode
 	let oauthOnlyMode = $state(false);
-	let oauthProviders = $state<Array<{ name: string; display_name: string; authorize_url?: string }>>([]);
+	let oauthProviders = $state<Array<{ provider: string; display_name: string; authorize_url?: string }>>([]);
 	let isLoadingSettings = $state(true);
 
 	onMount(async () => {
@@ -64,11 +64,8 @@
 		loading = true;
 		try {
 			const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/statistics';
-			const { error } = await fluxbase.auth.signInWithOAuth({
-				provider: providerName,
-				options: {
-					redirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
-				}
+			const { error } = await fluxbase.auth.signInWithOAuth(providerName, {
+				redirect_to: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
 			});
 
 			if (error) throw error;
@@ -380,12 +377,12 @@
 					{#each oauthProviders as provider}
 						<button
 							type="button"
-							onclick={() => signInWithOAuth(provider.name)}
+							onclick={() => signInWithOAuth(provider.provider)}
 							disabled={loading}
 							class="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 bg-white px-4 py-3 font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
 						>
-							{#if isKnownProvider(provider.name)}
-								{@render providerIcon(provider.name, 'lg')}
+							{#if isKnownProvider(provider.provider)}
+								{@render providerIcon(provider.provider, 'lg')}
 							{/if}
 							{t('auth.signInWith')} {provider.display_name}
 						</button>
@@ -510,12 +507,12 @@
 						{#each oauthProviders as provider}
 							<button
 								type="button"
-								onclick={() => signInWithOAuth(provider.name)}
+								onclick={() => signInWithOAuth(provider.provider)}
 								disabled={loading}
 								class="flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
 							>
-								{#if isKnownProvider(provider.name)}
-									{@render providerIcon(provider.name, 'sm')}
+								{#if isKnownProvider(provider.provider)}
+									{@render providerIcon(provider.provider, 'sm')}
 								{/if}
 								{provider.display_name}
 							</button>

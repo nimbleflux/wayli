@@ -352,7 +352,9 @@
 		"confirmYourIdentity": "Confirme sua identidade",
 		"confirmYourIdentityDescription": "Para sua segurança, digite sua senha para continuar.",
 		"incorrectPassword": "Senha incorreta. Por favor, tente novamente.",
-		"confirm": "Confirmar"
+		"confirm": "Confirmar",
+		"signUpWithProvider": "Inscreva-se com um provedor",
+		"orContinueWith": "Ou continue com"
 	},
 	"signup": {
 		"firstUserWelcome": "Bem-vindo! Você está configurando o Wayli pela primeira vez.",
@@ -462,7 +464,9 @@
 		"saveYourApiKey": "Salve sua chave de API",
 		"apiKeyWarning": "Esta é a única vez que você verá sua chave de API. Copie-a agora e salve-a em um local seguro. Se você perdê-la, precisará gerar uma nova.",
 		"iHaveSavedMyKey": "Salvei minha chave",
-		"userNotAuthenticated": "Usuário não autenticado"
+		"userNotAuthenticated": "Usuário não autenticado",
+		"downloadAndroid": "Obtenha para Android",
+		"downloadIOS": "Obtenha para iOS"
 	},
 	"importExport": {
 		"title": "Importar/Exportar",
@@ -506,7 +510,8 @@
 		"locationData": "Dados de localização",
 		"wantToVisit": "Quer visitar",
 		"trips": "Viagens",
-		"exportAllDataHint": "Nenhum período selecionado - todos os dados serão exportados"
+		"exportAllDataHint": "Nenhum período selecionado - todos os dados serão exportados",
+		"kmlDescription": "Arquivos Keyhole Markup Language do Google Earth e outros aplicativos de mapeamento"
 	},
 	"trips": {
 		"title": "Viagens",
@@ -688,7 +693,15 @@
 		"last90Days": "Últimos 90 dias",
 		"thisYear": "Este ano",
 		"lastYear": "Ano passado",
-		"dowLabels": ["Eles são", "Mo", "Você", "Nós", "O", "Padre", "sobre"],
+		"dowLabels": [
+			"Eles são",
+			"Mo",
+			"Você",
+			"Nós",
+			"O",
+			"Padre",
+			"sobre"
+		],
 		"monthLabels": [
 			"Janeiro",
 			"Fevereiro",
@@ -1057,8 +1070,8 @@
 		"aiProviderReadOnly": "Somente leitura",
 		"aiProviderReadOnlyDescription": "Este provedor de IA é configurado por meio de variáveis ​​de ambiente ou configuração YAML e não pode ser modificado por meio da IU.",
 		"aiProviders": {
-			"openai": "Aberto (GPT-4, GPT-3.5)",
-			"anthropic": "Antrópico (Claude)",
+			"openai": "OpenAI (GPT-4, GPT-3.5)",
+			"anthropic": "Anthropic (Claude)",
 			"ollama": "Ollama (local)",
 			"openrouter": "OpenRouter",
 			"azure": "Azure Open AI",
@@ -1132,7 +1145,34 @@
 		"updateProvider": "Atualizar Provedor",
 		"enabled": "Habilitado",
 		"edit": "Editar",
-		"delete": "Excluir"
+		"delete": "Excluir",
+		"aiNotEnabled": "Os recursos de IA não estão habilitados.Ative primeiro a IA nas configurações.",
+		"oauthCustomProvider": "Provedor personalizado",
+		"oauthCustomName": "Nome do provedor",
+		"oauthCustomNamePlaceholder": "meu-oidc-provedor",
+		"oauthCustomNameHint": "Um identificador exclusivo para este provedor (em minúsculas, sem espaços)",
+		"oauthCustomNameRequired": "O nome do provedor é obrigatório para provedores personalizados",
+		"oauthDiscoveryUrl": "URL de descoberta",
+		"oauthDiscoveryUrlPlaceholder": "https://auth.example.com",
+		"oauthDiscoveryUrlHint": "URL base do provedor OAuth/OIDC ou o URL .well-known completo",
+		"oauthDiscoveryUrlRequired": "Insira um URL de descoberta",
+		"oauthDiscover": "Descobrir",
+		"oauthDiscoverySuccess": "Endpoints descobertos com sucesso",
+		"oauthDiscoveryFailed": "Falha ao descobrir endpoints OAuth",
+		"oauthAuthorizationUrl": "URL de autorização",
+		"oauthAuthorizationUrlPlaceholder": "https://auth.example.com/oauth/authorize",
+		"oauthTokenUrl": "URL do token",
+		"oauthTokenUrlPlaceholder": "https://auth.example.com/oauth/token",
+		"oauthUserInfoUrl": "URL de informações do usuário",
+		"oauthUserInfoUrlPlaceholder": "https://auth.example.com/oauth/userinfo",
+		"oauthScopes": "Escopos",
+		"oauthScopesPlaceholder": "perfil de e-mail aberto",
+		"oauthScopesHint": "Lista separada por espaço de escopos OAuth a serem solicitados",
+		"oauthEndpointsRequired": "URL de autorização, URL de token e URL de informações do usuário são obrigatórios",
+		"oauthDisplayNamePlaceholder": "Meu provedor personalizado",
+		"disablePasswordLogin": "Desativar login com senha",
+		"disablePasswordLoginDescription": "Quando ativado, os usuários só poderão fazer login usando provedores OAuth configurados.O login baseado em senha será desativado.",
+		"noOAuthProvidersWarning": "Aviso: nenhum provedor OAuth está habilitado.Ative pelo menos um provedor OAuth antes de desativar o login por senha."
 	},
 	"wantToVisit": {
 		"addNewPlace": "Adicionar novo lugar",

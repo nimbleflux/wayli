@@ -352,7 +352,9 @@
 		"confirmYourIdentity": "本人確認をする",
 		"confirmYourIdentityDescription": "安全のため、パスワードを入力して続行してください。",
 		"incorrectPassword": "パスワードが間違っています。もう一度試してください。",
-		"confirm": "確認する"
+		"confirm": "確認する",
+		"signUpWithProvider": "プロバイダーにサインアップする",
+		"orContinueWith": "または続行してください"
 	},
 	"signup": {
 		"firstUserWelcome": "いらっしゃいませ！ Wayli を初めてセットアップします。",
@@ -462,7 +464,9 @@
 		"saveYourApiKey": "APIキーを保存してください",
 		"apiKeyWarning": "APIキーが表示されるのはこれが唯一です。今すぐコピーして安全な場所に保存してください。紛失した場合は、新しいキーを生成する必要があります。",
 		"iHaveSavedMyKey": "キーを保存しました",
-		"userNotAuthenticated": "ユーザーが認証されていません"
+		"userNotAuthenticated": "ユーザーが認証されていません",
+		"downloadAndroid": "Android 用に入手",
+		"downloadIOS": "iOS 用に入手"
 	},
 	"importExport": {
 		"title": "インポート/エクスポート",
@@ -506,7 +510,8 @@
 		"locationData": "位置データ",
 		"wantToVisit": "訪問したい",
 		"trips": "旅行",
-		"exportAllDataHint": "日付範囲が選択されていません - すべてのデータがエクスポートされます"
+		"exportAllDataHint": "日付範囲が選択されていません - すべてのデータがエクスポートされます",
+		"kmlDescription": "Google Earth およびその他の地図アプリケーションからの Keyhole Markup Language ファイル"
 	},
 	"trips": {
 		"title": "旅行",
@@ -688,7 +693,15 @@
 		"last90Days": "過去90日間",
 		"thisYear": "今年",
 		"lastYear": "去年",
-		"dowLabels": ["彼らです", "モー", "土", "私たちは", "Th", "神父", "の上"],
+		"dowLabels": [
+			"彼らです",
+			"モー",
+			"土",
+			"私たちは",
+			"Th",
+			"神父",
+			"の上"
+		],
 		"monthLabels": [
 			"1月",
 			"2月",
@@ -1057,10 +1070,10 @@
 		"aiProviderReadOnly": "読み取り専用",
 		"aiProviderReadOnlyDescription": "この AI プロバイダーは環境変数または YAML 構成を介して構成され、UI を介して変更することはできません。",
 		"aiProviders": {
-			"openai": "オープン (GPT-4、GPT-3.5)",
-			"anthropic": "人間性（クロード）",
-			"ollama": "オラマ (地元)",
-			"openrouter": "オープンルーター",
+			"openai": "OpenAI (GPT-4, GPT-3.5)",
+			"anthropic": "Anthropic (Claude)",
+			"ollama": "Ollama (ローカル)",
+			"openrouter": "OpenRouter",
 			"azure": "Azure OpenAI",
 			"custom": "カスタムエンドポイント"
 		},
@@ -1132,7 +1145,34 @@
 		"updateProvider": "プロバイダーを更新",
 		"enabled": "有効",
 		"edit": "編集",
-		"delete": "削除"
+		"delete": "削除",
+		"aiNotEnabled": "AI 機能が有効になっていません。まず設定で AI を有効にしてください。",
+		"oauthCustomProvider": "カスタムプロバイダー",
+		"oauthCustomName": "プロバイダー名",
+		"oauthCustomNamePlaceholder": "私のoidcプロバイダー",
+		"oauthCustomNameHint": "このプロバイダーの一意の識別子 (小文字、スペースなし)",
+		"oauthCustomNameRequired": "カスタムプロバイダーにはプロバイダー名が必要です",
+		"oauthDiscoveryUrl": "ディスカバリ URL",
+		"oauthDiscoveryUrlPlaceholder": "https://auth.example.com",
+		"oauthDiscoveryUrlHint": "OAuth/OIDC プロバイダーのベース URL、または完全な .well-known URL",
+		"oauthDiscoveryUrlRequired": "検出 URL を入力してください",
+		"oauthDiscover": "発見する",
+		"oauthDiscoverySuccess": "エンドポイントが正常に検出されました",
+		"oauthDiscoveryFailed": "OAuth エンドポイントの検出に失敗しました",
+		"oauthAuthorizationUrl": "認可URL",
+		"oauthAuthorizationUrlPlaceholder": "https://auth.example.com/oauth/authorize",
+		"oauthTokenUrl": "トークンURL",
+		"oauthTokenUrlPlaceholder": "https://auth.example.com/oauth/token",
+		"oauthUserInfoUrl": "ユーザー情報のURL",
+		"oauthUserInfoUrlPlaceholder": "https://auth.example.com/oauth/userinfo",
+		"oauthScopes": "スコープ",
+		"oauthScopesPlaceholder": "openid メール プロファイル",
+		"oauthScopesHint": "リクエストする OAuth スコープのスペース区切りのリスト",
+		"oauthEndpointsRequired": "認可URL、トークンURL、ユーザー情報URLは必須です",
+		"oauthDisplayNamePlaceholder": "私のカスタムプロバイダー",
+		"disablePasswordLogin": "パスワードログインを無効にする",
+		"disablePasswordLoginDescription": "有効にすると、ユーザーは構成された OAuth プロバイダーを使用してのみサインインできます。パスワードベースのログインは無効になります。",
+		"noOAuthProvidersWarning": "警告: 有効な OAuth プロバイダーはありません。パスワード ログインを無効にする前に、少なくとも 1 つの OAuth プロバイダーを有効にしてください。"
 	},
 	"wantToVisit": {
 		"addNewPlace": "新しい場所を追加",

@@ -352,7 +352,9 @@
 		"confirmYourIdentity": "Подтвердите свою личность",
 		"confirmYourIdentityDescription": "В целях вашей безопасности введите пароль, чтобы продолжить.",
 		"incorrectPassword": "Неправильный пароль. Пожалуйста, попробуйте еще раз.",
-		"confirm": "Подтверждать"
+		"confirm": "Подтверждать",
+		"signUpWithProvider": "Зарегистрируйтесь у провайдера",
+		"orContinueWith": "Или продолжить с"
 	},
 	"signup": {
 		"firstUserWelcome": "Добро пожаловать! Вы настраиваете Wayli впервые.",
@@ -462,7 +464,9 @@
 		"saveYourApiKey": "Сохраните ваш API-ключ",
 		"apiKeyWarning": "Это единственный раз, когда вы увидите свой API-ключ. Скопируйте его сейчас и сохраните в надежном месте. Если вы его потеряете, вам придется сгенерировать новый.",
 		"iHaveSavedMyKey": "Я сохранил свой ключ",
-		"userNotAuthenticated": "Пользователь не аутентифицирован"
+		"userNotAuthenticated": "Пользователь не аутентифицирован",
+		"downloadAndroid": "Получить для Android",
+		"downloadIOS": "Получить для iOS"
 	},
 	"importExport": {
 		"title": "Импорт/Экспорт",
@@ -506,7 +510,8 @@
 		"locationData": "Данные о местоположении",
 		"wantToVisit": "Хотите посетить",
 		"trips": "Путешествия",
-		"exportAllDataHint": "Диапазон дат не выбран: будут экспортированы все данные."
+		"exportAllDataHint": "Диапазон дат не выбран: будут экспортированы все данные.",
+		"kmlDescription": "Файлы языка разметки Keyhole из Google Earth и других картографических приложений."
 	},
 	"trips": {
 		"title": "Путешествия",
@@ -688,7 +693,15 @@
 		"last90Days": "Последние 90 дней",
 		"thisYear": "В этом году",
 		"lastYear": "В прошлом году",
-		"dowLabels": ["Они есть", "Мо", "Вт", "Мы", "че", "Пт", "на"],
+		"dowLabels": [
+			"Они есть",
+			"Мо",
+			"Вт",
+			"Мы",
+			"че",
+			"Пт",
+			"на"
+		],
 		"monthLabels": [
 			"январь",
 			"февраль",
@@ -1057,9 +1070,9 @@
 		"aiProviderReadOnly": "Только чтение",
 		"aiProviderReadOnlyDescription": "Этот поставщик AI настраивается с помощью переменных среды или конфигурации YAML и не может быть изменен через пользовательский интерфейс.",
 		"aiProviders": {
-			"openai": "Открытое (ГПТ-4, ГПТ-3,5)",
-			"anthropic": "Антропный (Клод)",
-			"ollama": "Оллама (местный)",
+			"openai": "OpenAI (GPT-4, GPT-3.5)",
+			"anthropic": "Anthropic (Claude)",
+			"ollama": "Ollama (локальный)",
 			"openrouter": "OpenRouter",
 			"azure": "Azure OpenAI",
 			"custom": "Пользовательская конечная точка"
@@ -1132,7 +1145,34 @@
 		"updateProvider": "Обновить провайдера",
 		"enabled": "Включено",
 		"edit": "Редактировать",
-		"delete": "Удалить"
+		"delete": "Удалить",
+		"aiNotEnabled": "Функции AI не включены.Пожалуйста, сначала включите AI в настройках.",
+		"oauthCustomProvider": "Пользовательский поставщик",
+		"oauthCustomName": "Имя поставщика",
+		"oauthCustomNamePlaceholder": "мой-oidc-провайдер",
+		"oauthCustomNameHint": "Уникальный идентификатор этого провайдера (строчные буквы, без пробелов)",
+		"oauthCustomNameRequired": "Имя поставщика требуется для пользовательских поставщиков.",
+		"oauthDiscoveryUrl": "URL-адрес обнаружения",
+		"oauthDiscoveryUrlPlaceholder": "https://auth.example.com",
+		"oauthDiscoveryUrlHint": "Базовый URL-адрес поставщика OAuth/OIDC или полный общеизвестный URL-адрес.",
+		"oauthDiscoveryUrlRequired": "Введите URL-адрес обнаружения",
+		"oauthDiscover": "Обнаружить",
+		"oauthDiscoverySuccess": "Конечные точки успешно обнаружены",
+		"oauthDiscoveryFailed": "Не удалось обнаружить конечные точки OAuth.",
+		"oauthAuthorizationUrl": "URL-адрес авторизации",
+		"oauthAuthorizationUrlPlaceholder": "https://auth.example.com/oauth/authorize",
+		"oauthTokenUrl": "URL-адрес токена",
+		"oauthTokenUrlPlaceholder": "https://auth.example.com/oauth/token",
+		"oauthUserInfoUrl": "URL-адрес информации о пользователе",
+		"oauthUserInfoUrlPlaceholder": "https://auth.example.com/oauth/userinfo",
+		"oauthScopes": "Области применения",
+		"oauthScopesPlaceholder": "профиль электронной почты openid",
+		"oauthScopesHint": "Список областей действия OAuth, разделенных пробелами, которые необходимо запросить.",
+		"oauthEndpointsRequired": "Требуется URL-адрес авторизации, URL-адрес токена и URL-адрес информации о пользователе.",
+		"oauthDisplayNamePlaceholder": "Мой индивидуальный поставщик",
+		"disablePasswordLogin": "Отключить вход по паролю",
+		"disablePasswordLoginDescription": "Если этот параметр включен, пользователи могут входить в систему только с помощью настроенных поставщиков OAuth.Вход по паролю будет отключен.",
+		"noOAuthProvidersWarning": "Внимание: ни один поставщик OAuth не включен.Прежде чем отключать вход по паролю, включите хотя бы одного поставщика OAuth."
 	},
 	"wantToVisit": {
 		"addNewPlace": "Добавить новое место",

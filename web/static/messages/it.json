@@ -352,7 +352,9 @@
 		"confirmYourIdentity": "Conferma la tua identità",
 		"confirmYourIdentityDescription": "Per la tua sicurezza, inserisci la password per continuare.",
 		"incorrectPassword": "Password errata. Per favore riprova.",
-		"confirm": "Confermare"
+		"confirm": "Confermare",
+		"signUpWithProvider": "Iscriviti con un fornitore",
+		"orContinueWith": "Oppure continua con"
 	},
 	"signup": {
 		"firstUserWelcome": "Benvenuto! Stai configurando Wayli per la prima volta.",
@@ -462,7 +464,9 @@
 		"saveYourApiKey": "Salva la tua chiave API",
 		"apiKeyWarning": "Questa è l'unica volta che vedrai la tua chiave API. Copiala ora e salvala in un luogo sicuro. Se la perdi, dovrai generarne una nuova.",
 		"iHaveSavedMyKey": "Ho salvato la mia chiave",
-		"userNotAuthenticated": "Utente non autenticato"
+		"userNotAuthenticated": "Utente non autenticato",
+		"downloadAndroid": "Ottieni per Android",
+		"downloadIOS": "Ottieni per iOS"
 	},
 	"importExport": {
 		"title": "Importa/Esporta",
@@ -506,7 +510,8 @@
 		"locationData": "Dati sulla posizione",
 		"wantToVisit": "Vuoi visitare",
 		"trips": "Viaggi",
-		"exportAllDataHint": "Nessun intervallo di date selezionato: verranno esportati tutti i dati"
+		"exportAllDataHint": "Nessun intervallo di date selezionato: verranno esportati tutti i dati",
+		"kmlDescription": "File Keyhole Markup Language da Google Earth e altre applicazioni di mappatura"
 	},
 	"trips": {
 		"title": "Viaggi",
@@ -688,7 +693,15 @@
 		"last90Days": "Ultimi 90 giorni",
 		"thisYear": "Quest'anno",
 		"lastYear": "L'anno scorso",
-		"dowLabels": ["Su", "Mo", "Tu", "Noi", "Gi", "Fr", "SU"],
+		"dowLabels": [
+			"Su",
+			"Mo",
+			"Tu",
+			"Noi",
+			"Gi",
+			"Fr",
+			"SU"
+		],
 		"monthLabels": [
 			"Gennaio",
 			"Febbraio",
@@ -1057,8 +1070,8 @@
 		"aiProviderReadOnly": "Sola lettura",
 		"aiProviderReadOnlyDescription": "Questo provider AI è configurato tramite variabili di ambiente o configurazione YAML e non può essere modificato tramite l'interfaccia utente.",
 		"aiProviders": {
-			"openai": "Aperto (GPT-4, GPT-3.5)",
-			"anthropic": "Antropico (Claude)",
+			"openai": "OpenAI (GPT-4, GPT-3.5)",
+			"anthropic": "Anthropic (Claude)",
 			"ollama": "Ollama (locale)",
 			"openrouter": "OpenRouter",
 			"azure": "Azure OpenAI",
@@ -1132,7 +1145,34 @@
 		"updateProvider": "Aggiorna Provider",
 		"enabled": "Abilitato",
 		"edit": "Modifica",
-		"delete": "Elimina"
+		"delete": "Elimina",
+		"aiNotEnabled": "Le funzionalità AI non sono abilitate.Abilita prima l'intelligenza artificiale nelle impostazioni.",
+		"oauthCustomProvider": "Fornitore personalizzato",
+		"oauthCustomName": "Nome del fornitore",
+		"oauthCustomNamePlaceholder": "my-oidc-provider",
+		"oauthCustomNameHint": "Un identificatore univoco per questo fornitore (lettere minuscole, senza spazi)",
+		"oauthCustomNameRequired": "Il nome del provider è obbligatorio per i provider personalizzati",
+		"oauthDiscoveryUrl": "URL di rilevamento",
+		"oauthDiscoveryUrlPlaceholder": "https://auth.example.com",
+		"oauthDiscoveryUrlHint": "URL di base del provider OAuth/OIDC o l'URL .well-known completo",
+		"oauthDiscoveryUrlRequired": "Inserisci un URL di scoperta",
+		"oauthDiscover": "Scoprire",
+		"oauthDiscoverySuccess": "Endpoint rilevati correttamente",
+		"oauthDiscoveryFailed": "Impossibile individuare gli endpoint OAuth",
+		"oauthAuthorizationUrl": "URL di autorizzazione",
+		"oauthAuthorizationUrlPlaceholder": "https://auth.example.com/oauth/authorize",
+		"oauthTokenUrl": "URL del token",
+		"oauthTokenUrlPlaceholder": "https://auth.example.com/oauth/token",
+		"oauthUserInfoUrl": "URL delle informazioni sull'utente",
+		"oauthUserInfoUrlPlaceholder": "https://auth.example.com/oauth/userinfo",
+		"oauthScopes": "Ambiti",
+		"oauthScopesPlaceholder": "profilo e-mail openid",
+		"oauthScopesHint": "Elenco separato da spazi di ambiti OAuth da richiedere",
+		"oauthEndpointsRequired": "Sono obbligatori l'URL di autorizzazione, l'URL del token e l'URL delle informazioni utente",
+		"oauthDisplayNamePlaceholder": "Il mio fornitore personalizzato",
+		"disablePasswordLogin": "Disabilita accesso tramite password",
+		"disablePasswordLoginDescription": "Se abilitato, gli utenti possono accedere solo utilizzando i provider OAuth configurati.L'accesso basato su password verrà disabilitato.",
+		"noOAuthProvidersWarning": "Avviso: nessun provider OAuth è abilitato.Abilita almeno un provider OAuth prima di disabilitare l'accesso con password."
 	},
 	"wantToVisit": {
 		"addNewPlace": "Aggiungi nuovo posto",

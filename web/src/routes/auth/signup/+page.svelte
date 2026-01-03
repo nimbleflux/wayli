@@ -29,7 +29,7 @@
 
 	// OAuth-only mode
 	let oauthOnlyMode = $state(false);
-	let oauthProviders = $state<Array<{ name: string; display_name: string; authorize_url?: string }>>([]);
+	let oauthProviders = $state<Array<{ provider: string; display_name: string; authorize_url?: string }>>([]);
 
 	// Password requirements from server (defaults match current behavior)
 	let passwordMinLength = $state(8);
@@ -302,11 +302,8 @@
 		loading = true;
 		try {
 			const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/statistics';
-			const { error } = await fluxbase.auth.signInWithOAuth({
-				provider: providerName,
-				options: {
-					redirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
-				}
+			const { error } = await fluxbase.auth.signInWithOAuth(providerName, {
+				redirect_to: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
 			});
 
 			if (error) throw error;
@@ -383,7 +380,7 @@
 </svelte:head>
 
 <div
-	class="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100 px-4 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900"
+	class="flex min-h-screen items-center justify-center bg-linear-to-br from-gray-50 via-white to-gray-100 px-4 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900"
 >
 	<div class="w-full max-w-md">
 		<!-- Back to home (hidden during initial setup) -->
@@ -403,10 +400,10 @@
 		{#if isFirstUser && !isLoadingSettings}
 			<div class="mb-8">
 				<div
-					class="bg-primary/5 dark:bg-primary/20 rounded-xl border-2 border-[rgb(34,51,95)]/20 p-6 dark:border-[rgb(34,51,95)]/30"
+					class="bg-primary/5 dark:bg-primary/20 rounded-xl border-2 border-primary/20 p-6 dark:border-primary/30"
 				>
 					<div class="flex items-start gap-3">
-						<div class="flex-shrink-0">
+						<div class="shrink-0">
 							<div
 								class="bg-primary/10 dark:bg-primary/40 flex h-12 w-12 items-center justify-center rounded-full text-2xl"
 							>
@@ -492,12 +489,12 @@
 					{#each oauthProviders as provider}
 						<button
 							type="button"
-							onclick={() => signInWithOAuth(provider.name)}
+							onclick={() => signInWithOAuth(provider.provider)}
 							disabled={loading}
 							class="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 bg-white px-4 py-3 font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
 						>
-							{#if isKnownProvider(provider.name)}
-								{@render providerIcon(provider.name, 'lg')}
+							{#if isKnownProvider(provider.provider)}
+								{@render providerIcon(provider.provider, 'lg')}
 							{/if}
 							{t('auth.signUpWith')} {provider.display_name}
 						</button>

@@ -352,7 +352,9 @@
 		"confirmYourIdentity": "신원 확인",
 		"confirmYourIdentityDescription": "보안을 위해 계속하려면 비밀번호를 입력하세요.",
 		"incorrectPassword": "비밀번호가 잘못되었습니다. 다시 시도해 주세요.",
-		"confirm": "확인하다"
+		"confirm": "확인하다",
+		"signUpWithProvider": "제공업체에 가입",
+		"orContinueWith": "아니면 계속해서"
 	},
 	"signup": {
 		"firstUserWelcome": "환영! 처음으로 Wayli를 설정하고 있습니다.",
@@ -462,7 +464,9 @@
 		"saveYourApiKey": "API 키를 저장하세요",
 		"apiKeyWarning": "API 키가 표시되는 것은 이번이 유일합니다. 지금 복사하여 안전한 곳에 저장하세요. 분실하면 새로 생성해야 합니다.",
 		"iHaveSavedMyKey": "키를 저장했습니다",
-		"userNotAuthenticated": "사용자가 인증되지 않았습니다"
+		"userNotAuthenticated": "사용자가 인증되지 않았습니다",
+		"downloadAndroid": "안드로이드용 받기",
+		"downloadIOS": "iOS용 받기"
 	},
 	"importExport": {
 		"title": "가져오기/내보내기",
@@ -506,7 +510,8 @@
 		"locationData": "위치 데이터",
 		"wantToVisit": "방문하고 싶다",
 		"trips": "여행",
-		"exportAllDataHint": "기간을 선택하지 않았습니다. 모든 데이터를 내보냅니다."
+		"exportAllDataHint": "기간을 선택하지 않았습니다. 모든 데이터를 내보냅니다.",
+		"kmlDescription": "Google Earth 및 기타 매핑 애플리케이션의 Keyhole Markup Language 파일"
 	},
 	"trips": {
 		"title": "여행",
@@ -688,7 +693,15 @@
 		"last90Days": "지난 90일",
 		"thisYear": "올해",
 		"lastYear": "작년",
-		"dowLabels": ["그들은", "모", "화", "우리", "목", "정말로", "~에"],
+		"dowLabels": [
+			"그들은",
+			"모",
+			"화",
+			"우리",
+			"목",
+			"정말로",
+			"~에"
+		],
 		"monthLabels": [
 			"1월",
 			"2월",
@@ -1057,10 +1070,10 @@
 		"aiProviderReadOnly": "읽기 전용",
 		"aiProviderReadOnlyDescription": "이 AI 공급자는 환경 변수 또는 YAML 구성을 통해 구성되며 UI를 통해 수정할 수 없습니다.",
 		"aiProviders": {
-			"openai": "개방형(GPT-4, GPT-3.5)",
-			"anthropic": "인류학(클로드)",
-			"ollama": "올라마(로컬)",
-			"openrouter": "오픈라우터",
+			"openai": "OpenAI (GPT-4, GPT-3.5)",
+			"anthropic": "Anthropic (Claude)",
+			"ollama": "Ollama (로컬)",
+			"openrouter": "OpenRouter",
 			"azure": "Azure OpenAI",
 			"custom": "커스텀 엔드포인트"
 		},
@@ -1132,7 +1145,34 @@
 		"updateProvider": "공급자 업데이트",
 		"enabled": "활성화됨",
 		"edit": "편집",
-		"delete": "삭제"
+		"delete": "삭제",
+		"aiNotEnabled": "AI 기능이 활성화되지 않았습니다.먼저 설정에서 AI를 활성화해 주세요.",
+		"oauthCustomProvider": "맞춤형 제공자",
+		"oauthCustomName": "제공자 이름",
+		"oauthCustomNamePlaceholder": "my-oidc-공급자",
+		"oauthCustomNameHint": "이 공급자의 고유 식별자(소문자, 공백 없음)",
+		"oauthCustomNameRequired": "맞춤 공급자에는 공급자 이름이 필요합니다.",
+		"oauthDiscoveryUrl": "발견 URL",
+		"oauthDiscoveryUrlPlaceholder": "https://auth.example.com",
+		"oauthDiscoveryUrlHint": "OAuth/OIDC 공급자의 기본 URL 또는 전체 .well-known URL",
+		"oauthDiscoveryUrlRequired": "검색 URL을 입력하세요.",
+		"oauthDiscover": "발견하다",
+		"oauthDiscoverySuccess": "엔드포인트가 성공적으로 발견되었습니다.",
+		"oauthDiscoveryFailed": "OAuth 엔드포인트를 검색하지 못했습니다.",
+		"oauthAuthorizationUrl": "승인 URL",
+		"oauthAuthorizationUrlPlaceholder": "https://auth.example.com/oauth/authorize",
+		"oauthTokenUrl": "토큰 URL",
+		"oauthTokenUrlPlaceholder": "https://auth.example.com/oauth/token",
+		"oauthUserInfoUrl": "사용자 정보 URL",
+		"oauthUserInfoUrlPlaceholder": "https://auth.example.com/oauth/userinfo",
+		"oauthScopes": "범위",
+		"oauthScopesPlaceholder": "openid 이메일 프로필",
+		"oauthScopesHint": "요청할 OAuth 범위의 공백으로 구분된 목록",
+		"oauthEndpointsRequired": "인증 URL, 토큰 URL, 사용자 정보 URL이 필요합니다.",
+		"oauthDisplayNamePlaceholder": "내 맞춤 공급자",
+		"disablePasswordLogin": "비밀번호 로그인 비활성화",
+		"disablePasswordLoginDescription": "활성화되면 사용자는 구성된 OAuth 공급자를 통해서만 로그인할 수 있습니다.비밀번호 기반 로그인이 비활성화됩니다.",
+		"noOAuthProvidersWarning": "경고: 활성화된 OAuth 공급자가 없습니다.비밀번호 로그인을 비활성화하기 전에 하나 이상의 OAuth 공급자를 활성화하십시오."
 	},
 	"wantToVisit": {
 		"addNewPlace": "새 장소 추가",

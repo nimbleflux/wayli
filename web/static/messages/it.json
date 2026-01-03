@@ -375,7 +375,18 @@
 		"stepProgress": "Passaggio {attuale} di {totale}",
 		"confirmSkip": "Sei sicuro di voler saltare la configurazione?",
 		"profileComplete": "Benvenuto! Il tuo profilo è pronto.",
-		"canAddHomeAddressLater": "Puoi aggiungere la tua posizione in qualsiasi momento dalle Impostazioni account"
+		"canAddHomeAddressLater": "Puoi aggiungere la tua posizione in qualsiasi momento dalle Impostazioni account",
+		"nextStepsTitle": "È tutto pronto!",
+		"nextStepsSubtitle": "Ecco cosa fare dopo per ottenere il massimo da Wayli",
+		"configureOwnTracks": "Configura OwnTracks",
+		"configureOwnTracksDesc": "Configura l'app OwnTracks sul tuo telefono per iniziare a monitorare la tua posizione",
+		"importData": "Importa dati esistenti",
+		"importDataDesc": "Hai dati sulla posizione da un'altra app? Importalo per continuare il tuo viaggio",
+		"generateTrips": "Genera suggerimenti di viaggio",
+		"generateTripsDesc": "Lascia che Wayli analizzi i dati sulla tua posizione e suggerisca viaggi",
+		"configureAI": "Configura il provider AI",
+		"configureAIDesc": "Configura un fornitore di intelligenza artificiale per abilitare funzionalità intelligenti come i riepiloghi di viaggio",
+		"getStarted": "Inizia"
 	},
 	"statistics": {
 		"loading": "Caricamento...",

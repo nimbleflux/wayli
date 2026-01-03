@@ -20,7 +20,6 @@
 	let loading = $state(false);
 	let showPassword = $state(false);
 	let rememberMe = $state(true); // Default to checked
-	let isMagicLinkSent = $state(false);
 	let show2FAModal = $state(false);
 	let twoFactorUserId = $state('');
 
@@ -199,34 +198,6 @@
 		}
 	}
 
-	async function handlePasswordReset() {
-		if (!email) {
-			toast.error(t('auth.enterValidEmail'));
-			return;
-		}
-
-		loading = true;
-
-		try {
-			// Always attempt to send reset email
-			// We don't check for errors to prevent email enumeration attacks
-			await fluxbase.auth.resetPasswordForEmail(email, {
-				redirectTo: `${window.location.origin}/auth/reset-password`
-			});
-
-			// Always show success message, regardless of whether the email exists
-			// This prevents attackers from discovering which emails are registered
-			isMagicLinkSent = true;
-			toast.success(t('auth.passwordResetEmailSent'));
-		} catch (error: any) {
-			// Even on error, show success to prevent email enumeration
-			isMagicLinkSent = true;
-			toast.success(t('auth.passwordResetEmailSent'));
-			console.error('Password reset error (hidden from user):', error);
-		} finally {
-			loading = false;
-		}
-	}
 
 	function togglePassword() {
 		showPassword = !showPassword;
@@ -354,23 +325,6 @@
 				<div class="flex items-center justify-center py-8">
 					<div class="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-primary dark:border-gray-700"></div>
 				</div>
-			{:else if isMagicLinkSent}
-				<div class="text-center">
-					<div
-						class="mb-4 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20"
-					>
-						<p class="text-sm text-green-800 dark:text-green-200">
-							{t('auth.checkEmailPasswordReset')}
-						</p>
-					</div>
-					<button
-						type="button"
-						onclick={() => (isMagicLinkSent = false)}
-						class="text-primary hover:text-primary/80 dark:text-primary-dark dark:hover:text-primary-dark/80 text-sm transition-colors"
-					>
-						{t('auth.backToSignIn')}
-					</button>
-				</div>
 			{:else if oauthOnlyMode && oauthProviders.length > 0}
 				<!-- OAuth-only mode: show only OAuth buttons -->
 				<div class="space-y-4">
@@ -471,14 +425,12 @@
 								{t('auth.rememberMe')}
 							</span>
 						</label>
-						<button
-							type="button"
-							onclick={handlePasswordReset}
-							disabled={loading || !email}
-							class="text-primary hover:text-primary/80 dark:text-primary-dark dark:hover:text-primary-dark/80 cursor-pointer text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+						<a
+							href="/auth/forgot-password"
+							class="text-primary hover:text-primary/80 dark:text-primary-dark dark:hover:text-primary-dark/80 text-sm transition-colors"
 						>
 							{t('auth.forgotPassword')}
-						</button>
+						</a>
 					</div>
 
 					<!-- Sign In Button -->

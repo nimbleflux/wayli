@@ -9,6 +9,7 @@
  */
 
 import type { FluxbaseClient } from '../jobs/types';
+import { rateLimiter } from './_shared/rate-limiter.ts';
 
 // Declare the secrets object that is automatically injected by Fluxbase
 declare const secrets: {
@@ -155,6 +156,29 @@ function getPexelsApiKey(): string | null {
 	}
 }
 
+// Helper function to get Pexels rate limit from settings
+async function getPexelsRateLimit(fluxbase: FluxbaseClient): Promise<number> {
+	try {
+		const { data, error } = await fluxbase
+			.from('app.settings')
+			.select('value')
+			.eq('key', 'wayli.pexels_rate_limit')
+			.single();
+
+		if (error || !data) {
+			logInfo('No custom Pexels rate limit configured, using default (200/hour)', 'TRIPS-SUGGEST-IMAGE');
+			return 200; // Default to 200 requests/hour (Pexels free tier)
+		}
+
+		const rateLimit = data.value?.value ?? 200;
+		logInfo(`Using Pexels rate limit: ${rateLimit}/hour`, 'TRIPS-SUGGEST-IMAGE');
+		return rateLimit;
+	} catch (error) {
+		logError(error, 'TRIPS-SUGGEST-IMAGE', 'Failed to get rate limit, using default');
+		return 200;
+	}
+}
+
 async function handler(
 	req: Request,
 	fluxbase: FluxbaseClient,
@@ -169,6 +193,38 @@ async function handler(
 		// Platform authentication: user context is provided via utils.getExecutionContext()
 		if (!userId) {
 			return errorResponse('Unauthorized', 401);
+		}
+
+		// Get configured rate limit
+		const maxRequestsPerHour = await getPexelsRateLimit(fluxbase);
+
+		// Apply rate limiting (0 = unlimited)
+		if (maxRequestsPerHour > 0) {
+			const rateLimitResult = rateLimiter.checkRateLimit(`pexels:${userId}`, {
+				windowMs: 60 * 60 * 1000, // 1 hour
+				maxRequests: maxRequestsPerHour,
+				message: `Pexels API rate limit exceeded. You can make ${maxRequestsPerHour} requests per hour.`
+			});
+
+			if (!rateLimitResult.allowed) {
+				logInfo('Rate limit exceeded', 'TRIPS-SUGGEST-IMAGE', { userId, retryAfter: rateLimitResult.retryAfter });
+				return new Response(
+					JSON.stringify({
+						success: false,
+						error: rateLimitResult.message,
+						retryAfter: rateLimitResult.retryAfter
+					}),
+					{
+						status: 429,
+						headers: {
+							'Content-Type': 'application/json',
+							'Retry-After': rateLimitResult.retryAfter.toString(),
+							'X-RateLimit-Limit': maxRequestsPerHour.toString(),
+							'X-RateLimit-Remaining': '0'
+						}
+					}
+				);
+			}
 		}
 
 		if (req.method === 'POST') {

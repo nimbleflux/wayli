@@ -4,6 +4,7 @@
 	import { toast } from 'svelte-sonner';
 
 	import AppNav from '$lib/components/AppNav.svelte';
+	import OnboardingChecklistBanner from '$lib/components/OnboardingChecklistBanner.svelte';
 	import { t, changeLocale, type SupportedLocale } from '$lib/i18n';
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
 	import { sessionManager } from '$lib/services/session';
@@ -175,22 +176,43 @@
 		}
 	});
 
+	// Listen for AI configuration changes
+	$effect(() => {
+		const handleAIConfigChange = () => {
+			console.log('[Dashboard] AI configuration changed, re-checking AI status');
+			checkAIEnabled();
+		};
+
+		window.addEventListener('ai-config-changed', handleAIConfigChange);
+
+		return () => {
+			window.removeEventListener('ai-config-changed', handleAIConfigChange);
+		};
+	});
+
 	// Cleanup is handled by Fluxbase SDK
 </script>
 
 <AppNav {isAdmin} {aiEnabled} onSignout={handleSignout} {realtimeConnectionStatus}>
+	<!-- Onboarding Checklist Banner (above main content) -->
+	{#if $userStore?.id && !isCheckingAdmin}
+		<OnboardingChecklistBanner userId={$userStore.id} {isAdmin} {aiEnabled} />
+	{/if}
+
 	<!-- Main content area -->
-	<div class="min-h-screen bg-gray-50 p-6 dark:bg-gray-900">
+	<div class="min-h-screen bg-gray-50 dark:bg-gray-900 {$userStore?.id && !isCheckingAdmin ? '' : 'p-6'}">
 		{#if isCheckingAdmin}
 			<div class="flex h-64 items-center justify-center">
 				<div class="text-center">
 					<div
-						class="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-b-2 border-[rgb(34,51,95)] dark:border-blue-400"
+						class="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-b-2 border-primary dark:border-blue-400"
 					></div>
 				</div>
 			</div>
 		{:else}
-			{@render children()}
+			<div class="p-6">
+				{@render children()}
+			</div>
 		{/if}
 	</div>
 </AppNav>

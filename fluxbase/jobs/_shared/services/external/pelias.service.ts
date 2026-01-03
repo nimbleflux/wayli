@@ -2,6 +2,7 @@
 
 import type { PeliasResponse, PeliasFeature, PeliasAddress } from '../../types/geocoding.types';
 import { convertCountryCode3to2 } from '../../types/geocoding.types';
+import type { FluxbaseClient } from '../../types';
 
 /**
  * Nearby POI extracted from Pelias response
@@ -79,9 +80,46 @@ function getEnv(key: string): string | undefined {
 	return undefined;
 }
 
+// Initialize with default, will be lazy-loaded from DB on first use
+let cachedEndpoint: string | null = null;
+
+/**
+ * Get Pelias endpoint from database settings, with fallback to ENV and default
+ * @param fluxbase FluxbaseClient instance for database queries
+ * @returns The Pelias endpoint URL
+ */
+export async function getPeliasEndpoint(fluxbase?: FluxbaseClient): Promise<string> {
+	if (cachedEndpoint) return cachedEndpoint;
+
+	// Try to fetch from DB if fluxbase client is available
+	if (fluxbase) {
+		try {
+			const { data, error } = await fluxbase
+				.from('app.settings')
+				.select('value')
+				.eq('key', 'wayli.pelias_endpoint')
+				.single();
+
+			if (!error && data && typeof data === 'object' && 'value' in data) {
+				const valueObj = data.value as { value?: string };
+				if (valueObj?.value) {
+					cachedEndpoint = valueObj.value;
+					return cachedEndpoint;
+				}
+			}
+		} catch {
+			// DB query failed, fall through to env/default
+		}
+	}
+
+	// Fallback: ENV → default
+	cachedEndpoint = getEnv('PELIAS_ENDPOINT') || 'https://pelias.wayli.app';
+	return cachedEndpoint;
+}
+
 // Get configuration - prioritize environment variables, fallback to default
 const config = {
-	endpoint: getEnv('PELIAS_ENDPOINT') || 'https://pelias.wayli.app',
+	endpoint: 'https://pelias.wayli.app', // placeholder, replaced on first call
 	rateLimit: parseInt(getEnv('PELIAS_RATE_LIMIT') || '1000', 10)
 };
 
@@ -239,6 +277,9 @@ function transformPeliasFeature(
  * Reverse geocode coordinates to get location information
  */
 export async function reverseGeocode(lat: number, lon: number): Promise<PeliasReverseResponse> {
+	// Get endpoint from database/env/default
+	config.endpoint = await getPeliasEndpoint();
+
 	if (RATE_LIMIT_ENABLED) {
 		const now = Date.now();
 		const wait = Math.max(0, lastRequestTime + MIN_INTERVAL - now);
@@ -316,6 +357,9 @@ export async function reverseGeocode(lat: number, lon: number): Promise<PeliasRe
  * Forward geocode an address query to get coordinates
  */
 export async function forwardGeocode(query: string): Promise<PeliasSearchResponse | null> {
+	// Get endpoint from database/env/default
+	config.endpoint = await getPeliasEndpoint();
+
 	if (RATE_LIMIT_ENABLED) {
 		const now = Date.now();
 		const wait = Math.max(0, lastRequestTime + MIN_INTERVAL - now);
@@ -392,6 +436,9 @@ export async function searchAddresses(
 	query: string,
 	limit: number = 10
 ): Promise<PeliasSearchResponse[]> {
+	// Get endpoint from database/env/default
+	config.endpoint = await getPeliasEndpoint();
+
 	if (RATE_LIMIT_ENABLED) {
 		const now = Date.now();
 		const wait = Math.max(0, lastRequestTime + MIN_INTERVAL - now);

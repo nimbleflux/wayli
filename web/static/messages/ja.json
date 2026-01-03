@@ -375,7 +375,18 @@
 		"stepProgress": "ステップ {current}/{total}",
 		"confirmSkip": "セットアップをスキップしてもよろしいですか?",
 		"profileComplete": "いらっしゃいませ！プロフィールはすべて設定されました。",
-		"canAddHomeAddressLater": "アカウント設定からいつでも自宅の位置を追加できます"
+		"canAddHomeAddressLater": "アカウント設定からいつでも自宅の位置を追加できます",
+		"nextStepsTitle": "準備は完了です!",
+		"nextStepsSubtitle": "Wayli を最大限に活用するために次に行うべきことは次のとおりです",
+		"configureOwnTracks": "OwnTracks を構成する",
+		"configureOwnTracksDesc": "携帯電話で OwnTracks アプリをセットアップして、位置の追跡を開始します",
+		"importData": "既存のデータをインポートする",
+		"importDataDesc": "別のアプリからの位置データがありますか?インポートして旅を続けましょう",
+		"generateTrips": "旅行の提案を生成する",
+		"generateTripsDesc": "Wayli で位置データを分析し、旅行を提案しましょう",
+		"configureAI": "AIプロバイダーを構成する",
+		"configureAIDesc": "AI プロバイダーを設定して旅行の概要などのスマート機能を有効にする",
+		"getStarted": "始めましょう"
 	},
 	"statistics": {
 		"loading": "読み込み中...",

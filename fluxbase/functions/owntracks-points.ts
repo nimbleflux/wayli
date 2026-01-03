@@ -55,7 +55,25 @@ function logSuccess(message: string, context: string, data?: unknown): void {
 }
 
 // ===== Configuration =====
-const PELIAS_ENDPOINT = Deno.env.get('PELIAS_ENDPOINT') || 'https://pelias.wayli.app';
+
+// Helper function to get Pelias endpoint (similar to getPexelsRateLimit pattern)
+async function getPeliasEndpoint(fluxbase: FluxbaseClient): Promise<string> {
+	try {
+		const { data, error } = await fluxbase
+			.from('app.settings')
+			.select('value')
+			.eq('key', 'wayli.pelias_endpoint')
+			.single();
+
+		if (!error && data?.value?.value) {
+			return data.value.value as string;
+		}
+	} catch (error) {
+		console.log('No custom Pelias endpoint configured, using default');
+	}
+
+	return Deno.env.get('PELIAS_ENDPOINT') || 'https://pelias.wayli.app';
+}
 
 // Country code conversion (3-letter to 2-letter ISO)
 const COUNTRY_CODE_3TO2: Record<string, string> = {
@@ -73,10 +91,10 @@ function convertCountryCode3to2(code3: string): string {
 }
 
 // Helper function to perform reverse geocoding using Pelias
-async function reverseGeocode(lat: number, lon: number): Promise<any | null> {
+async function reverseGeocode(lat: number, lon: number, endpoint: string): Promise<any | null> {
 	try {
 		// instead of just address-level data which lacks country information
-		const peliasUrl = `${PELIAS_ENDPOINT}/v1/reverse?point.lat=${lat}&point.lon=${lon}&size=1`;
+		const peliasUrl = `${endpoint}/v1/reverse?point.lat=${lat}&point.lon=${lon}&size=1`;
 
 		const response = await fetch(peliasUrl, {
 			headers: {
@@ -232,6 +250,9 @@ async function handler(
 			pointCount: points.length
 		});
 
+		// Get Pelias endpoint from database settings
+		const peliasEndpoint = await getPeliasEndpoint(fluxbaseService);
+
 		// Process points and perform reverse geocoding synchronously
 		// This ensures data is complete when inserted (takes longer but better data quality)
 		const processedPoints = await Promise.all(
@@ -247,7 +268,7 @@ async function handler(
 						lon: point.lon
 					});
 
-					geocodeData = await reverseGeocode(point.lat, point.lon);
+					geocodeData = await reverseGeocode(point.lat, point.lon, peliasEndpoint);
 
 					if (geocodeData) {
 						countryCode = geocodeData.properties?.address?.country_code?.toUpperCase() || null;

@@ -76,15 +76,13 @@
 			// Check if password login is disabled (OAuth-only mode)
 			oauthOnlyMode = publicSettings['wayli.disable_password_login']?.value === true;
 
-			// Load OAuth providers if OAuth-only mode is enabled
-			if (oauthOnlyMode) {
-				try {
-					const { data: providersResponse } = await fluxbase.auth.getOAuthProviders();
-					oauthProviders = providersResponse?.providers || [];
-				} catch {
-					// OAuth providers not available, disable OAuth-only mode
-					oauthOnlyMode = false;
-				}
+			// Always load OAuth providers (not just in OAuth-only mode)
+			try {
+				const { data: providersResponse } = await fluxbase.auth.getOAuthProviders();
+				oauthProviders = providersResponse?.providers || [];
+			} catch {
+				// OAuth providers not available
+				oauthProviders = [];
 			}
 
 			// Read password requirements from public settings
@@ -763,6 +761,35 @@
 								: t('auth.createAccount')}
 					</button>
 				</form>
+
+				<!-- OAuth providers as secondary option -->
+				{#if oauthProviders.length > 0}
+					<div class="relative my-6">
+						<div class="absolute inset-0 flex items-center">
+							<div class="w-full border-t border-gray-300 dark:border-gray-600"></div>
+						</div>
+						<div class="relative flex justify-center text-sm">
+							<span class="bg-white px-2 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+								{t('auth.orContinueWith')}
+							</span>
+						</div>
+					</div>
+					<div class="grid gap-3 {oauthProviders.length > 2 ? 'grid-cols-1' : 'grid-cols-' + oauthProviders.length}">
+						{#each oauthProviders as provider}
+							<button
+								type="button"
+								onclick={() => signInWithOAuth(provider.provider)}
+								disabled={loading}
+								class="flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+							>
+								{#if isKnownProvider(provider.provider)}
+									{@render providerIcon(provider.provider, 'sm')}
+								{/if}
+								{provider.display_name}
+							</button>
+						{/each}
+					</div>
+				{/if}
 
 				<div class="mt-6 text-center">
 					<p class="text-sm text-gray-600 dark:text-gray-400">

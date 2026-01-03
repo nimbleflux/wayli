@@ -56,6 +56,7 @@
 		"@types/lodash-es": "^4.17.12",
 		"@types/qrcode": "^1.5.5",
 		"@types/uuid": "^10.0.0",
+		"@vitalets/google-translate-api": "^9.2.1",
 		"@vitest/coverage-v8": "^3.2.4",
 		"@vitest/ui": "^3.2.4",
 		"eslint": "^9.18.0",
@@ -81,7 +82,7 @@
 		"vitest": "^3.2.4"
 	},
 	"dependencies": {
-		"@fluxbase/sdk": "^0.0.1-rc.117",
+		"@fluxbase/sdk": "^0.0.1-rc.121",
 		"@melt-ui/svelte": "^0.86.6",
 		"@svelte-plugins/datepicker": "^1.0.11",
 		"@turf/turf": "^7.2.0",

@@ -80,9 +80,43 @@ function getEnv(key: string): string | undefined {
 	return undefined;
 }
 
+// Initialize with default, will be lazy-loaded from DB on first use
+let cachedEndpoint: string | null = null;
+
+/**
+ * Get Pelias endpoint from database settings, with fallback to ENV and default
+ * @returns The Pelias endpoint URL
+ */
+export async function getPeliasEndpoint(): Promise<string> {
+	if (cachedEndpoint) return cachedEndpoint;
+
+	try {
+		const { fluxbase } = await import('$lib/fluxbase');
+		const { data, error } = await fluxbase
+			.from('app.settings')
+			.select('value')
+			.eq('key', 'wayli.pelias_endpoint')
+			.single();
+
+		if (!error && data && typeof data === 'object' && 'value' in data) {
+			const valueObj = data.value as { value?: string };
+			if (valueObj?.value) {
+				cachedEndpoint = valueObj.value;
+				return cachedEndpoint;
+			}
+		}
+	} catch {
+		// DB not available (build time, etc.)
+	}
+
+	// Fallback: ENV → default
+	cachedEndpoint = getEnv('PELIAS_ENDPOINT') || 'https://pelias.wayli.app';
+	return cachedEndpoint;
+}
+
 // Get configuration - prioritize environment variables, fallback to default
 const config = {
-	endpoint: getEnv('PELIAS_ENDPOINT') || 'https://pelias.wayli.app',
+	endpoint: 'https://pelias.wayli.app', // placeholder, replaced on first call
 	rateLimit: parseInt(getEnv('PELIAS_RATE_LIMIT') || '1000', 10)
 };
 
@@ -254,6 +288,9 @@ function transformPeliasFeature(
  * Reverse geocode coordinates to get location information
  */
 export async function reverseGeocode(lat: number, lon: number): Promise<PeliasReverseResponse> {
+	// Get endpoint from database/env/default
+	config.endpoint = await getPeliasEndpoint();
+
 	// Rate limiting (only if enabled and rate limit > 0)
 	if (RATE_LIMIT_ENABLED) {
 		const now = Date.now();
@@ -342,6 +379,9 @@ export async function reverseGeocode(lat: number, lon: number): Promise<PeliasRe
  * Forward geocode an address query to get coordinates
  */
 export async function forwardGeocode(query: string): Promise<PeliasSearchResponse | null> {
+	// Get endpoint from database/env/default
+	config.endpoint = await getPeliasEndpoint();
+
 	// Rate limiting (only if enabled and rate limit > 0)
 	if (RATE_LIMIT_ENABLED) {
 		const now = Date.now();
@@ -427,6 +467,9 @@ export async function searchAddresses(
 	query: string,
 	limit: number = 10
 ): Promise<PeliasSearchResponse[]> {
+	// Get endpoint from database/env/default
+	config.endpoint = await getPeliasEndpoint();
+
 	// Rate limiting (only if enabled and rate limit > 0)
 	if (RATE_LIMIT_ENABLED) {
 		const now = Date.now();

@@ -111,6 +111,31 @@ class RateLimitService {
 		statusCode: 429
 	};
 
+	static readonly PEXELS_RATE_LIMIT: RateLimitConfig = {
+		windowMs: 60 * 60 * 1000, // 1 hour
+		maxRequests: 200, // 200 requests per hour (Pexels free tier default)
+		message: 'Pexels API rate limit exceeded. Please try again later.',
+		statusCode: 429
+	};
+
+	/**
+	 * Create a custom Pexels rate limit config based on configured limit
+	 * @param maxRequestsPerHour - Custom rate limit (0 = unlimited)
+	 */
+	static createPexelsRateLimit(maxRequestsPerHour: number): RateLimitConfig | null {
+		// 0 means unlimited
+		if (maxRequestsPerHour === 0) {
+			return null;
+		}
+
+		return {
+			windowMs: 60 * 60 * 1000, // 1 hour
+			maxRequests: maxRequestsPerHour,
+			message: 'Pexels API rate limit exceeded. Please try again later.',
+			statusCode: 429
+		};
+	}
+
 	destroy() {
 		if (this.cleanupInterval) {
 			clearInterval(this.cleanupInterval);

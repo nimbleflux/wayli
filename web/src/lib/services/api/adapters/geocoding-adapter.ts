@@ -83,7 +83,8 @@ export class GeocodingAdapter extends BaseAdapter {
 	 * ```
 	 */
 	async searchGeocode(query: string): Promise<GeocodingResult[]> {
-		const endpoint = import.meta.env.PUBLIC_PELIAS_ENDPOINT || 'https://pelias.wayli.app';
+		const { getPeliasEndpoint } = await import('../../external/pelias.service');
+		const endpoint = await getPeliasEndpoint();
 		const url = `${endpoint}/v1/autocomplete?text=${encodeURIComponent(query)}&size=10`;
 
 		const response = await fetch(url, {

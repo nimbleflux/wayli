@@ -375,7 +375,18 @@
 		"stepProgress": "Stap {current} van {total}",
 		"confirmSkip": "Weet je zeker dat je de setup wilt overslaan?",
 		"profileComplete": "Welkom! Je profiel is helemaal ingesteld.",
-		"canAddHomeAddressLater": "Je kunt je thuislocatie op elk moment toevoegen via Accountinstellingen"
+		"canAddHomeAddressLater": "Je kunt je thuislocatie op elk moment toevoegen via Accountinstellingen",
+		"nextStepsTitle": "Je bent helemaal klaar!",
+		"nextStepsSubtitle": "Hier leest u wat u vervolgens moet doen om het meeste uit Wayli te halen",
+		"configureOwnTracks": "Configureer OwnTracks",
+		"configureOwnTracksDesc": "Stel de OwnTracks-app op uw telefoon in om uw locatie te volgen",
+		"importData": "Importeer bestaande gegevens",
+		"importDataDesc": "Heeft u locatiegegevens van een andere app? Importeer het om uw reis voort te zetten",
+		"generateTrips": "Genereer reissuggesties",
+		"generateTripsDesc": "Laat Wayli uw locatiegegevens analyseren en reizen voorstellen",
+		"configureAI": "Configureer AI-provider",
+		"configureAIDesc": "Stel een AI-provider in om slimme functies zoals reisoverzichten mogelijk te maken",
+		"getStarted": "Aan de slag"
 	},
 	"statistics": {
 		"loading": "Laden...",

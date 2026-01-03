@@ -7,6 +7,7 @@
  *
  * @fluxbase:response-language English
  * @fluxbase:version 2
+ * @fluxbase:required-settings wayli.pelias_endpoint
  * @fluxbase:allowed-tables my_trips,my_place_visits,my_poi_summary,my_poi_embeddings,my_trip_embeddings,my_preferences,my_embedding_stats
  * @fluxbase:allowed-operations SELECT
  * @fluxbase:allowed-schemas public
@@ -16,8 +17,7 @@
  * @fluxbase:rate-limit 10/min
  * @fluxbase:daily-limit 500
  * @fluxbase:token-budget 100000/day
- * @fluxbase:http-allowed-domains ${PELIAS_ENDPOINT:-pelias.wayli.app}
- * @fluxbase:default-table my_place_visits
+ * @fluxbase:http-allowed-domains {{system:wayli.pelias_endpoint}},pelias.wayli.app
  *
  * @fluxbase:required-columns my_trips=id,title,image_url,start_date,end_date,visited_cities,visited_country_codes,labels
  * @fluxbase:required-columns my_place_visits=poi_name,city,started_at,latitude,longitude
@@ -69,7 +69,7 @@ User: "Recommend Italian restaurants near me"
 \`\`\`sql
 SELECT latitude, longitude, city FROM my_place_visits ORDER BY started_at DESC LIMIT 1
 \`\`\`
-→ Step 2: http_request: {{PELIAS_ENDPOINT}}/v1/search?text=italian%20restaurant&focus.point.lat={lat}&focus.point.lon={lon}&layers=venue&size=10
+→ Step 2: http_request: {{system:wayli.pelias_endpoint}}/v1/search?text=italian%20restaurant&focus.point.lat={lat}&focus.point.lon={lon}&layers=venue&size=10
 
 **Example 4: Trip Query**
 User: "Show me my Japan trips"
@@ -141,9 +141,9 @@ food, sports, culture, education, entertainment, shopping, accommodation, health
 
 For "recommend/find me/nearby" queries:
 1. Get user location: \`SELECT latitude, longitude FROM my_place_visits ORDER BY started_at DESC LIMIT 1\`
-2. Search Pelias: \`{{PELIAS_ENDPOINT}}/v1/search?text={query}&focus.point.lat={lat}&focus.point.lon={lon}&layers=venue&size=10\`
+2. Search Pelias: \`{{system:wayli.pelias_endpoint}}/v1/search?text={query}&focus.point.lat={lat}&focus.point.lon={lon}&layers=venue&size=10\`
 
-**Never use api.pelias.io - only {{PELIAS_ENDPOINT}}!**
+**Never use api.pelias.io - only {{system:wayli.pelias_endpoint}}!**
 
 ## Empty Results Handling
 
@@ -219,14 +219,14 @@ export const tools = [
   {
     name: 'http_request',
     description:
-      'Make an HTTP GET request to search for NEW places using Pelias API. Use this for discovery/recommendations of places the user has NOT visited. IMPORTANT: Only use the Pelias endpoint specified in the prompt ({{PELIAS_ENDPOINT}}). Do NOT use api.pelias.io or any other Pelias endpoint.',
+      'Make an HTTP GET request to search for NEW places using Pelias API. Use this for discovery/recommendations of places the user has NOT visited. IMPORTANT: Only use the Pelias endpoint specified in the prompt ({{system:wayli.pelias_endpoint}}). Do NOT use api.pelias.io or any other Pelias endpoint.',
     parameters: {
       type: 'object',
       properties: {
         url: {
           type: 'string',
           description:
-            'Full URL to request. MUST start with {{PELIAS_ENDPOINT}}. Never use api.pelias.io or api.geocod.io.'
+            'Full URL to request. MUST start with {{system:wayli.pelias_endpoint}}. Never use api.pelias.io or api.geocod.io.'
         },
         method: {
           type: 'string',

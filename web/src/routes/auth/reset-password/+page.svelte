@@ -1,15 +1,18 @@
 <script lang="ts">
-	import { Lock, Eye, EyeOff, ArrowLeft, CheckCircle } from 'lucide-svelte';
-	import { onMount } from 'svelte';
+	import { Lock, Eye, EyeOff, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
 
 	import { translate } from '$lib/i18n';
 	import { fluxbase } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 
 	// Use the reactive translation function
 	let t = $derived($translate);
+
+	// Get token from URL query parameters
+	let token = $derived($page.url.searchParams.get('token'));
 
 	let password = $state<string>('');
 	let confirmPassword = $state<string>('');
@@ -18,48 +21,41 @@
 	let showConfirmPassword = $state(false);
 	let isSuccess = $state(false);
 
-	onMount(async () => {
-		// Check if we have a valid session with password reset token
-		const { data } = await fluxbase.auth.getSession();
-
-		if (!data?.session) {
-			toast.error('Invalid or expired password reset link');
-			goto('/auth/signin');
-		}
-	});
-
 	async function handlePasswordReset(event: Event) {
 		event.preventDefault();
 
+		if (!token) {
+			toast.error(t('auth.invalidResetLink'));
+			return;
+		}
+
 		if (password.length < 6) {
-			toast.error('Password must be at least 6 characters long');
+			toast.error(t('accountSettings.passwordMinLength'));
 			return;
 		}
 
 		if (password !== confirmPassword) {
-			toast.error('Passwords do not match');
+			toast.error(t('auth.passwordsDoNotMatch'));
 			return;
 		}
 
 		loading = true;
 
 		try {
-			const { error } = await fluxbase.auth.updateUser({
-				password: password
-			});
+			const { data, error } = await fluxbase.auth.resetPassword(token, password);
 
 			if (error) throw error;
 
 			isSuccess = true;
-			toast.success('Password updated successfully');
+			toast.success(t('auth.passwordResetSuccess'));
 
-			// Redirect to sign in after a short delay
+			// User is now logged in, redirect to dashboard after a short delay
 			setTimeout(() => {
-				goto('/auth/signin');
+				goto('/dashboard/statistics');
 			}, 2000);
 		} catch (error: any) {
 			console.error('Password reset error:', error);
-			toast.error(error.message || 'Failed to reset password');
+			toast.error(error.message || t('auth.signInFailed'));
 		} finally {
 			loading = false;
 		}
@@ -95,21 +91,43 @@
 		<div
 			class="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl dark:border-gray-700 dark:bg-gray-800"
 		>
-			<div class="mb-8 text-center">
-				<div
-					class="bg-primary dark:bg-primary-dark mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full"
-				>
-					<Lock class="h-6 w-6 text-white" />
+			{#if !token}
+				<!-- Invalid or missing token -->
+				<div class="text-center">
+					<div
+						class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30"
+					>
+						<AlertCircle class="h-6 w-6 text-red-600 dark:text-red-400" />
+					</div>
+					<h1 class="mb-2 text-2xl font-bold text-gray-900 dark:text-gray-100">
+						{t('auth.invalidResetLink')}
+					</h1>
+					<p class="mb-6 text-gray-600 dark:text-gray-400">
+						{t('auth.invalidResetLinkDescription')}
+					</p>
+					<a
+						href="/auth/forgot-password"
+						class="bg-primary hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-primary-dark/90 inline-block rounded-lg px-6 py-3 font-medium text-white transition-colors"
+					>
+						{t('auth.requestNewLink')}
+					</a>
 				</div>
-				<h1 class="mb-2 text-2xl font-bold text-gray-900 dark:text-gray-100">
-					{t('auth.resetPassword')}
-				</h1>
-				<p class="text-gray-600 dark:text-gray-400">
-					{t('auth.enterNewPassword')}
-				</p>
-			</div>
+			{:else}
+				<div class="mb-8 text-center">
+					<div
+						class="bg-primary dark:bg-primary-dark mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full"
+					>
+						<Lock class="h-6 w-6 text-white" />
+					</div>
+					<h1 class="mb-2 text-2xl font-bold text-gray-900 dark:text-gray-100">
+						{t('auth.resetPassword')}
+					</h1>
+					<p class="text-gray-600 dark:text-gray-400">
+						{t('auth.enterNewPassword')}
+					</p>
+				</div>
 
-			{#if isSuccess}
+				{#if isSuccess}
 				<div class="text-center">
 					<div
 						class="mb-4 flex items-center justify-center rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20"
@@ -120,7 +138,7 @@
 						</p>
 					</div>
 					<p class="text-sm text-gray-600 dark:text-gray-400">
-						{t('auth.redirectingToSignIn')}
+						{t('auth.redirectingToDashboard')}
 					</p>
 				</div>
 			{:else}
@@ -205,6 +223,7 @@
 						{loading ? t('auth.resettingPassword') : t('auth.resetPassword')}
 					</button>
 				</form>
+			{/if}
 			{/if}
 		</div>
 	</div>

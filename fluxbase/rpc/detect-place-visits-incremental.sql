@@ -1,6 +1,6 @@
 -- @fluxbase:require-role admin
 -- @fluxbase:max-execution-time 1800s
--- @fluxbase:param user_id uuid - Optional user ID to process only that user's data
+-- @fluxbase:param user_id uuid? - Optional user ID to process only that user's data
 -- Detect place visits incrementally (processes only new data since last refresh)
 -- When user_id is provided: processes only that user's data since their watermark
 -- When user_id is NULL: processes all users, each from their respective watermarks

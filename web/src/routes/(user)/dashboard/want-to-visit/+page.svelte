@@ -611,8 +611,11 @@
 
 		isSearching = true;
 		try {
+			// Get Pelias endpoint from database settings
+			const { getPeliasEndpoint } = await import('$lib/services/external/pelias.service');
+			const peliasEndpoint = await getPeliasEndpoint();
+
 			// Use Pelias autocomplete endpoint for faster results
-			const peliasEndpoint = import.meta.env.PUBLIC_PELIAS_ENDPOINT || 'https://pelias.wayli.app';
 			const response = await fetch(
 				`${peliasEndpoint}/v1/autocomplete?text=${encodeURIComponent(searchQuery)}&size=5`,
 				{

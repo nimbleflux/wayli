@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ArrowRight, Home, X } from 'lucide-svelte';
+	import { ArrowRight, Home, X, Link, Import, Map, Settings, Rocket } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
 
 	import { translate } from '$lib/i18n';
@@ -11,11 +11,13 @@
 	let {
 		open = $bindable(false),
 		onComplete,
-		onSkip
+		onSkip,
+		isAdmin = false
 	}: {
 		open: boolean;
 		onComplete: (homeAddress?: any) => Promise<void>;
 		onSkip: () => Promise<void>;
+		isAdmin?: boolean;
 	} = $props();
 
 	let t = $derived($translate);
@@ -35,7 +37,10 @@
 			// Move to home address step
 			onboardingActions.nextStep();
 		} else if (currentStep === 1) {
-			// Complete onboarding with home address
+			// Move to next steps (step 3)
+			onboardingActions.nextStep();
+		} else if (currentStep === 2) {
+			// Complete onboarding
 			await onComplete(selectedHomeAddress);
 			onboardingActions.complete();
 			open = false;
@@ -44,11 +49,17 @@
 
 	async function handleSkip() {
 		if (currentStep === 1) {
-			// Skip home address
-			await onSkip();
-			onboardingActions.complete();
-			open = false;
+			// Skip home address, move to next steps
+			selectedHomeAddress = null;
+			onboardingActions.nextStep();
 		}
+	}
+
+	async function handleFinish() {
+		// Complete onboarding from step 3
+		await onComplete(selectedHomeAddress);
+		onboardingActions.complete();
+		open = false;
 	}
 
 	function handleClose() {
@@ -170,11 +181,13 @@
 
 			<!-- Progress Indicator -->
 			<div class="mb-6 flex items-center justify-center gap-2">
-				{#each Array(2) as _, i (i)}
+				{#each Array(3) as _, i (i)}
 					<div
 						class="h-2 w-8 rounded-full transition-colors {i === currentStep
 							? 'bg-primary'
-							: 'bg-gray-300 dark:bg-gray-600'}"
+							: i < currentStep
+								? 'bg-primary/50'
+								: 'bg-gray-300 dark:bg-gray-600'}"
 					></div>
 				{/each}
 			</div>
@@ -194,7 +207,7 @@
 						{t('onboarding.welcomeMessage')}
 					</p>
 					<p class="mb-6 text-sm text-gray-500 dark:text-gray-500">
-						{t('onboarding.stepProgress', { current: 1, total: 2 })}
+						{t('onboarding.stepProgress', { current: 1, total: 3 })}
 					</p>
 					<button
 						onclick={handleContinue}
@@ -295,7 +308,7 @@
 
 					<!-- Action Buttons -->
 					<p class="mb-4 text-center text-sm text-gray-500 dark:text-gray-500">
-						{t('onboarding.stepProgress', { current: 2, total: 2 })}
+						{t('onboarding.stepProgress', { current: 2, total: 3 })}
 					</p>
 					<div class="flex gap-4">
 						<button
@@ -312,6 +325,123 @@
 							{t('onboarding.continue')}
 						</button>
 					</div>
+				</div>
+			{:else if currentStep === 2}
+				<!-- Step 3: Next Steps -->
+				<div>
+					<div class="mb-6 text-center">
+						<div
+							class="bg-primary/10 dark:bg-primary/20 mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full"
+						>
+							<Rocket class="text-primary h-8 w-8" />
+						</div>
+						<h2 class="mb-2 text-3xl font-bold text-gray-900 dark:text-gray-100">
+							{t('onboarding.nextStepsTitle')}
+						</h2>
+						<p class="text-gray-600 dark:text-gray-400">
+							{t('onboarding.nextStepsSubtitle')}
+						</p>
+					</div>
+
+					<!-- Next Steps Cards -->
+					<div class="mb-6 space-y-3">
+						<!-- Configure OwnTracks -->
+						<a
+							href="/dashboard/connections"
+							onclick={() => {
+								handleFinish();
+							}}
+							class="flex items-start gap-4 rounded-lg border border-gray-200 p-4 transition-all hover:border-primary/50 hover:bg-gray-50 dark:border-gray-700 dark:hover:border-primary/50 dark:hover:bg-gray-700/50"
+						>
+							<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
+								<Link class="h-5 w-5 text-blue-600 dark:text-blue-400" />
+							</div>
+							<div>
+								<h3 class="font-semibold text-gray-900 dark:text-gray-100">
+									{t('onboarding.configureOwnTracks')}
+								</h3>
+								<p class="text-sm text-gray-600 dark:text-gray-400">
+									{t('onboarding.configureOwnTracksDesc')}
+								</p>
+							</div>
+						</a>
+
+						<!-- Import Data -->
+						<a
+							href="/dashboard/import-export"
+							onclick={() => {
+								handleFinish();
+							}}
+							class="flex items-start gap-4 rounded-lg border border-gray-200 p-4 transition-all hover:border-primary/50 hover:bg-gray-50 dark:border-gray-700 dark:hover:border-primary/50 dark:hover:bg-gray-700/50"
+						>
+							<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/30">
+								<Import class="h-5 w-5 text-green-600 dark:text-green-400" />
+							</div>
+							<div>
+								<h3 class="font-semibold text-gray-900 dark:text-gray-100">
+									{t('onboarding.importData')}
+								</h3>
+								<p class="text-sm text-gray-600 dark:text-gray-400">
+									{t('onboarding.importDataDesc')}
+								</p>
+							</div>
+						</a>
+
+						<!-- Configure AI (Admin only) - shown before trips since AI is needed for trip suggestions -->
+						{#if isAdmin}
+							<a
+								href="/dashboard/server-admin-settings"
+								onclick={() => {
+									handleFinish();
+								}}
+								class="flex items-start gap-4 rounded-lg border border-gray-200 p-4 transition-all hover:border-primary/50 hover:bg-gray-50 dark:border-gray-700 dark:hover:border-primary/50 dark:hover:bg-gray-700/50"
+							>
+								<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-900/30">
+									<Settings class="h-5 w-5 text-orange-600 dark:text-orange-400" />
+								</div>
+								<div>
+									<h3 class="font-semibold text-gray-900 dark:text-gray-100">
+										{t('onboarding.configureAI')}
+									</h3>
+									<p class="text-sm text-gray-600 dark:text-gray-400">
+										{t('onboarding.configureAIDesc')}
+									</p>
+								</div>
+							</a>
+						{/if}
+
+						<!-- Generate Trips -->
+						<a
+							href="/dashboard/trips"
+							onclick={() => {
+								handleFinish();
+							}}
+							class="flex items-start gap-4 rounded-lg border border-gray-200 p-4 transition-all hover:border-primary/50 hover:bg-gray-50 dark:border-gray-700 dark:hover:border-primary/50 dark:hover:bg-gray-700/50"
+						>
+							<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/30">
+								<Map class="h-5 w-5 text-purple-600 dark:text-purple-400" />
+							</div>
+							<div>
+								<h3 class="font-semibold text-gray-900 dark:text-gray-100">
+									{t('onboarding.generateTrips')}
+								</h3>
+								<p class="text-sm text-gray-600 dark:text-gray-400">
+									{t('onboarding.generateTripsDesc')}
+								</p>
+							</div>
+						</a>
+					</div>
+
+					<!-- Action Button -->
+					<p class="mb-4 text-center text-sm text-gray-500 dark:text-gray-500">
+						{t('onboarding.stepProgress', { current: 3, total: 3 })}
+					</p>
+					<button
+						onclick={handleFinish}
+						class="bg-primary hover:bg-primary/90 w-full rounded-lg px-6 py-3 font-semibold text-white transition-all hover:scale-105"
+					>
+						{t('onboarding.getStarted')}
+					</button>
 				</div>
 			{/if}
 		</div>

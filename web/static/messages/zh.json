@@ -375,7 +375,18 @@
 		"stepProgress": "第 {当前} 步（共 {total} 步）",
 		"confirmSkip": "您确定要跳过设置吗？",
 		"profileComplete": "欢迎！您的个人资料已全部设置完毕。",
-		"canAddHomeAddressLater": "您可以随时从帐户设置添加您的家庭位置"
+		"canAddHomeAddressLater": "您可以随时从帐户设置添加您的家庭位置",
+		"nextStepsTitle": "一切准备就绪！",
+		"nextStepsSubtitle": "以下是充分利用 Wayli 的下一步操作",
+		"configureOwnTracks": "配置 OwnTracks",
+		"configureOwnTracksDesc": "在您的手机上设置 OwnTracks 应用程序以开始跟踪您的位置",
+		"importData": "导入现有数据",
+		"importDataDesc": "有其他应用程序的位置数据？导入它以继续您的旅程",
+		"generateTrips": "生成行程建议",
+		"generateTripsDesc": "让 Wayli 分析您的位置数据并建议行程",
+		"configureAI": "配置 AI 提供商",
+		"configureAIDesc": "设置 AI 提供商以启用智能功能，如行程摘要",
+		"getStarted": "开始使用"
 	},
 	"statistics": {
 		"loading": "加载中...",

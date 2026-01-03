@@ -53,6 +53,9 @@
 	let serverPexelsApiKey = $state('');
 	let pexelsApiKeyConfigured = $state(false);
 	let pexelsApiKeyUpdatedAt = $state<string | null>(null);
+	let pexelsRateLimitEnabled = $state(true); // Toggle for enabling rate limit
+	let pexelsRateLimit = $state(200); // Default: 200 requests/hour
+	let peliasEndpoint = $state('https://pelias.wayli.app');
 	let showAddUserModal = $state(false);
 	let isModalOpen = $state(false);
 	let selectedUser = $state<UserProfile | null>(null);
@@ -63,14 +66,7 @@
 
 	// Authentication Settings
 	let enableSignup = $state(false);
-	let enableMagicLink = $state(false);
 	let requireEmailVerification = $state(false);
-	let requireUppercase = $state(false);
-	let requireLowercase = $state(false);
-	let requireNumber = $state(false);
-	let requireSpecial = $state(false);
-	let sessionTimeout = $state(15);
-	let maxSessions = $state(5);
 	let authReadOnly = $state(false);
 
 	// Email Settings
@@ -318,6 +314,21 @@
 				'Wayli server name for branding'
 			);
 
+			// Save Pexels rate limit (0 = unlimited)
+			const rateLimitValue = pexelsRateLimitEnabled ? pexelsRateLimit : 0;
+			await serviceAdapter.updateCustomSetting(
+				'wayli.pexels_rate_limit',
+				rateLimitValue,
+				'Pexels API rate limit (requests per hour, 0 = unlimited)'
+			);
+
+			// Save Pelias endpoint
+			await serviceAdapter.updateCustomSetting(
+				'wayli.pelias_endpoint',
+				peliasEndpoint,
+				'Pelias geocoding service endpoint URL'
+			);
+
 			// Use encrypted secret storage for Pexels API key
 			if (serverPexelsApiKey) {
 				await serviceAdapter.setSystemSecret(
@@ -372,13 +383,6 @@
 				required: requireEmailVerification
 			});
 
-			// Update password complexity
-			await serviceAdapter.updateAppSetting('setPasswordComplexity', {
-				require_uppercase: requireUppercase,
-				require_lowercase: requireLowercase,
-				require_number: requireNumber,
-				require_special: requireSpecial
-			});
 
 			// Update disable password login (OAuth-only mode)
 			await serviceAdapter.updateCustomSetting(
@@ -706,6 +710,9 @@
 
 			// Reload settings to get updated provider list
 			await loadAllSettings();
+
+			// Dispatch event to notify components that AI configuration changed
+			window.dispatchEvent(new CustomEvent('ai-config-changed'));
 		} catch (error: any) {
 			console.error('❌ Failed to save AI settings:', error);
 			toast.error(t('serverAdmin.failedToUpdateSettings'), {
@@ -722,7 +729,7 @@
 			// Directly invoke the incremental place visit detection RPC
 			const { error } = await (fluxbase.rpc as any).invoke(
 				'detect-place-visits-incremental',
-				{ user_id: null },
+				[null],
 				{ namespace: 'wayli' }
 			);
 			if (error) throw error;
@@ -751,7 +758,7 @@
 			// First refresh place visits
 			const { error: rpcError } = await (fluxbase.rpc as any).invoke(
 				'detect-place-visits-incremental',
-				{},
+				[null],
 				{ namespace: 'wayli' }
 			);
 			if (rpcError) throw rpcError;
@@ -1096,7 +1103,6 @@
 
 			// Authentication
 			enableSignup = app.authentication.enable_signup;
-			enableMagicLink = app.authentication.enable_magic_link;
 			requireEmailVerification = app.authentication.require_email_verification;
 			authReadOnly = app.authentication.read_only ?? false;
 
@@ -1146,6 +1152,19 @@
 			// Custom Wayli settings
 			serverName = custom['wayli.server_name']?.value || '';
 			disablePasswordLogin = custom['wayli.disable_password_login']?.value === true;
+
+			// Load Pexels rate limit (0 = unlimited)
+			const loadedRateLimit = custom['wayli.pexels_rate_limit']?.value ?? 200;
+			if (loadedRateLimit === 0) {
+				pexelsRateLimitEnabled = false;
+				pexelsRateLimit = 200; // Default value for when re-enabled
+			} else {
+				pexelsRateLimitEnabled = true;
+				pexelsRateLimit = loadedRateLimit;
+			}
+
+			// Load Pelias endpoint
+			peliasEndpoint = custom['wayli.pelias_endpoint']?.value || 'https://pelias.wayli.app';
 
 			// Load Pexels API key secret metadata (value is not returned)
 			if (result.secrets?.pexels_api_key) {
@@ -1835,6 +1854,69 @@
 							{/if}
 							<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
 								{t('serverAdmin.serverPexelsKeyDescription')}
+							</p>
+						</div>
+
+						<div>
+							<div class="flex items-center justify-between">
+								<span class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+									Enable Pexels API Rate Limit
+								</span>
+								<Switch
+									bind:checked={pexelsRateLimitEnabled}
+									label="Enable Pexels API Rate Limit"
+								/>
+							</div>
+							<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+								{#if pexelsRateLimitEnabled}
+									Rate limiting is enabled. Configure the limit below.
+								{:else}
+									Rate limiting is disabled (unlimited). Requires Pexels API approval.
+								{/if}
+							</p>
+
+							{#if pexelsRateLimitEnabled}
+								<div class="mt-3">
+									<label
+										for="pexelsRateLimit"
+										class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+									>
+										Requests per hour
+									</label>
+									<input
+										type="number"
+										id="pexelsRateLimit"
+										bind:value={pexelsRateLimit}
+										min="1"
+										step="1"
+										class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-1 focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
+										placeholder="200"
+									/>
+									<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+										Default: 200 (Pexels free tier limit)
+									</p>
+								</div>
+							{/if}
+						</div>
+
+						<div>
+							<label
+								for="peliasEndpoint"
+								class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+							>
+								Pelias Geocoding Endpoint
+							</label>
+							<input
+								type="url"
+								id="peliasEndpoint"
+								bind:value={peliasEndpoint}
+								class="focus:border-primary focus:ring-primary mt-1 w-full rounded-md border border-[rgb(218,218,221)] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-1 focus:outline-none dark:border-[#3f3f46] dark:bg-[#23232a] dark:text-gray-100"
+								placeholder="https://pelias.wayli.app"
+								pattern="https?://.+"
+								required
+							/>
+							<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+								Geocoding service URL for address lookups and reverse geocoding
 							</p>
 						</div>
 

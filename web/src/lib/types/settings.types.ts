@@ -117,6 +117,14 @@ export interface WayliCustomSettings {
 		value: string;
 		description?: string;
 	};
+	'wayli.pexels_rate_limit'?: {
+		value: number; // Requests per hour, 0 = unlimited
+		description?: string;
+	};
+	'wayli.pelias_endpoint'?: {
+		value: string;
+		description?: string;
+	};
 }
 
 /**

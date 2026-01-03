@@ -62,6 +62,9 @@
 	let showOnboardingModal = $state(false);
 	let isOnboarding = $derived($page.url.searchParams.get('onboarding') === 'true');
 
+	// Admin state for onboarding
+	let isAdmin = $state(false);
+
 	// Two-Factor Authentication state
 	let twoFactorEnabled = $state(false);
 	let showTwoFactorSetup = $state(false);
@@ -235,11 +238,32 @@
 		}
 	}
 
+	// Check if current user is an admin
+	async function checkAdminRole() {
+		try {
+			const { data: userData } = await fluxbase.auth.getUser();
+			if (!userData.user) return;
+
+			const { data: userProfile, error } = await fluxbase
+				.from('user_profiles')
+				.select('role')
+				.eq('id', userData.user.id)
+				.single();
+
+			if (!error && userProfile) {
+				isAdmin = userProfile.role === 'admin';
+			}
+		} catch (error) {
+			console.error('Error checking admin role:', error);
+		}
+	}
+
 	onMount(async () => {
 		await loadUserData();
 		await loadTripExclusions();
 		await check2FAStatus();
 		await loadAISettings();
+		await checkAdminRole();
 
 		// Show onboarding modal if this is first login
 		if (isOnboarding) {
@@ -411,6 +435,10 @@
 
 			toast.success('Welcome! Your profile is all set.');
 			showOnboardingModal = false;
+
+			// Dispatch event to notify components that onboarding is complete
+			window.dispatchEvent(new CustomEvent('onboarding-completed'));
+
 			goto('/dashboard/account-settings', { replaceState: true });
 		} catch (error) {
 			console.error('Error completing onboarding:', error);
@@ -435,6 +463,10 @@
 
 			toast.info('You can add your home address anytime from Account Settings');
 			showOnboardingModal = false;
+
+			// Dispatch event to notify components that onboarding is complete
+			window.dispatchEvent(new CustomEvent('onboarding-completed'));
+
 			goto('/dashboard/account-settings', { replaceState: true });
 		} catch (error) {
 			console.error('Error skipping onboarding:', error);
@@ -1868,6 +1900,7 @@
 		bind:open={showOnboardingModal}
 		onComplete={handleOnboardingComplete}
 		onSkip={handleOnboardingSkip}
+		{isAdmin}
 	/>
 {/if}
 

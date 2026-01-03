@@ -3,7 +3,7 @@ import type { OnboardingState } from '$lib/types/onboarding.types';
 
 const initialState: OnboardingState = {
 	currentStep: 0,
-	totalSteps: 2,
+	totalSteps: 3,
 	isActive: false
 };
 

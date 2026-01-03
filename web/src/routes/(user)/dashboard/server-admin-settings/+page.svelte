@@ -16,7 +16,8 @@
 		Bot,
 		Database,
 		RefreshCw,
-		ArrowRight
+		ArrowRight,
+		RotateCcw
 	} from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
@@ -138,6 +139,12 @@
 	let isForceRegeocoding = $state(false);
 	let isFillingCountryCodes = $state(false);
 	let showForceRegeocodeConfirm = $state(false);
+	// Clear and rebuild place visits
+	let showClearPlaceVisitsConfirm = $state(false);
+	let isClearingPlaceVisits = $state(false);
+	let showClearUserPlaceVisitsConfirm = $state(false);
+	let userToClearPlaceVisits = $state<UserProfile | null>(null);
+	let isClearingUserPlaceVisits = $state(false);
 
 	// AI Settings - provider-based model
 	let aiEnabled = $state(false);
@@ -155,7 +162,7 @@
 
 	// Handle Escape key for modals
 	$effect(() => {
-		if (showAddUserModal || isModalOpen || showDeleteConfirm) {
+		if (showAddUserModal || isModalOpen || showDeleteConfirm || showClearPlaceVisitsConfirm || showClearUserPlaceVisitsConfirm) {
 			const handleKeydown = (e: KeyboardEvent) => {
 				if (e.key === 'Escape') {
 					if (showAddUserModal) {
@@ -164,6 +171,10 @@
 						handleCloseModal();
 					} else if (showDeleteConfirm) {
 						showDeleteConfirm = false;
+					} else if (showClearPlaceVisitsConfirm) {
+						showClearPlaceVisitsConfirm = false;
+					} else if (showClearUserPlaceVisitsConfirm) {
+						cancelClearUserPlaceVisits();
 					}
 				}
 			};
@@ -881,6 +892,81 @@
 		}
 	}
 
+	// Clear and rebuild place visits - all users
+	function promptClearPlaceVisits() {
+		showClearPlaceVisitsConfirm = true;
+	}
+
+	function cancelClearPlaceVisits() {
+		showClearPlaceVisitsConfirm = false;
+	}
+
+	async function confirmClearPlaceVisits() {
+		showClearPlaceVisitsConfirm = false;
+		if (isClearingPlaceVisits) return;
+
+		isClearingPlaceVisits = true;
+		try {
+			const { error } = await fluxbase.jobs.submit(
+				'clear-and-rebuild-place-visits',
+				{},
+				{
+					namespace: 'wayli',
+					priority: 4
+				}
+			);
+			if (error) throw error;
+			toast.success(t('serverAdmin.clearPlaceVisitsQueued'));
+		} catch (error: any) {
+			console.error('❌ Failed to queue clear and rebuild place visits:', error);
+			toast.error(t('serverAdmin.clearPlaceVisitsFailed'), {
+				description: error?.message
+			});
+		} finally {
+			isClearingPlaceVisits = false;
+		}
+	}
+
+	// Clear and rebuild place visits - per user
+	function handleClearUserPlaceVisits(user: UserProfile) {
+		userToClearPlaceVisits = user;
+		showClearUserPlaceVisitsConfirm = true;
+	}
+
+	function cancelClearUserPlaceVisits() {
+		showClearUserPlaceVisitsConfirm = false;
+		userToClearPlaceVisits = null;
+	}
+
+	async function confirmClearUserPlaceVisits() {
+		if (!userToClearPlaceVisits || isClearingUserPlaceVisits) return;
+
+		const userId = userToClearPlaceVisits.id;
+		showClearUserPlaceVisitsConfirm = false;
+		isClearingUserPlaceVisits = true;
+
+		try {
+			const { error } = await fluxbase.jobs.submit(
+				'clear-and-rebuild-place-visits',
+				{ user_id: userId },
+				{
+					namespace: 'wayli',
+					priority: 4
+				}
+			);
+			if (error) throw error;
+			toast.success(t('serverAdmin.clearPlaceVisitsQueued'));
+		} catch (error: any) {
+			console.error('❌ Failed to queue clear and rebuild place visits for user:', error);
+			toast.error(t('serverAdmin.clearPlaceVisitsFailed'), {
+				description: error?.message
+			});
+		} finally {
+			isClearingUserPlaceVisits = false;
+			userToClearPlaceVisits = null;
+		}
+	}
+
 	function handleEditUser(user: UserProfile) {
 		selectedUser = user;
 		isModalOpen = true;
@@ -1589,6 +1675,13 @@
 													title="Edit user"
 												>
 													<Edit class="h-4 w-4" />
+												</button>
+												<button
+													class="cursor-pointer rounded p-1 text-gray-500 hover:bg-amber-50 hover:text-amber-600 dark:text-gray-400 dark:hover:bg-amber-900/20 dark:hover:text-amber-400"
+													onclick={() => handleClearUserPlaceVisits(user)}
+													title={t('serverAdmin.clearUserPlaceVisits')}
+												>
+													<RotateCcw class="h-4 w-4" />
 												</button>
 												<button
 													class="cursor-pointer rounded p-1 text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-400"
@@ -2771,6 +2864,28 @@
 										{isFillingCountryCodes ? t('serverAdmin.running') : t('serverAdmin.run')}
 									</button>
 								</div>
+
+								<!-- Clear & Rebuild Place Visits Card -->
+								<div
+									class="flex min-w-[200px] flex-1 items-center justify-between rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20"
+								>
+									<div class="min-w-0 flex-1">
+										<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+											{t('serverAdmin.clearPlaceVisits')}
+										</span>
+										<p class="text-xs text-gray-500 dark:text-gray-400">
+											{t('serverAdmin.clearPlaceVisitsDescription')}
+										</p>
+									</div>
+									<button
+										onclick={promptClearPlaceVisits}
+										disabled={isClearingPlaceVisits}
+										class="ml-3 inline-flex shrink-0 items-center gap-2 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+									>
+										<Trash2 class={`h-3.5 w-3.5 ${isClearingPlaceVisits ? 'animate-spin' : ''}`} />
+										{isClearingPlaceVisits ? t('serverAdmin.running') : t('serverAdmin.run')}
+									</button>
+								</div>
 							</div>
 						</div>
 
@@ -2842,6 +2957,104 @@
 								<button
 									onclick={confirmForceRegeocode}
 									class="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium text-white"
+								>
+									{t('serverAdmin.confirm')}
+								</button>
+							</div>
+						</div>
+					</div>
+				{/if}
+
+				<!-- Clear & Rebuild Place Visits Confirmation Modal (All Users) -->
+				{#if showClearPlaceVisitsConfirm}
+					<div
+						class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+						onclick={cancelClearPlaceVisits}
+						onkeydown={(e) => e.key === 'Escape' && cancelClearPlaceVisits()}
+						role="dialog"
+						aria-modal="true"
+						tabindex="-1"
+					>
+						<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+						<div
+							class="mx-4 w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-[#23232a]"
+							onclick={(e) => e.stopPropagation()}
+							onkeydown={(e) => e.stopPropagation()}
+							role="document"
+						>
+							<div class="mb-4 flex items-center gap-3">
+								<div class="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+									<Trash2 class="h-5 w-5 text-red-600 dark:text-red-400" />
+								</div>
+								<h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+									{t('serverAdmin.clearPlaceVisitsConfirmTitle')}
+								</h3>
+							</div>
+							<p class="mb-6 text-sm text-gray-600 dark:text-gray-300">
+								{t('serverAdmin.clearPlaceVisitsConfirmMessage')}
+							</p>
+							<div class="flex justify-end gap-3">
+								<button
+									onclick={cancelClearPlaceVisits}
+									class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+								>
+									{t('serverAdmin.cancel')}
+								</button>
+								<button
+									onclick={confirmClearPlaceVisits}
+									class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+								>
+									{t('serverAdmin.confirm')}
+								</button>
+							</div>
+						</div>
+					</div>
+				{/if}
+
+				<!-- Clear & Rebuild Place Visits Confirmation Modal (Per User) -->
+				{#if showClearUserPlaceVisitsConfirm && userToClearPlaceVisits}
+					<div
+						class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+						onclick={cancelClearUserPlaceVisits}
+						onkeydown={(e) => e.key === 'Escape' && cancelClearUserPlaceVisits()}
+						role="dialog"
+						aria-modal="true"
+						tabindex="-1"
+					>
+						<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+						<div
+							class="mx-4 w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-[#23232a]"
+							onclick={(e) => e.stopPropagation()}
+							onkeydown={(e) => e.stopPropagation()}
+							role="document"
+						>
+							<div class="mb-4 flex items-center gap-3">
+								<div class="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+									<RotateCcw class="h-5 w-5 text-amber-600 dark:text-amber-400" />
+								</div>
+								<h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+									{t('serverAdmin.clearUserPlaceVisitsConfirmTitle')}
+								</h3>
+							</div>
+							<div class="mb-4 rounded-lg bg-gray-50 p-3 dark:bg-gray-800">
+								<div class="font-medium text-gray-900 dark:text-gray-100">
+									{userToClearPlaceVisits.first_name || ''} {userToClearPlaceVisits.last_name || ''}
+								</div>
+								<div class="text-sm text-gray-500 dark:text-gray-400">{userToClearPlaceVisits.email}</div>
+							</div>
+							<p class="mb-6 text-sm text-gray-600 dark:text-gray-300">
+								{t('serverAdmin.clearUserPlaceVisitsConfirmMessage')}
+							</p>
+							<div class="flex justify-end gap-3">
+								<button
+									onclick={cancelClearUserPlaceVisits}
+									class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+								>
+									{t('serverAdmin.cancel')}
+								</button>
+								<button
+									onclick={confirmClearUserPlaceVisits}
+									class="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
 								>
 									{t('serverAdmin.confirm')}
 								</button>

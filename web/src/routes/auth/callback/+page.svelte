@@ -12,19 +12,36 @@
 	let error = '';
 
 	onMount(async () => {
-		console.log('🔄 [CALLBACK] Page mounted');
 		try {
-			// Handle OAuth callback - use getUser() for security
-			const { data: userData, error: userError } = await fluxbase.auth.getUser();
-			console.log(
-				'🔄 [CALLBACK] User check:',
-				userData.user ? `Found - ${userData.user.email}` : 'None'
-			);
+			// Check for tokens in URL hash (implicit flow)
+			const hashParams = new URLSearchParams(window.location.hash.substring(1));
+			const accessToken = hashParams.get('access_token');
+			const refreshToken = hashParams.get('refresh_token');
 
-			if (userError) {
-				console.log('❌ [CALLBACK] ERROR: User error:', userError);
-				throw userError;
+			if (accessToken) {
+				const { error: setError } = await fluxbase.auth.setSession({
+					access_token: accessToken,
+					refresh_token: refreshToken || ''
+				});
+				if (setError) throw setError;
+			} else {
+				// Check for authorization code (standard OAuth flow)
+				const code = $page.url.searchParams.get('code');
+				const state = $page.url.searchParams.get('state');
+
+				if (code) {
+					const exchangeResult = await fluxbase.auth.exchangeCodeForSession(
+						code,
+						state || undefined
+					);
+					if (exchangeResult.error) throw exchangeResult.error;
+				}
 			}
+
+			// Get the authenticated user
+			const { data: userData, error: userError } = await fluxbase.auth.getUser();
+
+			if (userError) throw userError;
 
 			if (userData.user) {
 				// Check onboarding status
@@ -43,22 +60,18 @@
 							.eq('id', userData.user.id);
 					}
 
-					console.log('🔄 [CALLBACK] First-time user, redirecting to onboarding');
 					toast.success("Welcome! Let's set up your profile.");
 					goto('/dashboard/account-settings?onboarding=true');
 				} else {
 					const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/statistics';
-					console.log('🔄 [CALLBACK] Returning user, going to', redirectTo);
 					toast.success('Authentication successful');
 					goto(redirectTo);
 				}
 			} else {
-				console.log('❌ [CALLBACK] ERROR: No user found');
 				error = 'No user found';
 				toast.error('Authentication failed');
 			}
 		} catch (err: any) {
-			console.log('❌ [CALLBACK] ERROR: Exception:', err.message);
 			error = err.message || 'Authentication failed';
 			toast.error('Authentication failed');
 		} finally {

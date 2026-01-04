@@ -12,7 +12,7 @@ describe('Onboarding Store', () => {
 		const state = get(onboardingState);
 
 		expect(state.currentStep).toBe(0);
-		expect(state.totalSteps).toBe(2);
+		expect(state.totalSteps).toBe(3);
 		expect(state.isActive).toBe(false);
 	});
 
@@ -39,7 +39,7 @@ describe('Onboarding Store', () => {
 		onboardingActions.nextStep(); // Try to go beyond max
 
 		const state = get(onboardingState);
-		expect(state.currentStep).toBe(1); // Should stay at max (totalSteps - 1)
+		expect(state.currentStep).toBe(2); // Should stay at max (totalSteps - 1)
 	});
 
 	it('should move to previous step correctly', () => {
@@ -77,7 +77,7 @@ describe('Onboarding Store', () => {
 
 		const state = get(onboardingState);
 		expect(state.currentStep).toBe(0);
-		expect(state.totalSteps).toBe(2);
+		expect(state.totalSteps).toBe(3);
 		expect(state.isActive).toBe(false);
 	});
 });

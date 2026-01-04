@@ -39,8 +39,7 @@ export async function handler(
 		const { data: users, error: usersError } = await fluxbaseService
 			.from('trips')
 			.select('user_id')
-			.in('status', ['active', 'completed', 'planned'])
-			.limit(10000);
+			.in('status', ['active', 'completed', 'planned']);
 
 		if (usersError) {
 			console.error('Failed to fetch users:', usersError);

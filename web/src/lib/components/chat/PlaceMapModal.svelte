@@ -76,6 +76,7 @@
 
 		mapLoading = true;
 		mapError = false;
+		const loadStartTime = Date.now();
 
 		try {
 			L = (await import('leaflet')).default;
@@ -100,25 +101,42 @@
 				maxZoom: 19
 			}).addTo(map);
 
-			// Wait for tiles to start loading before marking as ready
+			let loadCompleted = false;
+
+			// Handle successful tile load
 			tileLayer.once('load', () => {
-				mapLoading = false;
+				if (loadCompleted) return;
+				loadCompleted = true;
+
+				// Ensure minimum 300ms loading time for smooth UX
+				const elapsed = Date.now() - loadStartTime;
+				const remainingTime = Math.max(0, 300 - elapsed);
+
+				setTimeout(() => {
+					mapLoading = false;
+					// Single invalidateSize call after fade-in completes
+					setTimeout(() => map?.invalidateSize(), 250);
+				}, remainingTime);
 			});
 
-			// Fallback: mark as loaded after a short delay even if 'load' doesn't fire
+			// Handle tile loading errors
+			tileLayer.on('tileerror', (e) => {
+				if (loadCompleted) return;
+				console.warn('Tile loading error:', e);
+				// Don't immediately fail - some tiles may still load
+			});
+
+			// Fallback timeout (increased from 500ms to 1500ms)
 			setTimeout(() => {
+				if (loadCompleted) return;
+				loadCompleted = true;
 				mapLoading = false;
-			}, 500);
+				setTimeout(() => map?.invalidateSize(), 250);
+			}, 1500);
 
 			// Add marker at the place location
 			const marker = L.marker([lat, lng]).addTo(map);
 			marker.bindPopup(`<strong>${place.poi_name || 'Location'}</strong>`).openPopup();
-
-			// Invalidate size multiple times to ensure proper rendering
-			// This handles cases where the container size isn't final on first render
-			setTimeout(() => map?.invalidateSize(), 100);
-			setTimeout(() => map?.invalidateSize(), 300);
-			setTimeout(() => map?.invalidateSize(), 500);
 		} catch (error) {
 			console.error('Failed to initialize map:', error);
 			mapError = true;
@@ -126,35 +144,20 @@
 		}
 	}
 
+	onMount(() => {
+		// Wait for next tick to ensure mapContainer ref is bound
+		requestAnimationFrame(() => {
+			if (place && mapContainer && browser) {
+				initMap();
+			}
+		});
+	});
+
 	onDestroy(() => {
 		if (map) {
 			map.remove();
 			map = undefined;
 		}
-	});
-
-	// Initialize map when place and container are ready
-	$effect(() => {
-		// Track dependencies
-		const currentPlace = place;
-		const container = mapContainer;
-
-		if (!currentPlace || !container || !browser) return;
-
-		// Clean up previous map if it exists
-		if (map) {
-			map.remove();
-			map = undefined;
-		}
-
-		// Small delay to ensure DOM is ready
-		const timeoutId = setTimeout(() => {
-			initMap();
-		}, 50);
-
-		return () => {
-			clearTimeout(timeoutId);
-		};
 	});
 
 	function handleKeydown(event: KeyboardEvent) {
@@ -172,6 +175,11 @@
 
 <svelte:head>
 	<link
+		rel="preload"
+		as="style"
+		href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+	/>
+	<link
 		rel="stylesheet"
 		href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
 		integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
@@ -180,19 +188,21 @@
 </svelte:head>
 
 {#if place}
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="place-map-title"
-		onclick={onClose}
+		onclick={(e) => {
+			if (e.target === e.currentTarget) onClose();
+		}}
 		onkeydown={handleKeydown}
 		tabindex="0"
 	>
 		<div
 			class="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-xl dark:bg-gray-900"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
 			role="document"
 		>
 			<!-- Header -->
@@ -235,9 +245,15 @@
 			<!-- Map -->
 			<div class="relative h-64 w-full sm:h-80">
 				{#if place.latitude && place.longitude}
-					<div bind:this={mapContainer} class="h-full w-full" style="min-height: 256px;"></div>
+					<div
+						bind:this={mapContainer}
+						class="h-full w-full transition-opacity duration-200"
+						class:opacity-0={mapLoading}
+						class:opacity-100={!mapLoading}
+						style="min-height: 256px;"
+					></div>
 					{#if mapLoading}
-						<div class="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+						<div class="pointer-events-none absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
 							<div class="text-center text-gray-500 dark:text-gray-400">
 								<div class="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-blue-500"></div>
 								<p>Loading map...</p>
@@ -245,7 +261,7 @@
 						</div>
 					{/if}
 					{#if mapError}
-						<div class="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+						<div class="pointer-events-none absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
 							<div class="text-center text-gray-500 dark:text-gray-400">
 								<MapPin class="mx-auto mb-2 h-8 w-8" />
 								<p>Failed to load map</p>

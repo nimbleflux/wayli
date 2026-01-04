@@ -38,8 +38,7 @@ export async function handler(
 		// Get all users with place visits
 		const { data: users, error: usersError } = await fluxbaseService
 			.from('place_visits')
-			.select('user_id')
-			.limit(10000);
+			.select('user_id');
 
 		if (usersError) {
 			console.error('Failed to fetch users:', usersError);

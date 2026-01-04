@@ -34,7 +34,7 @@ services:
   #     - fluxbase
   # ============================================================================
   fluxbase:
-    image: ghcr.io/fluxbase-eu/fluxbase:2026.1.1-rc.9
+    image: ghcr.io/fluxbase-eu/fluxbase:2026.1.2
     container_name: fluxbase
     depends_on:
       postgres:
@@ -52,8 +52,8 @@ services:
 
       # Required secrets (generate with: ./deploy/docker-compose/generate-keys.sh)
       FLUXBASE_AUTH_JWT_SECRET: ${FLUXBASE_AUTH_JWT_SECRET}
-      FLUXBASE_ENCRYPTION_KEY: your-32-character-encryption-key
-      FLUXBASE_SECURITY_SETUP_TOKEN: setup-token
+      FLUXBASE_ENCRYPTION_KEY: ${FLUXBASE_ENCRYPTION_KEY:-your-32-character-encryption-key}
+      FLUXBASE_SECURITY_SETUP_TOKEN: ${FLUXBASE_SECURITY_SETUP_TOKEN:-setup-token}
 
       # Storage
       FLUXBASE_STORAGE_PROVIDER: local

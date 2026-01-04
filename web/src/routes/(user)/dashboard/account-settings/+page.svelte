@@ -47,6 +47,8 @@
 	let pexelsApiKeyConfigured = $state(false);
 	let pexelsApiKeyUpdatedAt = $state<string | null>(null);
 	let serverPexelsApiKeyAvailable = $state(false);
+	let pexelsRateLimitEnabled = $state(false);
+	let pexelsRateLimit = $state(200);
 	let error = $state<string | null>(null);
 	let homeAddressInput = $state('');
 	let homeAddressInputElement: HTMLInputElement | undefined = $state(undefined);
@@ -213,6 +215,39 @@
 			// This is only relevant for admins, regular users don't need this info
 			// For now, we'll assume it's not available unless explicitly configured
 			serverPexelsApiKeyAvailable = false;
+
+			// Load user's personal Pexels rate limit using settings SDK
+			try {
+				const userRateLimit = await fluxbase.settings.getUserSetting('wayli.pexels_rate_limit');
+
+				if (userRateLimit === undefined || userRateLimit === null) {
+					// Use server default
+					pexelsRateLimitEnabled = false;
+					pexelsRateLimit = 200;
+				} else {
+					let loadedRateLimit: number | null = null;
+
+					if (typeof userRateLimit === 'number') {
+						loadedRateLimit = userRateLimit;
+					} else if (typeof userRateLimit === 'object' && userRateLimit !== null && 'value' in userRateLimit) {
+						const val = userRateLimit.value;
+						loadedRateLimit = typeof val === 'number' ? val : null;
+					}
+
+					if (loadedRateLimit === null || loadedRateLimit === 0) {
+						// Unlimited or invalid
+						pexelsRateLimitEnabled = false;
+						pexelsRateLimit = 200; // Default when re-enabled
+					} else {
+						pexelsRateLimitEnabled = true;
+						pexelsRateLimit = loadedRateLimit;
+					}
+				}
+			} catch (err) {
+				console.error('Failed to load user rate limit:', err);
+				pexelsRateLimitEnabled = false;
+				pexelsRateLimit = 200;
+			}
 		} catch (error) {
 			console.error('❌ [AccountSettings] Error loading user data:', error);
 		}
@@ -548,7 +583,7 @@
 
 			const serviceAdapter = new ServiceAdapter({ session: session.data.session });
 
-			// Update preferences using service adapter (without pexels_api_key - now stored as secret)
+			// Update preferences using service adapter
 			await serviceAdapter.updatePreferences({
 				language: preferences.language
 				// timezone: preferences.timezone, // Timezone selection hidden
@@ -562,6 +597,19 @@
 				pexelsApiKeyConfigured = true;
 				pexelsApiKeyUpdatedAt = new Date().toISOString();
 				pexelsApiKeyInput = ''; // Clear input after save
+			}
+
+			// Save personal Pexels rate limit using settings SDK
+			if (pexelsApiKeyConfigured) {
+				if (pexelsRateLimitEnabled) {
+					await fluxbase.settings.setSetting('wayli.pexels_rate_limit', { limit: pexelsRateLimit });
+				} else {
+					// Clear user setting to use server default
+					await fluxbase.settings.deleteSetting('wayli.pexels_rate_limit');
+				}
+			} else {
+				// No API key = no personal rate limit
+				await fluxbase.settings.deleteSetting('wayli.pexels_rate_limit');
 			}
 
 			// Only adjust client locale if it differs from the just-saved preference
@@ -583,6 +631,12 @@
 			await fluxbase.settings.deleteSecret('pexels_api_key');
 			pexelsApiKeyConfigured = false;
 			pexelsApiKeyUpdatedAt = null;
+
+			// Auto-clear personal rate limit when API key is cleared using settings SDK
+			await fluxbase.settings.deleteSetting('wayli.pexels_rate_limit');
+			pexelsRateLimitEnabled = false;
+			pexelsRateLimit = 200; // Reset to default value
+
 			toast.success(t('accountSettings.pexelsKeyCleared'));
 		} catch (error) {
 			console.error('❌ [AccountSettings] Error clearing Pexels API key:', error);
@@ -1495,6 +1549,51 @@
 						{/if}
 					</p>
 				</div>
+
+				<!-- Personal Rate Limit Configuration (show if personal key is configured or being entered) -->
+				{#if pexelsApiKeyConfigured || pexelsApiKeyInput.trim().length > 0}
+					<div class="mt-4 space-y-2 border-t border-gray-200 pt-4 dark:border-gray-700">
+						<h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">
+							Personal Rate Limit
+						</h4>
+
+						<label class="flex items-center gap-2">
+							<input
+								type="checkbox"
+								bind:checked={pexelsRateLimitEnabled}
+								class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary dark:border-gray-600 dark:bg-gray-700"
+							/>
+							<span class="text-sm text-gray-700 dark:text-gray-300"
+								>Set custom rate limit</span
+							>
+						</label>
+
+						{#if !pexelsRateLimitEnabled}
+							<p class="text-xs text-gray-500 dark:text-gray-400">
+								Using default: <span class="font-medium">200 requests/hour</span>
+							</p>
+						{/if}
+
+						{#if pexelsRateLimitEnabled}
+							<div class="space-y-2">
+								<div class="flex items-center gap-2">
+									<input
+										type="number"
+										bind:value={pexelsRateLimit}
+										min="1"
+										max="10000"
+										placeholder="200"
+										class="w-24 rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+									/>
+									<span class="text-sm text-gray-700 dark:text-gray-300">requests per hour</span>
+								</div>
+								<p class="text-xs text-gray-500 dark:text-gray-400">
+									Pexels free tier: 200/hour. Paid plans offer higher limits.
+								</p>
+							</div>
+						{/if}
+					</div>
+				{/if}
 
 				<!-- Info notification -->
 				<div

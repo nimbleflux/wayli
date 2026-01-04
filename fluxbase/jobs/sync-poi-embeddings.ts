@@ -132,27 +132,30 @@ export async function handler(
   const forceRegenerate = payload?.force_regenerate || false;
   const maxLimit = payload?.limit;
 
-  safeReportProgress(job, 5, 'Fetching POI summary...');
+  safeReportProgress(job, 5, 'Counting POIs to process...');
 
-  // Fetch user's POI summary using RLS-protected view
-  let query = fluxbase.from('my_poi_summary').select('*');
-  if (maxLimit) {
-    query = query.limit(maxLimit);
+  // First, count total POIs (excluding null names at database level)
+  const { count: totalPoisCount, error: countError } = await fluxbase
+    .from('my_poi_summary')
+    .select('*', { count: 'exact', head: true })
+    .not('poi_name', 'is', null); // Filter out null names in SQL
+
+  if (countError) {
+    console.error('Failed to count POIs:', countError);
+    return { success: false, error: `Failed to count POIs: ${countError.message}` };
   }
 
-  const { data: pois, error: poiError } = await query;
+  const totalPois = maxLimit ? Math.min(totalPoisCount || 0, maxLimit) : (totalPoisCount || 0);
 
-  if (poiError) {
-    console.error('Failed to fetch POI summary:', poiError);
-    return { success: false, error: `Failed to fetch POI summary: ${poiError.message}` };
-  }
-
-  if (!pois || pois.length === 0) {
+  if (totalPois === 0) {
     safeReportProgress(job, 100, 'No POIs found to process');
     return { success: true, result: { processed: 0, skipped: 0, errors: 0, deleted: 0 } };
   }
 
-  safeReportProgress(job, 10, `Found ${pois.length} POIs. Checking for existing embeddings...`);
+  console.log(`📊 Found ${totalPois.toLocaleString()} total POIs to process`);
+  safeReportProgress(job, 8, `Found ${totalPois.toLocaleString()} POIs. Fetching in batches...`);
+
+  safeReportProgress(job, 10, 'Fetching existing embeddings...');
 
   // Get existing embeddings using RLS-protected view
   // Note: my_poi_embeddings view filters by auth.uid() automatically
@@ -164,81 +167,199 @@ export async function handler(
     console.error('Failed to fetch existing embeddings:', embError);
   }
 
-  // Create a set of current POI keys for deletion detection
-  const currentPoiKeys = new Set<string>();
-  for (const poi of pois as PoiSummary[]) {
-    const key = `${poi.poi_name}|${poi.city || ''}|${poi.country_code || ''}`;
-    currentPoiKeys.add(key);
-  }
-
   // Create a map of existing embeddings for quick lookup
   const existingMap = new Map<string, { hasEmbedding: boolean; id: string }>();
-  const orphanedEmbeddingIds: string[] = [];
-
   if (existingEmbeddings) {
     for (const emb of existingEmbeddings) {
       const key = `${emb.poi_name}|${emb.city || ''}|${emb.country_code || ''}`;
       existingMap.set(key, { hasEmbedding: emb.has_embedding === true, id: emb.id });
+    }
+  }
 
-      // Check if this embedding is orphaned (POI no longer exists in visits)
-      if (!currentPoiKeys.has(key)) {
+  // Process POIs in batches to handle large datasets
+  const FETCH_BATCH_SIZE = 1000; // Fetch POIs in chunks of 1000
+  let totalProcessed = 0;
+  let totalSkipped = 0;
+  let totalErrors = 0;
+  let offset = 0;
+
+  // Track current POI keys across all batches for orphan detection
+  const allCurrentPoiKeys = new Set<string>();
+
+  safeReportProgress(job, 12, 'Starting to process POIs in batches...');
+
+  while (totalProcessed + totalSkipped < totalPois) {
+    // Check for cancellation
+    const cancelled = await job.isCancelled();
+    if (cancelled) {
+      safeReportProgress(job, 0, 'Job cancelled');
+      return { success: false, error: 'Job cancelled', result: { processed: totalProcessed, skipped: totalSkipped, errors: totalErrors, deleted: 0 } };
+    }
+
+    // Fetch next batch of POIs (filter null names at database level)
+    let poiBatchQuery = fluxbase
+      .from('my_poi_summary')
+      .select('*')
+      .not('poi_name', 'is', null) // Filter out null names in SQL
+      .range(offset, offset + FETCH_BATCH_SIZE - 1);
+
+    const { data: poiBatch, error: poiError } = await poiBatchQuery;
+
+    if (poiError) {
+      console.error('Failed to fetch POI batch:', poiError);
+      return { success: false, error: `Failed to fetch POI batch: ${poiError.message}` };
+    }
+
+    // No more POIs to process
+    if (!poiBatch || poiBatch.length === 0) {
+      console.log(`📊 No more POIs found after ${totalProcessed + totalSkipped} processed`);
+      break;
+    }
+
+    // Filter POIs that need embedding in this batch
+    const poisToEmbed: PoiSummary[] = [];
+    let batchSkipped = 0;
+
+    for (const poi of poiBatch as PoiSummary[]) {
+      // Note: null names already filtered at database level
+      const key = `${poi.poi_name}|${poi.city || ''}|${poi.country_code || ''}`;
+      allCurrentPoiKeys.add(key); // Track for orphan detection
+
+      const existing = existingMap.get(key);
+
+      if (forceRegenerate || !existing?.hasEmbedding) {
+        poisToEmbed.push(poi);
+      } else {
+        batchSkipped++;
+        totalSkipped++;
+      }
+    }
+
+    // Process embeddings for this batch
+    const batchResult = await processPoisBatch(fluxbase, userId, poisToEmbed, job, totalProcessed, totalPois);
+    totalProcessed += batchResult.processed;
+    totalErrors += batchResult.errors;
+
+    offset += poiBatch.length;
+
+    // Update progress
+    const progress = Math.min(95, 12 + Math.round(((totalProcessed + totalSkipped) / totalPois) * 83));
+    safeReportProgress(
+      job,
+      progress,
+      `Processed ${(totalProcessed + totalSkipped).toLocaleString()}/${totalPois.toLocaleString()} POIs (${totalProcessed} embedded, ${totalSkipped} skipped, ${totalErrors} errors)`
+    );
+
+    // Respect maxLimit if set
+    if (maxLimit && (totalProcessed + totalSkipped) >= maxLimit) {
+      break;
+    }
+  }
+
+  // Clean up orphaned embeddings (POIs that no longer exist in visits)
+  safeReportProgress(job, 96, 'Checking for orphaned embeddings...');
+  let deleted = 0;
+
+  if (existingEmbeddings) {
+    const orphanedEmbeddingIds: string[] = [];
+    for (const emb of existingEmbeddings) {
+      const key = `${emb.poi_name}|${emb.city || ''}|${emb.country_code || ''}`;
+      if (!allCurrentPoiKeys.has(key)) {
         orphanedEmbeddingIds.push(emb.id);
+      }
+    }
+
+    if (orphanedEmbeddingIds.length > 0) {
+      console.log(`🗑️ Removing ${orphanedEmbeddingIds.length} orphaned embeddings...`);
+
+      const { error: deleteError } = await fluxbase
+        .from('poi_embeddings')
+        .delete()
+        .in('id', orphanedEmbeddingIds);
+
+      if (deleteError) {
+        console.error('Failed to delete orphaned embeddings:', deleteError);
+      } else {
+        deleted = orphanedEmbeddingIds.length;
+        console.log(`✅ Deleted ${deleted} orphaned POI embeddings`);
       }
     }
   }
 
-  // Delete orphaned embeddings
-  let deleted = 0;
-  if (orphanedEmbeddingIds.length > 0) {
-    safeReportProgress(job, 12, `Removing ${orphanedEmbeddingIds.length} orphaned embeddings...`);
+  safeReportProgress(
+    job,
+    100,
+    `Completed: ${totalProcessed} embeddings generated, ${totalSkipped} skipped, ${totalErrors} errors${deleted > 0 ? `, ${deleted} orphaned removed` : ''}`
+  );
 
-    const { error: deleteError } = await fluxbase
-      .from('poi_embeddings')
-      .delete()
-      .in('id', orphanedEmbeddingIds);
+  // Chain: Update user preferences after POI embeddings are synced
+  if (totalProcessed > 0) {
+    console.log(`🔗 Queueing compute-user-preferences job...`);
+    try {
+      const onBehalfOf = context.user ? {
+        user_id: context.user.id,
+        user_email: context.user.email,
+        user_role: context.user.role
+      } : undefined;
 
-    if (deleteError) {
-      console.error('Failed to delete orphaned embeddings:', deleteError);
-    } else {
-      deleted = orphanedEmbeddingIds.length;
-      console.log(`Deleted ${deleted} orphaned POI embeddings`);
+      const { data: prefJob, error: prefError } = await fluxbaseService.jobs.submit(
+        'compute-user-preferences',
+        {},
+        {
+          namespace: 'wayli',
+          priority: 6,
+          onBehalfOf
+        }
+      );
+
+      if (prefError) {
+        console.warn(`⚠️ Failed to queue compute-user-preferences job: ${prefError.message}`);
+      } else {
+        console.log(`✅ compute-user-preferences job queued: ${(prefJob as any)?.job_id || 'unknown'}`);
+      }
+    } catch (prefQueueError) {
+      console.warn(`⚠️ Error queueing compute-user-preferences job:`, prefQueueError);
     }
   }
 
-  // Filter POIs that need embedding
-  const poisToEmbed: PoiSummary[] = [];
-  let skipped = 0;
-
-  for (const poi of pois as PoiSummary[]) {
-    const key = `${poi.poi_name}|${poi.city || ''}|${poi.country_code || ''}`;
-    const existing = existingMap.get(key);
-
-    if (forceRegenerate || !existing?.hasEmbedding) {
-      poisToEmbed.push(poi);
-    } else {
-      skipped++;
+  return {
+    success: totalErrors === 0,
+    result: {
+      processed: totalProcessed,
+      skipped: totalSkipped,
+      errors: totalErrors,
+      deleted
     }
-  }
+  };
+}
 
-  if (poisToEmbed.length === 0) {
-    safeReportProgress(job, 100, `All ${skipped} POIs already have embeddings${deleted > 0 ? `, ${deleted} orphaned removed` : ''}`);
-    return { success: true, result: { processed: 0, skipped, errors: 0, deleted } };
+/**
+ * Process a batch of POIs for embedding generation
+ */
+async function processPoisBatch(
+  fluxbase: FluxbaseClient,
+  userId: string,
+  pois: PoiSummary[],
+  job: JobUtils,
+  totalProcessed: number,
+  totalPois: number
+): Promise<{ processed: number; errors: number }> {
+  if (pois.length === 0) {
+    return { processed: 0, errors: 0 };
   }
-
-  safeReportProgress(job, 15, `Processing ${poisToEmbed.length} POIs (${skipped} already embedded)...`);
 
   let processed = 0;
   let errors = 0;
 
-  // Process in batches
-  for (let i = 0; i < poisToEmbed.length; i += BATCH_SIZE) {
+  // Process in embedding batches (50 at a time for the embedding API)
+  for (let i = 0; i < pois.length; i += BATCH_SIZE) {
+    // Check for cancellation
     const cancelled = await job.isCancelled();
     if (cancelled) {
-      safeReportProgress(job, 0, 'Job cancelled');
-      return { success: false, error: 'Job cancelled', result: { processed, skipped, errors, deleted } };
+      return { processed, errors };
     }
 
-    const batch = poisToEmbed.slice(i, i + BATCH_SIZE);
+    const batch = pois.slice(i, i + BATCH_SIZE);
     const texts = batch.map(poi => buildPoiEmbeddingText(poi));
 
     try {
@@ -292,62 +413,10 @@ export async function handler(
         }
       }
     } catch (batchError) {
-      console.error(`Failed to process batch starting at ${i}:`, batchError);
+      console.error(`Failed to process embedding batch:`, batchError);
       errors += batch.length;
     }
-
-    // Report progress
-    const progress = 15 + Math.round(((i + batch.length) / poisToEmbed.length) * 80);
-    safeReportProgress(
-      job,
-      progress,
-      `Processed ${Math.min(i + batch.length, poisToEmbed.length)}/${poisToEmbed.length} POIs`
-    );
   }
 
-  safeReportProgress(
-    job,
-    100,
-    `Completed: ${processed} embeddings generated, ${skipped} skipped, ${errors} errors${deleted > 0 ? `, ${deleted} orphaned removed` : ''}`
-  );
-
-  // Chain: Update user preferences after POI embeddings are synced
-  if (processed > 0) {
-    console.log(`🔗 Queueing compute-user-preferences job...`);
-    try {
-      const onBehalfOf = context.user ? {
-        user_id: context.user.id,
-        user_email: context.user.email,
-        user_role: context.user.role
-      } : undefined;
-
-      const { data: prefJob, error: prefError } = await fluxbaseService.jobs.submit(
-        'compute-user-preferences',
-        {},
-        {
-          namespace: 'wayli',
-          priority: 6,
-          onBehalfOf
-        }
-      );
-
-      if (prefError) {
-        console.warn(`⚠️ Failed to queue compute-user-preferences job: ${prefError.message}`);
-      } else {
-        console.log(`✅ compute-user-preferences job queued: ${(prefJob as any)?.job_id || 'unknown'}`);
-      }
-    } catch (prefQueueError) {
-      console.warn(`⚠️ Error queueing compute-user-preferences job:`, prefQueueError);
-    }
-  }
-
-  return {
-    success: errors === 0,
-    result: {
-      processed,
-      skipped,
-      errors,
-      deleted
-    }
-  };
+  return { processed, errors };
 }

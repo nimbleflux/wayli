@@ -156,26 +156,47 @@ function getPexelsApiKey(): string | null {
 	}
 }
 
-// Helper function to get Pexels rate limit from settings
-async function getPexelsRateLimit(fluxbase: FluxbaseClient): Promise<number> {
+// Helper function to get Pexels rate limit from settings SDK
+async function getPexelsRateLimit(settings: any): Promise<number> {
 	try {
-		const { data, error } = await fluxbase
-			.from('app.settings')
-			.select('value')
-			.eq('key', 'wayli.pexels_rate_limit')
-			.single();
+		const rateLimitValue = await settings.get('wayli.pexels_rate_limit');
 
-		if (error || !data) {
-			logInfo('No custom Pexels rate limit configured, using default (200/hour)', 'TRIPS-SUGGEST-IMAGE');
-			return 200; // Default to 200 requests/hour (Pexels free tier)
+		if (rateLimitValue === undefined || rateLimitValue === null) {
+			logInfo('No Pexels rate limit configured, rate limiting disabled', 'TRIPS-SUGGEST-IMAGE');
+			return 0; // No limit
 		}
 
-		const rateLimit = data.value?.value ?? 200;
-		logInfo(`Using Pexels rate limit: ${rateLimit}/hour`, 'TRIPS-SUGGEST-IMAGE');
+		const rateLimit =
+			typeof rateLimitValue === 'object' && 'value' in rateLimitValue
+				? rateLimitValue.value
+				: rateLimitValue;
+
+		logInfo(`Server Pexels rate limit: ${rateLimit}/hour`, 'TRIPS-SUGGEST-IMAGE');
 		return rateLimit;
 	} catch (error) {
-		logError(error, 'TRIPS-SUGGEST-IMAGE', 'Failed to get rate limit, using default');
-		return 200;
+		logError(error, 'TRIPS-SUGGEST-IMAGE', 'Failed to get rate limit');
+		return 0; // Default to no limit on error
+	}
+}
+
+// Helper function to get user's personal Pexels rate limit using settings SDK
+async function getUserPexelsRateLimit(settings: any): Promise<number | null> {
+	try {
+		const userRateLimitValue = await settings.getUser('wayli.pexels_rate_limit');
+
+		if (userRateLimitValue === undefined || userRateLimitValue === null) {
+			return null; // Use server default
+		}
+
+		const userRateLimit =
+			typeof userRateLimitValue === 'object' && 'value' in userRateLimitValue
+				? userRateLimitValue.value
+				: userRateLimitValue;
+
+		return userRateLimit;
+	} catch (error) {
+		logError(error, 'TRIPS-SUGGEST-IMAGE', 'Failed to get user rate limit');
+		return null;
 	}
 }
 
@@ -183,8 +204,13 @@ async function handler(
 	req: Request,
 	fluxbase: FluxbaseClient,
 	_fluxbaseService: FluxbaseClient,
-	utils?: { getExecutionContext?: () => { user?: { id: string; email: string; role: string } } }
+	utils?: {
+		getExecutionContext?: () => { user?: { id: string; email: string; role: string } };
+		settings?: any;
+	}
 ): Promise<Response> {
+	const startTime = Date.now();
+
 	try {
 		// Get user from execution context (injected by Fluxbase platform)
 		const executionContext = utils?.getExecutionContext?.();
@@ -195,10 +221,43 @@ async function handler(
 			return errorResponse('Unauthorized', 401);
 		}
 
-		// Get configured rate limit
-		const maxRequestsPerHour = await getPexelsRateLimit(fluxbase);
+		// Determine rate limit: check user personal limit first, then fall back to server default
+		const rateLimitCheckStart = Date.now();
 
-		// Apply rate limiting (0 = unlimited)
+		// Check if user has personal API key configured
+		const hasPersonalKey = secrets.getUser('pexels_api_key') !== undefined;
+
+		let maxRequestsPerHour: number = 0; // Default to no limit
+
+		const settings = utils?.settings;
+
+		if (hasPersonalKey && settings) {
+			// User has personal key - check their personal rate limit first
+			const userRateLimit = await getUserPexelsRateLimit(settings);
+
+			if (userRateLimit !== null) {
+				maxRequestsPerHour = userRateLimit;
+				logInfo(
+					`Using user personal rate limit: ${maxRequestsPerHour}/hour`,
+					'TRIPS-SUGGEST-IMAGE'
+				);
+			} else {
+				// Personal key but no custom limit - use server default
+				maxRequestsPerHour = await getPexelsRateLimit(settings);
+				logInfo(
+					`Using server rate limit for personal key: ${maxRequestsPerHour}/hour`,
+					'TRIPS-SUGGEST-IMAGE'
+				);
+			}
+		} else if (settings) {
+			// Using server API key - use server rate limit
+			maxRequestsPerHour = await getPexelsRateLimit(settings);
+			logInfo(`Using server rate limit: ${maxRequestsPerHour}/hour`, 'TRIPS-SUGGEST-IMAGE');
+		}
+
+		logInfo(`Rate limit check took ${Date.now() - rateLimitCheckStart}ms`, 'TRIPS-SUGGEST-IMAGE');
+
+		// Apply rate limiting ONLY if maxRequestsPerHour > 0
 		if (maxRequestsPerHour > 0) {
 			const rateLimitResult = rateLimiter.checkRateLimit(`pexels:${userId}`, {
 				windowMs: 60 * 60 * 1000, // 1 hour
@@ -207,7 +266,11 @@ async function handler(
 			});
 
 			if (!rateLimitResult.allowed) {
-				logInfo('Rate limit exceeded', 'TRIPS-SUGGEST-IMAGE', { userId, retryAfter: rateLimitResult.retryAfter });
+				logInfo(
+					'Rate limit exceeded',
+					'TRIPS-SUGGEST-IMAGE',
+					{ userId, retryAfter: rateLimitResult.retryAfter }
+				);
 				return new Response(
 					JSON.stringify({
 						success: false,
@@ -225,6 +288,8 @@ async function handler(
 					}
 				);
 			}
+		} else {
+			logInfo('Rate limiting disabled (limit = 0 or not configured)', 'TRIPS-SUGGEST-IMAGE');
 		}
 
 		if (req.method === 'POST') {
@@ -322,6 +387,7 @@ async function handler(
 						};
 					} else {
 						// Fall back to analyzing tracker_data
+						const trackerAnalysisStart = Date.now();
 						logInfo('Analyzing tracker data for image search', 'TRIPS-SUGGEST-IMAGE', {
 							tripId,
 							startDate,
@@ -329,6 +395,10 @@ async function handler(
 						});
 
 						analysis = await analyzeTripLocations(userId, startDate, endDate, fluxbase);
+						logInfo(
+							`Tracker data analysis took ${Date.now() - trackerAnalysisStart}ms`,
+							'TRIPS-SUGGEST-IMAGE'
+						);
 
 						if (!analysis.primaryCountry) {
 							return errorResponse('No travel data found for the specified date range', 404);
@@ -336,11 +406,13 @@ async function handler(
 					}
 
 					// Generate image suggestion based on analysis and metadata
+					const imageGenStart = Date.now();
 					const suggestion = await generateImageSuggestionFromAnalysis(
 						analysis,
 						apiKey,
 						tripMetadata
 					);
+					logInfo(`Image generation took ${Date.now() - imageGenStart}ms`, 'TRIPS-SUGGEST-IMAGE');
 
 					logSuccess('Image suggestion generated for trip', 'TRIPS-SUGGEST-IMAGE', {
 						userId,
@@ -348,7 +420,8 @@ async function handler(
 						searchQuery: suggestion.searchQuery,
 						primaryCountry: analysis.primaryCountry || 'Unknown',
 						primaryCity: analysis.primaryCity || undefined,
-						usedMetadata: !!(tripMetadata?.primaryCity || tripMetadata?.primaryCountry)
+						usedMetadata: !!(tripMetadata?.primaryCity || tripMetadata?.primaryCountry),
+						totalTime: `${Date.now() - startTime}ms`
 					});
 
 					return successResponse({
@@ -734,8 +807,10 @@ async function generateImageSuggestionFromAnalysis(
 	}
 
 	// Search for images on Pexels
+	const pexelsSearchStart = Date.now();
 	logInfo(`Searching Pexels for: ${searchTerm}`, 'TRIPS-SUGGEST-IMAGE');
 	const searchResult = await searchPexelsImages(searchTerm, apiKey);
+	logInfo(`Pexels search took ${Date.now() - pexelsSearchStart}ms`, 'TRIPS-SUGGEST-IMAGE');
 
 	if (searchResult && searchResult.photos.length > 0) {
 		// Randomly select a photo from the results

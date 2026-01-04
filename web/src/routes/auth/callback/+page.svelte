@@ -30,6 +30,8 @@
 				const state = $page.url.searchParams.get('state');
 
 				if (code) {
+					// Use SDK's built-in method - it handles redirect_uri automatically
+					// (SDK stores redirect_uri during signInWithOAuth and retrieves it here)
 					const exchangeResult = await fluxbase.auth.exchangeCodeForSession(
 						code,
 						state || undefined
@@ -63,7 +65,11 @@
 					toast.success("Welcome! Let's set up your profile.");
 					goto('/dashboard/account-settings?onboarding=true');
 				} else {
-					const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/statistics';
+					// Get redirectTo from URL params or sessionStorage fallback
+					const storedRedirectTo = sessionStorage.getItem('oauth_redirect_to');
+					sessionStorage.removeItem('oauth_redirect_to');
+					const redirectTo =
+						$page.url.searchParams.get('redirectTo') || storedRedirectTo || '/dashboard/statistics';
 					toast.success('Authentication successful');
 					goto(redirectTo);
 				}

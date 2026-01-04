@@ -23,11 +23,11 @@
 		"test:e2e": "playwright test",
 		"test:e2e:ui": "playwright test --ui",
 		"test:e2e:headed": "playwright test --headed",
-		"sync:functions": "fluxbase functions sync --namespace wayli --dir ./fluxbase/functions/",
-		"sync:jobs": "fluxbase jobs sync --namespace wayli --dir ./fluxbase/jobs/",
-		"sync:migrations": "fluxbase migrations sync --namespace wayli --dir ./fluxbase/migrations/",
-		"sync:chatbots": "fluxbase chatbots sync --namespace wayli --dir ./fluxbase/chatbots/",
-		"sync:rpc": "fluxbase rpc sync --namespace wayli --dir ./fluxbase/rpc/",
+		"sync:functions": "fluxbase functions sync --namespace wayli --dir ../fluxbase/functions/",
+		"sync:jobs": "fluxbase jobs sync --namespace wayli --dir ../fluxbase/jobs/",
+		"sync:migrations": "fluxbase migrations sync --namespace wayli --dir ../fluxbase/migrations/",
+		"sync:chatbots": "fluxbase chatbots sync --namespace wayli --dir ../fluxbase/chatbots/",
+		"sync:rpc": "fluxbase rpc sync --namespace wayli --dir ../fluxbase/rpc/",
 		"sync:all": "npm run sync:rpc && npm run sync:functions && npm run sync:jobs && npm run sync:chatbots && npm run sync:migrations",
 		"check:separation": "node scripts/check-environment-separation.js"
 	},
@@ -82,7 +82,7 @@
 		"vitest": "^3.2.4"
 	},
 	"dependencies": {
-		"@fluxbase/sdk": "^0.0.1-rc.122",
+		"@fluxbase/sdk": "^2026.1.1-rc.9",
 		"@melt-ui/svelte": "^0.86.6",
 		"@svelte-plugins/datepicker": "^1.0.11",
 		"@turf/turf": "^7.2.0",

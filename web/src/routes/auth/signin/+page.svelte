@@ -43,13 +43,15 @@
 
 	async function loadAuthSettings() {
 		try {
-			// Check if password login is disabled using SDK
-			const disablePasswordSetting = await fluxbase.settings.get('wayli.disable_password_login');
-			oauthOnlyMode = disablePasswordSetting?.value === true;
+			// Get auth configuration from the public API
+			const { data: authConfig, error } = await fluxbase.auth.getAuthConfig();
+			if (error) throw error;
 
-			// Always load available OAuth providers (not just in OAuth-only mode)
-			const { data: providersResponse } = await fluxbase.auth.getOAuthProviders();
-			oauthProviders = providersResponse?.providers || [];
+			// OAuth-only mode when password login is disabled
+			oauthOnlyMode = !authConfig.password_login_enabled;
+
+			// Load OAuth providers from auth config
+			oauthProviders = authConfig.oauth_providers || [];
 		} catch (error) {
 			console.log('Could not load auth settings:', error);
 			// Default to password login if settings can't be loaded
@@ -63,8 +65,15 @@
 		loading = true;
 		try {
 			const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/statistics';
+			const redirectUri = `${window.location.origin}/auth/callback`;
+
+			// Store redirectTo for post-login navigation (SDK doesn't handle this)
+			sessionStorage.setItem('oauth_redirect_to', redirectTo);
+
+			// SDK handles redirect_uri storage automatically
 			const { error } = await fluxbase.auth.signInWithOAuth(providerName, {
-				redirect_to: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
+				redirect_to: redirectTo,
+				redirect_uri: redirectUri
 			});
 
 			if (error) throw error;

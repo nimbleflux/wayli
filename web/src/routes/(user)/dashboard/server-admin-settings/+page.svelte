@@ -370,26 +370,12 @@
 
 	async function saveAuthSettings() {
 		try {
-			const session = $sessionStore;
-			if (!session) throw new Error('No session found');
-
-			const serviceAdapter = new ServiceAdapter({ session });
-
-			// Update signup
-			await serviceAdapter.updateAppSetting(enableSignup ? 'enableSignup' : 'disableSignup');
-
-			// Update email verification
-			await serviceAdapter.updateAppSetting('setEmailVerificationRequired', {
-				required: requireEmailVerification
+			// Update all auth settings via the auth settings API in one call
+			await fluxbase.admin.oauth.authSettings.update({
+				enable_signup: enableSignup,
+				require_email_verification: requireEmailVerification,
+				disable_app_password_login: disablePasswordLogin
 			});
-
-
-			// Update disable password login (OAuth-only mode)
-			await serviceAdapter.updateCustomSetting(
-				'wayli.disable_password_login',
-				disablePasswordLogin,
-				'Disable password-based login'
-			);
 
 			toast.success(t('serverAdmin.authSettingsSaved'));
 		} catch (error: any) {
@@ -1101,10 +1087,28 @@
 			// App settings - result is already typed correctly
 			const { app, custom } = result;
 
-			// Authentication
-			enableSignup = app.authentication.enable_signup;
-			requireEmailVerification = app.authentication.require_email_verification;
-			authReadOnly = app.authentication.read_only ?? false;
+			console.log('🔧 [ADMIN] Loaded app settings:', {
+				authentication: app.authentication,
+				features: app.features,
+				security: app.security
+			});
+
+			// Authentication - use auth settings API as the source of truth
+			try {
+				const authSettings = await fluxbase.admin.oauth.authSettings.get();
+				console.log('🔧 [ADMIN] Loaded auth settings from API:', authSettings);
+				enableSignup = authSettings.enable_signup;
+				requireEmailVerification = authSettings.require_email_verification;
+				disablePasswordLogin = authSettings.disable_app_password_login ?? false;
+				// Check if any auth settings have overrides (read-only)
+				authReadOnly = !!(authSettings._overrides && Object.keys(authSettings._overrides).length > 0);
+			} catch (authError) {
+				console.warn('Could not load auth settings from API, falling back to app settings:', authError);
+				// Fallback to app settings
+				enableSignup = app.authentication.enable_signup;
+				requireEmailVerification = app.authentication.require_email_verification;
+				authReadOnly = app.authentication.read_only ?? false;
+			}
 
 			// Email - now using flat EmailProviderSettings structure from SDK
 			emailProvider = app.email.provider;
@@ -1151,7 +1155,9 @@
 
 			// Custom Wayli settings
 			serverName = custom['wayli.server_name']?.value || '';
-			disablePasswordLogin = custom['wayli.disable_password_login']?.value === true;
+
+			// Note: Auth settings (enableSignup, requireEmailVerification, disablePasswordLogin)
+			// are loaded above from fluxbase.admin.oauth.authSettings.get()
 
 			// Load Pexels rate limit (0 = unlimited)
 			const loadedRateLimit = custom['wayli.pexels_rate_limit']?.value ?? 200;

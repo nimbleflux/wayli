@@ -53,61 +53,39 @@
 	async function checkServerSettings() {
 		isLoadingSettings = true;
 		try {
-			// Read public Wayli settings from app.settings (RLS allows anonymous read)
-			const publicSettings = await fluxbase.settings.getMany([
-				'wayli.is_setup_complete',
-				'wayli.server_name',
-				'wayli.password_min_length',
-				'wayli.password_require_uppercase',
-				'wayli.password_require_lowercase',
-				'wayli.password_require_number',
-				'wayli.password_require_special',
-				'wayli.disable_password_login'
-			]);
+			// Get auth configuration from the public API
+			const { data: authConfig, error: authError } = await fluxbase.auth.getAuthConfig();
+			if (authError) throw authError;
 
-			// The value is wrapped in an object: {"value": false}
-			const is_setup_complete =
-				publicSettings['wayli.is_setup_complete']?.value === true ||
-				publicSettings['wayli.is_setup_complete']?.value === 'true';
+			// Registration check from auth config
+			registrationDisabled = !authConfig.signup_enabled;
 
-			// First user can always sign up
-			isFirstUser = !is_setup_complete;
+			// Password requirements from auth config
+			passwordMinLength = authConfig.password_min_length;
+			requireUppercase = authConfig.password_require_uppercase;
+			requireLowercase = authConfig.password_require_lowercase;
+			requireNumber = authConfig.password_require_number;
+			requireSpecial = authConfig.password_require_special;
 
-			// Check if password login is disabled (OAuth-only mode)
-			oauthOnlyMode = publicSettings['wayli.disable_password_login']?.value === true;
+			// OAuth providers from auth config
+			oauthProviders = authConfig.oauth_providers || [];
 
-			// Always load OAuth providers (not just in OAuth-only mode)
-			try {
-				const { data: providersResponse } = await fluxbase.auth.getOAuthProviders();
-				oauthProviders = providersResponse?.providers || [];
-			} catch {
-				// OAuth providers not available
-				oauthProviders = [];
+			// OAuth-only mode when password login is disabled
+			oauthOnlyMode = !authConfig.password_login_enabled;
+
+			// First user check - keep using custom Wayli setting for setup status
+			const isSetupComplete = await fluxbase.settings.get('wayli.is_setup_complete');
+			const setupComplete =
+				isSetupComplete?.value === true || isSetupComplete?.value === 'true';
+			isFirstUser = !setupComplete;
+
+			// First user can always sign up regardless of signup_enabled
+			if (isFirstUser) {
+				registrationDisabled = false;
 			}
 
-			// Read password requirements from public settings
-			if (publicSettings['wayli.password_min_length']?.value !== undefined) {
-				passwordMinLength = publicSettings['wayli.password_min_length'].value;
-			}
-			if (publicSettings['wayli.password_require_uppercase']?.value !== undefined) {
-				requireUppercase = publicSettings['wayli.password_require_uppercase'].value;
-			}
-			if (publicSettings['wayli.password_require_lowercase']?.value !== undefined) {
-				requireLowercase = publicSettings['wayli.password_require_lowercase'].value;
-			}
-			if (publicSettings['wayli.password_require_number']?.value !== undefined) {
-				requireNumber = publicSettings['wayli.password_require_number'].value;
-			}
-			if (publicSettings['wayli.password_require_special']?.value !== undefined) {
-				requireSpecial = publicSettings['wayli.password_require_special'].value;
-			}
-
-			// Don't check signup_enabled from admin settings - that requires authentication
-			// If signup is disabled via app settings, the backend will reject the attempt
-			registrationDisabled = false;
-
-			console.log('🔧 [SIGNUP] Server settings applied:', {
-				is_setup_complete,
+			console.log('🔧 [SIGNUP] Auth config applied:', {
+				setupComplete,
 				registrationDisabled,
 				isFirstUser,
 				oauthOnlyMode,
@@ -300,8 +278,15 @@
 		loading = true;
 		try {
 			const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/statistics';
+			const redirectUri = `${window.location.origin}/auth/callback`;
+
+			// Store redirectTo for post-login navigation (SDK doesn't handle this)
+			sessionStorage.setItem('oauth_redirect_to', redirectTo);
+
+			// SDK handles redirect_uri storage automatically
 			const { error } = await fluxbase.auth.signInWithOAuth(providerName, {
-				redirect_to: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
+				redirect_to: redirectTo,
+				redirect_uri: redirectUri
 			});
 
 			if (error) throw error;

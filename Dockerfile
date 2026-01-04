@@ -41,7 +41,7 @@ RUN apk add --no-cache wget bash curl && \
 # Install Fluxbase CLI for resource synchronization
 # Set FLUXBASE_CLI_VERSION to 'local' to use a pre-built CLI from ./bin/fluxbase
 # Otherwise, installs from GitHub release (e.g., 'latest' or 'v0.0.1-rc.112')
-ARG FLUXBASE_CLI_VERSION=v0.0.1-rc.122
+ARG FLUXBASE_CLI_VERSION=v2026.1.1-rc.9
 RUN curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- ${FLUXBASE_CLI_VERSION}
 
 WORKDIR /app

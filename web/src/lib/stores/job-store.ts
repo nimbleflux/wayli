@@ -6,7 +6,22 @@
 
 import { writable, get, derived } from 'svelte/store';
 import { fluxbase } from '$lib/fluxbase';
-import type { RealtimeChannel } from '@fluxbase/sdk';
+import type { RealtimeChannel, ExecutionLogsChannel } from '@fluxbase/sdk';
+
+// RPC Execution type (mirrors SDK's RPCExecution interface)
+interface RPCExecution {
+	id: string;
+	procedure_name: string;
+	namespace: string;
+	status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout';
+	result?: unknown;
+	error_message?: string;
+	user_id?: string;
+	is_async: boolean;
+	created_at: string;
+	started_at?: string;
+	completed_at?: string;
+}
 
 // HMR cleanup: Remove old channel when module is hot-reloaded
 if (import.meta.hot) {
@@ -66,6 +81,9 @@ const connectionStatusStore = writable<ConnectionStatus>('disconnected');
 // Store to signal when a reconnection has occurred (one-time event)
 // Components can subscribe and show a toast, then reset it
 export const reconnectedStore = writable<boolean>(false);
+
+// Map to track active RPC execution log channels
+const rpcLogChannels = new Map<string, ExecutionLogsChannel>();
 
 /**
  * Get the current connection status store (reactive)
@@ -377,6 +395,24 @@ function normalizeJob(job: Record<string, unknown>): JobStoreJob {
 }
 
 /**
+ * Normalize RPC execution data to JobStoreJob format
+ */
+function normalizeRPCExecution(rpc: RPCExecution): JobStoreJob {
+	return {
+		id: `rpc:${rpc.id}`, // Prefix to avoid ID collision with jobs
+		job_name: rpc.procedure_name,
+		namespace: rpc.namespace,
+		status: rpc.status === 'timeout' ? 'failed' : (rpc.status as JobStatus),
+		result: rpc.result,
+		error: rpc.error_message,
+		created_at: rpc.created_at,
+		started_at: rpc.started_at,
+		completed_at: rpc.completed_at,
+		created_by: rpc.user_id || ''
+	};
+}
+
+/**
  * Safely extract array from jobs.list() response
  * Handles cases where data might be null, undefined, or wrapped differently
  */
@@ -405,6 +441,32 @@ function toJobArray(data: unknown): JobStoreJob[] {
 }
 
 /**
+ * Fetch RPC executions from the admin API
+ * Returns async RPC executions normalized to JobStoreJob format
+ */
+async function fetchRPCExecutions(): Promise<JobStoreJob[]> {
+	try {
+		const { data, error } = await fluxbase.admin.rpc.listExecutions({
+			namespace: 'wayli',
+			limit: 20
+		});
+
+		if (error || !data) {
+			if (error) {
+				console.error('[JobStore] Error fetching RPC executions:', error);
+			}
+			return [];
+		}
+
+		// Filter to only async executions and normalize
+		return data.filter((rpc: RPCExecution) => rpc.is_async).map(normalizeRPCExecution);
+	} catch (error) {
+		console.error('[JobStore] Error fetching RPC executions:', error);
+		return [];
+	}
+}
+
+/**
  * Fetch existing active and recent jobs from the database
  * Called during initialization to populate the store with:
  * - pending/running jobs
@@ -416,15 +478,22 @@ async function fetchActiveJobs() {
 		// Load persisted finished jobs from localStorage first
 		const persistedJobs = loadPersistedFinishedJobs();
 
-		// Fetch pending, running, and recently finished jobs in parallel
-		const [pendingResult, runningResult, completedResult, failedResult, cancelledResult] =
-			await Promise.all([
-				fluxbase.jobs.list({ status: 'pending' }),
-				fluxbase.jobs.list({ status: 'running' }),
-				fluxbase.jobs.list({ status: 'completed', limit: 10, includeResult: true }),
-				fluxbase.jobs.list({ status: 'failed', limit: 10 }),
-				fluxbase.jobs.list({ status: 'cancelled', limit: 10 })
-			]);
+		// Fetch pending, running, and recently finished jobs in parallel (including RPC executions)
+		const [
+			pendingResult,
+			runningResult,
+			completedResult,
+			failedResult,
+			cancelledResult,
+			rpcExecutions
+		] = await Promise.all([
+			fluxbase.jobs.list({ status: 'pending' }),
+			fluxbase.jobs.list({ status: 'running' }),
+			fluxbase.jobs.list({ status: 'completed', limit: 10, includeResult: true }),
+			fluxbase.jobs.list({ status: 'failed', limit: 10 }),
+			fluxbase.jobs.list({ status: 'cancelled', limit: 10 }),
+			fetchRPCExecutions()
+		]);
 
 		if (pendingResult.error) {
 			console.error('[JobStore] Error fetching pending jobs:', pendingResult.error);
@@ -449,18 +518,27 @@ async function fetchActiveJobs() {
 		const failedJobs = toJobArray(failedResult.data);
 		const cancelledJobs = toJobArray(cancelledResult.data);
 
-		// Filter recent finished jobs (within last minute)
-		const oneMinuteAgo = new Date(Date.now() - FINISHED_JOB_TTL_MS).toISOString();
+		// Filter recent finished jobs (within TTL window)
+		const cutoffTime = new Date(Date.now() - FINISHED_JOB_TTL_MS).toISOString();
 		const recentCompleted = completedJobs.filter(
-			(job) => job.completed_at && job.completed_at > oneMinuteAgo
+			(job) => job.completed_at && job.completed_at > cutoffTime
 		);
 		const recentFailed = failedJobs.filter(
-			(job) => job.completed_at && job.completed_at > oneMinuteAgo
+			(job) => job.completed_at && job.completed_at > cutoffTime
 		);
 		const recentCancelled = cancelledJobs.filter(
 			(job) =>
-				(job.completed_at || job.updated_at) && (job.completed_at || job.updated_at)! > oneMinuteAgo
+				(job.completed_at || job.updated_at) && (job.completed_at || job.updated_at)! > cutoffTime
 		);
+
+		// Filter recent RPC executions (within TTL window or still active)
+		const recentRPCExecutions = rpcExecutions.filter((rpc) => {
+			// Always show pending/running
+			if (rpc.status === 'pending' || rpc.status === 'running') return true;
+			// Show completed/failed within TTL window
+			const finishedAt = rpc.completed_at || rpc.created_at;
+			return finishedAt > cutoffTime;
+		});
 
 		// Merge all jobs into the store (API jobs take precedence over persisted)
 		const allJobs = [
@@ -469,7 +547,8 @@ async function fetchActiveJobs() {
 			...runningJobs,
 			...recentCompleted,
 			...recentFailed,
-			...recentCancelled
+			...recentCancelled,
+			...recentRPCExecutions
 		];
 
 		if (allJobs.length > 0) {
@@ -483,11 +562,21 @@ async function fetchActiveJobs() {
 
 			// Schedule cleanup for recently completed/failed jobs (not cancelled - user must dismiss)
 			for (const job of [...recentCompleted, ...recentFailed]) {
-				// Calculate remaining time before cleanup (1 minute total from completion)
+				// Calculate remaining time before cleanup (TTL from completion)
 				const completedAt = new Date(job.completed_at!).getTime();
 				const elapsed = Date.now() - completedAt;
 				const remainingDelay = Math.max(0, FINISHED_JOB_TTL_MS - elapsed);
 				scheduleJobCleanup(job.id, job.status, remainingDelay);
+			}
+
+			// Schedule cleanup for recently completed/failed RPC executions
+			for (const rpc of recentRPCExecutions) {
+				if (rpc.status === 'completed' || rpc.status === 'failed') {
+					const completedAt = new Date(rpc.completed_at || rpc.created_at).getTime();
+					const elapsed = Date.now() - completedAt;
+					const remainingDelay = Math.max(0, FINISHED_JOB_TTL_MS - elapsed);
+					scheduleJobCleanup(rpc.id, rpc.status, remainingDelay);
+				}
 			}
 		}
 	} catch (error) {
@@ -728,6 +817,141 @@ export function removeJobFromStore(jobId: string) {
 }
 
 /**
+ * Track an RPC execution in the job store with realtime log updates
+ *
+ * @param executionId - The execution ID returned from async RPC invoke
+ * @param procedureName - The name of the RPC procedure
+ * @param namespace - The namespace of the RPC procedure
+ */
+export function trackRPCExecution(
+	executionId: string,
+	procedureName: string,
+	namespace: string = 'wayli'
+) {
+	const jobId = `rpc:${executionId}`;
+
+	// Add to store immediately (optimistic update)
+	const rpcJob: JobStoreJob = {
+		id: jobId,
+		job_name: procedureName,
+		namespace,
+		status: 'running',
+		created_at: new Date().toISOString(),
+		started_at: new Date().toISOString(),
+		created_by: currentUserId || ''
+	};
+	addJobToStore(rpcJob);
+
+	// Subscribe to execution logs for realtime updates
+	const channel = fluxbase.realtime
+		.executionLogs(executionId, 'rpc')
+		.onLog((log) => {
+			jobsStore.update((jobs) => {
+				const job = jobs.get(jobId);
+				if (job) {
+					const updated = { ...job, progress_message: log.message };
+
+					// Infer status changes from log level
+					if (log.level === 'error') {
+						updated.status = 'failed';
+						updated.error = log.message;
+						updated.completed_at = log.timestamp;
+					}
+
+					jobs.set(jobId, updated);
+				}
+				return new Map(jobs);
+			});
+
+			// Check for completion status after receiving logs
+			// RPC executions end when we stop receiving logs, so check status after error logs
+			if (log.level === 'error') {
+				cleanupRPCChannel(executionId, 'failed');
+			}
+		})
+		.subscribe((status) => {
+			if (status === 'CLOSED' || status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+				// Channel closed - check final status
+				checkRPCStatus(executionId);
+			}
+		});
+
+	rpcLogChannels.set(executionId, channel);
+
+	// Set a timeout to check status if logs stop coming
+	// This handles the case where the RPC completes successfully without errors
+	setTimeout(() => {
+		checkRPCStatus(executionId);
+	}, 5000);
+}
+
+// Track which RPC executions have already been cleaned up to prevent duplicate cleanup
+const cleanedUpRPCExecutions = new Set<string>();
+
+/**
+ * Check the final status of an RPC execution and update the store
+ */
+async function checkRPCStatus(executionId: string) {
+	const jobId = `rpc:${executionId}`;
+
+	// Skip if already cleaned up
+	if (cleanedUpRPCExecutions.has(executionId)) {
+		return;
+	}
+
+	try {
+		const { data, error } = await fluxbase.rpc.getStatus(executionId);
+
+		if (error || !data) {
+			return;
+		}
+
+		// Update the store with the final status
+		const normalized = normalizeRPCExecution(data as RPCExecution);
+
+		jobsStore.update((jobs) => {
+			const existing = jobs.get(jobId);
+			if (existing) {
+				jobs.set(jobId, { ...existing, ...normalized });
+			}
+			return new Map(jobs);
+		});
+
+		// If completed, cleanup channel (but don't remove from store yet - TTL handles that)
+		if (['completed', 'failed', 'cancelled', 'timeout'].includes(data.status)) {
+			cleanupRPCChannel(executionId, normalized.status);
+		}
+	} catch (e) {
+		console.error('[JobStore] Error checking RPC status:', e);
+	}
+}
+
+/**
+ * Cleanup an RPC execution log channel
+ */
+function cleanupRPCChannel(executionId: string, status: JobStatus) {
+	// Prevent duplicate cleanup
+	if (cleanedUpRPCExecutions.has(executionId)) {
+		return;
+	}
+	cleanedUpRPCExecutions.add(executionId);
+
+	// Clean up after 5 minutes to prevent memory leak
+	setTimeout(() => {
+		cleanedUpRPCExecutions.delete(executionId);
+	}, FINISHED_JOB_TTL_MS);
+
+	const channel = rpcLogChannels.get(executionId);
+	if (channel) {
+		channel.unsubscribe();
+		rpcLogChannels.delete(executionId);
+	}
+
+	// Schedule cleanup from the store
+	scheduleJobCleanup(`rpc:${executionId}`, status);
+}
+
+/**
  * Subscribe to Fluxbase Realtime connection status
  */
 export function subscribeToConnectionStatus(
@@ -816,6 +1040,13 @@ export const geocodingJobs = derived(jobsStore, ($jobs) =>
  */
 export const distanceJobs = derived(jobsStore, ($jobs) =>
 	Array.from($jobs.values()).filter((j) => j.job_name === 'distance-calculation')
+);
+
+/**
+ * RPC executions (identified by rpc: prefix in ID)
+ */
+export const rpcExecutions = derived(jobsStore, ($jobs) =>
+	Array.from($jobs.values()).filter((j) => j.id.startsWith('rpc:'))
 );
 
 /**

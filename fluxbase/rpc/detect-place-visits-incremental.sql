@@ -1,7 +1,16 @@
 -- @fluxbase:require-role admin
 -- @fluxbase:max-execution-time 1800s
--- @fluxbase:param user_id uuid? - Optional user ID to process only that user's data
--- Detect place visits incrementally (processes only new data since last refresh)
+-- @fluxbase:param user_id uuid?
+-- Detect place visits incrementally using enhanced cluster-first approach
+-- Improvements:
+-- 1. Lower spatial threshold (100m) for better urban granularity
+-- 2. Adaptive time gaps based on tracking density
+-- 3. Speed-based stationarity detection
+-- 4. Flexible duration threshold (3-5 min with quality checks)
+-- 5. Confidence-weighted venue attribution
+-- 6. Sequential cluster merging
+-- 7. Transit point filtering
+-- 8. Cluster radius validation
 -- When user_id is provided: processes only that user's data since their watermark
 -- When user_id is NULL: processes all users, each from their respective watermarks
 
@@ -9,19 +18,19 @@
 WITH users_to_process AS (
     SELECT
         COALESCE(ps.user_id, td.user_id) as target_user_id,
-        COALESCE(ps.last_processed_at, NOW() - INTERVAL '30 days') as v_since
+        COALESCE(ps.last_processed_at, '1970-01-01'::timestamptz) as v_since
     FROM (
         -- Get existing per-user watermarks
         SELECT user_id, last_processed_at
         FROM "public"."place_visits_state"
         WHERE user_id IS NOT NULL
-          AND ($1::uuid IS NULL OR user_id = $1::uuid)
+          AND ($user_id::uuid IS NULL OR user_id = $user_id::uuid)
     ) ps
     FULL OUTER JOIN (
         -- Get distinct users from tracker_data (for users without state yet)
         SELECT DISTINCT user_id
         FROM "public"."tracker_data"
-        WHERE $1::uuid IS NULL OR user_id = $1::uuid
+        WHERE $user_id::uuid IS NULL OR user_id = $user_id::uuid
     ) td ON ps.user_id = td.user_id
     WHERE COALESCE(ps.user_id, td.user_id) IS NOT NULL
 ),
@@ -36,39 +45,36 @@ deleted_visits AS (
     RETURNING pv.user_id
 ),
 
--- Extract venue points from tracker_data for all users to process
-venue_points AS (
+-- Get ALL tracker points with sensor data for clustering
+-- IMPROVEMENT 7: Filter transit points (>36 km/h or vehicle activity)
+all_points AS (
     SELECT
         td.user_id,
         td.recorded_at,
         td.location,
+        -- Sensor data for clustering decisions
+        td.accuracy,
+        td.speed,
+        td.activity_type,
+        -- City and country
         COALESCE(
             td.geocode->'properties'->>'locality',
             td.geocode->'properties'->'address'->>'city',
             td.geocode->'properties'->'addendum'->'osm'->>'addr:city'
         ) as city,
         td.country_code,
-        (
-            td.geocode->'properties'->'addendum'->'osm'->>'name' IS NOT NULL
-            AND td.geocode->'properties'->>'layer' IN ('venue', 'address')
-            AND (
-                td.geocode->'properties'->'addendum'->'osm'->>'amenity' IS NOT NULL
-                OR td.geocode->'properties'->'addendum'->'osm'->>'leisure' IS NOT NULL
-                OR td.geocode->'properties'->'addendum'->'osm'->>'tourism' IS NOT NULL
-                OR td.geocode->'properties'->'addendum'->'osm'->>'shop' IS NOT NULL
-                OR td.geocode->'properties'->'addendum'->'osm'->>'sport' IS NOT NULL
-            )
-        ) as has_primary_venue,
-        td.geocode->'properties'->'addendum'->'osm'->>'name' as primary_name,
-        td.geocode->'properties'->>'layer' as primary_layer,
-        td.geocode->'properties'->'addendum'->'osm'->>'amenity' as primary_amenity,
-        td.geocode->'properties'->'addendum'->'osm'->>'leisure' as primary_leisure,
-        td.geocode->'properties'->'addendum'->'osm'->>'tourism' as primary_tourism,
-        td.geocode->'properties'->'addendum'->'osm'->>'shop' as primary_shop,
-        td.geocode->'properties'->'addendum'->'osm'->>'sport' as primary_sport,
-        td.geocode->'properties'->'addendum'->'osm'->>'cuisine' as primary_cuisine,
-        td.geocode->'properties'->'addendum'->'osm' as primary_tags,
-        (td.geocode->'properties'->>'confidence')::numeric as primary_confidence,
+        -- Primary venue info (from direct geocode)
+        td.geocode->'properties'->'addendum'->'osm'->>'name' as osm_name,
+        td.geocode->'properties'->>'layer' as layer,
+        td.geocode->'properties'->'addendum'->'osm'->>'amenity' as amenity,
+        td.geocode->'properties'->'addendum'->'osm'->>'leisure' as leisure,
+        td.geocode->'properties'->'addendum'->'osm'->>'tourism' as tourism,
+        td.geocode->'properties'->'addendum'->'osm'->>'shop' as shop,
+        td.geocode->'properties'->'addendum'->'osm'->>'sport' as sport,
+        td.geocode->'properties'->'addendum'->'osm'->>'cuisine' as cuisine,
+        td.geocode->'properties'->'addendum'->'osm' as osm_tags,
+        (td.geocode->'properties'->>'confidence')::numeric as confidence,
+        -- Nearest POI from nearby_pois array
         nearest_poi.name as nearby_name,
         nearest_poi.layer as nearby_layer,
         nearest_poi.amenity as nearby_amenity,
@@ -97,122 +103,127 @@ venue_points AS (
             (poi->>'distance_meters')::numeric as distance
         FROM jsonb_array_elements(td.geocode->'properties'->'nearby_pois') AS poi
         WHERE poi->>'name' IS NOT NULL
-          AND (poi->>'distance_meters')::numeric < 75
         ORDER BY (poi->>'distance_meters')::numeric
         LIMIT 1
     ) nearest_poi ON true
     WHERE td.recorded_at >= utp.v_since - INTERVAL '1 hour'
-      AND (
-          (
-              td.geocode->'properties'->'addendum'->'osm'->>'name' IS NOT NULL
-              AND td.geocode->'properties'->>'layer' IN ('venue', 'address')
-              AND (
-                  td.geocode->'properties'->'addendum'->'osm'->>'amenity' IS NOT NULL
-                  OR td.geocode->'properties'->'addendum'->'osm'->>'leisure' IS NOT NULL
-                  OR td.geocode->'properties'->'addendum'->'osm'->>'tourism' IS NOT NULL
-                  OR td.geocode->'properties'->'addendum'->'osm'->>'shop' IS NOT NULL
-                  OR td.geocode->'properties'->'addendum'->'osm'->>'sport' IS NOT NULL
-              )
-          ) OR nearest_poi.name IS NOT NULL
-      )
+      -- Filter out high-speed transit points (speed > 20 m/s = 72 km/h) - more permissive
+      AND COALESCE(td.speed, 0) < 20
 ),
 
--- Map venue points to POI data with categorization
-poi_points AS (
-    SELECT
-        user_id,
-        recorded_at,
-        location,
-        city,
-        country_code,
-        CASE WHEN has_primary_venue THEN primary_name ELSE nearby_name END as poi_name,
-        CASE WHEN has_primary_venue THEN primary_layer ELSE nearby_layer END as poi_layer,
-        CASE WHEN has_primary_venue
-             THEN COALESCE(primary_amenity, primary_leisure, primary_tourism, primary_shop)
-             ELSE COALESCE(nearby_amenity, nearby_leisure, nearby_tourism, nearby_shop)
-        END as poi_amenity,
-        CASE WHEN has_primary_venue THEN primary_cuisine ELSE nearby_cuisine END as poi_cuisine,
-        CASE WHEN has_primary_venue THEN primary_sport ELSE nearby_sport END as poi_sport,
-        CASE
-            WHEN COALESCE(
-                CASE WHEN has_primary_venue THEN primary_amenity ELSE nearby_amenity END
-            ) IN ('restaurant','cafe','bar','pub','fast_food','food_court','biergarten','ice_cream','bakery') THEN 'food'
-            WHEN COALESCE(
-                CASE WHEN has_primary_venue THEN primary_amenity ELSE nearby_amenity END
-            ) IN ('cinema','theatre','nightclub','casino','amusement_arcade','bowling_alley') THEN 'entertainment'
-            WHEN COALESCE(
-                CASE WHEN has_primary_venue THEN primary_amenity ELSE nearby_amenity END
-            ) IN ('museum','gallery','library','arts_centre','community_centre')
-                OR COALESCE(
-                    CASE WHEN has_primary_venue THEN primary_tourism ELSE nearby_tourism END
-                ) = 'museum' THEN 'culture'
-            WHEN COALESCE(
-                CASE WHEN has_primary_venue THEN primary_amenity ELSE nearby_amenity END
-            ) IN ('school','university','college','kindergarten','language_school','music_school','driving_school') THEN 'education'
-            WHEN COALESCE(
-                CASE WHEN has_primary_venue THEN primary_leisure ELSE nearby_leisure END
-            ) IN ('golf_course','sports_centre','fitness_centre','swimming_pool','pitch','stadium','tennis','ice_rink') THEN 'sports'
-            WHEN COALESCE(
-                CASE WHEN has_primary_venue THEN primary_sport ELSE nearby_sport END
-            ) IS NOT NULL THEN 'sports'
-            WHEN COALESCE(
-                CASE WHEN has_primary_venue THEN primary_amenity ELSE nearby_amenity END
-            ) IN ('hotel','hostel','guest_house','motel')
-                OR COALESCE(
-                    CASE WHEN has_primary_venue THEN primary_tourism ELSE nearby_tourism END
-                ) IN ('hotel','hostel','guest_house','motel','apartment') THEN 'accommodation'
-            WHEN COALESCE(
-                CASE WHEN has_primary_venue THEN primary_amenity ELSE nearby_amenity END
-            ) IN ('hospital','clinic','doctors','dentist','pharmacy','veterinary','optician') THEN 'healthcare'
-            WHEN COALESCE(
-                CASE WHEN has_primary_venue THEN primary_amenity ELSE nearby_amenity END
-            ) IN ('place_of_worship') THEN 'worship'
-            WHEN COALESCE(
-                CASE WHEN has_primary_venue THEN primary_leisure ELSE nearby_leisure END
-            ) IN ('park','garden','nature_reserve','playground','dog_park','beach_resort') THEN 'outdoors'
-            WHEN COALESCE(
-                CASE WHEN has_primary_venue THEN primary_shop ELSE nearby_shop END
-            ) IN ('supermarket','convenience','grocery','greengrocer','butcher','bakery','deli') THEN 'grocery'
-            WHEN COALESCE(
-                CASE WHEN has_primary_venue THEN primary_amenity ELSE nearby_amenity END
-            ) IN ('bus_station','train_station','airport','ferry_terminal','taxi','car_rental') THEN 'transport'
-            WHEN COALESCE(
-                CASE WHEN has_primary_venue THEN primary_shop ELSE nearby_shop END
-            ) IS NOT NULL THEN 'shopping'
-            ELSE 'other'
-        END as poi_category,
-        CASE WHEN has_primary_venue THEN primary_confidence ELSE nearby_confidence END as poi_confidence,
-        CASE WHEN has_primary_venue THEN 0::numeric ELSE nearby_distance END as poi_distance,
-        CASE WHEN has_primary_venue THEN primary_tags ELSE nearby_tags END as poi_tags,
-        nearby_name as alt_poi_name,
-        COALESCE(nearby_amenity, nearby_leisure, nearby_tourism, nearby_shop) as alt_poi_amenity,
-        nearby_cuisine as alt_poi_cuisine,
-        nearby_sport as alt_poi_sport,
-        nearby_distance as alt_poi_distance,
-        nearby_tags as alt_poi_tags,
-        nearby_confidence as alt_poi_confidence
-    FROM venue_points
+-- Calculate time gaps and distances for boundary detection (step 1)
+with_gaps AS (
+    SELECT *,
+        -- Time gap from previous point in seconds
+        EXTRACT(EPOCH FROM (
+            recorded_at - LAG(recorded_at) OVER (PARTITION BY user_id ORDER BY recorded_at)
+        )) as time_gap_seconds,
+        -- Distance from previous point in meters
+        ST_Distance(
+            location::geography,
+            LAG(location) OVER (PARTITION BY user_id ORDER BY recorded_at)::geography
+        ) as distance_meters
+    FROM all_points
 ),
 
--- Detect visit boundaries (new visit when POI changes or gap > 30 minutes)
+-- Calculate previous time gap for adaptive threshold (step 2 - avoids nested window functions)
+with_prev_gaps AS (
+    SELECT *,
+        LAG(time_gap_seconds) OVER (PARTITION BY user_id ORDER BY recorded_at) as prev_time_gap_seconds
+    FROM with_gaps
+),
+
+-- Detect cluster boundaries with enhanced logic
+-- IMPROVEMENTS 1, 2, 3: Lower threshold (100m), adaptive time gaps, speed-based detection
 with_boundaries AS (
     SELECT *,
         CASE WHEN
-            poi_name IS DISTINCT FROM LAG(poi_name) OVER (PARTITION BY user_id ORDER BY recorded_at)
-            OR recorded_at - LAG(recorded_at) OVER (PARTITION BY user_id ORDER BY recorded_at) > INTERVAL '30 minutes'
-            OR LAG(poi_name) OVER (PARTITION BY user_id ORDER BY recorded_at) IS NULL
-        THEN 1 ELSE 0 END as new_visit
-    FROM poi_points
+            -- First point (no previous location) - use distance_meters IS NULL as indicator
+            distance_meters IS NULL
+            -- OR significant movement (100m+) with speed confirming travel
+            OR (distance_meters > 100 AND COALESCE(speed, 0) > 2)
+            -- OR moderate movement (50m+) with higher speed
+            OR (distance_meters > 50 AND COALESCE(speed, 0) > 5)
+            -- OR large movement regardless of speed (catchall)
+            OR distance_meters > 150
+            -- OR adaptive time gap exceeded
+            OR CASE
+                -- Sparse tracking (previous gap > 10 min): allow 60 min gaps
+                WHEN COALESCE(prev_time_gap_seconds, 0) > 600 THEN time_gap_seconds > 3600
+                -- Dense tracking: use 30 min threshold
+                ELSE time_gap_seconds > 1800
+            END
+        THEN 1 ELSE 0 END as new_cluster
+    FROM with_prev_gaps
 ),
 
--- Group consecutive points into visits
-visit_groups AS (
+-- Assign initial cluster IDs
+clusters_initial AS (
     SELECT *,
-        SUM(new_visit) OVER (PARTITION BY user_id ORDER BY recorded_at) as visit_id
+        SUM(new_cluster) OVER (PARTITION BY user_id ORDER BY recorded_at) as cluster_id
     FROM with_boundaries
 ),
 
--- Insert aggregated visits
+-- IMPROVEMENT 6: Calculate cluster-level stats for merging decision
+cluster_stats AS (
+    SELECT
+        user_id,
+        cluster_id,
+        MIN(recorded_at) as cluster_start,
+        MAX(recorded_at) as cluster_end,
+        ST_Centroid(ST_Collect(location)) as centroid,
+        COUNT(*) as point_count
+    FROM clusters_initial
+    GROUP BY user_id, cluster_id
+),
+
+-- Determine which clusters should be merged (close in time AND space)
+cluster_merging AS (
+    SELECT
+        cs.*,
+        CASE WHEN
+            -- Previous cluster exists for same user
+            LAG(cluster_id) OVER (PARTITION BY user_id ORDER BY cluster_start) IS NOT NULL
+            -- Close in time (< 10 min between cluster end and next start)
+            AND EXTRACT(EPOCH FROM (
+                cluster_start - LAG(cluster_end) OVER (PARTITION BY user_id ORDER BY cluster_start)
+            )) < 600
+            -- Close in space (< 150m between centroids)
+            AND ST_Distance(
+                centroid::geography,
+                LAG(centroid) OVER (PARTITION BY user_id ORDER BY cluster_start)::geography
+            ) < 150
+        THEN LAG(cluster_id) OVER (PARTITION BY user_id ORDER BY cluster_start)
+        ELSE cluster_id
+        END as merged_cluster_id
+    FROM cluster_stats cs
+),
+
+-- Propagate merged cluster IDs (handle chain merging)
+cluster_final_ids AS (
+    SELECT
+        user_id,
+        cluster_id,
+        -- Use recursive logic: if merged, take the target's merged_cluster_id
+        FIRST_VALUE(merged_cluster_id) OVER (
+            PARTITION BY user_id, merged_cluster_id
+            ORDER BY cluster_start
+        ) as final_cluster_id
+    FROM cluster_merging
+),
+
+-- Join back to get final cluster assignment for each point
+clusters AS (
+    SELECT
+        ci.*,
+        COALESCE(cfi.final_cluster_id, ci.cluster_id) as final_cluster_id
+    FROM clusters_initial ci
+    LEFT JOIN cluster_final_ids cfi
+        ON ci.user_id = cfi.user_id AND ci.cluster_id = cfi.cluster_id
+),
+
+-- Insert aggregated visits with enhanced logic
+-- IMPROVEMENTS 4, 5, 8: Flexible duration, confidence-weighted attribution, cluster radius check
 new_visits AS (
     INSERT INTO "public"."place_visits" (
         user_id,
@@ -253,17 +264,140 @@ new_visits AS (
             720
         ) as duration_minutes,
         ST_Centroid(ST_Collect(location)) as location,
-        poi_name,
-        MODE() WITHIN GROUP (ORDER BY poi_layer) as poi_layer,
-        MODE() WITHIN GROUP (ORDER BY poi_amenity) as poi_amenity,
-        MODE() WITHIN GROUP (ORDER BY poi_cuisine) as poi_cuisine,
-        MODE() WITHIN GROUP (ORDER BY poi_sport) as poi_sport,
-        MODE() WITHIN GROUP (ORDER BY poi_category) as poi_category,
-        ROUND(AVG(poi_confidence)::numeric, 3) as confidence_score,
-        ROUND(AVG(poi_distance)::numeric, 2) as avg_distance_meters,
-        MODE() WITHIN GROUP (ORDER BY poi_tags::text)::jsonb as poi_tags,
-        MODE() WITHIN GROUP (ORDER BY city) as city,
-        MODE() WITHIN GROUP (ORDER BY country_code) as country_code,
+        -- IMPROVEMENT 5: Confidence-weighted venue attribution with fallback chain
+        COALESCE(
+            -- High-confidence venue from direct geocode
+            MODE() WITHIN GROUP (ORDER BY osm_name) FILTER (
+                WHERE osm_name IS NOT NULL
+                AND layer IN ('venue', 'address')
+                AND confidence >= 0.6
+            ),
+            -- High-confidence nearby POI
+            MODE() WITHIN GROUP (ORDER BY nearby_name) FILTER (
+                WHERE nearby_name IS NOT NULL
+                AND nearby_confidence >= 0.6
+            ),
+            -- Any venue from direct geocode (lower confidence)
+            MODE() WITHIN GROUP (ORDER BY osm_name) FILTER (
+                WHERE osm_name IS NOT NULL
+                AND layer IN ('venue', 'address')
+            ),
+            -- Any nearby POI
+            MODE() WITHIN GROUP (ORDER BY nearby_name) FILTER (WHERE nearby_name IS NOT NULL),
+            -- Last resort: any OSM name
+            MODE() WITHIN GROUP (ORDER BY osm_name) FILTER (WHERE osm_name IS NOT NULL)
+        ) as poi_name,
+        -- Layer: prefer venue/address, fallback to any
+        COALESCE(
+            MODE() WITHIN GROUP (ORDER BY layer) FILTER (WHERE layer IN ('venue', 'address')),
+            MODE() WITHIN GROUP (ORDER BY nearby_layer) FILTER (WHERE nearby_layer IS NOT NULL),
+            MODE() WITHIN GROUP (ORDER BY layer) FILTER (WHERE layer IS NOT NULL)
+        ) as poi_layer,
+        -- Amenity: from venue or nearby
+        COALESCE(
+            MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
+            MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL),
+            MODE() WITHIN GROUP (ORDER BY leisure) FILTER (WHERE leisure IS NOT NULL),
+            MODE() WITHIN GROUP (ORDER BY nearby_leisure) FILTER (WHERE nearby_leisure IS NOT NULL),
+            MODE() WITHIN GROUP (ORDER BY tourism) FILTER (WHERE tourism IS NOT NULL),
+            MODE() WITHIN GROUP (ORDER BY nearby_tourism) FILTER (WHERE nearby_tourism IS NOT NULL),
+            MODE() WITHIN GROUP (ORDER BY shop) FILTER (WHERE shop IS NOT NULL),
+            MODE() WITHIN GROUP (ORDER BY nearby_shop) FILTER (WHERE nearby_shop IS NOT NULL)
+        ) as poi_amenity,
+        -- Cuisine
+        COALESCE(
+            MODE() WITHIN GROUP (ORDER BY cuisine) FILTER (WHERE cuisine IS NOT NULL),
+            MODE() WITHIN GROUP (ORDER BY nearby_cuisine) FILTER (WHERE nearby_cuisine IS NOT NULL)
+        ) as poi_cuisine,
+        -- Sport
+        COALESCE(
+            MODE() WITHIN GROUP (ORDER BY sport) FILTER (WHERE sport IS NOT NULL),
+            MODE() WITHIN GROUP (ORDER BY nearby_sport) FILTER (WHERE nearby_sport IS NOT NULL)
+        ) as poi_sport,
+        -- Category (computed from available data)
+        CASE
+            WHEN COALESCE(
+                MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
+            ) IN ('restaurant','cafe','bar','pub','fast_food','food_court','biergarten','ice_cream','bakery') THEN 'food'
+            WHEN COALESCE(
+                MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
+            ) IN ('cinema','theatre','nightclub','casino','amusement_arcade','bowling_alley') THEN 'entertainment'
+            WHEN COALESCE(
+                MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
+            ) IN ('museum','gallery','library','arts_centre','community_centre')
+                OR COALESCE(
+                    MODE() WITHIN GROUP (ORDER BY tourism) FILTER (WHERE tourism IS NOT NULL),
+                    MODE() WITHIN GROUP (ORDER BY nearby_tourism) FILTER (WHERE nearby_tourism IS NOT NULL)
+                ) = 'museum' THEN 'culture'
+            WHEN COALESCE(
+                MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
+            ) IN ('school','university','college','kindergarten','language_school','music_school','driving_school') THEN 'education'
+            WHEN COALESCE(
+                MODE() WITHIN GROUP (ORDER BY leisure) FILTER (WHERE leisure IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_leisure) FILTER (WHERE nearby_leisure IS NOT NULL)
+            ) IN ('golf_course','sports_centre','fitness_centre','swimming_pool','pitch','stadium','tennis','ice_rink') THEN 'sports'
+            WHEN COALESCE(
+                MODE() WITHIN GROUP (ORDER BY sport) FILTER (WHERE sport IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_sport) FILTER (WHERE nearby_sport IS NOT NULL)
+            ) IS NOT NULL THEN 'sports'
+            WHEN COALESCE(
+                MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
+            ) IN ('hotel','hostel','guest_house','motel')
+                OR COALESCE(
+                    MODE() WITHIN GROUP (ORDER BY tourism) FILTER (WHERE tourism IS NOT NULL),
+                    MODE() WITHIN GROUP (ORDER BY nearby_tourism) FILTER (WHERE nearby_tourism IS NOT NULL)
+                ) IN ('hotel','hostel','guest_house','motel','apartment') THEN 'accommodation'
+            WHEN COALESCE(
+                MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
+            ) IN ('hospital','clinic','doctors','dentist','pharmacy','veterinary','optician') THEN 'healthcare'
+            WHEN COALESCE(
+                MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
+            ) IN ('place_of_worship') THEN 'worship'
+            WHEN COALESCE(
+                MODE() WITHIN GROUP (ORDER BY leisure) FILTER (WHERE leisure IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_leisure) FILTER (WHERE nearby_leisure IS NOT NULL)
+            ) IN ('park','garden','nature_reserve','playground','dog_park','beach_resort') THEN 'outdoors'
+            WHEN COALESCE(
+                MODE() WITHIN GROUP (ORDER BY shop) FILTER (WHERE shop IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_shop) FILTER (WHERE nearby_shop IS NOT NULL)
+            ) IN ('supermarket','convenience','grocery','greengrocer','butcher','bakery','deli') THEN 'grocery'
+            WHEN COALESCE(
+                MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
+            ) IN ('bus_station','train_station','airport','ferry_terminal','taxi','car_rental') THEN 'transport'
+            WHEN COALESCE(
+                MODE() WITHIN GROUP (ORDER BY shop) FILTER (WHERE shop IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_shop) FILTER (WHERE nearby_shop IS NOT NULL)
+            ) IS NOT NULL THEN 'shopping'
+            ELSE 'other'
+        END as poi_category,
+        -- Confidence score
+        ROUND(COALESCE(
+            AVG(confidence) FILTER (WHERE confidence IS NOT NULL),
+            AVG(nearby_confidence) FILTER (WHERE nearby_confidence IS NOT NULL),
+            0.5
+        )::numeric, 3) as confidence_score,
+        -- Average distance (0 if from direct geocode, actual distance if from nearby POI)
+        ROUND(COALESCE(
+            AVG(nearby_distance) FILTER (WHERE nearby_distance IS NOT NULL),
+            0
+        )::numeric, 2) as avg_distance_meters,
+        -- POI tags
+        COALESCE(
+            MODE() WITHIN GROUP (ORDER BY osm_tags::text) FILTER (WHERE osm_tags IS NOT NULL AND layer IN ('venue', 'address')),
+            MODE() WITHIN GROUP (ORDER BY nearby_tags::text) FILTER (WHERE nearby_tags IS NOT NULL)
+        )::jsonb as poi_tags,
+        -- City and country
+        MODE() WITHIN GROUP (ORDER BY city) FILTER (WHERE city IS NOT NULL) as city,
+        MODE() WITHIN GROUP (ORDER BY country_code) FILTER (WHERE country_code IS NOT NULL) as country_code,
+        -- Metadata
         COUNT(*)::integer as gps_points_count,
         EXTRACT(HOUR FROM MIN(recorded_at))::integer as visit_hour,
         CASE
@@ -279,22 +413,61 @@ new_visits AS (
             WHEN ROUND(EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) / 60)::integer <= 90 THEN 'regular'
             ELSE 'extended'
         END as duration_category,
-        to_tsvector('simple', COALESCE(poi_name, '')) as poi_name_search,
-        MODE() WITHIN GROUP (ORDER BY alt_poi_name) as alt_poi_name,
-        MODE() WITHIN GROUP (ORDER BY alt_poi_amenity) as alt_poi_amenity,
-        MODE() WITHIN GROUP (ORDER BY alt_poi_cuisine) as alt_poi_cuisine,
-        MODE() WITHIN GROUP (ORDER BY alt_poi_sport) as alt_poi_sport,
-        ROUND(AVG(alt_poi_distance)::numeric, 2) as alt_poi_distance,
-        MODE() WITHIN GROUP (ORDER BY alt_poi_tags::text)::jsonb as alt_poi_tags,
-        ROUND(AVG(alt_poi_confidence)::numeric, 3) as alt_poi_confidence
-    FROM visit_groups
-    GROUP BY user_id, visit_id, poi_name
+        -- Full-text search on poi_name
+        to_tsvector('simple', COALESCE(
+            COALESCE(
+                MODE() WITHIN GROUP (ORDER BY osm_name) FILTER (
+                    WHERE osm_name IS NOT NULL AND layer IN ('venue', 'address') AND confidence >= 0.6
+                ),
+                MODE() WITHIN GROUP (ORDER BY nearby_name) FILTER (
+                    WHERE nearby_name IS NOT NULL AND nearby_confidence >= 0.6
+                ),
+                MODE() WITHIN GROUP (ORDER BY osm_name) FILTER (
+                    WHERE osm_name IS NOT NULL AND layer IN ('venue', 'address')
+                ),
+                MODE() WITHIN GROUP (ORDER BY nearby_name) FILTER (WHERE nearby_name IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY osm_name) FILTER (WHERE osm_name IS NOT NULL)
+            ),
+            ''
+        )) as poi_name_search,
+        -- Alternative POI (from nearby_pois)
+        MODE() WITHIN GROUP (ORDER BY nearby_name) FILTER (WHERE nearby_name IS NOT NULL) as alt_poi_name,
+        COALESCE(
+            MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL),
+            MODE() WITHIN GROUP (ORDER BY nearby_leisure) FILTER (WHERE nearby_leisure IS NOT NULL),
+            MODE() WITHIN GROUP (ORDER BY nearby_tourism) FILTER (WHERE nearby_tourism IS NOT NULL),
+            MODE() WITHIN GROUP (ORDER BY nearby_shop) FILTER (WHERE nearby_shop IS NOT NULL)
+        ) as alt_poi_amenity,
+        MODE() WITHIN GROUP (ORDER BY nearby_cuisine) FILTER (WHERE nearby_cuisine IS NOT NULL) as alt_poi_cuisine,
+        MODE() WITHIN GROUP (ORDER BY nearby_sport) FILTER (WHERE nearby_sport IS NOT NULL) as alt_poi_sport,
+        ROUND(AVG(nearby_distance) FILTER (WHERE nearby_distance IS NOT NULL)::numeric, 2) as alt_poi_distance,
+        MODE() WITHIN GROUP (ORDER BY nearby_tags::text) FILTER (WHERE nearby_tags IS NOT NULL)::jsonb as alt_poi_tags,
+        ROUND(AVG(nearby_confidence) FILTER (WHERE nearby_confidence IS NOT NULL)::numeric, 3) as alt_poi_confidence
+    FROM clusters
+    GROUP BY user_id, final_cluster_id
+    -- IMPROVEMENT 4: Flexible duration threshold
     HAVING COUNT(*) >= 2
-       AND ROUND(EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) / 60)::integer >= 15
-    ON CONFLICT (user_id, started_at, poi_name)
+       AND (
+           -- Standard: 5+ minutes
+           EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) >= 300
+           -- OR short visits (3-5 min) with high quality signals
+           OR (
+               EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) >= 180
+               AND AVG(COALESCE(accuracy, 50)) <= 20
+               AND COUNT(*) >= 3
+           )
+       )
+       -- IMPROVEMENT 8: Reject clusters with excessive spread (GPS drift)
+       -- Use bounding box diagonal as proxy for cluster diameter (500m more permissive)
+       AND ST_Distance(
+           ST_MakePoint(ST_XMin(ST_Collect(location)), ST_YMin(ST_Collect(location)))::geography,
+           ST_MakePoint(ST_XMax(ST_Collect(location)), ST_YMax(ST_Collect(location)))::geography
+       ) < 500
+    ON CONFLICT (user_id, started_at)
     DO UPDATE SET
         duration_minutes = EXCLUDED.duration_minutes,
         location = EXCLUDED.location,
+        poi_name = EXCLUDED.poi_name,
         poi_layer = EXCLUDED.poi_layer,
         poi_amenity = EXCLUDED.poi_amenity,
         poi_cuisine = EXCLUDED.poi_cuisine,

@@ -29,6 +29,10 @@ DROP VIEW IF EXISTS "public"."my_poi_summary" CASCADE;
 
 DROP POLICY IF EXISTS "Users can view own place_visits" ON "public"."place_visits";
 DROP POLICY IF EXISTS "Service role full access to place_visits" ON "public"."place_visits";
+DROP POLICY IF EXISTS "Admin users full access to place_visits" ON "public"."place_visits";
+
+DROP POLICY IF EXISTS "Service role full access to place_visits_state" ON "public"."place_visits_state";
+DROP POLICY IF EXISTS "Admin users full access to place_visits_state" ON "public"."place_visits_state";
 
 -- =============================================================================
 -- Step 3: Drop tables

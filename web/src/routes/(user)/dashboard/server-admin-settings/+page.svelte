@@ -29,6 +29,7 @@
 	import { translate } from '$lib/i18n';
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
 	import { sessionStore } from '$lib/stores/auth';
+	import { trackRPCExecution } from '$lib/stores/job-store';
 	import { fluxbase } from '$lib/fluxbase';
 
 	import type { UserProfile } from '$lib/types/user.types';
@@ -713,12 +714,18 @@
 		isRefreshingPlaceVisits = true;
 		try {
 			// Directly invoke the incremental place visit detection RPC
-			const { error } = await (fluxbase.rpc as any).invoke(
+			const { data, error } = await (fluxbase.rpc as any).invoke(
 				'detect-place-visits-incremental',
-				[null],
-				{ namespace: 'wayli' }
+				{ user_id: null },
+				{ namespace: 'wayli', async: true }
 			);
 			if (error) throw error;
+
+			// Track the RPC execution in the job store for sidebar visibility
+			if (data?.execution_id) {
+				trackRPCExecution(data.execution_id, 'detect-place-visits-incremental', 'wayli');
+			}
+
 			toast.success(t('serverAdmin.refreshPlaceVisitsQueued'));
 		} catch (error: any) {
 			console.error('Failed to refresh place visits:', error);
@@ -742,12 +749,17 @@
 		isSyncingPoiEmbeddings = true;
 		try {
 			// First refresh place visits
-			const { error: rpcError } = await (fluxbase.rpc as any).invoke(
+			const { data: rpcData, error: rpcError } = await (fluxbase.rpc as any).invoke(
 				'detect-place-visits-incremental',
-				[null],
-				{ namespace: 'wayli' }
+				{ user_id: null },
+				{ namespace: 'wayli', async: true }
 			);
 			if (rpcError) throw rpcError;
+
+			// Track the RPC execution in the job store for sidebar visibility
+			if (rpcData?.execution_id) {
+				trackRPCExecution(rpcData.execution_id, 'detect-place-visits-incremental', 'wayli');
+			}
 
 			// Then sync POI embeddings
 			const { error } = await fluxbase.jobs.submit(

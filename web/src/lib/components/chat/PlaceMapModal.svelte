@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { X, MapPin, Clock, Navigation } from 'lucide-svelte';
-	import { onDestroy } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 	import { getAmenityStyle, getAmenityLabel } from '$lib/utils/amenity-icons';
 	import type { Map as LeafletMap } from 'leaflet';

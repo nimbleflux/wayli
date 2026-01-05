@@ -4,7 +4,7 @@
  *
  * This client uses the PUBLIC Fluxbase URL (FLUXBASE_PUBLIC_BASE_URL) which is
  * accessible from the browser. For server-side operations that need internal
- * URLs, use getFluxbaseConfig() from shared/config/node-environment.ts instead.
+ * URLs (workers, edge functions), use process.env.FLUXBASE_BASE_URL directly.
  */
 
 import { createFluxbaseClient } from '../shared/fluxbase-factory';

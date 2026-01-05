@@ -15,8 +15,7 @@ The environment configuration follows a layered approach:
 │  └── $env/static/private                                    │
 ├─────────────────────────────────────────────────────────────┤
 │  Worker (Node.js)                                           │
-│  ├── worker-environment.ts (process.env)                    │
-│  └── node-environment.ts (dotenv + process.env)             │
+│  └── worker-environment.ts (process.env)                    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -24,9 +23,8 @@ The environment configuration follows a layered approach:
 
 ```
 src/lib/core/config/
-├── server-environment.ts (Private variables)              │
-├── worker-environment.ts (process.env)                    │
-└── node-environment.ts (dotenv + process.env)             │
+├── server-environment.ts (Private variables)
+└── worker-environment.ts (process.env)
 ```
 
 ### `server-environment.ts` - Server-Side Configuration
@@ -54,18 +52,6 @@ import { validateServerEnvironmentConfig } from '$lib/core/config/server-environ
 ```typescript
 // ✅ Safe for worker processes
 import { validateWorkerEnvironmentConfig } from '$lib/core/config/worker-environment';
-```
-
-### `node-environment.ts` - Node.js Configuration
-
-- **Purpose**: Full Node.js environment with dotenv support
-- **Usage**: CLI tools, development scripts, comprehensive Node.js apps
-- **Variables**: Complete environment with dotenv variable substitution
-- **Security**: Handles complex environment setups
-
-```typescript
-// ✅ Safe for Node.js processes
-import { getNodeEnvironmentConfig } from '../../shared/config/node-environment';
 ```
 
 ## 🔒 Security Guidelines
@@ -116,16 +102,6 @@ import { validateWorkerEnvironmentConfig } from '$lib/core/config/worker-environ
 const config = validateWorkerEnvironmentConfig();
 // config.fluxbase.url = 'https://your-project.fluxbase.eu'
 // config.fluxbase.serviceRoleKey = 'your-service-role-key'
-```
-
-### Node.js Configuration
-
-```typescript
-// scripts/migrate.ts
-import { getNodeEnvironmentConfig } from '../../shared/config/node-environment';
-
-const config = getNodeEnvironmentConfig();
-// Full configuration with all environment variables
 ```
 
 ## 🔧 Environment Variables

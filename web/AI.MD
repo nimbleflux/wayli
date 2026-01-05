@@ -18,17 +18,14 @@ Wayli is a privacy-first, open-source location tracking and trip management appl
 - **Location**: `src/lib/utils/api/`
 - **Pattern**: Standardized API handlers with consistent error handling and validation
 - **Components**:
-  - `base-handler.ts`: Abstract base class for API endpoints
   - `response.ts`: Standardized response utilities
   - `schemas.ts`: Zod validation schemas for API inputs
-- **Usage**: Use `createGetHandler`, `createPostHandler`, or extend `BaseApiHandler`
 - **Benefits**: Consistent API responses, automatic validation, error handling
 
 ### Environment Configuration
 
 - **Server-only**: `src/lib/core/config/server-environment.ts` (private variables)
 - **Worker**: `src/lib/core/config/worker-environment.ts` (process.env)
-- **Node.js**: `src/shared/config/node-environment.ts` (dotenv + process.env)
 - **Pattern**: Clear separation between server and worker environments
 - **Benefits**: Security, type safety, clear dependency boundaries
 

@@ -19,7 +19,7 @@ export * from './job-creation.service';
 export * from './location-cache.service';
 
 // Feature services
-export * from './trip-image-suggestion.service';
+// Note: trip-image-suggestion.service removed - now running as Fluxbase edge function (trips-suggest-image)
 export * from './export.service';
 export * from './export-processor.service';
 export * from './audit-logger.service';

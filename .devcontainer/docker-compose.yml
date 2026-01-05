@@ -34,7 +34,7 @@ services:
   #     - fluxbase
   # ============================================================================
   fluxbase:
-    image: ghcr.io/fluxbase-eu/fluxbase:2026.1.4
+    image: ghcr.io/fluxbase-eu/fluxbase:2026.1.5
     container_name: fluxbase
     depends_on:
       postgres:

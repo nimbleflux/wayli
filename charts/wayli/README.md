@@ -365,4 +365,4 @@ Contributions are welcome! Please see [CONTRIBUTING.md](../../CONTRIBUTING.md) f
 
 ## License
 
-Wayli is licensed under the MIT License. See [LICENSE](../../LICENSE) for details.
+Wayli is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See [LICENSE](../../LICENSE) for details.

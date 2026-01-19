@@ -198,4 +198,4 @@ Both deployment configurations are automatically updated with each release using
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute, file issues, and submit pull requests.
 
 ## License
-Wayli is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+Wayli is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See [LICENSE](LICENSE) for details.

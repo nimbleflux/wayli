@@ -53,6 +53,53 @@ function logSuccess(message: string, context: string, data?: unknown): void {
   console.log(`✅ [${context}] ${message}`, data || '');
 }
 
+// ===== Geohash Encoding =====
+// Encodes lat/lon into a short string for privacy-safe logging
+// Uses 4 characters (~39km precision) - enough for debugging without exposing exact location
+const GEOHASH_CHARS = '0123456789bcdefghjkmnpqrstuvwxyz';
+
+function encodeGeohash(lat: number, lon: number, precision = 4): string {
+	let minLat = -90, maxLat = 90;
+	let minLon = -180, maxLon = 180;
+	let hash = '';
+	let isLon = true;
+	let bit = 0;
+	let charIndex = 0;
+
+	while (hash.length < precision) {
+		if (isLon) {
+			const midLon = (minLon + maxLon) / 2;
+			if (lon >= midLon) {
+				charIndex = (charIndex << 1) | 1;
+				minLon = midLon;
+			} else {
+				charIndex = charIndex << 1;
+				maxLon = midLon;
+			}
+		} else {
+			const midLat = (minLat + maxLat) / 2;
+			if (lat >= midLat) {
+				charIndex = (charIndex << 1) | 1;
+				minLat = midLat;
+			} else {
+				charIndex = charIndex << 1;
+				maxLat = midLat;
+			}
+		}
+
+		isLon = !isLon;
+		bit++;
+
+		if (bit === 5) {
+			hash += GEOHASH_CHARS[charIndex];
+			bit = 0;
+			charIndex = 0;
+		}
+	}
+
+	return hash;
+}
+
 // ===== Configuration =====
 
 // Helper function to get Pelias endpoint (similar to getPexelsRateLimit pattern)

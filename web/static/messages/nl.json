@@ -763,6 +763,7 @@
 		"minutesRemaining": "~{minutes}m resterend",
 		"hoursRemaining": "~{hours}u resterend",
 		"queued": "In de wachtrij...",
+		"executing": "Uitvoeren...",
 		"determiningEta": "ETA bepalen...",
 		"calculating": "Berekenen...",
 		"complete": "Voltooid",

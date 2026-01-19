@@ -19,6 +19,12 @@ const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 // Re-authentication validity window (5 minutes)
 const REAUTH_VALIDITY_MS = 5 * 60 * 1000;
 
+// Token refresh threshold - refresh if token expires within this time (5 minutes)
+const TOKEN_REFRESH_THRESHOLD_MS = 5 * 60 * 1000;
+
+// Periodic token check interval (2 minutes)
+const TOKEN_CHECK_INTERVAL_MS = 2 * 60 * 1000;
+
 // Store to control re-auth modal visibility
 export const showReauthModal = writable(false);
 export const reauthResolver = writable<((success: boolean) => void) | null>(null);
@@ -27,6 +33,8 @@ export class SessionManagerService {
 	private static instance: SessionManagerService;
 	private isInitialized = false;
 	private authListenerSet = false;
+	private periodicCheckInterval: ReturnType<typeof setInterval> | null = null;
+	private boundVisibilityHandler: (() => Promise<void>) | null = null;
 
 	private constructor() {
 		// Private constructor for singleton
@@ -70,10 +78,13 @@ export class SessionManagerService {
 				if (event === 'SIGNED_OUT' || !session) {
 					// Ensure stores are cleared
 					await this.updateAuthStores(null);
+					this.stopBackgroundRefresh();
 					cleanupJobStore();
 				} else if (session?.user?.id) {
 					// Initialize job store when user signs in
 					initializeJobStore(session.user.id);
+					// Start background refresh for new sessions
+					this.startBackgroundRefresh();
 				}
 			});
 			this.authListenerSet = true;
@@ -103,6 +114,9 @@ export class SessionManagerService {
 				if (data.session?.user?.id) {
 					initializeJobStore(data.session.user.id);
 				}
+
+				// Start background refresh mechanisms
+				this.startBackgroundRefresh();
 			}
 		} catch (error) {
 			console.error('❌ [SessionManager] Error during session initialization:', error);
@@ -115,8 +129,9 @@ export class SessionManagerService {
 	 * Validate token with retry logic - tries refresh before giving up
 	 */
 	private async validateTokenWithRetry(): Promise<boolean> {
-		// First attempt: validate with getUser()
-		const { error: userError } = await fluxbase.auth.getUser();
+		// First attempt: validate with getCurrentUser() (makes server request to verify token)
+		// Note: getUser() only returns cached data and doesn't validate the token
+		const { error: userError } = await fluxbase.auth.getCurrentUser();
 
 		if (!userError) {
 			console.log('✅ [SessionManager] Token validation successful');
@@ -146,8 +161,8 @@ export class SessionManagerService {
 				});
 			}
 
-			// Refresh succeeded, validate again
-			const { error: retryError } = await fluxbase.auth.getUser();
+			// Refresh succeeded, validate again with server request
+			const { error: retryError } = await fluxbase.auth.getCurrentUser();
 			if (retryError) {
 				console.error('❌ [SessionManager] Token still invalid after refresh:', retryError.message);
 				await this.handleSessionExpiry();
@@ -267,6 +282,9 @@ export class SessionManagerService {
 	 * Handle session expiry - clear everything and redirect
 	 */
 	private async handleSessionExpiry(): Promise<void> {
+		// Stop background refresh mechanisms
+		this.stopBackgroundRefresh();
+
 		try {
 			// Clear client-side session
 			await fluxbase.auth.signOut();
@@ -353,6 +371,111 @@ export class SessionManagerService {
 	 */
 	isReady(): boolean {
 		return this.isInitialized;
+	}
+
+	/**
+	 * Extract token expiry timestamp from JWT access token
+	 * Fallback for when expires_at is not set in the session
+	 */
+	private getTokenExpiryFromJWT(accessToken: string): number | null {
+		try {
+			const payload = JSON.parse(atob(accessToken.split('.')[1]));
+			// JWT exp is in seconds, convert to milliseconds
+			return payload.exp ? payload.exp * 1000 : null;
+		} catch {
+			return null;
+		}
+	}
+
+	/**
+	 * Check if the current token should be refreshed (expires within threshold)
+	 */
+	private shouldRefreshToken(): boolean {
+		const session = get(sessionStore) as { expires_at?: number; access_token?: string } | null;
+		if (!session) return false;
+
+		// Use expires_at if available, otherwise extract from JWT
+		let expiresAt: number | null | undefined = session.expires_at;
+		if (!expiresAt && session.access_token) {
+			expiresAt = this.getTokenExpiryFromJWT(session.access_token);
+		}
+
+		// If we can't determine expiry, trigger a refresh to be safe
+		if (!expiresAt) return true;
+
+		const timeUntilExpiry = expiresAt - Date.now();
+		return timeUntilExpiry < TOKEN_REFRESH_THRESHOLD_MS;
+	}
+
+	/**
+	 * Check token expiry and refresh if needed
+	 */
+	private async checkAndRefreshToken(): Promise<void> {
+		// Skip if not initialized or no session
+		if (!this.isInitialized) return;
+
+		const session = get(sessionStore);
+		if (!session) return;
+
+		if (this.shouldRefreshToken()) {
+			console.log('🔄 [SessionManager] Token expiring soon, proactively refreshing...');
+			await this.forceRefreshSession();
+		}
+	}
+
+	/**
+	 * Handle visibility change - refresh token when tab becomes visible
+	 */
+	private handleVisibilityChange = async (): Promise<void> => {
+		if (document.visibilityState === 'visible') {
+			console.log('👁️ [SessionManager] Tab became visible, checking token...');
+			await this.checkAndRefreshToken();
+		}
+	};
+
+	/**
+	 * Start background token refresh mechanisms
+	 * - Visibility change handler: refreshes when tab becomes visible
+	 * - Periodic check: refreshes every few minutes if token is expiring soon
+	 */
+	private startBackgroundRefresh(): void {
+		if (typeof window === 'undefined') return;
+
+		// Set up visibility change handler
+		if (!this.boundVisibilityHandler) {
+			this.boundVisibilityHandler = this.handleVisibilityChange;
+			document.addEventListener('visibilitychange', this.boundVisibilityHandler);
+			console.log('✅ [SessionManager] Visibility change handler registered');
+		}
+
+		// Set up periodic token check
+		if (!this.periodicCheckInterval) {
+			this.periodicCheckInterval = setInterval(() => {
+				this.checkAndRefreshToken();
+			}, TOKEN_CHECK_INTERVAL_MS);
+			console.log(
+				`✅ [SessionManager] Periodic token check started (every ${TOKEN_CHECK_INTERVAL_MS / 1000 / 60} minutes)`
+			);
+		}
+	}
+
+	/**
+	 * Stop background token refresh mechanisms
+	 */
+	private stopBackgroundRefresh(): void {
+		if (typeof window === 'undefined') return;
+
+		// Remove visibility change handler
+		if (this.boundVisibilityHandler) {
+			document.removeEventListener('visibilitychange', this.boundVisibilityHandler);
+			this.boundVisibilityHandler = null;
+		}
+
+		// Clear periodic check interval
+		if (this.periodicCheckInterval) {
+			clearInterval(this.periodicCheckInterval);
+			this.periodicCheckInterval = null;
+		}
 	}
 
 	/**
@@ -485,6 +608,7 @@ export class SessionManagerService {
 	 * Clean up session manager
 	 */
 	destroy(): void {
+		this.stopBackgroundRefresh();
 		cleanupJobStore();
 		this.isInitialized = false;
 	}

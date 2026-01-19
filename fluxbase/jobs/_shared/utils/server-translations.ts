@@ -1,44 +1,25 @@
 // Server-side translation utility for Deno runtime
 
-// Deno type declaration
-declare const Deno:
-	| {
-			env: { get(key: string): string | undefined };
-			readTextFileSync(path: string): string;
-			cwd(): string;
-	  }
-	| undefined;
+declare const Deno: {
+	env: { get(key: string): string | undefined };
+	readTextFileSync(path: string): string;
+	cwd(): string;
+};
 
 interface Translations {
 	[key: string]: string;
 }
 
-// Cross-runtime file reading
+// File reading using Deno
 function readFileSync(filePath: string): string | null {
-	// Try Deno first
-	if (typeof Deno !== 'undefined') {
-		try {
-			return Deno.readTextFileSync(filePath);
-		} catch {
-			return null;
-		}
+	try {
+		return Deno.readTextFileSync(filePath);
+	} catch {
+		return null;
 	}
-
-	// Try Node.js fs
-	if (typeof process !== 'undefined' && process.versions?.node) {
-		try {
-			// eslint-disable-next-line @typescript-eslint/no-require-imports
-			const fs = require('fs');
-			return fs.readFileSync(filePath, 'utf-8');
-		} catch {
-			return null;
-		}
-	}
-
-	return null;
 }
 
-// Cross-runtime path join
+// Path join helper
 function joinPath(...segments: string[]): string {
 	return segments
 		.join('/')
@@ -46,30 +27,18 @@ function joinPath(...segments: string[]): string {
 		.replace(/\/$/, '');
 }
 
-// Cross-runtime cwd
+// Get current working directory
 function getCwd(): string {
-	if (typeof Deno !== 'undefined') {
-		try {
-			return Deno.cwd();
-		} catch {
-			return '/app';
-		}
+	try {
+		return Deno.cwd();
+	} catch {
+		return '/app';
 	}
-	if (typeof process !== 'undefined' && process.cwd) {
-		return process.cwd();
-	}
-	return '/app';
 }
 
-// Cross-runtime environment variable access
+// Environment variable access
 function getEnv(key: string): string | undefined {
-	if (typeof Deno !== 'undefined') {
-		return Deno.env.get(key);
-	}
-	if (typeof process !== 'undefined' && process.env) {
-		return process.env[key];
-	}
-	return undefined;
+	return Deno.env.get(key);
 }
 
 // Cache for loaded translations

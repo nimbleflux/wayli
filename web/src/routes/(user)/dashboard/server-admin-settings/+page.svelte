@@ -29,7 +29,6 @@
 	import { translate } from '$lib/i18n';
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
 	import { sessionStore } from '$lib/stores/auth';
-	import { trackRPCExecution } from '$lib/stores/job-store';
 	import { fluxbase } from '$lib/fluxbase';
 
 	import type { UserProfile } from '$lib/types/user.types';
@@ -713,18 +712,16 @@
 
 		isRefreshingPlaceVisits = true;
 		try {
-			// Directly invoke the incremental place visit detection RPC
-			const { data, error } = await (fluxbase.rpc as any).invoke(
-				'detect-place-visits-incremental',
-				{ user_id: null },
-				{ namespace: 'wayli', async: true }
+			// Use the scheduled job which has proper permissions to call the RPC
+			const { error } = await fluxbase.jobs.submit(
+				'scheduled-detect-place-visits',
+				{},
+				{
+					namespace: 'wayli',
+					priority: 5
+				}
 			);
 			if (error) throw error;
-
-			// Track the RPC execution in the job store for sidebar visibility
-			if (data?.execution_id) {
-				trackRPCExecution(data.execution_id, 'detect-place-visits-incremental', 'wayli');
-			}
 
 			toast.success(t('serverAdmin.refreshPlaceVisitsQueued'));
 		} catch (error: any) {
@@ -748,20 +745,6 @@
 
 		isSyncingPoiEmbeddings = true;
 		try {
-			// First refresh place visits
-			const { data: rpcData, error: rpcError } = await (fluxbase.rpc as any).invoke(
-				'detect-place-visits-incremental',
-				{ user_id: null },
-				{ namespace: 'wayli', async: true }
-			);
-			if (rpcError) throw rpcError;
-
-			// Track the RPC execution in the job store for sidebar visibility
-			if (rpcData?.execution_id) {
-				trackRPCExecution(rpcData.execution_id, 'detect-place-visits-incremental', 'wayli');
-			}
-
-			// Then sync POI embeddings
 			const { error } = await fluxbase.jobs.submit(
 				'sync-poi-embeddings',
 				{},
@@ -2898,7 +2881,7 @@
 								<!-- Row 3: User Preferences (info only) -->
 								<div class="flex justify-center pl-[calc(50%+1.5rem)]">
 									<div
-										class="flex max-w-md min-w-[200px] flex-1 items-center rounded-lg border border-dashed border-gray-300 bg-gray-100/50 p-3 dark:border-gray-600 dark:bg-gray-800/50"
+										class="flex max-w-md min-w-50 flex-1 items-center rounded-lg border border-dashed border-gray-300 bg-gray-100/50 p-3 dark:border-gray-600 dark:bg-gray-800/50"
 									>
 										<span class="text-sm font-medium text-gray-500 dark:text-gray-400">
 											{t('serverAdmin.userPreferencesComputed')}

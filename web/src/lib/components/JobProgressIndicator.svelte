@@ -104,6 +104,12 @@
 			return t('jobProgress.queued');
 		}
 
+		// RPC executions (SQL queries) don't have progress tracking
+		// Show "Executing..." instead of "Determining ETA..."
+		if (job.id.startsWith('rpc:')) {
+			return t('jobProgress.executing');
+		}
+
 		// Format estimated_seconds_left into readable ETA
 		const seconds = job.estimated_seconds_left;
 		if (!seconds || seconds <= 0) {
@@ -223,7 +229,10 @@
 			}
 
 			// Get download URL from Edge Function
-			const { data, error } = await fluxbase.functions.invoke(`export-download/${job.id}`);
+			const { data, error } = await fluxbase.functions.invoke<{
+				downloadUrl?: string;
+				fileName?: string;
+			}>(`export-download/${job.id}`);
 
 			if (error) {
 				throw new Error(error.message || 'Failed to get download URL');
@@ -269,7 +278,7 @@
 			(job) =>
 				job.status === 'completed' &&
 				job.updated_at &&
-				Date.now() - new Date(job.updated_at).getTime() < 5000
+				Date.now() - new Date(job.updated_at).getTime() < 60000
 		)
 	);
 	let recentlyCompletedExportJobs = $derived(
@@ -302,9 +311,10 @@
 			}
 		});
 
-		// Clean up stale timers
+		// Clean up timers only for jobs that are no longer displayed
+		// Don't cancel timers for jobs still in currentList (timer should handle removal)
 		timerMap.forEach((timer, jobId) => {
-			if (!recentJobs.find((job) => job.id === jobId)) {
+			if (!recentJobs.find((job) => job.id === jobId) && !currentList.find((j) => j.id === jobId)) {
 				clearTimeout(timer);
 				timerMap.delete(jobId);
 			}
@@ -315,7 +325,7 @@
 	$effect(() => {
 		visibleJobs = activeJobsList;
 
-		// Handle non-export completed jobs (5 second display)
+		// Handle non-export completed jobs (60 second display)
 		const nonExportCompleted = recentlyCompletedJobs.filter(
 			(job) => job.job_name !== 'data-export'
 		);
@@ -323,7 +333,7 @@
 			nonExportCompleted,
 			showCompletedJobs,
 			completedJobTimers,
-			5000,
+			60000,
 			(jobs) => (showCompletedJobs = jobs)
 		);
 

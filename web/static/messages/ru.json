@@ -763,6 +763,7 @@
 		"minutesRemaining": "Осталось ~{минуты}м",
 		"hoursRemaining": "осталось ~{hours}ч",
 		"queued": "В очереди...",
+		"executing": "Выполнение...",
 		"determiningEta": "Определение И...",
 		"calculating": "Расчет...",
 		"complete": "Полный",

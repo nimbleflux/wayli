@@ -82,7 +82,7 @@
 	<div class="min-w-0 flex-1">
 		<!-- Name -->
 		<h4 class="truncate font-medium text-gray-900 dark:text-gray-100" class:text-sm={compact}>
-			{place.poi_name || 'Unknown Place'}
+			{place.poi_name || place.city || 'Unknown Place'}
 		</h4>
 
 		<!-- Subtitle: cuisine + amenity type -->

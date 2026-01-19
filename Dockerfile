@@ -7,6 +7,8 @@
 #   └── fluxbase/     (functions, migrations, jobs - synced at startup)
 #   /usr/share/nginx/html/  (static web files)
 
+FROM denoland/deno:bin-2.6.4 AS deno-bin
+
 #############################################
 # Stage 1: Builder
 #############################################
@@ -32,16 +34,20 @@ RUN npm run prepare && npm run build
 #############################################
 # Stage 2: Production Runtime
 #############################################
-FROM nginx:alpine AS production
+FROM debian:bookworm-slim AS production
 
-# Install tools for health checks and Fluxbase CLI
-RUN apk add --no-cache wget bash curl && \
+COPY --from=deno-bin /deno /usr/local/bin/deno
+
+# Install nginx and tools for health checks and Fluxbase CLI
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nginx wget bash curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
     mkdir -p /run/nginx
 
 # Install Fluxbase CLI for resource synchronization
 # Set FLUXBASE_CLI_VERSION to 'local' to use a pre-built CLI from ./bin/fluxbase
 # Otherwise, installs from GitHub release (e.g., 'latest' or 'v0.0.1-rc.112')
-ARG FLUXBASE_CLI_VERSION=v2026.1.5
+ARG FLUXBASE_CLI_VERSION=v2026.1.12-rc.4
 RUN curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- ${FLUXBASE_CLI_VERSION}
 
 WORKDIR /app
@@ -60,9 +66,8 @@ RUN chmod +x /app/startup.sh /app/docker-entrypoint.sh && \
     cp /app/startup.sh /usr/local/bin/startup.sh
 
 # Create wayli user and set up permissions
-# nginx:alpine runs as nginx user by default, but we use wayli for consistency
-RUN addgroup -S wayli && \
-    adduser -S -G wayli wayli && \
+RUN groupadd --system wayli && \
+    useradd --system --gid wayli --no-create-home wayli && \
     mkdir -p /var/cache/nginx /run /tmp/nginx && \
     chown -R wayli:wayli /var/cache/nginx /run /tmp/nginx /app /usr/share/nginx/html && \
     chmod -R 755 /var/cache/nginx /run /tmp/nginx /app /usr/share/nginx/html

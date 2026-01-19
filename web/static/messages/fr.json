@@ -763,6 +763,7 @@
 		"minutesRemaining": "~{minutes} minutes restantes",
 		"hoursRemaining": "~{heures}h restantes",
 		"queued": "En file d'attente...",
+		"executing": "Exécution...",
 		"determiningEta": "Déterminer ET...",
 		"calculating": "Calculateur...",
 		"complete": "Complet",

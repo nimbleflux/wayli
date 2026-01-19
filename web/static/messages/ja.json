@@ -763,6 +763,7 @@
 		"minutesRemaining": "残り ~{分}分",
 		"hoursRemaining": "残り ~{時間} 時間",
 		"queued": "待機中...",
+		"executing": "実行中...",
 		"determiningEta": "AND を決定しています...",
 		"calculating": "計算中...",
 		"complete": "完了",

@@ -763,6 +763,7 @@
 		"minutesRemaining": "~{minutos}m restantes",
 		"hoursRemaining": "~{horas}h restantes",
 		"queued": "Na fila...",
+		"executing": "Executando...",
 		"determiningEta": "Determinando E...",
 		"calculating": "Calculando...",
 		"complete": "Completo",

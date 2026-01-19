@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { X, MapPin, Clock, Navigation } from 'lucide-svelte';
-	import { onMount, onDestroy } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import { browser } from '$app/environment';
 	import { getAmenityStyle, getAmenityLabel } from '$lib/utils/amenity-icons';
 	import type { Map as LeafletMap } from 'leaflet';
@@ -144,13 +144,25 @@
 		}
 	}
 
-	onMount(() => {
-		// Wait for next tick to ensure mapContainer ref is bound
-		requestAnimationFrame(() => {
-			if (place && mapContainer && browser) {
-				initMap();
-			}
-		});
+	$effect(() => {
+		// Only track place and mapContainer as dependencies
+		const currentPlace = place;
+		const container = mapContainer;
+
+		if (currentPlace && container && browser) {
+			// Use untrack to read/write map without creating a dependency loop
+			untrack(() => {
+				// Clean up existing map before creating a new one
+				if (map) {
+					map.remove();
+					map = undefined;
+				}
+				// Wait for next tick to ensure DOM is ready
+				requestAnimationFrame(() => {
+					initMap();
+				});
+			});
+		}
 	});
 
 	onDestroy(() => {
@@ -220,7 +232,7 @@
 					{/if}
 					<div>
 						<h2 id="place-map-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-							{place.poi_name || 'Unknown Place'}
+							{place.poi_name || place.city || 'Unknown Place'}
 						</h2>
 						<div
 							class="mt-0.5 flex flex-wrap items-center gap-1 text-sm text-gray-500 dark:text-gray-400"

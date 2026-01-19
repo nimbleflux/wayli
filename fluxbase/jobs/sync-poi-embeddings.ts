@@ -272,15 +272,24 @@ export async function handler(
     if (orphanedEmbeddingIds.length > 0) {
       console.log(`🗑️ Removing ${orphanedEmbeddingIds.length} orphaned embeddings...`);
 
-      const { error: deleteError } = await fluxbase
-        .from('poi_embeddings')
-        .delete()
-        .in('id', orphanedEmbeddingIds);
+      // Delete in batches to avoid "Request Header Fields Too Large" error
+      // UUIDs are 36 chars each, so keep batches small
+      const DELETE_BATCH_SIZE = 20;
+      for (let i = 0; i < orphanedEmbeddingIds.length; i += DELETE_BATCH_SIZE) {
+        const batch = orphanedEmbeddingIds.slice(i, i + DELETE_BATCH_SIZE);
+        const { error: deleteError } = await fluxbase
+          .from('poi_embeddings')
+          .delete()
+          .in('id', batch);
 
-      if (deleteError) {
-        console.error('Failed to delete orphaned embeddings:', deleteError);
-      } else {
-        deleted = orphanedEmbeddingIds.length;
+        if (deleteError) {
+          console.error(`Failed to delete orphaned embeddings batch ${i / DELETE_BATCH_SIZE + 1}:`, deleteError);
+        } else {
+          deleted += batch.length;
+        }
+      }
+
+      if (deleted > 0) {
         console.log(`✅ Deleted ${deleted} orphaned POI embeddings`);
       }
     }

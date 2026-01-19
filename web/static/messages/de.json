@@ -763,6 +763,7 @@
 		"minutesRemaining": "Es verbleiben noch ~{Minuten}m",
 		"hoursRemaining": "~{hours}h verbleibend",
 		"queued": "In der Warteschlange...",
+		"executing": "Ausführen...",
 		"determiningEta": "Bestimmen UND...",
 		"calculating": "Berechnen...",
 		"complete": "Vollständig",

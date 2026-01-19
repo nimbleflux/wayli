@@ -763,6 +763,7 @@
 		"minutesRemaining": "~{분}분 남음",
 		"hoursRemaining": "~{hours}h 남음",
 		"queued": "대기 중...",
+		"executing": "실행 중...",
 		"determiningEta": "AND 결정 중...",
 		"calculating": "계산 중...",
 		"complete": "완벽한",

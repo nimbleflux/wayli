@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, tick } from 'svelte';
 	import {
 		Search,
 		Loader2,
@@ -239,7 +239,7 @@
 					];
 				},
 				onQueryResult: (result) => {
-					// Accumulate query results
+					// Accumulate query results (for tools that stream results via WebSocket)
 					currentQueryResults = [...currentQueryResults, result];
 
 					// Add the actual SQL query to execution logs for debugging
@@ -253,12 +253,33 @@
 						}
 					];
 				},
-				onDone: (usage) => {
+				onDone: async (usage) => {
 					// Add the completed assistant message
 					if (currentStreamingContent || currentQueryResults.length > 0) {
 						// Extract images from markdown content and inject into query results
 						const imageMap = extractMarkdownImages(currentStreamingContent);
-						const enrichedQueryResults = injectImagesIntoResults(currentQueryResults, imageMap);
+						let enrichedQueryResults = injectImagesIntoResults(currentQueryResults, imageMap);
+
+						// If no query results came via WebSocket, fetch from persisted conversation
+						// This works around execute_sql not streaming query_result events
+						if (enrichedQueryResults.length === 0 && currentConversationId) {
+							try {
+								const conversation = await chatService.getConversation(currentConversationId);
+								const lastMessage = conversation.messages[conversation.messages.length - 1];
+								if (lastMessage?.role === 'assistant' && lastMessage.query_results) {
+									enrichedQueryResults = lastMessage.query_results.map((qr) => ({
+										query: qr.query,
+										summary: qr.summary,
+										rowCount: qr.row_count,
+										data: qr.data
+									}));
+									// Re-inject images into fetched results
+									enrichedQueryResults = injectImagesIntoResults(enrichedQueryResults, imageMap);
+								}
+							} catch (err) {
+								console.warn('Failed to fetch query results from conversation:', err);
+							}
+						}
 
 						const assistantMessage: ChatMessage = {
 							id: chatService.generateMessageId(),
@@ -272,8 +293,9 @@
 						};
 						messages = [...messages, assistantMessage];
 
-						// Scroll to bottom after adding assistant message
-						setTimeout(scrollToBottom, 0);
+						// Force Svelte to process the reactive update before scrolling
+						await tick();
+						scrollToBottom();
 					}
 					// Reset all state
 					currentStreamingContent = '';

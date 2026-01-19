@@ -197,6 +197,13 @@ COMMENT ON VIEW "public"."my_poi_summary" IS 'Aggregated POI visit statistics pe
 ALTER TABLE "public"."place_visits" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."place_visits" FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own place_visits" ON "public"."place_visits";
+DROP POLICY IF EXISTS "Service role full access to place_visits" ON "public"."place_visits";
+DROP POLICY IF EXISTS "Admin users full access to place_visits" ON "public"."place_visits";
+
+DROP POLICY IF EXISTS "Service role full access to place_visits_state" ON "public"."place_visits_state";
+DROP POLICY IF EXISTS "Admin users full access to place_visits_state" ON "public"."place_visits_state";
+
 -- Users can only see their own place visits
 CREATE POLICY "Users can view own place_visits"
     ON "public"."place_visits"

@@ -767,6 +767,7 @@
 		"minutesRemaining": "~{minutes}m remaining",
 		"hoursRemaining": "~{hours}h remaining",
 		"queued": "Queued...",
+		"executing": "Executing...",
 		"determiningEta": "Determining ETA...",
 		"calculating": "Calculating...",
 		"complete": "Complete",

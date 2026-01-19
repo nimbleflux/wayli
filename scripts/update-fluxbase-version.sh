@@ -18,9 +18,13 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 echo "Updating Fluxbase to version: $NEW_VERSION"
 echo ""
 
-# Update .devcontainer/docker-compose.yml
+# Update .devcontainer/docker-compose.yml (fallback version in env var syntax)
 echo "Updating .devcontainer/docker-compose.yml..."
-sed -i '' "s|ghcr.io/fluxbase-eu/fluxbase:[0-9a-zA-Z.-]*|ghcr.io/fluxbase-eu/fluxbase:$NEW_VERSION|g" "$ROOT_DIR/.devcontainer/docker-compose.yml"
+sed -i '' "s|FLUXBASE_VERSION:-[0-9a-zA-Z.-]*}|FLUXBASE_VERSION:-$NEW_VERSION}|g" "$ROOT_DIR/.devcontainer/docker-compose.yml"
+
+# Update .devcontainer/Dockerfile (Fluxbase CLI version)
+echo "Updating .devcontainer/Dockerfile..."
+sed -i '' "s|ARG FLUXBASE_CLI_VERSION=v[0-9a-zA-Z.-]*|ARG FLUXBASE_CLI_VERSION=v$NEW_VERSION|g" "$ROOT_DIR/.devcontainer/Dockerfile"
 
 # Update deploy/docker-compose/docker-compose.yml
 echo "Updating deploy/docker-compose/docker-compose.yml..."
@@ -56,6 +60,7 @@ echo "Done! Fluxbase updated to version $NEW_VERSION"
 echo ""
 echo "Updated files:"
 echo "  - .devcontainer/docker-compose.yml"
+echo "  - .devcontainer/Dockerfile"
 echo "  - deploy/docker-compose/docker-compose.yml"
 echo "  - charts/wayli/Chart.yaml"
 echo "  - charts/wayli/Chart.lock"

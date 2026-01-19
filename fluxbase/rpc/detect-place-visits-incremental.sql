@@ -1,4 +1,4 @@
--- @fluxbase:require-role service_role
+-- @fluxbase:require-role authenticated, service_role
 -- @fluxbase:max-execution-time 1800s
 -- @fluxbase:param user_id uuid?
 -- Detect place visits incrementally using enhanced cluster-first approach
@@ -135,6 +135,7 @@ with_prev_gaps AS (
 
 -- Detect cluster boundaries with enhanced logic
 -- IMPROVEMENTS 1, 2, 3: Lower threshold (100m), adaptive time gaps, speed-based detection
+-- IMPROVEMENT 11: Tighter unconditional boundary (120m) for accuracy
 with_boundaries AS (
     SELECT *,
         CASE WHEN
@@ -144,8 +145,8 @@ with_boundaries AS (
             OR (distance_meters > 100 AND COALESCE(speed, 0) > 2)
             -- OR moderate movement (50m+) with higher speed
             OR (distance_meters > 50 AND COALESCE(speed, 0) > 5)
-            -- OR large movement regardless of speed (catchall)
-            OR distance_meters > 150
+            -- OR large movement regardless of speed (catchall) - was 150m
+            OR distance_meters > 120
             -- OR adaptive time gap exceeded
             OR CASE
                 -- Sparse tracking (previous gap > 10 min): allow 60 min gaps
@@ -178,21 +179,22 @@ cluster_stats AS (
 ),
 
 -- Determine which clusters should be merged (close in time AND space)
+-- IMPROVEMENT 10: Tighter merge thresholds for accuracy
 cluster_merging AS (
     SELECT
         cs.*,
         CASE WHEN
             -- Previous cluster exists for same user
             LAG(cluster_id) OVER (PARTITION BY user_id ORDER BY cluster_start) IS NOT NULL
-            -- Close in time (< 10 min between cluster end and next start)
+            -- Close in time (< 7 min between cluster end and next start) - was 10 min
             AND EXTRACT(EPOCH FROM (
                 cluster_start - LAG(cluster_end) OVER (PARTITION BY user_id ORDER BY cluster_start)
-            )) < 600
-            -- Close in space (< 150m between centroids)
+            )) < 420
+            -- Close in space (< 100m between centroids) - was 150m
             AND ST_Distance(
                 centroid::geography,
                 LAG(centroid) OVER (PARTITION BY user_id ORDER BY cluster_start)::geography
-            ) < 150
+            ) < 100
         THEN LAG(cluster_id) OVER (PARTITION BY user_id ORDER BY cluster_start)
         ELSE cluster_id
         END as merged_cluster_id
@@ -220,6 +222,19 @@ clusters AS (
     FROM clusters_initial ci
     LEFT JOIN cluster_final_ids cfi
         ON ci.user_id = cfi.user_id AND ci.cluster_id = cfi.cluster_id
+),
+
+-- IMPROVEMENT 12: Identify home locations per user from overnight clusters
+-- Most frequent cluster during overnight hours (midnight to 6am) with good point density
+home_locations AS (
+    SELECT DISTINCT ON (user_id)
+        user_id,
+        ST_Centroid(ST_Collect(location)) as home_location
+    FROM clusters
+    WHERE EXTRACT(HOUR FROM recorded_at) BETWEEN 0 AND 6  -- Overnight hours
+    GROUP BY user_id, final_cluster_id
+    HAVING COUNT(*) >= 5  -- Require significant presence
+    ORDER BY user_id, COUNT(*) DESC
 ),
 
 -- Insert aggregated visits with enhanced logic
@@ -315,11 +330,34 @@ new_visits AS (
             MODE() WITHIN GROUP (ORDER BY nearby_sport) FILTER (WHERE nearby_sport IS NOT NULL)
         ) as poi_sport,
         -- Category (computed from available data)
+        -- IMPROVEMENT 12: Check home location first using pre-computed home_locations
         CASE
+            -- Home detection: cluster centroid within 100m of user's home location
+            WHEN (
+                SELECT ST_Distance(
+                    ST_SetSRID(ST_MakePoint(
+                        AVG(ST_X(clusters.location)),
+                        AVG(ST_Y(clusters.location))
+                    ), 4326)::geography,
+                    hl.home_location::geography
+                ) < 100
+                FROM home_locations hl
+                WHERE hl.user_id = clusters.user_id
+            ) THEN 'home'
             WHEN COALESCE(
                 MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
                 MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
-            ) IN ('restaurant','cafe','bar','pub','fast_food','food_court','biergarten','ice_cream','bakery') THEN 'food'
+            ) IN ('restaurant','cafe','bar','pub','fast_food','food_court','biergarten','ice_cream','bakery','deli','juice_bar','confectionery')
+                -- Also detect food via cuisine tag (if place has cuisine, it's food)
+                OR COALESCE(
+                    MODE() WITHIN GROUP (ORDER BY cuisine) FILTER (WHERE cuisine IS NOT NULL),
+                    MODE() WITHIN GROUP (ORDER BY nearby_cuisine) FILTER (WHERE nearby_cuisine IS NOT NULL)
+                ) IS NOT NULL
+                -- Also detect food-related shops
+                OR COALESCE(
+                    MODE() WITHIN GROUP (ORDER BY shop) FILTER (WHERE shop IS NOT NULL),
+                    MODE() WITHIN GROUP (ORDER BY nearby_shop) FILTER (WHERE nearby_shop IS NOT NULL)
+                ) IN ('bakery','deli','confectionery','chocolate','pastry','coffee','tea') THEN 'food'
             WHEN COALESCE(
                 MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
                 MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
@@ -367,7 +405,7 @@ new_visits AS (
             WHEN COALESCE(
                 MODE() WITHIN GROUP (ORDER BY shop) FILTER (WHERE shop IS NOT NULL),
                 MODE() WITHIN GROUP (ORDER BY nearby_shop) FILTER (WHERE nearby_shop IS NOT NULL)
-            ) IN ('supermarket','convenience','grocery','greengrocer','butcher','bakery','deli') THEN 'grocery'
+            ) IN ('supermarket','convenience','grocery','greengrocer','butcher','farm') THEN 'grocery'
             WHEN COALESCE(
                 MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
                 MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
@@ -445,16 +483,16 @@ new_visits AS (
         ROUND(AVG(nearby_confidence) FILTER (WHERE nearby_confidence IS NOT NULL)::numeric, 3) as alt_poi_confidence
     FROM clusters
     GROUP BY user_id, final_cluster_id
-    -- IMPROVEMENT 4: Flexible duration threshold
-    HAVING COUNT(*) >= 2
+    -- IMPROVEMENT 4: Stricter duration threshold for accuracy
+    HAVING COUNT(*) >= 3  -- Require 3+ points (was 2)
        AND (
-           -- Standard: 5+ minutes
-           EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) >= 300
-           -- OR short visits (3-5 min) with high quality signals
+           -- Standard: 8+ minutes with 3+ points
+           EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) >= 480
+           -- OR shorter visits (5 min) require good accuracy AND 4+ points
            OR (
-               EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) >= 180
-               AND AVG(COALESCE(accuracy, 50)) <= 20
-               AND COUNT(*) >= 3
+               EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) >= 300
+               AND AVG(COALESCE(accuracy, 50)) <= 25
+               AND COUNT(*) >= 4
            )
        )
        -- IMPROVEMENT 8: Reject clusters with excessive spread (GPS drift)
@@ -463,6 +501,18 @@ new_visits AS (
            ST_MakePoint(ST_XMin(ST_Collect(location)), ST_YMin(ST_Collect(location)))::geography,
            ST_MakePoint(ST_XMax(ST_Collect(location)), ST_YMax(ST_Collect(location)))::geography
        ) < 500
+       -- IMPROVEMENT 9: Require actual POI attribution (not just address)
+       AND (
+           -- Has venue layer
+           MODE() WITHIN GROUP (ORDER BY layer) FILTER (WHERE layer = 'venue') IS NOT NULL
+           -- OR has nearby POI with name
+           OR MODE() WITHIN GROUP (ORDER BY nearby_name) FILTER (WHERE nearby_name IS NOT NULL) IS NOT NULL
+           -- OR has amenity/shop/tourism/leisure tag
+           OR MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL) IS NOT NULL
+           OR MODE() WITHIN GROUP (ORDER BY shop) FILTER (WHERE shop IS NOT NULL) IS NOT NULL
+           OR MODE() WITHIN GROUP (ORDER BY tourism) FILTER (WHERE tourism IS NOT NULL) IS NOT NULL
+           OR MODE() WITHIN GROUP (ORDER BY leisure) FILTER (WHERE leisure IS NOT NULL) IS NOT NULL
+       )
     ON CONFLICT (user_id, started_at)
     DO UPDATE SET
         duration_minutes = EXCLUDED.duration_minutes,
@@ -510,6 +560,11 @@ state_upsert AS (
         last_processed_at = NOW(),
         updated_at = NOW()
     RETURNING user_id
+),
+
+-- Trigger state upsert by referencing it
+state_trigger AS (
+    SELECT COUNT(*) FROM state_upsert
 )
 
 -- Return counts

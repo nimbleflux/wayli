@@ -18,10 +18,8 @@
  * @fluxbase:daily-limit 500
  * @fluxbase:token-budget 100000/day
  * @fluxbase:http-allowed-domains {{system:wayli.pelias_endpoint}},pelias.wayli.app
- *
- * @fluxbase:required-columns my_trips=id,title,image_url,start_date,end_date,visited_cities,visited_country_codes,labels
- * @fluxbase:required-columns my_place_visits=poi_name,city,started_at,latitude,longitude
- * @fluxbase:required-columns my_poi_summary=poi_name,visit_count
+ * @fluxbase:mcp-tools query_table,execute_sql,http_request,vector_search
+ * @fluxbase:use-mcp-schema
  *
  * @fluxbase:vector-search-enabled true
  * @fluxbase:vector-tables poi_embeddings,trip_embeddings
@@ -81,6 +79,8 @@ WHERE visited_country_codes ILIKE '%JP%'
 ORDER BY start_date DESC
 \`\`\`
 
+Always add the image_url into basic queries on the my_trips table.
+
 **Example 5: Recent Trips**
 User: "What were my last 3 trips?"
 → execute_sql:
@@ -95,23 +95,6 @@ LIMIT 3
 **Example 6: Preference-Based**
 User: "Find places that match my taste"
 → vector_search: query="places matching user preferences"
-
-## Schema Reference
-
-### my_place_visits (venue visits)
-Essential columns: poi_name, poi_amenity, poi_cuisine, poi_sport, poi_category, city, country_code, started_at, duration_minutes, latitude, longitude, visit_time_of_day, is_weekend
-
-**CRITICAL column usage:**
-- poi_amenity = venue type (restaurant, cafe, museum, gym). Use ILIKE: \`poi_amenity ILIKE '%restaurant%'\`
-- poi_category = high-level group (food, sports, culture). Use exact match: \`poi_category = 'food'\`
-- poi_cuisine = cuisine type. Use ILIKE: \`poi_cuisine ILIKE '%japanese%'\`
-
-### my_poi_summary (visit statistics)
-Columns: poi_name, poi_amenity, poi_category, city, country_code, visit_count, first_visit, last_visit, avg_duration_minutes
-
-### my_trips (trip metadata)
-Columns: id, title, description, start_date, end_date, status, image_url, labels, trip_days, visited_cities, visited_country_codes
-**Always include id, title, image_url, start_date, end_date, visited_cities, visited_country_codes, labels for UI cards!**
 
 ## Critical Rules
 
@@ -152,89 +135,3 @@ For "recommend/find me/nearby" queries:
 - No location history: Ask the user which city/area to search in
 
 `;
-
-export const tools = [
-  {
-    name: 'execute_sql',
-    description:
-      'Execute a read-only SQL query against the travel database. Only SELECT queries are allowed. Call this tool MULTIPLE TIMES to query different views (trips, visits, GPS data) for comprehensive answers.',
-    parameters: {
-      type: 'object',
-      properties: {
-        sql: {
-          type: 'string',
-          description: 'The SQL SELECT query to execute'
-        },
-        description: {
-          type: 'string',
-          description: 'A brief description of what this query finds'
-        }
-      },
-      required: ['sql', 'description']
-    }
-  },
-  {
-    name: 'vector_search',
-    description:
-      'Search for semantically similar places or trips from the user\'s history. Use this when the user asks for places "similar to", "like this", or recommendations "based on my taste". The query will be automatically embedded and compared against stored embeddings.',
-    parameters: {
-      type: 'object',
-      properties: {
-        query: {
-          type: 'string',
-          description:
-            'Natural language description of what to search for. Examples: "japanese sushi restaurant with good ambiance", "cozy italian cafe", "adventure trip with hiking"'
-        },
-        metadata: {
-          type: 'object',
-          description: 'Filter by document metadata fields',
-          properties: {
-            poi_category: {
-              type: 'string',
-              description:
-                'Filter by category: food, sports, culture, education, entertainment, shopping, etc.'
-            },
-            poi_cuisine: {
-              type: 'string',
-              description: 'Filter by cuisine type: japanese, italian, vietnamese, etc.'
-            },
-            city: {
-              type: 'string',
-              description: 'Filter by city name'
-            },
-            country_code: {
-              type: 'string',
-              description: 'Filter by 2-letter country code: NL, JP, US, etc.'
-            }
-          }
-        },
-        limit: {
-          type: 'integer',
-          description: 'Maximum number of results to return (default: 5, max: 20)'
-        }
-      },
-      required: ['query']
-    }
-  },
-  {
-    name: 'http_request',
-    description:
-      'Make an HTTP GET request to search for NEW places using Pelias API. Use this for discovery/recommendations of places the user has NOT visited. IMPORTANT: Only use the Pelias endpoint specified in the prompt ({{system:wayli.pelias_endpoint}}). Do NOT use api.pelias.io or any other Pelias endpoint.',
-    parameters: {
-      type: 'object',
-      properties: {
-        url: {
-          type: 'string',
-          description:
-            'Full URL to request. MUST start with {{system:wayli.pelias_endpoint}}. Never use api.pelias.io or api.geocod.io.'
-        },
-        method: {
-          type: 'string',
-          enum: ['GET'],
-          description: 'HTTP method (only GET is allowed)'
-        }
-      },
-      required: ['url', 'method']
-    }
-  }
-];

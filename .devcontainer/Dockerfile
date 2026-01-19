@@ -56,7 +56,7 @@ RUN ARCH=$(dpkg --print-architecture) \
 RUN npm install -g pnpm
 
 # Install Fluxbase CLI for resource synchronization
-ARG FLUXBASE_CLI_VERSION=v2026.1.5
+ARG FLUXBASE_CLI_VERSION=v2026.1.12-rc.4
 RUN curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- ${FLUXBASE_CLI_VERSION:-latest}
 
 # Set up non-root user

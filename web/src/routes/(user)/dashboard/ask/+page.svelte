@@ -145,28 +145,20 @@
 	// Example suggestions
 	const suggestions = [
 		{
-			question: 'Which restaurants did I visit in Vietnam?',
-			description: 'Find all restaurant visits in a specific country'
+			question: 'What were the last four trips I made?',
+			description: 'View your most recent trips'
 		},
 		{
-			question: 'What vegan places did I go to last month?',
-			description: 'Filter by cuisine type and date range'
+			question: 'Which cities did I most recently visit?',
+			description: 'See your recent city visits'
 		},
 		{
-			question: 'Show me cafes I visited in Tokyo',
-			description: 'Find cafes in a specific city'
+			question: 'Which countries have I visited?',
+			description: 'List all countries in your travel history'
 		},
 		{
-			question: 'Where did I spend the most time eating?',
-			description: 'Find longest restaurant visits'
-		},
-		{
-			question: 'List all museums I visited in 2024',
-			description: 'Find cultural venues by year'
-		},
-		{
-			question: 'Which bars did I visit in Barcelona in summer?',
-			description: 'Combine location, venue type, and season'
+			question: 'How many trips did I take last year?',
+			description: 'Count your trips for the last year'
 		}
 	];
 

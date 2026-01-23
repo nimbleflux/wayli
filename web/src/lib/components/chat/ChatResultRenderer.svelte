@@ -75,6 +75,64 @@
 	function handleTripClick(trip: Record<string, unknown>) {
 		onTripClick?.(trip);
 	}
+
+	/**
+	 * Get a displayable value from a row, trying priority fields first
+	 * then falling back to the first meaningful string/number value
+	 */
+	function getDisplayValue(row: Record<string, unknown>): string {
+		// Priority fields to try first
+		const priorityFields = [
+			'poi_name',
+			'title',
+			'name',
+			'visited_country_codes',
+			'visited_countries',
+			'country',
+			'city',
+			'visited_cities',
+			'primary_city',
+			'primary_country_code'
+		];
+
+		for (const field of priorityFields) {
+			if (row[field] && typeof row[field] === 'string') {
+				return row[field] as string;
+			}
+		}
+
+		// Fields to skip in fallback (dates, IDs, metadata)
+		const skipFields = [
+			'id',
+			'metadata',
+			'created_at',
+			'updated_at',
+			'start_date',
+			'end_date',
+			'started_at',
+			'ended_at',
+			'recorded_at',
+			'timestamp'
+		];
+
+		// ISO date pattern to skip (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
+		const isoDatePattern = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?/;
+
+		// Fallback: find first non-excluded, non-date string value
+		for (const [key, value] of Object.entries(row)) {
+			if (key.endsWith('_id') || skipFields.includes(key)) continue;
+			if (value && typeof value === 'string' && value.length < 200) {
+				// Skip ISO date strings
+				if (isoDatePattern.test(value)) continue;
+				return value;
+			}
+			if (typeof value === 'number') {
+				return String(value);
+			}
+		}
+
+		return 'Unknown';
+	}
 </script>
 
 <div
@@ -121,12 +179,12 @@
 					{/each}
 				</ChatCardGrid>
 			{:else}
-				<!-- Fallback to table for other types -->
+				<!-- Fallback to simple list for other types -->
 				<div class="max-h-48 overflow-y-auto">
 					{#each displayData as row, rowIdx (rowIdx)}
 						<div class="border-t border-gray-200 py-2 first:border-t-0 dark:border-gray-700">
-							<div class="text-sm text-gray-900 dark:text-gray-100">
-								{JSON.stringify(row, null, 2)}
+							<div class="text-sm font-medium text-gray-900 dark:text-gray-100">
+								{getDisplayValue(row)}
 							</div>
 						</div>
 					{/each}
@@ -181,10 +239,10 @@
 								</div>
 							{/if}
 						{:else}
-							<!-- Generic row -->
+							<!-- Generic row - display first meaningful value -->
 							<div class="flex items-center gap-2">
 								<span class="font-medium text-gray-900 dark:text-gray-100">
-									{row.poi_name || row.title || row.name || 'Unknown'}
+									{getDisplayValue(row)}
 								</span>
 							</div>
 							{#if row.city || row.country}

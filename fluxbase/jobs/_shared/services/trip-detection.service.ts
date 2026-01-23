@@ -1,7 +1,6 @@
 // Trip detection service for Deno runtime
 
 import { translateServer, getCountryNameServer } from '../utils/server-translations';
-import { getCountryForPoint } from './external/country-reverse-geocoding.service';
 
 // Use a flexible type that works with both SDK client and job runtime client
 type FluxbaseClient = {
@@ -970,22 +969,8 @@ export class TripDetectionService {
 			? { lat: point.geocode.geometry.coordinates[1], lng: point.geocode.geometry.coordinates[0] }
 			: { lat: 0, lng: 0 };
 
-		let countryCode = 'Unknown';
-		if (coordinates.lat !== 0 && coordinates.lng !== 0) {
-			try {
-				const detectedCountry = getCountryForPoint(coordinates.lat, coordinates.lng);
-				if (detectedCountry) {
-					countryCode = detectedCountry;
-				} else {
-					countryCode = point.geocode?.properties?.address?.country_code || 'Unknown';
-				}
-			} catch (error) {
-				console.error('❌ Error calling country detection function:', error);
-				countryCode = point.geocode?.properties?.address?.country_code || 'Unknown';
-			}
-		} else {
-			countryCode = point.geocode?.properties?.address?.country_code || 'Unknown';
-		}
+		// Use existing country code from geocoded data (set by reverse-geocoding job)
+		const countryCode = point.geocode?.properties?.address?.country_code || 'Unknown';
 
 		const existingLocation = this.userState!.visitedCities.find(
 			(loc) => loc.cityName === cityName && loc.countryCode === countryCode

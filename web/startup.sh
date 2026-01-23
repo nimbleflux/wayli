@@ -93,6 +93,9 @@ sync_all() {
     echo "Syncing migrations..."
     fluxbase migrations sync --dir /app/fluxbase/migrations --namespace wayli || failed=1
 
+    echo "Syncing MCP tools..."
+    fluxbase mcp tools sync --dir /app/fluxbase/mcp-tools --namespace wayli || failed=1
+
     if [ "$failed" -eq 1 ]; then
         echo "Error: One or more sync operations failed"
         echo "Cannot continue - resources may be out of sync"

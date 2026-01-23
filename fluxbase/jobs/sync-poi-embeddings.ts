@@ -22,6 +22,28 @@ interface SyncPoiEmbeddingsPayload {
   limit?: number;
 }
 
+interface OsmAmenities {
+  outdoor_seating: boolean;
+  wifi: boolean;
+  wheelchair: boolean;
+  takeaway: boolean;
+  delivery: boolean;
+  smoking: boolean;
+  air_conditioning: boolean;
+}
+
+interface TimePattern {
+  morning: number;
+  afternoon: number;
+  evening: number;
+  night: number;
+}
+
+interface DayPattern {
+  weekend_visits: number;
+  weekday_visits: number;
+}
+
 interface PoiSummary {
   poi_name: string;
   poi_amenity: string | null;
@@ -32,6 +54,10 @@ interface PoiSummary {
   country_code: string | null;
   visit_count: number;
   avg_duration_minutes: number | null;
+  // New enrichment columns from migration 020
+  osm_amenities?: OsmAmenities | null;
+  time_pattern?: TimePattern | null;
+  day_pattern?: DayPattern | null;
 }
 
 interface EmbedResponse {
@@ -59,6 +85,9 @@ function safeReportProgress(job: JobUtils, percent: number, message: string): vo
 /**
  * Build rich semantic embedding text from POI data
  * Uses natural language for better vector similarity matching
+ *
+ * Enriched with OSM amenities, time patterns, and behavioral signals
+ * to enable semantic queries like "cozy cafes", "work spots", "late night food"
  */
 function buildPoiEmbeddingText(poi: PoiSummary): string {
   const parts: string[] = [];
@@ -87,6 +116,75 @@ function buildPoiEmbeddingText(poi: PoiSummary): string {
     parts.push(`for ${poi.poi_sport}`);
   }
 
+  // OSM amenity descriptors (enables "wifi cafe", "outdoor seating" queries)
+  if (poi.osm_amenities) {
+    const amenities: string[] = [];
+    if (poi.osm_amenities.outdoor_seating) amenities.push('outdoor seating');
+    if (poi.osm_amenities.wifi) amenities.push('free wifi');
+    if (poi.osm_amenities.wheelchair) amenities.push('wheelchair accessible');
+    if (poi.osm_amenities.takeaway) amenities.push('takeaway available');
+    if (poi.osm_amenities.delivery) amenities.push('delivery service');
+    if (poi.osm_amenities.air_conditioning) amenities.push('air conditioned');
+    if (amenities.length > 0) {
+      parts.push(`with ${amenities.join(', ')}`);
+    }
+  }
+
+  // Time-of-day pattern (enables "morning cafe", "late night spot" queries)
+  if (poi.time_pattern) {
+    const { morning, afternoon, evening, night } = poi.time_pattern;
+    const total = morning + afternoon + evening + night;
+    if (total > 0) {
+      const morningPct = morning / total;
+      const eveningPct = evening / total;
+      const nightPct = night / total;
+
+      if (morningPct > 0.5) {
+        parts.push('popular for morning visits');
+      } else if (eveningPct > 0.5) {
+        parts.push('popular in the evening');
+      } else if (nightPct > 0.3) {
+        parts.push('late night spot');
+      } else if (morningPct > 0.3 && afternoonPct(afternoon, total) > 0.3) {
+        parts.push('daytime favorite');
+      }
+    }
+  }
+
+  // Weekend preference (enables "weekend brunch", "weekday lunch" queries)
+  if (poi.day_pattern) {
+    const { weekend_visits, weekday_visits } = poi.day_pattern;
+    const total = weekend_visits + weekday_visits;
+    if (total >= 3) {
+      const weekendPct = weekend_visits / total;
+      if (weekendPct > 0.7) {
+        parts.push('weekend favorite');
+      } else if (weekendPct < 0.3) {
+        parts.push('weekday spot');
+      }
+    }
+  }
+
+  // Infer vibe from visit duration + category (enables "cozy", "quick bite" queries)
+  if (poi.avg_duration_minutes && poi.poi_category === 'food') {
+    if (poi.avg_duration_minutes > 90) {
+      parts.push('great for leisurely dining');
+    } else if (poi.avg_duration_minutes > 60) {
+      parts.push('relaxed atmosphere');
+    } else if (poi.avg_duration_minutes < 20) {
+      parts.push('quick service');
+    }
+  } else if (poi.avg_duration_minutes) {
+    // Non-food categories
+    if (poi.avg_duration_minutes > 90) {
+      parts.push('with leisurely extended visits');
+    } else if (poi.avg_duration_minutes > 45) {
+      parts.push('with moderate length visits');
+    } else {
+      parts.push('for quick stops');
+    }
+  }
+
   // Visit frequency context (semantic signal for recommendations)
   if (poi.visit_count >= 10) {
     parts.push('This is a frequently visited favorite location');
@@ -98,18 +196,12 @@ function buildPoiEmbeddingText(poi: PoiSummary): string {
     parts.push('Visited once');
   }
 
-  // Duration context (semantic signal for place type)
-  if (poi.avg_duration_minutes) {
-    if (poi.avg_duration_minutes > 90) {
-      parts.push('with leisurely extended visits');
-    } else if (poi.avg_duration_minutes > 45) {
-      parts.push('with moderate length visits');
-    } else {
-      parts.push('for quick stops');
-    }
-  }
-
   return parts.join(' ') + '.';
+}
+
+// Helper function for afternoon percentage calculation
+function afternoonPct(afternoon: number, total: number): number {
+  return total > 0 ? afternoon / total : 0;
 }
 
 export async function handler(

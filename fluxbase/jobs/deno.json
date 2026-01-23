@@ -1,7 +1,6 @@
 {
   "imports": {
     "@streamparser/json": "npm:@streamparser/json@^0.0.21",
-    "@turf/turf": "npm:@turf/turf",
     "geojson": "npm:@types/geojson",
     "jszip": "npm:jszip",
     "_shared/": "./_shared/"

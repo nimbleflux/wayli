@@ -28,7 +28,8 @@
 		"sync:migrations": "fluxbase migrations sync --namespace wayli --dir ../fluxbase/migrations/",
 		"sync:chatbots": "fluxbase chatbots sync --namespace wayli --dir ../fluxbase/chatbots/",
 		"sync:rpc": "fluxbase rpc sync --namespace wayli --dir ../fluxbase/rpc/",
-		"sync:all": "npm run sync:rpc && npm run sync:functions && npm run sync:jobs && npm run sync:chatbots && npm run sync:migrations",
+		"sync:mcp": "fluxbase mcp tool sync --namespace wayli --dir ../fluxbase/mcp-tools/",
+		"sync:all": "npm run sync:rpc && npm run sync:functions && npm run sync:jobs && npm run sync:chatbots && npm run sync:mcp && npm run sync:migrations",
 		"check:separation": "node scripts/check-environment-separation.js"
 	},
 	"devDependencies": {
@@ -82,7 +83,7 @@
 		"vitest": "^3.2.4"
 	},
 	"dependencies": {
-		"@fluxbase/sdk": "^2026.1.12-rc.4",
+		"@fluxbase/sdk": "^2026.1.14-rc.6",
 		"@melt-ui/svelte": "^0.86.6",
 		"@svelte-plugins/datepicker": "^1.0.11",
 		"@turf/turf": "^7.2.0",

@@ -7,8 +7,8 @@
  * Can be triggered manually by admins or runs automatically via schedule.
  *
  * @fluxbase:require-role admin, service_role
- * @fluxbase:timeout 3600
- * @fluxbase:progress-timeout 3600
+ * @fluxbase:timeout 21600
+ * @fluxbase:progress-timeout 21600
  * @fluxbase:allow-net true
  * @fluxbase:allow-env true
  * @fluxbase:schedule 0 3 * * *

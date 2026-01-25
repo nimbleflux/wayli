@@ -1,5 +1,5 @@
 -- @fluxbase:require-role authenticated, service_role
--- @fluxbase:max-execution-time 1800s
+-- @fluxbase:max-execution-time 21600s
 -- @fluxbase:param user_id uuid?
 -- Detect place visits incrementally using enhanced cluster-first approach
 -- Improvements:

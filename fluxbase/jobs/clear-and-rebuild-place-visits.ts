@@ -6,6 +6,7 @@
  *
  * @fluxbase:require-role admin
  * @fluxbase:timeout 3600
+ * @fluxbase:progress-timeout 3600
  * @fluxbase:allow-net true
  * @fluxbase:allow-env true
  */

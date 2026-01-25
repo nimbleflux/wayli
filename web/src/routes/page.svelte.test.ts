@@ -40,6 +40,17 @@ vi.mock('$lib/i18n', () => ({
 
 // Mock stores
 vi.mock('$lib/stores/app-state.svelte', () => ({
+	state: {
+		theme: 'light',
+		isSidebarOpen: true,
+		showUserMenu: false,
+		storageBannerVisible: false,
+		filtersStartDate: null,
+		filtersEndDate: null,
+		filtersIsDatePickerOpen: false,
+		mapInitialZoom: null,
+		mapInitialCenter: null
+	},
 	setTheme: vi.fn(),
 	initializeTheme: vi.fn()
 }));

@@ -138,6 +138,21 @@
 		return statusColors[status] || 'text-gray-600';
 	}
 
+	// Jobs that don't report meaningful progress percentages
+	const INDETERMINATE_JOB_NAMES = [
+		'detect-place-visits',
+		'scheduled-detect-place-visits',
+		'clear-and-rebuild-place-visits'
+	];
+
+	function isIndeterminateJob(job: JobStoreJob): boolean {
+		// RPC executions don't report meaningful progress
+		if (job.id.startsWith('rpc:')) return true;
+
+		// Place visit detection jobs poll an async RPC
+		return INDETERMINATE_JOB_NAMES.includes(job.job_name);
+	}
+
 	// Cancel job function
 	async function handleCancelJob(job: JobStoreJob, event?: MouseEvent) {
 		event?.stopPropagation();
@@ -404,6 +419,7 @@
 	{@const statusColor = getStatusColor(job.status)}
 	{@const eta = getETADisplay(job)}
 	{@const jobTypeName = getJobTypeDisplayName(job.job_name)}
+	{@const indeterminate = isIndeterminateJob(job)}
 
 	<!-- Using div with role="button" to avoid nested button a11y issue -->
 	<div
@@ -424,19 +440,27 @@
 
 			{#if job.status === 'running' || job.status === 'pending'}
 				<div class="relative mb-1">
-					<div class="h-4 w-full rounded-full bg-gray-200 dark:bg-gray-700">
-						<div
-							class="bg-primary relative h-4 rounded-full transition-all duration-300 dark:bg-blue-500"
-							style="width: {job.progress_percent || 0}%"
-						>
-							{#if (job.progress_percent || 0) > 10}
-								<div class="absolute inset-0 flex items-center justify-center">
-									<span class="text-xs font-medium text-white drop-shadow-sm">
-										{job.progress_percent || 0}%
-									</span>
-								</div>
-							{/if}
-						</div>
+					<div class="h-4 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+						{#if indeterminate}
+							<!-- Indeterminate progress bar with sliding animation -->
+							<div
+								class="bg-primary h-4 w-1/2 rounded-full dark:bg-blue-500 animate-progress-indeterminate"
+							></div>
+						{:else}
+							<!-- Determinate progress bar with percentage -->
+							<div
+								class="bg-primary relative h-4 rounded-full transition-all duration-300 dark:bg-blue-500"
+								style="width: {job.progress_percent || 0}%"
+							>
+								{#if (job.progress_percent || 0) > 10}
+									<div class="absolute inset-0 flex items-center justify-center">
+										<span class="text-xs font-medium text-white drop-shadow-sm">
+											{job.progress_percent || 0}%
+										</span>
+									</div>
+								{/if}
+							</div>
+						{/if}
 					</div>
 				</div>
 				{#if eta}
@@ -559,6 +583,20 @@
 {/if}
 
 <style>
+	/* Indeterminate progress bar animation */
+	@keyframes progress-indeterminate {
+		0% {
+			transform: translateX(-100%);
+		}
+		100% {
+			transform: translateX(200%);
+		}
+	}
+
+	.animate-progress-indeterminate {
+		animation: progress-indeterminate 1.5s ease-in-out infinite;
+	}
+
 	/* Ensure modal is always on top of everything, including Leaflet maps */
 	.cancel-job-modal {
 		z-index: 99999999 !important;

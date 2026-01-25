@@ -158,6 +158,21 @@
 			: jobName.charAt(0).toUpperCase() + jobName.slice(1).replace(/[_-]/g, ' ');
 	}
 
+	// Jobs that don't report meaningful progress percentages
+	const INDETERMINATE_JOB_NAMES = [
+		'detect-place-visits',
+		'scheduled-detect-place-visits',
+		'clear-and-rebuild-place-visits'
+	];
+
+	function isIndeterminateJob(job: JobStoreJob): boolean {
+		// RPC executions don't report meaningful progress
+		if (job.id.startsWith('rpc:')) return true;
+
+		// Place visit detection jobs poll an async RPC
+		return INDETERMINATE_JOB_NAMES.includes(job.job_name);
+	}
+
 	// Status color and label mapping
 	const statusConfig: Record<string, { color: string; bgColor: string; labelKey: string }> = {
 		pending: {
@@ -397,6 +412,7 @@
 	{@const JobIcon = getJobTypeIcon(displayJob.job_name)}
 	{@const status = statusConfig[displayJob.status] || statusConfig.pending}
 	{@const eta = formatEta(displayJob.estimated_seconds_left)}
+	{@const indeterminate = isIndeterminateJob(displayJob)}
 
 	<div
 		use:teleport
@@ -453,22 +469,32 @@
 			<div class="border-b border-gray-200 p-6 dark:border-gray-700">
 				{#if displayJob.status === 'running' || displayJob.status === 'pending'}
 					<div class="mb-3">
-						<div class="mb-1 flex items-center justify-between text-sm">
-							<span class="text-gray-600 dark:text-gray-400">Progress</span>
-							<span class="font-medium text-gray-900 dark:text-gray-100"
-								>{displayJob.progress_percent || 0}%</span
-							>
-						</div>
+						{#if !indeterminate}
+							<div class="mb-1 flex items-center justify-between text-sm">
+								<span class="text-gray-600 dark:text-gray-400">Progress</span>
+								<span class="font-medium text-gray-900 dark:text-gray-100"
+									>{displayJob.progress_percent || 0}%</span
+								>
+							</div>
+						{/if}
 						<div class="h-3 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-							<div
-								class="bg-primary dark:bg-primary-dark h-3 rounded-full transition-all duration-300"
-								style="width: {displayJob.progress_percent || 0}%"
-							></div>
+							{#if indeterminate}
+								<!-- Indeterminate progress bar with sliding animation -->
+								<div
+									class="bg-primary dark:bg-primary-dark h-3 w-1/2 rounded-full animate-progress-indeterminate"
+								></div>
+							{:else}
+								<!-- Determinate progress bar with percentage -->
+								<div
+									class="bg-primary dark:bg-primary-dark h-3 rounded-full transition-all duration-300"
+									style="width: {displayJob.progress_percent || 0}%"
+								></div>
+							{/if}
 						</div>
 					</div>
 					{#if eta}
 						<p class="text-sm text-gray-600 dark:text-gray-400">{eta}</p>
-					{:else}
+					{:else if !indeterminate}
 						<p class="text-sm text-gray-500 dark:text-gray-400">Determining ETA...</p>
 					{/if}
 					{#if displayJob.progress_message}
@@ -585,6 +611,20 @@
 {/if}
 
 <style>
+	/* Indeterminate progress bar animation */
+	@keyframes progress-indeterminate {
+		0% {
+			transform: translateX(-100%);
+		}
+		100% {
+			transform: translateX(200%);
+		}
+	}
+
+	.animate-progress-indeterminate {
+		animation: progress-indeterminate 1.5s ease-in-out infinite;
+	}
+
 	/* Ensure modal is always on top of everything, including Leaflet maps and sidebars */
 	:global(.job-detail-modal) {
 		z-index: 99999999 !important;

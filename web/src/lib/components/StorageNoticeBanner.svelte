@@ -3,6 +3,7 @@
 	import { slide } from 'svelte/transition';
 	import { browser } from '$app/environment';
 	import { translate } from '$lib/i18n';
+	import { state } from '$lib/stores/app-state.svelte';
 
 	const STORAGE_KEY = 'wayli-storage-notice-dismissed';
 
@@ -12,6 +13,11 @@
 	let isLoading = $state(true);
 
 	let shouldShow = $derived(!isLoading && !isDismissed);
+
+	// Sync banner visibility with global state for layout adjustments
+	$effect(() => {
+		state.storageBannerVisible = shouldShow;
+	});
 
 	$effect(() => {
 		if (browser) {
@@ -30,8 +36,10 @@
 </script>
 
 {#if shouldShow}
+	<!-- Spacer to prevent content from being hidden behind fixed banner -->
+	<div class="h-12"></div>
 	<div
-		class="border-b border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800"
+		class="fixed top-0 left-0 right-0 z-50 border-b border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800"
 		transition:slide={{ duration: 300 }}
 		role="alert"
 		aria-live="polite"

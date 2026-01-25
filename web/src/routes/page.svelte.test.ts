@@ -7,7 +7,7 @@ vi.mock('$lib/i18n', () => ({
 	translate: {
 		subscribe: vi.fn((fn) => {
 			fn(vi.fn((key: string) => key)); // Call the callback with a translation function
-			return { unsubscribe: vi.fn() };
+			return vi.fn(); // Return unsubscribe function directly
 		})
 	},
 	messages: {
@@ -27,13 +27,13 @@ vi.mock('$lib/i18n', () => ({
 				'landing.accountSettings': 'Account Settings',
 				'landing.signOut': 'Sign Out'
 			});
-			return { unsubscribe: vi.fn() };
+			return vi.fn(); // Return unsubscribe function directly
 		})
 	},
 	currentLocale: {
 		subscribe: vi.fn((fn) => {
 			fn('en'); // Call the callback with 'en'
-			return { unsubscribe: vi.fn() };
+			return vi.fn(); // Return unsubscribe function directly
 		})
 	}
 }));

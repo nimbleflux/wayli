@@ -3,7 +3,7 @@
 	import { slide } from 'svelte/transition';
 	import { browser } from '$app/environment';
 	import { translate } from '$lib/i18n';
-	import { state } from '$lib/stores/app-state.svelte';
+	import { state as appState } from '$lib/stores/app-state.svelte';
 
 	const STORAGE_KEY = 'wayli-storage-notice-dismissed';
 
@@ -16,7 +16,7 @@
 
 	// Sync banner visibility with global state for layout adjustments
 	$effect(() => {
-		state.storageBannerVisible = shouldShow;
+		appState.storageBannerVisible = shouldShow;
 	});
 
 	$effect(() => {

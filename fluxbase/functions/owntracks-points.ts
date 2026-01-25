@@ -8,6 +8,17 @@
 
 import type { FluxbaseClient } from '../jobs/types';
 
+// GeoJSON types for timezone lookup
+type Position = number[];
+interface Polygon { type: 'Polygon'; coordinates: Position[][]; }
+interface MultiPolygon { type: 'MultiPolygon'; coordinates: Position[][][]; }
+interface Feature<G = Polygon | MultiPolygon> { type: 'Feature'; geometry: G; properties: Record<string, unknown> | null; }
+interface FeatureCollection<G = Polygon | MultiPolygon> { type: 'FeatureCollection'; features: Feature<G>[]; }
+
+// Import timezones GeoJSON for tz_diff lookup
+import timezonesRaw from '_shared/timezones';
+const timezonesGeoJSON = timezonesRaw as FeatureCollection;
+
 // ===== Type Definitions =====
 interface ApiResponse<T = unknown> {
   success: boolean;
@@ -180,6 +191,90 @@ const COUNTRY_CODE_3TO2: Record<string, string> = {
 
 function convertCountryCode3to2(code3: string): string {
   return COUNTRY_CODE_3TO2[code3?.toUpperCase()] || code3?.toLowerCase() || '';
+}
+
+// ===== Point-in-Polygon for Timezone Lookup =====
+function pointInRing(lng: number, lat: number, ring: Position[]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1];
+    const xj = ring[j][0], yj = ring[j][1];
+    const intersect = ((yi > lat) !== (yj > lat)) &&
+      (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function pointInPolygon(lng: number, lat: number, coordinates: Position[][]): boolean {
+  if (!pointInRing(lng, lat, coordinates[0])) return false;
+  for (let i = 1; i < coordinates.length; i++) {
+    if (pointInRing(lng, lat, coordinates[i])) return false;
+  }
+  return true;
+}
+
+function pointInMultiPolygon(lng: number, lat: number, coordinates: Position[][][]): boolean {
+  for (const polygon of coordinates) {
+    if (pointInPolygon(lng, lat, polygon)) return true;
+  }
+  return false;
+}
+
+function pointInFeature(lng: number, lat: number, feature: Feature): boolean {
+  const geometry = feature.geometry;
+  if (geometry.type === 'Polygon') {
+    return pointInPolygon(lng, lat, (geometry as Polygon).coordinates);
+  } else if (geometry.type === 'MultiPolygon') {
+    return pointInMultiPolygon(lng, lat, (geometry as MultiPolygon).coordinates);
+  }
+  return false;
+}
+
+function getTimezoneOffset(lat: number, lon: number): number | null {
+  if (!timezonesGeoJSON.features || timezonesGeoJSON.features.length === 0) return null;
+  for (const feature of timezonesGeoJSON.features) {
+    if (pointInFeature(lon, lat, feature)) {
+      const offset = parseFloat(feature.properties?.name as string);
+      return isNaN(offset) ? null : offset;
+    }
+  }
+  return null;
+}
+
+// ===== Coarse Geocoding for Country/Region =====
+async function fetchCoarseGeocode(lat: number, lon: number, endpoint: string): Promise<{
+  country_code: string | null;
+  country: string | null;
+  region: string | null;
+  locality: string | null;
+} | null> {
+  try {
+    const peliasUrl = `${endpoint}/v1/reverse?point.lat=${lat}&point.lon=${lon}&layers=coarse&size=1`;
+    const response = await fetch(peliasUrl, {
+      headers: {
+        'User-Agent': 'Wayli/1.0 (https://wayli.app)',
+        Accept: 'application/json'
+      }
+    });
+    if (!response.ok) return null;
+    const result = await response.json();
+    if (!result.features || result.features.length === 0) return null;
+
+    const props = result.features[0].properties;
+    let countryCode = props.country_code?.toUpperCase() || null;
+    if (!countryCode && props.country_a) {
+      countryCode = convertCountryCode3to2(props.country_a);
+    }
+    return {
+      country_code: countryCode,
+      country: props.country || null,
+      region: props.region || null,
+      locality: props.locality || null
+    };
+  } catch {
+    return null;
+  }
 }
 
 // Helper function to perform reverse geocoding using Pelias
@@ -389,6 +484,7 @@ async function handler(
       points.map(async (point: any) => {
         let geocodeData = null;
         let countryCode = null;
+        let tzDiff = null;
 
         // Always fetch reverse geocode from Pelias for consistency
         try {
@@ -402,6 +498,33 @@ async function handler(
 
           if (geocodeData) {
             countryCode = geocodeData.properties?.address?.country_code?.toUpperCase() || null;
+
+            // If address-level geocoding didn't return country_code, fetch coarse data
+            if (!countryCode) {
+              const coarseData = await fetchCoarseGeocode(point.lat, point.lon, peliasEndpoint);
+              if (coarseData) {
+                countryCode = coarseData.country_code;
+                // Enrich geocode with coarse data
+                if (countryCode) {
+                  geocodeData.properties.address.country_code = countryCode;
+                }
+                if (coarseData.country && !geocodeData.properties.country) {
+                  geocodeData.properties.country = coarseData.country;
+                  geocodeData.properties.address.country = coarseData.country;
+                }
+                if (coarseData.region && !geocodeData.properties.region) {
+                  geocodeData.properties.region = coarseData.region;
+                  geocodeData.properties.address.state = coarseData.region;
+                }
+                if (coarseData.locality && !geocodeData.properties.locality) {
+                  geocodeData.properties.locality = coarseData.locality;
+                  if (!geocodeData.properties.address.city) {
+                    geocodeData.properties.address.city = coarseData.locality;
+                  }
+                }
+              }
+            }
+
             logSuccess('Point geocoded successfully', 'OWNTRACKS_GEOCODE', {
               userId: user.id,
               timestamp: point.tst,
@@ -423,6 +546,9 @@ async function handler(
           );
         }
 
+        // Calculate timezone offset from coordinates
+        tzDiff = getTimezoneOffset(point.lat, point.lon);
+
         // Return processed point with geocode data (if available)
         return {
           user_id: user.id,
@@ -436,7 +562,8 @@ async function handler(
           heading: point.cog || null,
           battery_level: point.batt || null,
           geocode: geocodeData,
-          country_code: countryCode
+          country_code: countryCode,
+          tz_diff: tzDiff
         };
       })
     );

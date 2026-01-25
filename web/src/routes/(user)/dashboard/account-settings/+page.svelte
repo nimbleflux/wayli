@@ -604,12 +604,20 @@
 				if (pexelsRateLimitEnabled) {
 					await fluxbase.settings.setSetting('wayli.pexels_rate_limit', { limit: pexelsRateLimit });
 				} else {
-					// Clear user setting to use server default
-					await fluxbase.settings.deleteSetting('wayli.pexels_rate_limit');
+					// Clear user setting to use server default (ignore 404 if it doesn't exist)
+					try {
+						await fluxbase.settings.deleteSetting('wayli.pexels_rate_limit');
+					} catch {
+						// Setting doesn't exist, which is fine
+					}
 				}
 			} else {
-				// No API key = no personal rate limit
-				await fluxbase.settings.deleteSetting('wayli.pexels_rate_limit');
+				// No API key = no personal rate limit (ignore 404 if it doesn't exist)
+				try {
+					await fluxbase.settings.deleteSetting('wayli.pexels_rate_limit');
+				} catch {
+					// Setting doesn't exist, which is fine
+				}
 			}
 
 			// Only adjust client locale if it differs from the just-saved preference
@@ -632,8 +640,12 @@
 			pexelsApiKeyConfigured = false;
 			pexelsApiKeyUpdatedAt = null;
 
-			// Auto-clear personal rate limit when API key is cleared using settings SDK
-			await fluxbase.settings.deleteSetting('wayli.pexels_rate_limit');
+			// Auto-clear personal rate limit when API key is cleared (ignore 404 if it doesn't exist)
+			try {
+				await fluxbase.settings.deleteSetting('wayli.pexels_rate_limit');
+			} catch {
+				// Setting doesn't exist, which is fine
+			}
 			pexelsRateLimitEnabled = false;
 			pexelsRateLimit = 200; // Reset to default value
 

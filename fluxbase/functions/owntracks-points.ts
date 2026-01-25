@@ -211,9 +211,11 @@ async function reverseGeocode(lat: number, lon: number, endpoint: string): Promi
     const feature = result.features[0];
     const props = feature.properties;
 
-    // Build normalized address
+    // Build normalized address with fallbacks for city
     const address: Record<string, string> = {};
-    if (props.locality) address.city = props.locality;
+    // City: try multiple sources - locality, localadmin, neighbourhood, or OSM addr:city
+    const city = props.locality || props.localadmin || props.neighbourhood || props.addendum?.osm?.['addr:city'];
+    if (city) address.city = city;
     if (props.region) address.state = props.region;
     if (props.country) address.country = props.country;
     if (props.neighbourhood) address.neighbourhood = props.neighbourhood;
@@ -247,6 +249,7 @@ async function reverseGeocode(lat: number, lon: number, endpoint: string): Promi
         country: props.country,
         neighbourhood: props.neighbourhood,
         borough: props.borough,
+        addendum: props.addendum,
         geocoded_at: new Date().toISOString(),
         geocoding_provider: 'pelias',
         import_source: 'owntracks',
@@ -257,6 +260,41 @@ async function reverseGeocode(lat: number, lon: number, endpoint: string): Promi
     logError(error, 'OWNTRACKS_REVERSE_GEOCODE');
     return null;
   }
+}
+
+// Sleep utility for retry backoff
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Retry wrapper for reverse geocoding with exponential backoff
+async function reverseGeocodeWithRetry(
+  lat: number,
+  lon: number,
+  endpoint: string,
+  maxRetries: number = 3
+): Promise<any | null> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const result = await reverseGeocode(lat, lon, endpoint);
+      if (result) return result;
+      // If result is null (no features), don't retry - this is a valid response
+      if (attempt === 0) {
+        // Only log on first attempt to avoid spam
+        return null;
+      }
+    } catch (error) {
+      if (attempt === maxRetries - 1) {
+        // Last attempt failed, propagate the error
+        throw error;
+      }
+      // Wait with exponential backoff: 100ms, 200ms, 400ms
+      const backoffMs = Math.pow(2, attempt) * 100;
+      logInfo(`Geocoding attempt ${attempt + 1} failed, retrying in ${backoffMs}ms`, 'OWNTRACKS_GEOCODE_RETRY');
+      await sleep(backoffMs);
+    }
+  }
+  return null;
 }
 
 async function handler(
@@ -360,7 +398,7 @@ async function handler(
             lon: point.lon
           });
 
-          geocodeData = await reverseGeocode(point.lat, point.lon, peliasEndpoint);
+          geocodeData = await reverseGeocodeWithRetry(point.lat, point.lon, peliasEndpoint);
 
           if (geocodeData) {
             countryCode = geocodeData.properties?.address?.country_code?.toUpperCase() || null;

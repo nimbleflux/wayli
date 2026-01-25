@@ -495,6 +495,10 @@ export class TripDetectionService {
 		if (point.geocode?.properties?.city) {
 			return point.geocode.properties.city;
 		}
+		// Fallback: check locality field (Pelias stores city here directly)
+		if (point.geocode?.properties?.locality) {
+			return point.geocode.properties.locality;
+		}
 
 		return null;
 	}

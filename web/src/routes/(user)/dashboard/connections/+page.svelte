@@ -75,7 +75,8 @@
 
 			// Construct the endpoint URL with the new API key
 			const baseUrl = config.fluxbaseUrl;
-			const url = new URL(`${baseUrl}/api/v1/functions/owntracks-points/invoke/`);
+			const url = new URL(`${baseUrl}/api/v1/functions/owntracks-points/invoke`);
+			url.searchParams.append('namespace', 'wayli');
 			url.searchParams.append('api_key', newApiKey);
 			url.searchParams.append('user_id', data.user.id);
 

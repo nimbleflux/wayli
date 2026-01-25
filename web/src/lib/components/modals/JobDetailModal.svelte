@@ -492,7 +492,7 @@
 							{/if}
 						</div>
 					</div>
-					{#if eta}
+					{#if eta && !indeterminate}
 						<p class="text-sm text-gray-600 dark:text-gray-400">{eta}</p>
 					{:else if !indeterminate}
 						<p class="text-sm text-gray-500 dark:text-gray-400">Determining ETA...</p>

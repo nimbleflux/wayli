@@ -463,7 +463,7 @@
 						{/if}
 					</div>
 				</div>
-				{#if eta}
+				{#if eta && !indeterminate}
 					<div class="text-xs text-gray-500 dark:text-gray-400">{eta}</div>
 				{/if}
 			{:else if job.status === 'completed'}

@@ -1265,6 +1265,9 @@
 		"error": "Connection error",
 		"reconnected": "Realtime connection re-established"
 	},
+	"storageNotice": {
+		"message": "This site uses browser storage to remember your preferences and provide essential functionality. No tracking cookies are used."
+	},
 	"ask": {
 		"title": "Ask About Your Travels",
 		"subtitle": "Use natural language to explore your travel history",
@@ -1292,6 +1295,7 @@
 		"inputConnecting": "Connecting...",
 		"executionLogs": "Execution Logs",
 		"noLogsAvailable": "No logs available",
-		"close": "Close"
+		"close": "Close",
+		"noResponse": "I wasn't able to complete this request. Please try rephrasing your question."
 	}
 }

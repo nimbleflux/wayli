@@ -1261,6 +1261,9 @@
 		"error": "Verbindingsfout",
 		"reconnected": "Realtime verbinding hersteld"
 	},
+	"storageNotice": {
+		"message": "Deze site gebruikt browseropslag om uw voorkeuren te onthouden en essentiële functionaliteit te bieden. Er worden geen tracking-cookies gebruikt."
+	},
 	"ask": {
 		"title": "Vraag Over Je Reizen",
 		"subtitle": "Gebruik natuurlijke taal om je reisgeschiedenis te verkennen",

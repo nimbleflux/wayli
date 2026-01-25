@@ -8,6 +8,7 @@
  *
  * @fluxbase:require-role admin, service_role
  * @fluxbase:timeout 3600
+ * @fluxbase:progress-timeout 3600
  * @fluxbase:allow-net true
  * @fluxbase:allow-env true
  * @fluxbase:schedule 0 3 * * *
@@ -15,60 +16,8 @@
 
 import type { FluxbaseClient, JobUtils } from './types';
 
-// Safe wrapper for reportProgress
-function safeReportProgress(job: JobUtils, percent: number, message: string): void {
-  if (typeof (job as any)?.reportProgress === 'function') {
-    try {
-      job.reportProgress(percent, message);
-    } catch (e) {
-      console.log(`[Progress ${percent}%] ${message}`);
-    }
-  } else {
-    console.log(`[Progress ${percent}%] ${message}`);
-  }
-}
-
-/**
- * Wait for an RPC job to complete by polling its status.
- */
-async function waitForRpcCompletion(
-  fluxbase: FluxbaseClient,
-  executionId: string,
-  job: JobUtils,
-  maxWaitMs: number = 1800000, // 30 minutes max (matches RPC timeout)
-  pollIntervalMs: number = 5000 // Poll every 5 seconds
-): Promise<{ success: boolean; result?: any; error?: string }> {
-  const startTime = Date.now();
-  console.log(`Waiting for RPC execution ${executionId} to complete...`);
-
-  while (Date.now() - startTime < maxWaitMs) {
-    try {
-      const { data: status } = await (fluxbase.rpc as any).getStatus(executionId);
-      console.log(`RPC status for ${executionId}:`, JSON.stringify(status));
-
-      if (status?.status === 'completed' || status?.status === 'success') {
-        console.log(`RPC execution ${executionId} completed successfully`);
-        return { success: true, result: status?.result };
-      }
-
-      if (status?.status === 'failed' || status?.status === 'error') {
-        const errorMsg = status?.error_message || status?.error || status?.message || 'unknown error';
-        console.warn(`RPC execution ${executionId} failed: ${errorMsg}`);
-        return { success: false, error: errorMsg };
-      }
-
-      if (status?.progress !== undefined) {
-        safeReportProgress(job, Math.min(5 + status.progress * 0.9, 95), `Processing: ${status.progress}%`);
-      }
-    } catch (err) {
-      console.warn(`Error checking RPC status:`, err);
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
-  }
-
-  console.warn(`RPC execution ${executionId} timed out after ${maxWaitMs / 1000}s`);
-  return { success: false, error: `Timed out after ${maxWaitMs / 1000}s` };
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function handler(
@@ -78,9 +27,9 @@ export async function handler(
   job: JobUtils
 ) {
   try {
-    safeReportProgress(job, 5, 'Starting incremental place visit detection for all users...');
+    job.reportProgress(0, 'Running incremental place visit detection query for all users...');
 
-    // Invoke global incremental detection asynchronously to avoid request timeout
+    // Start the RPC asynchronously
     const { data, error } = await (fluxbaseService.rpc as any).invoke(
       'detect-place-visits-incremental',
       { user_id: null },
@@ -95,49 +44,82 @@ export async function handler(
       };
     }
 
-    // Get execution ID and wait for completion
-    const executionId = data?.execution_id || data;
-    if (executionId) {
-      console.log(`RPC started with execution ID: ${executionId}`);
-      const completion = await waitForRpcCompletion(fluxbaseService, executionId, job);
-
-      if (!completion.success) {
-        return {
-          success: false,
-          error: `Place visit detection failed: ${completion.error}`
-        };
-      }
-
-      const result = completion.result?.[0] || completion.result || {};
-      const insertedCount = result.inserted_count || 0;
-      const usersProcessed = result.users_processed || 0;
-      const deletedCount = result.deleted_count || 0;
-
-      safeReportProgress(
-        job,
-        100,
-        `Completed: ${insertedCount} visits detected for ${usersProcessed} users (${deletedCount} old visits updated)`
-      );
-
-      console.log(
-        `✅ Scheduled place visit detection complete: ${insertedCount} visits for ${usersProcessed} users`
-      );
-
+    const executionId = data?.execution_id;
+    if (!executionId) {
+      console.warn('No execution ID returned from RPC');
       return {
         success: true,
-        result: {
-          inserted_count: insertedCount,
-          users_processed: usersProcessed,
-          deleted_count: deletedCount
-        }
+        result: { message: 'RPC started but no execution ID returned' }
       };
     }
 
-    // Fallback if no execution ID returned (shouldn't happen with async: true)
-    console.warn('No execution ID returned from RPC');
+    console.log(`RPC started with execution ID: ${executionId}`);
+
+    // Poll for RPC completion while keeping job alive
+    let execution: any;
+    do {
+      await sleep(5000); // Wait 5 seconds between polls
+
+      try {
+        const { data: status, error: statusError } = await (fluxbaseService.rpc as any).getStatus(
+          executionId
+        );
+
+        if (statusError) {
+          console.warn(`Error getting RPC status: ${statusError.message}`);
+          // Keep job alive even on error
+          (job.reportProgress as (percent: number | null, message: string) => void)(
+            null,
+            `Polling error: ${statusError.message}`
+          );
+          continue;
+        }
+
+        execution = status;
+        console.log(`RPC status: ${JSON.stringify(execution)}`);
+
+        // This resets the job's progress timeout (null = don't update percentage)
+        (job.reportProgress as (percent: number | null, message: string) => void)(
+          null,
+          `Waiting for RPC: ${execution?.status || 'unknown'}`
+        );
+      } catch (err: any) {
+        console.error(`Exception polling RPC status: ${err.message}`);
+        (job.reportProgress as (percent: number | null, message: string) => void)(
+          null,
+          `Polling exception: ${err.message}`
+        );
+      }
+    } while (!execution || execution.status === 'pending' || execution.status === 'running');
+
+    if (execution.status === 'failed') {
+      return {
+        success: false,
+        error: `Place visit detection failed: ${execution.error}`
+      };
+    }
+
+    const result = execution.result?.[0] || execution.result || {};
+    const insertedCount = result.inserted_count || 0;
+    const usersProcessed = result.users_processed || 0;
+    const deletedCount = result.deleted_count || 0;
+
+    job.reportProgress(
+      100,
+      `Completed: ${insertedCount} visits detected for ${usersProcessed} users (${deletedCount} old visits updated)`
+    );
+
+    console.log(
+      `✅ Scheduled place visit detection complete: ${insertedCount} visits for ${usersProcessed} users`
+    );
+
     return {
       success: true,
-      result: { message: 'RPC started but no execution ID returned' }
+      result: {
+        inserted_count: insertedCount,
+        users_processed: usersProcessed,
+        deleted_count: deletedCount
+      }
     };
   } catch (error: unknown) {
     console.error('❌ Error in scheduled-detect-place-visits job:', error);

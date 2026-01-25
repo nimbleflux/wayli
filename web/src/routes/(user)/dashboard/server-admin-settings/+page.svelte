@@ -2772,15 +2772,18 @@
 								{t('serverAdmin.pipelineDescription')}
 							</p>
 
-							<!-- Pipeline Flow Diagram -->
-							<div class="space-y-3">
-								<!-- Row 1: Reverse Geocode → Refresh Place Visits -->
-								<div class="flex flex-wrap items-center gap-3">
-									<!-- Reverse Geocode Card -->
-									<div
-										class="flex min-w-[200px] flex-1 items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-800"
-									>
-										<div class="min-w-0 flex-1">
+							<!-- Pipeline Flow Diagram - Vertical Layout -->
+							<div class="flex flex-col items-center">
+								<!-- Step 1: Reverse Geocode -->
+								<div
+									class="flex w-full max-w-xl items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-600 dark:bg-gray-800"
+								>
+									<div class="flex items-start gap-3">
+										<span
+											class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400"
+											>1</span
+										>
+										<div class="min-w-0">
 											<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
 												{t('serverAdmin.reverseGeocode')}
 											</span>
@@ -2788,28 +2791,35 @@
 												{t('serverAdmin.reverseGeocodeDescription')}
 											</p>
 										</div>
-										<button
-											onclick={reverseGeocodeAllUsers}
-											disabled={isReverseGeocodingAllUsers}
-											class="bg-primary hover:bg-primary/90 ml-3 inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-										>
-											<RefreshCw
-												class={`h-3.5 w-3.5 ${isReverseGeocodingAllUsers ? 'animate-spin' : ''}`}
-											/>
-											{isReverseGeocodingAllUsers ? t('serverAdmin.running') : t('serverAdmin.run')}
-										</button>
 									</div>
-
-									<!-- Arrow -->
-									<div class="flex shrink-0 items-center">
-										<ArrowRight class="h-5 w-5 text-gray-400" />
-									</div>
-
-									<!-- Refresh Place Visits Card -->
-									<div
-										class="flex min-w-[200px] flex-1 items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-800"
+									<button
+										onclick={reverseGeocodeAllUsers}
+										disabled={isReverseGeocodingAllUsers}
+										class="bg-primary hover:bg-primary/90 ml-3 inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
 									>
-										<div class="min-w-0 flex-1">
+										<RefreshCw
+											class={`h-3.5 w-3.5 ${isReverseGeocodingAllUsers ? 'animate-spin' : ''}`}
+										/>
+										{isReverseGeocodingAllUsers ? t('serverAdmin.running') : t('serverAdmin.run')}
+									</button>
+								</div>
+
+								<!-- Connector -->
+								<div class="flex flex-col items-center py-1">
+									<div class="h-4 w-0.5 bg-gray-300 dark:bg-gray-600"></div>
+									<ChevronDown class="h-4 w-4 text-gray-400" />
+								</div>
+
+								<!-- Step 2: Sync Place Visits -->
+								<div
+									class="flex w-full max-w-xl items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-600 dark:bg-gray-800"
+								>
+									<div class="flex items-start gap-3">
+										<span
+											class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400"
+											>2</span
+										>
+										<div class="min-w-0">
 											<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
 												{t('serverAdmin.refreshPlaceVisits')}
 											</span>
@@ -2817,37 +2827,40 @@
 												{t('serverAdmin.refreshPlaceVisitsDescription')}
 											</p>
 										</div>
-										<button
-											onclick={refreshPlaceVisits}
-											disabled={isRefreshingPlaceVisits}
-											class="bg-primary hover:bg-primary/90 ml-3 inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-										>
-											<RefreshCw
-												class={`h-3.5 w-3.5 ${isRefreshingPlaceVisits ? 'animate-spin' : ''}`}
-											/>
-											{isRefreshingPlaceVisits
-												? t('serverAdmin.refreshing')
-												: t('serverAdmin.refresh')}
-										</button>
 									</div>
-								</div>
-
-								<!-- Vertical Arrow with "auto" label -->
-								<div class="flex justify-center pl-[calc(50%+1.5rem)]">
-									<div class="flex flex-col items-center">
-										<ChevronDown class="h-5 w-5 text-gray-400" />
-										<span class="text-xs font-medium text-emerald-600 dark:text-emerald-400">
-											{t('serverAdmin.autoTrigger')}
-										</span>
-									</div>
-								</div>
-
-								<!-- Row 2: Sync POI Embeddings -->
-								<div class="flex justify-center pl-[calc(50%+1.5rem)]">
-									<div
-										class="flex max-w-md min-w-[200px] flex-1 items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-800"
+									<button
+										onclick={refreshPlaceVisits}
+										disabled={isRefreshingPlaceVisits}
+										class="bg-primary hover:bg-primary/90 ml-3 inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
 									>
-										<div class="min-w-0 flex-1">
+										<RefreshCw
+											class={`h-3.5 w-3.5 ${isRefreshingPlaceVisits ? 'animate-spin' : ''}`}
+										/>
+										{isRefreshingPlaceVisits
+											? t('serverAdmin.refreshing')
+											: t('serverAdmin.refresh')}
+									</button>
+								</div>
+
+								<!-- Connector with "auto" label -->
+								<div class="flex flex-col items-center py-1">
+									<div class="h-3 w-0.5 bg-gray-300 dark:bg-gray-600"></div>
+									<span class="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+										{t('serverAdmin.autoTrigger')}
+									</span>
+									<ChevronDown class="-mt-0.5 h-4 w-4 text-gray-400" />
+								</div>
+
+								<!-- Step 3: Sync POI Embeddings -->
+								<div
+									class="flex w-full max-w-xl items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-600 dark:bg-gray-800"
+								>
+									<div class="flex items-start gap-3">
+										<span
+											class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400"
+											>3</span
+										>
+										<div class="min-w-0">
 											<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
 												{t('serverAdmin.syncPoiEmbeddings')}
 											</span>
@@ -2855,38 +2868,43 @@
 												{t('serverAdmin.syncPoiEmbeddingsDescription')}
 											</p>
 										</div>
-										<button
-											onclick={syncPoiEmbeddingsForAllUsers}
-											disabled={isSyncingPoiEmbeddings}
-											class="bg-primary hover:bg-primary/90 ml-3 inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-										>
-											<RefreshCw
-												class={`h-3.5 w-3.5 ${isSyncingPoiEmbeddings ? 'animate-spin' : ''}`}
-											/>
-											{isSyncingPoiEmbeddings ? t('serverAdmin.syncing') : t('serverAdmin.sync')}
-										</button>
 									</div>
-								</div>
-
-								<!-- Vertical Arrow with "auto" label -->
-								<div class="flex justify-center pl-[calc(50%+1.5rem)]">
-									<div class="flex flex-col items-center">
-										<ChevronDown class="h-5 w-5 text-gray-400" />
-										<span class="text-xs font-medium text-emerald-600 dark:text-emerald-400">
-											{t('serverAdmin.autoTrigger')}
-										</span>
-									</div>
-								</div>
-
-								<!-- Row 3: User Preferences (info only) -->
-								<div class="flex justify-center pl-[calc(50%+1.5rem)]">
-									<div
-										class="flex max-w-md min-w-50 flex-1 items-center rounded-lg border border-dashed border-gray-300 bg-gray-100/50 p-3 dark:border-gray-600 dark:bg-gray-800/50"
+									<button
+										onclick={syncPoiEmbeddingsForAllUsers}
+										disabled={isSyncingPoiEmbeddings}
+										class="bg-primary hover:bg-primary/90 ml-3 inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
 									>
-										<span class="text-sm font-medium text-gray-500 dark:text-gray-400">
-											{t('serverAdmin.userPreferencesComputed')}
-										</span>
-										<span class="ml-2 text-xs text-gray-400 dark:text-gray-500">(computed)</span>
+										<RefreshCw
+											class={`h-3.5 w-3.5 ${isSyncingPoiEmbeddings ? 'animate-spin' : ''}`}
+										/>
+										{isSyncingPoiEmbeddings ? t('serverAdmin.syncing') : t('serverAdmin.sync')}
+									</button>
+								</div>
+
+								<!-- Connector with "auto" label -->
+								<div class="flex flex-col items-center py-1">
+									<div class="h-3 w-0.5 bg-gray-300 dark:bg-gray-600"></div>
+									<span class="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+										{t('serverAdmin.autoTrigger')}
+									</span>
+									<ChevronDown class="-mt-0.5 h-4 w-4 text-gray-400" />
+								</div>
+
+								<!-- Step 4: User Preferences (computed/info only) -->
+								<div
+									class="flex w-full max-w-xl items-center rounded-lg border border-dashed border-gray-300 bg-gray-100/50 p-4 dark:border-gray-600 dark:bg-gray-800/50"
+								>
+									<div class="flex items-start gap-3">
+										<span
+											class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-semibold text-gray-500 dark:bg-gray-700 dark:text-gray-400"
+											>4</span
+										>
+										<div class="min-w-0">
+											<span class="text-sm font-medium text-gray-500 dark:text-gray-400">
+												{t('serverAdmin.userPreferencesComputed')}
+											</span>
+											<span class="ml-2 text-xs text-gray-400 dark:text-gray-500">(computed)</span>
+										</div>
 									</div>
 								</div>
 							</div>

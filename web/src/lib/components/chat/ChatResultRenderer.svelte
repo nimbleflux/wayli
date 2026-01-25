@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { MapPin, Clock, ChevronDown, ChevronUp } from 'lucide-svelte';
+	import { MapPin, Clock, ChevronDown, ChevronUp, ChevronRight, Database } from 'lucide-svelte';
 	import { detectResultType, type ChatResultType } from '$lib/utils/chat-result-detection';
 	import { getAmenityLabel } from '$lib/utils/amenity-icons';
 	import ChatPlaceCard from './ChatPlaceCard.svelte';
@@ -33,6 +33,7 @@
 
 	// State for expand/collapse
 	let showAllResults = $state(false);
+	let isTableCollapsed = $state(true);
 	const maxInitialResults = 5;
 
 	// Safely access data with fallback to empty array
@@ -133,6 +134,74 @@
 
 		return 'Unknown';
 	}
+
+	// Fields to skip when determining displayable columns
+	const skipColumnFields = [
+		'id',
+		'metadata',
+		'created_at',
+		'updated_at',
+		'start_date',
+		'end_date',
+		'started_at',
+		'ended_at',
+		'recorded_at',
+		'timestamp',
+		'image_url',
+		'labels',
+		'visited_country_codes'
+	];
+
+	/**
+	 * Get columns that should be displayed in a table view
+	 * Filters out IDs, metadata, and other non-display fields
+	 */
+	function getDisplayableColumns(data: Record<string, unknown>[]): string[] {
+		if (data.length === 0) return [];
+
+		const sample = data[0];
+		const isoDatePattern = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?/;
+
+		return Object.keys(sample).filter((key) => {
+			if (key.endsWith('_id') || skipColumnFields.includes(key)) return false;
+			const value = sample[key];
+			// Include strings (non-date) and numbers
+			if (typeof value === 'string') {
+				return value.length < 200 && !isoDatePattern.test(value);
+			}
+			return typeof value === 'number';
+		});
+	}
+
+	/**
+	 * Format a column key as a readable header
+	 * e.g., "poi_name" -> "POI Name", "visited_cities" -> "Visited Cities"
+	 */
+	function formatColumnHeader(key: string): string {
+		return key
+			.split('_')
+			.map((word) => {
+				// Handle common abbreviations
+				if (word.toLowerCase() === 'poi') return 'POI';
+				if (word.toLowerCase() === 'id') return 'ID';
+				return word.charAt(0).toUpperCase() + word.slice(1);
+			})
+			.join(' ');
+	}
+
+	/**
+	 * Format a cell value for display
+	 */
+	function formatCellValue(value: unknown): string {
+		if (value === null || value === undefined) return '-';
+		if (typeof value === 'number') return value.toLocaleString();
+		if (typeof value === 'string') return value;
+		return String(value);
+	}
+
+	// Compute displayable columns for the current data
+	const displayableColumns = $derived(getDisplayableColumns(safeData));
+	const hasMultipleColumns = $derived(displayableColumns.length > 1);
 </script>
 
 <div
@@ -140,23 +209,33 @@
 		? ''
 		: 'rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900'}
 >
-	<!-- Header and Summary - only show for table view, not cards -->
+	<!-- Collapsible Header - only show for table view, not cards -->
 	{#if !showAsCards}
-		<div class="mb-2 flex items-center justify-between">
-			<span class="text-xs font-medium text-gray-500 dark:text-gray-400">
+		<button
+			type="button"
+			onclick={() => (isTableCollapsed = !isTableCollapsed)}
+			class="flex w-full items-center gap-2 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+		>
+			{#if isTableCollapsed}
+				<ChevronRight class="h-3.5 w-3.5 shrink-0" />
+			{:else}
+				<ChevronDown class="h-3.5 w-3.5 shrink-0" />
+			{/if}
+			<Database class="h-3 w-3 shrink-0" />
+			<span class="font-medium">
 				{#if totalQueries > 1}
 					Query {queryIndex + 1} of {totalQueries}
 				{:else}
 					Query Results
 				{/if}
 			</span>
-			<span class="text-xs text-gray-400">
+			<span class="text-gray-400">
 				{queryResult.rowCount} row{queryResult.rowCount !== 1 ? 's' : ''}
 			</span>
-		</div>
+		</button>
 
-		{#if cleanSummary}
-			<div class="mb-3 text-sm text-gray-700 dark:text-gray-300">
+		{#if !isTableCollapsed && cleanSummary}
+			<div class="mt-2 mb-3 text-sm text-gray-700 dark:text-gray-300">
 				{cleanSummary}
 			</div>
 		{/if}
@@ -190,76 +269,43 @@
 					{/each}
 				</div>
 			{/if}
-		{:else}
-			<!-- Table view -->
-			<div class="max-h-48 overflow-y-auto">
-				{#each displayData as row, rowIdx (rowIdx)}
-					<div class="border-t border-gray-200 py-2 first:border-t-0 dark:border-gray-700">
-						{#if detection.type === 'place_visit'}
-							<!-- Place visit row -->
-							<div class="flex items-center gap-2">
-								<span class="font-medium text-gray-900 dark:text-gray-100">
-									{row.poi_name || 'Unknown Place'}
-								</span>
-								{#if row.poi_amenity}
-									<span class="text-xs text-gray-500">
-										({getAmenityLabel(row.poi_amenity as string)})
-									</span>
-								{/if}
+		{:else if !isTableCollapsed}
+			<!-- Table view (collapsible) -->
+			<div class="mt-2 max-h-64 overflow-auto">
+				{#if hasMultipleColumns}
+					<!-- Multi-column table -->
+					<table class="w-full text-left text-sm">
+						<thead class="sticky top-0 bg-gray-100 text-xs uppercase text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+							<tr>
+								{#each displayableColumns.slice(0, 5) as col}
+									<th class="whitespace-nowrap px-2 py-1.5 font-medium">
+										{formatColumnHeader(col)}
+									</th>
+								{/each}
+							</tr>
+						</thead>
+						<tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+							{#each displayData as row, rowIdx (rowIdx)}
+								<tr class="hover:bg-gray-100 dark:hover:bg-gray-800/50">
+									{#each displayableColumns.slice(0, 5) as col}
+										<td class="px-2 py-1.5 text-gray-900 dark:text-gray-100">
+											{formatCellValue(row[col])}
+										</td>
+									{/each}
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				{:else}
+					<!-- Single-column list -->
+					{#each displayData as row, rowIdx (rowIdx)}
+						<div class="border-t border-gray-200 py-2 first:border-t-0 dark:border-gray-700">
+							<div class="text-sm font-medium text-gray-900 dark:text-gray-100">
+								{getDisplayValue(row)}
 							</div>
-							{#if row.city || row.country}
-								<div class="flex items-center gap-1 text-xs text-gray-500">
-									<MapPin class="h-3 w-3" />
-									{row.city}{row.country ? `, ${row.country}` : ''}
-								</div>
-							{/if}
-							{#if row.started_at}
-								<div class="flex items-center gap-1 text-xs text-gray-400">
-									<Clock class="h-3 w-3" />
-									{formatDate(row.started_at)}
-								</div>
-							{/if}
-						{:else if detection.type === 'trip'}
-							<!-- Trip row -->
-							<div class="flex items-center gap-2">
-								<span class="font-medium text-gray-900 dark:text-gray-100">
-									{row.title || 'Untitled Trip'}
-								</span>
-								{#if row.status}
-									<span
-										class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-300"
-									>
-										{row.status}
-									</span>
-								{/if}
-							</div>
-							{#if row.start_date || row.end_date}
-								<div class="text-xs text-gray-500">
-									{formatDate(row.start_date)} - {formatDate(row.end_date)}
-								</div>
-							{/if}
-						{:else}
-							<!-- Generic row - display first meaningful value -->
-							<div class="flex items-center gap-2">
-								<span class="font-medium text-gray-900 dark:text-gray-100">
-									{getDisplayValue(row)}
-								</span>
-							</div>
-							{#if row.city || row.country}
-								<div class="flex items-center gap-1 text-xs text-gray-500">
-									<MapPin class="h-3 w-3" />
-									{row.city}{row.country ? `, ${row.country}` : ''}
-								</div>
-							{/if}
-							{#if row.started_at || row.recorded_at}
-								<div class="flex items-center gap-1 text-xs text-gray-400">
-									<Clock class="h-3 w-3" />
-									{formatDate(row.started_at || row.recorded_at)}
-								</div>
-							{/if}
-						{/if}
-					</div>
-				{/each}
+						</div>
+					{/each}
+				{/if}
 				{#if safeData.length > maxInitialResults}
 					<button
 						onclick={() => (showAllResults = !showAllResults)}

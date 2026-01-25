@@ -27,7 +27,8 @@
       "Bash(docker compose:*)",
       "Bash(docker build:*)",
       "Bash(/workspace/deploy/docker-compose/generate-keys.sh:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(fluxbase tables query:*)"
     ],
     "deny": [],
     "ask": []

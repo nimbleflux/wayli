@@ -5,6 +5,7 @@
 
 	import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
 	import ReauthenticationModal from '$lib/components/ReauthenticationModal.svelte';
+	import StorageNoticeBanner from '$lib/components/StorageNoticeBanner.svelte';
 	import { initializeI18n } from '$lib/i18n';
 	import { serviceAdapter } from '$lib/services/service-layer-adapter';
 	import { sessionManager } from '$lib/services/session';
@@ -52,6 +53,7 @@
 </script>
 
 <Toaster richColors />
+<StorageNoticeBanner />
 
 <ErrorBoundary>
 	<slot />

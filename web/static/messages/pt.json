@@ -1261,6 +1261,9 @@
 		"error": "Erro de conexão",
 		"reconnected": "Conexão em tempo real restabelecida"
 	},
+	"storageNotice": {
+		"message": "Este site usa armazenamento do navegador para lembrar suas preferências e fornecer funcionalidades essenciais. Nenhum cookie de rastreamento é usado."
+	},
 	"ask": {
 		"title": "Pergunte sobre suas viagens",
 		"subtitle": "Use linguagem natural para explorar seu histórico de viagens",

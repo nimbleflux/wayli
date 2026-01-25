@@ -22,6 +22,7 @@ const TRIP_FIELDS = [
 	'end_date',
 	'image_url',
 	'visited_country_codes',
+	'visited_cities',
 	'labels'
 ];
 const PLACE_VISIT_FIELDS = [
@@ -39,7 +40,12 @@ const MAX_CARDS = 6;
 /**
  * Detect the result type from a SQL query string
  */
-function detectFromQuery(query: string): ChatResultType | null {
+function detectFromQuery(query: string | undefined | null): ChatResultType | null {
+	// Handle undefined/null/empty query strings
+	if (!query || typeof query !== 'string' || query.trim().length === 0) {
+		return null;
+	}
+
 	const normalizedQuery = query.toLowerCase();
 
 	// Check for aggregate functions first
@@ -123,7 +129,7 @@ function getSuggestedView(type: ChatResultType, rowCount: number): SuggestedView
  * Detect the result type and suggested view for query results
  */
 export function detectResultType(
-	query: string,
+	query: string | undefined | null,
 	data: Record<string, unknown>[],
 	rowCount: number
 ): ResultTypeDetection {
@@ -150,7 +156,7 @@ export function detectResultType(
  * Check if results should be displayed as cards
  */
 export function shouldShowAsCards(
-	query: string,
+	query: string | undefined | null,
 	data: Record<string, unknown>[],
 	rowCount: number
 ): boolean {

@@ -1261,6 +1261,9 @@
 		"error": "Verbindungsfehler",
 		"reconnected": "Echtzeitverbindung wiederhergestellt"
 	},
+	"storageNotice": {
+		"message": "Diese Website verwendet Browserspeicher, um Ihre Einstellungen zu speichern und wesentliche Funktionen bereitzustellen. Es werden keine Tracking-Cookies verwendet."
+	},
 	"ask": {
 		"title": "Fragen Sie nach Ihren Reisen",
 		"subtitle": "Nutzen Sie natürliche Sprache, um Ihren Reiseverlauf zu erkunden",

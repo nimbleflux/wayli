@@ -1261,6 +1261,9 @@
 		"error": "Erreur de connexion",
 		"reconnected": "Connexion en temps réel rétablie"
 	},
+	"storageNotice": {
+		"message": "Ce site utilise le stockage du navigateur pour mémoriser vos préférences et fournir des fonctionnalités essentielles. Aucun cookie de suivi n'est utilisé."
+	},
 	"ask": {
 		"title": "Renseignez-vous sur vos voyages",
 		"subtitle": "Utilisez le langage naturel pour explorer votre historique de voyage",

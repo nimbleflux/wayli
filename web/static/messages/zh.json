@@ -1261,6 +1261,9 @@
 		"error": "连接错误",
 		"reconnected": "实时连接重新建立"
 	},
+	"storageNotice": {
+		"message": "本网站使用浏览器存储来记住您的偏好设置并提供基本功能。不使用任何跟踪Cookie。"
+	},
 	"ask": {
 		"title": "询问您的旅行",
 		"subtitle": "使用自然语言探索您的旅行历史",

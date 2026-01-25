@@ -210,13 +210,16 @@
 					scrollToBottom();
 				},
 				onProgress: (step, message) => {
-					// Update current progress display
-					currentProgress = { step, message };
-
 					// Skip duplicate "generating" messages to avoid flickering
 					const lastLog = currentExecutionLogs[currentExecutionLogs.length - 1];
 					if (step === 'generating' && lastLog?.step === 'generating') {
 						return;
+					}
+
+					// Only update progress display if this isn't a "generating" fallback
+					// when we already have a more meaningful message
+					if (step !== 'generating' || !currentProgress) {
+						currentProgress = { step, message };
 					}
 
 					// Add to execution logs
@@ -246,49 +249,67 @@
 					];
 				},
 				onDone: async (usage) => {
-					// Add the completed assistant message
-					if (currentStreamingContent || currentQueryResults.length > 0) {
-						// Extract images from markdown content and inject into query results
-						const imageMap = extractMarkdownImages(currentStreamingContent);
-						let enrichedQueryResults = injectImagesIntoResults(currentQueryResults, imageMap);
+					// Extract images from markdown content and inject into query results
+					const imageMap = extractMarkdownImages(currentStreamingContent);
+					let enrichedQueryResults = injectImagesIntoResults(currentQueryResults, imageMap);
 
-						// If no query results came via WebSocket, fetch from persisted conversation
-						// This works around execute_sql not streaming query_result events
-						if (enrichedQueryResults.length === 0 && currentConversationId) {
+					// If no query results came via WebSocket, fetch from persisted conversation
+					// This works around execute_sql not streaming query_result events
+					if (enrichedQueryResults.length === 0 && currentConversationId) {
+						// Helper to fetch query results from conversation
+						const fetchQueryResults = async (): Promise<QueryResultData[]> => {
+							const conversation = await chatService.getConversation(currentConversationId!);
+							const lastMessage = conversation.messages[conversation.messages.length - 1];
+							if (lastMessage?.role === 'assistant' && lastMessage.query_results && lastMessage.query_results.length > 0) {
+								return lastMessage.query_results.map((qr) => ({
+									query: qr.query,
+									summary: qr.summary,
+									rowCount: qr.row_count,
+									data: qr.data
+								}));
+							}
+							return [];
+						};
+
+						// Try to fetch with retries to handle persistence timing
+						const maxRetries = 3;
+						const retryDelay = 500; // ms
+
+						for (let attempt = 0; attempt < maxRetries; attempt++) {
 							try {
-								const conversation = await chatService.getConversation(currentConversationId);
-								const lastMessage = conversation.messages[conversation.messages.length - 1];
-								if (lastMessage?.role === 'assistant' && lastMessage.query_results) {
-									enrichedQueryResults = lastMessage.query_results.map((qr) => ({
-										query: qr.query,
-										summary: qr.summary,
-										rowCount: qr.row_count,
-										data: qr.data
-									}));
-									// Re-inject images into fetched results
-									enrichedQueryResults = injectImagesIntoResults(enrichedQueryResults, imageMap);
+								// Add delay before retries to allow backend to persist
+								if (attempt > 0) {
+									await new Promise(resolve => setTimeout(resolve, retryDelay));
+								}
+
+								const results = await fetchQueryResults();
+								if (results.length > 0) {
+									enrichedQueryResults = injectImagesIntoResults(results, imageMap);
+									break;
 								}
 							} catch (err) {
-								console.warn('Failed to fetch query results from conversation:', err);
+								console.warn(`Failed to fetch query results (attempt ${attempt + 1}/${maxRetries}):`, err);
 							}
 						}
-
-						const assistantMessage: ChatMessage = {
-							id: chatService.generateMessageId(),
-							role: 'assistant',
-							content: currentStreamingContent,
-							timestamp: new Date(),
-							queryResults: enrichedQueryResults.length > 0 ? [...enrichedQueryResults] : undefined,
-							executionLogs:
-								currentExecutionLogs.length > 0 ? [...currentExecutionLogs] : undefined,
-							usage
-						};
-						messages = [...messages, assistantMessage];
-
-						// Force Svelte to process the reactive update before scrolling
-						await tick();
-						scrollToBottom();
 					}
+
+					// Always add a message - use fallback text if no content and no results
+					const hasContent = currentStreamingContent || enrichedQueryResults.length > 0;
+					const assistantMessage: ChatMessage = {
+						id: chatService.generateMessageId(),
+						role: 'assistant',
+						content: currentStreamingContent || (hasContent ? '' : t('ask.noResponse')),
+						timestamp: new Date(),
+						queryResults: enrichedQueryResults.length > 0 ? [...enrichedQueryResults] : undefined,
+						executionLogs:
+							currentExecutionLogs.length > 0 ? [...currentExecutionLogs] : undefined,
+						usage
+					};
+					messages = [...messages, assistantMessage];
+
+					// Force Svelte to process the reactive update before scrolling
+					await tick();
+					scrollToBottom();
 					// Reset all state
 					currentStreamingContent = '';
 					currentQueryResults = [];

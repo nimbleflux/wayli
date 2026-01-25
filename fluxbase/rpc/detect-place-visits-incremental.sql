@@ -149,10 +149,10 @@ with_boundaries AS (
             OR distance_meters > 120
             -- OR adaptive time gap exceeded
             OR CASE
-                -- Sparse tracking (previous gap > 10 min): allow 60 min gaps
-                WHEN COALESCE(prev_time_gap_seconds, 0) > 600 THEN time_gap_seconds > 3600
-                -- Dense tracking: use 30 min threshold
-                ELSE time_gap_seconds > 1800
+                -- Sparse tracking (previous gap > 10 min): allow 90 min gaps (increased for OwnTracks)
+                WHEN COALESCE(prev_time_gap_seconds, 0) > 600 THEN time_gap_seconds > 5400
+                -- Normal tracking: use 45 min threshold (increased from 30 min)
+                ELSE time_gap_seconds > 2700
             END
         THEN 1 ELSE 0 END as new_cluster
     FROM with_prev_gaps
@@ -179,18 +179,19 @@ cluster_stats AS (
 ),
 
 -- Determine which clusters should be merged (close in time AND space)
--- IMPROVEMENT 10: Tighter merge thresholds for accuracy
+-- IMPROVEMENT 10: Extended merge window to reduce home fragmentation
 cluster_merging AS (
     SELECT
         cs.*,
         CASE WHEN
             -- Previous cluster exists for same user
             LAG(cluster_id) OVER (PARTITION BY user_id ORDER BY cluster_start) IS NOT NULL
-            -- Close in time (< 7 min between cluster end and next start) - was 10 min
+            -- Close in time (< 15 min between cluster end and next start) - increased from 7 min
+            -- This helps merge consecutive visits at the same location (esp. home)
             AND EXTRACT(EPOCH FROM (
                 cluster_start - LAG(cluster_end) OVER (PARTITION BY user_id ORDER BY cluster_start)
-            )) < 420
-            -- Close in space (< 100m between centroids) - was 150m
+            )) < 900
+            -- Close in space (< 100m between centroids)
             AND ST_Distance(
                 centroid::geography,
                 LAG(centroid) OVER (PARTITION BY user_id ORDER BY cluster_start)::geography
@@ -224,16 +225,23 @@ clusters AS (
         ON ci.user_id = cfi.user_id AND ci.cluster_id = cfi.cluster_id
 ),
 
--- IMPROVEMENT 12: Identify home locations per user from overnight clusters
--- Most frequent cluster during overnight hours (midnight to 6am) with good point density
+-- IMPROVEMENT 17: Home detection from ALL historical overnight data
+-- Fixes bug where home wasn't detected in incremental runs because
+-- overnight data was processed in previous runs (before watermark).
+-- Now queries tracker_data directly so home is always available.
 home_locations AS (
     SELECT DISTINCT ON (user_id)
         user_id,
         ST_Centroid(ST_Collect(location)) as home_location
-    FROM clusters
+    FROM tracker_data
     WHERE EXTRACT(HOUR FROM recorded_at) BETWEEN 0 AND 6  -- Overnight hours
-    GROUP BY user_id, final_cluster_id
-    HAVING COUNT(*) >= 5  -- Require significant presence
+      AND ($user_id::uuid IS NULL OR user_id = $user_id::uuid)
+      AND COALESCE(speed, 0) < 5  -- Exclude transit
+    GROUP BY user_id,
+        -- Spatial grouping (~100m precision for clustering)
+        ROUND(ST_X(location)::numeric, 3),
+        ROUND(ST_Y(location)::numeric, 3)
+    HAVING COUNT(*) >= 10  -- Require significant overnight presence
     ORDER BY user_id, COUNT(*) DESC
 ),
 
@@ -271,6 +279,10 @@ new_visits AS (
         alt_poi_tags,
         alt_poi_confidence
     )
+    SELECT * FROM (
+    -- IMPROVEMENT 16: Visit consolidation for GPS drift
+    -- Wrap in WITH to allow merging consecutive same-location visits
+    WITH raw_visits AS (
     SELECT
         user_id,
         MIN(recorded_at) as started_at,
@@ -280,28 +292,49 @@ new_visits AS (
         ) as duration_minutes,
         ST_Centroid(ST_Collect(location)) as location,
         -- IMPROVEMENT 5: Confidence-weighted venue attribution with fallback chain
-        COALESCE(
-            -- High-confidence venue from direct geocode
-            MODE() WITHIN GROUP (ORDER BY osm_name) FILTER (
-                WHERE osm_name IS NOT NULL
-                AND layer IN ('venue', 'address')
-                AND confidence >= 0.6
-            ),
-            -- High-confidence nearby POI
-            MODE() WITHIN GROUP (ORDER BY nearby_name) FILTER (
-                WHERE nearby_name IS NOT NULL
-                AND nearby_confidence >= 0.6
-            ),
-            -- Any venue from direct geocode (lower confidence)
-            MODE() WITHIN GROUP (ORDER BY osm_name) FILTER (
-                WHERE osm_name IS NOT NULL
-                AND layer IN ('venue', 'address')
-            ),
-            -- Any nearby POI
-            MODE() WITHIN GROUP (ORDER BY nearby_name) FILTER (WHERE nearby_name IS NOT NULL),
-            -- Last resort: any OSM name
-            MODE() WITHIN GROUP (ORDER BY osm_name) FILTER (WHERE osm_name IS NOT NULL)
-        ) as poi_name,
+        -- Use 'Home' as consistent name for home visits to avoid address fragmentation
+        CASE
+            -- If this is a home visit (within 100m of home, not commercial), use 'Home'
+            WHEN (
+                SELECT ST_Distance(
+                    ST_SetSRID(ST_MakePoint(
+                        AVG(ST_X(clusters.location)),
+                        AVG(ST_Y(clusters.location))
+                    ), 4326)::geography,
+                    hl.home_location::geography
+                ) < 100
+                FROM home_locations hl
+                WHERE hl.user_id = clusters.user_id
+            )
+            AND COALESCE(
+                MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
+            ) NOT IN ('restaurant','cafe','bar','pub','fast_food','nightclub','cinema','theatre','shop','supermarket')
+            THEN 'Home'
+            -- Otherwise use the normal venue attribution
+            ELSE COALESCE(
+                -- High-confidence venue from direct geocode
+                MODE() WITHIN GROUP (ORDER BY osm_name) FILTER (
+                    WHERE osm_name IS NOT NULL
+                    AND layer IN ('venue', 'address')
+                    AND confidence >= 0.6
+                ),
+                -- High-confidence nearby POI
+                MODE() WITHIN GROUP (ORDER BY nearby_name) FILTER (
+                    WHERE nearby_name IS NOT NULL
+                    AND nearby_confidence >= 0.6
+                ),
+                -- Any venue from direct geocode (lower confidence)
+                MODE() WITHIN GROUP (ORDER BY osm_name) FILTER (
+                    WHERE osm_name IS NOT NULL
+                    AND layer IN ('venue', 'address')
+                ),
+                -- Any nearby POI
+                MODE() WITHIN GROUP (ORDER BY nearby_name) FILTER (WHERE nearby_name IS NOT NULL),
+                -- Last resort: any OSM name
+                MODE() WITHIN GROUP (ORDER BY osm_name) FILTER (WHERE osm_name IS NOT NULL)
+            )
+        END as poi_name,
         -- Layer: prefer venue/address, fallback to any
         COALESCE(
             MODE() WITHIN GROUP (ORDER BY layer) FILTER (WHERE layer IN ('venue', 'address')),
@@ -330,9 +363,11 @@ new_visits AS (
             MODE() WITHIN GROUP (ORDER BY nearby_sport) FILTER (WHERE nearby_sport IS NOT NULL)
         ) as poi_sport,
         -- Category (computed from available data)
-        -- IMPROVEMENT 12: Check home location first using pre-computed home_locations
+        -- IMPROVEMENT 12: Check home location first, with priority-based category assignment
+        -- Priority order: home > healthcare > worship > transport > food > entertainment > culture > education > sports > accommodation > outdoors > grocery > shopping > other
         CASE
-            -- Home detection: cluster centroid within 100m of user's home location
+            -- 1. Home detection: cluster centroid within 100m of user's home location
+            -- BUT exclude commercial POIs (bars, restaurants, shops) from being classified as home
             WHEN (
                 SELECT ST_Distance(
                     ST_SetSRID(ST_MakePoint(
@@ -343,25 +378,43 @@ new_visits AS (
                 ) < 100
                 FROM home_locations hl
                 WHERE hl.user_id = clusters.user_id
-            ) THEN 'home'
+            )
+            AND COALESCE(
+                MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
+            ) NOT IN ('restaurant','cafe','bar','pub','fast_food','nightclub','cinema','theatre','shop','supermarket')
+            THEN 'home'
+            -- 2. Healthcare BEFORE food (pharmacy shouldn't become burger joint)
             WHEN COALESCE(
                 MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
                 MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
-            ) IN ('restaurant','cafe','bar','pub','fast_food','food_court','biergarten','ice_cream','bakery','deli','juice_bar','confectionery')
-                -- Also detect food via cuisine tag (if place has cuisine, it's food)
-                OR COALESCE(
-                    MODE() WITHIN GROUP (ORDER BY cuisine) FILTER (WHERE cuisine IS NOT NULL),
-                    MODE() WITHIN GROUP (ORDER BY nearby_cuisine) FILTER (WHERE nearby_cuisine IS NOT NULL)
-                ) IS NOT NULL
-                -- Also detect food-related shops
-                OR COALESCE(
-                    MODE() WITHIN GROUP (ORDER BY shop) FILTER (WHERE shop IS NOT NULL),
-                    MODE() WITHIN GROUP (ORDER BY nearby_shop) FILTER (WHERE nearby_shop IS NOT NULL)
-                ) IN ('bakery','deli','confectionery','chocolate','pastry','coffee','tea') THEN 'food'
+            ) IN ('hospital','clinic','doctors','dentist','pharmacy','veterinary','optician') THEN 'healthcare'
+            -- 3. Worship BEFORE food (church shouldn't become burger joint due to nearby cuisine tag)
+            WHEN COALESCE(
+                MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
+            ) IN ('place_of_worship') THEN 'worship'
+            -- 4. Transport BEFORE food (airport shouldn't become cafe)
+            WHEN COALESCE(
+                MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
+            ) IN ('bus_station','train_station','airport','ferry_terminal','taxi','car_rental','bicycle_rental','bicycle_parking','parking') THEN 'transport'
+            -- 5. Food - ONLY when amenity IS a food place, not just cuisine tag from nearby POI
+            WHEN COALESCE(
+                MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
+            ) IN ('restaurant','cafe','bar','pub','fast_food','food_court','biergarten','ice_cream','bakery','deli','juice_bar','confectionery') THEN 'food'
+            -- Food-related shops (only when shop tag matches, not cuisine alone)
+            WHEN COALESCE(
+                MODE() WITHIN GROUP (ORDER BY shop) FILTER (WHERE shop IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_shop) FILTER (WHERE nearby_shop IS NOT NULL)
+            ) IN ('bakery','deli','confectionery','chocolate','pastry','coffee','tea') THEN 'food'
+            -- 6. Entertainment
             WHEN COALESCE(
                 MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
                 MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
             ) IN ('cinema','theatre','nightclub','casino','amusement_arcade','bowling_alley') THEN 'entertainment'
+            -- 7. Culture
             WHEN COALESCE(
                 MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
                 MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
@@ -370,18 +423,19 @@ new_visits AS (
                     MODE() WITHIN GROUP (ORDER BY tourism) FILTER (WHERE tourism IS NOT NULL),
                     MODE() WITHIN GROUP (ORDER BY nearby_tourism) FILTER (WHERE nearby_tourism IS NOT NULL)
                 ) = 'museum' THEN 'culture'
+            -- 8. Education
             WHEN COALESCE(
                 MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
                 MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
             ) IN ('school','university','college','kindergarten','language_school','music_school','driving_school') THEN 'education'
+            -- 9. Sports - only from explicit leisure tag, NOT from nearby_sport to prevent pollution
             WHEN COALESCE(
                 MODE() WITHIN GROUP (ORDER BY leisure) FILTER (WHERE leisure IS NOT NULL),
                 MODE() WITHIN GROUP (ORDER BY nearby_leisure) FILTER (WHERE nearby_leisure IS NOT NULL)
             ) IN ('golf_course','sports_centre','fitness_centre','swimming_pool','pitch','stadium','tennis','ice_rink') THEN 'sports'
-            WHEN COALESCE(
-                MODE() WITHIN GROUP (ORDER BY sport) FILTER (WHERE sport IS NOT NULL),
-                MODE() WITHIN GROUP (ORDER BY nearby_sport) FILTER (WHERE nearby_sport IS NOT NULL)
-            ) IS NOT NULL THEN 'sports'
+            -- Direct sport tag only (remove nearby_sport to prevent category pollution)
+            WHEN MODE() WITHIN GROUP (ORDER BY sport) FILTER (WHERE sport IS NOT NULL) IS NOT NULL THEN 'sports'
+            -- 10. Accommodation
             WHEN COALESCE(
                 MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
                 MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
@@ -390,30 +444,36 @@ new_visits AS (
                     MODE() WITHIN GROUP (ORDER BY tourism) FILTER (WHERE tourism IS NOT NULL),
                     MODE() WITHIN GROUP (ORDER BY nearby_tourism) FILTER (WHERE nearby_tourism IS NOT NULL)
                 ) IN ('hotel','hostel','guest_house','motel','apartment') THEN 'accommodation'
+            -- 11. Services (utility amenities - check BEFORE shopping/cuisine fallbacks)
             WHEN COALESCE(
                 MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
                 MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
-            ) IN ('hospital','clinic','doctors','dentist','pharmacy','veterinary','optician') THEN 'healthcare'
-            WHEN COALESCE(
-                MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
-                MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
-            ) IN ('place_of_worship') THEN 'worship'
+            ) IN ('atm','bank','post_office','money_transfer','bureau_de_change','car_wash','fuel','charging_station','toilets','shower','laundry','dry_cleaning','vending_machine') THEN 'services'
+            -- 12. Outdoors (leisure tags)
             WHEN COALESCE(
                 MODE() WITHIN GROUP (ORDER BY leisure) FILTER (WHERE leisure IS NOT NULL),
                 MODE() WITHIN GROUP (ORDER BY nearby_leisure) FILTER (WHERE nearby_leisure IS NOT NULL)
             ) IN ('park','garden','nature_reserve','playground','dog_park','beach_resort') THEN 'outdoors'
+            -- 12b. Outdoors (amenity tags for outdoor furniture/facilities)
+            WHEN COALESCE(
+                MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
+            ) IN ('bench','picnic_table','fountain','drinking_water','shelter','viewpoint') THEN 'outdoors'
+            -- 13. Grocery
             WHEN COALESCE(
                 MODE() WITHIN GROUP (ORDER BY shop) FILTER (WHERE shop IS NOT NULL),
                 MODE() WITHIN GROUP (ORDER BY nearby_shop) FILTER (WHERE nearby_shop IS NOT NULL)
             ) IN ('supermarket','convenience','grocery','greengrocer','butcher','farm') THEN 'grocery'
-            WHEN COALESCE(
-                MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
-                MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
-            ) IN ('bus_station','train_station','airport','ferry_terminal','taxi','car_rental') THEN 'transport'
+            -- 14. Shopping (any other shop)
             WHEN COALESCE(
                 MODE() WITHIN GROUP (ORDER BY shop) FILTER (WHERE shop IS NOT NULL),
                 MODE() WITHIN GROUP (ORDER BY nearby_shop) FILTER (WHERE nearby_shop IS NOT NULL)
             ) IS NOT NULL THEN 'shopping'
+            -- 15. Fallback: if has cuisine but no other strong category, classify as food
+            WHEN COALESCE(
+                MODE() WITHIN GROUP (ORDER BY cuisine) FILTER (WHERE cuisine IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY nearby_cuisine) FILTER (WHERE nearby_cuisine IS NOT NULL)
+            ) IS NOT NULL THEN 'food'
             ELSE 'other'
         END as poi_category,
         -- Confidence score
@@ -483,24 +543,34 @@ new_visits AS (
         ROUND(AVG(nearby_confidence) FILTER (WHERE nearby_confidence IS NOT NULL)::numeric, 3) as alt_poi_confidence
     FROM clusters
     GROUP BY user_id, final_cluster_id
-    -- IMPROVEMENT 4: Stricter duration threshold for accuracy
-    HAVING COUNT(*) >= 3  -- Require 3+ points (was 2)
-       AND (
-           -- Standard: 8+ minutes with 3+ points
-           EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) >= 480
-           -- OR shorter visits (5 min) require good accuracy AND 4+ points
+    -- IMPROVEMENT 4: Adaptive duration thresholds for sparse tracking
+    -- Longer duration = fewer points required (accommodates OwnTracks motion-based tracking)
+    HAVING (
+           -- Long visits (15+ min): Allow 2+ points (sparse tracking mode)
+           (
+               EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) >= 900
+               AND COUNT(*) >= 2
+           )
+           -- Medium visits (10-15 min): Require 3+ points
            OR (
-               EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) >= 300
+               EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) >= 600
+               AND COUNT(*) >= 3
+           )
+           -- Short visits (8-10 min): Require good accuracy + 4+ points (dense tracking only)
+           OR (
+               EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) >= 480
                AND AVG(COALESCE(accuracy, 50)) <= 25
                AND COUNT(*) >= 4
            )
        )
        -- IMPROVEMENT 8: Reject clusters with excessive spread (GPS drift)
-       -- Use bounding box diagonal as proxy for cluster diameter (500m more permissive)
+       -- True visits should be stationary - use tight 50m diagonal spread
        AND ST_Distance(
            ST_MakePoint(ST_XMin(ST_Collect(location)), ST_YMin(ST_Collect(location)))::geography,
            ST_MakePoint(ST_XMax(ST_Collect(location)), ST_YMax(ST_Collect(location)))::geography
-       ) < 500
+       ) < 50
+       -- NOTE: Speed filter removed - GPS-derived speed data is unreliable
+       -- (83% of Vietnam trip points had avg_speed > 2 m/s due to erroneous data)
        -- IMPROVEMENT 9: Require actual POI attribution (not just address)
        AND (
            -- Has venue layer
@@ -513,6 +583,142 @@ new_visits AS (
            OR MODE() WITHIN GROUP (ORDER BY tourism) FILTER (WHERE tourism IS NOT NULL) IS NOT NULL
            OR MODE() WITHIN GROUP (ORDER BY leisure) FILTER (WHERE leisure IS NOT NULL) IS NOT NULL
        )
+       -- IMPROVEMENT 10: Distance filter for nearby POI attribution
+       -- Require user to be within 50m of POI (prevents matching distant restaurants)
+       AND (
+           -- Direct geocode (venue layer) is always OK (distance ~0)
+           MODE() WITHIN GROUP (ORDER BY layer) FILTER (WHERE layer = 'venue') IS NOT NULL
+           -- For nearby POIs, require average distance <= 50m
+           OR COALESCE(AVG(nearby_distance) FILTER (WHERE nearby_distance IS NOT NULL), 0) <= 50
+       )
+       -- IMPROVEMENT 14: Confidence threshold for POI attribution
+       -- Require minimum confidence to avoid low-quality matches
+       AND COALESCE(
+           AVG(confidence) FILTER (WHERE confidence IS NOT NULL),
+           AVG(nearby_confidence) FILTER (WHERE nearby_confidence IS NOT NULL),
+           0
+       ) >= 0.4
+    ), -- end raw_visits
+
+    -- Step 1: Mark visits that should merge with previous (same category, close in time/space)
+    marked_visits AS (
+        SELECT *,
+            CASE WHEN
+                -- Same user as previous
+                user_id = LAG(user_id) OVER w
+                -- Same category
+                AND poi_category = LAG(poi_category) OVER w
+                -- Gap < 60 min between end of previous visit and start of this one
+                AND EXTRACT(EPOCH FROM (
+                    started_at - (LAG(started_at) OVER w + (LAG(duration_minutes) OVER w || ' minutes')::interval)
+                )) < 3600
+                -- Centroids within 150m
+                AND ST_Distance(
+                    location::geography,
+                    LAG(location) OVER w::geography
+                ) < 150
+            THEN 0 ELSE 1 END as new_group
+        FROM raw_visits
+        WINDOW w AS (PARTITION BY user_id ORDER BY started_at)
+    ),
+
+    -- Step 2: Assign merge group IDs
+    grouped_visits AS (
+        SELECT *,
+            SUM(new_group) OVER (PARTITION BY user_id ORDER BY started_at) as merge_group
+        FROM marked_visits
+    ),
+
+    -- Step 3: Consolidate groups into single visits
+    consolidated AS (
+        SELECT
+            user_id,
+            MIN(started_at) as started_at,
+            -- Duration: from first start to last end
+            GREATEST(
+                ROUND(EXTRACT(EPOCH FROM (
+                    MAX(started_at + (duration_minutes || ' minutes')::interval) - MIN(started_at)
+                )) / 60)::integer,
+                1
+            ) as duration_minutes,
+            -- Use centroid of all locations
+            ST_Centroid(ST_Collect(location)) as location,
+            -- Use 'Home' if any visit is home, otherwise first poi_name
+            CASE WHEN bool_or(poi_name = 'Home') THEN 'Home'
+                 ELSE (array_agg(poi_name ORDER BY started_at))[1] END as poi_name,
+            (array_agg(poi_layer ORDER BY started_at))[1] as poi_layer,
+            (array_agg(poi_amenity ORDER BY started_at))[1] as poi_amenity,
+            (array_agg(poi_cuisine ORDER BY started_at))[1] as poi_cuisine,
+            (array_agg(poi_sport ORDER BY started_at))[1] as poi_sport,
+            (array_agg(poi_category ORDER BY started_at))[1] as poi_category,
+            ROUND(AVG(confidence_score)::numeric, 3) as confidence_score,
+            ROUND(AVG(avg_distance_meters)::numeric, 2) as avg_distance_meters,
+            (array_agg(poi_tags ORDER BY started_at))[1] as poi_tags,
+            (array_agg(city ORDER BY started_at))[1] as city,
+            (array_agg(country_code ORDER BY started_at))[1] as country_code,
+            SUM(gps_points_count) as gps_points_count,
+            -- Recalculate time fields from consolidated start time
+            EXTRACT(HOUR FROM MIN(started_at))::integer as visit_hour,
+            CASE
+                WHEN EXTRACT(HOUR FROM MIN(started_at)) BETWEEN 5 AND 11 THEN 'morning'
+                WHEN EXTRACT(HOUR FROM MIN(started_at)) BETWEEN 12 AND 17 THEN 'afternoon'
+                WHEN EXTRACT(HOUR FROM MIN(started_at)) BETWEEN 18 AND 21 THEN 'evening'
+                ELSE 'night'
+            END as visit_time_of_day,
+            TO_CHAR(MIN(started_at), 'Day') as day_of_week,
+            EXTRACT(DOW FROM MIN(started_at)) IN (0, 6) as is_weekend,
+            -- Recalculate duration category
+            CASE
+                WHEN ROUND(EXTRACT(EPOCH FROM (
+                    MAX(started_at + (duration_minutes || ' minutes')::interval) - MIN(started_at)
+                )) / 60) < 30 THEN 'quick'
+                WHEN ROUND(EXTRACT(EPOCH FROM (
+                    MAX(started_at + (duration_minutes || ' minutes')::interval) - MIN(started_at)
+                )) / 60) < 120 THEN 'medium'
+                ELSE 'long'
+            END as duration_category,
+            -- Combine search vectors
+            (array_agg(poi_name_search ORDER BY started_at))[1] as poi_name_search,
+            -- Alt POI from first visit
+            (array_agg(alt_poi_name ORDER BY started_at))[1] as alt_poi_name,
+            (array_agg(alt_poi_amenity ORDER BY started_at))[1] as alt_poi_amenity,
+            (array_agg(alt_poi_cuisine ORDER BY started_at))[1] as alt_poi_cuisine,
+            (array_agg(alt_poi_sport ORDER BY started_at))[1] as alt_poi_sport,
+            (array_agg(alt_poi_distance ORDER BY started_at))[1] as alt_poi_distance,
+            (array_agg(alt_poi_tags ORDER BY started_at))[1] as alt_poi_tags,
+            (array_agg(alt_poi_confidence ORDER BY started_at))[1] as alt_poi_confidence
+        FROM grouped_visits
+        GROUP BY user_id, merge_group
+    )
+
+    SELECT * FROM consolidated
+    ) AS aggregated
+    -- IMPROVEMENT 15: Category-specific duration thresholds
+    -- Different POI types have different expected visit durations
+    WHERE CASE
+        -- Services (ATM, toilets): quick transactions, 3+ min
+        WHEN poi_category = 'services' THEN duration_minutes >= 3
+        -- Transport (parking, station): brief stops, 5+ min
+        WHEN poi_category = 'transport' THEN duration_minutes >= 5
+        -- Grocery/shopping: quick shopping, 10+ min
+        WHEN poi_category IN ('grocery', 'shopping') THEN duration_minutes >= 10
+        -- Food (restaurant, cafe): seated dining, 15+ min
+        WHEN poi_category = 'food' THEN duration_minutes >= 15
+        -- Entertainment/culture/sports: extended activities, 20+ min
+        WHEN poi_category IN ('entertainment', 'culture', 'sports', 'education') THEN duration_minutes >= 20
+        -- Home: actual stays, 30+ min
+        WHEN poi_category = 'home' THEN duration_minutes >= 30
+        -- Healthcare: variable, 10+ min
+        WHEN poi_category = 'healthcare' THEN duration_minutes >= 10
+        -- Worship: services/visits, 15+ min
+        WHEN poi_category = 'worship' THEN duration_minutes >= 15
+        -- Accommodation: hotel stays, 60+ min
+        WHEN poi_category = 'accommodation' THEN duration_minutes >= 60
+        -- Outdoors: variable, 10+ min
+        WHEN poi_category = 'outdoors' THEN duration_minutes >= 10
+        -- Default: 8+ min
+        ELSE duration_minutes >= 8
+    END
     ON CONFLICT (user_id, started_at)
     DO UPDATE SET
         duration_minutes = EXCLUDED.duration_minutes,

@@ -6,6 +6,19 @@
 -- Created: 2025-11-15
 --
 
+-- Ensure unique constraint exists on key column (required for ON CONFLICT)
+-- Using DO block to make this idempotent
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'settings_key_unique'
+        AND conrelid = 'app.settings'::regclass
+    ) THEN
+        ALTER TABLE "app"."settings" ADD CONSTRAINT "settings_key_unique" UNIQUE ("key");
+    END IF;
+END $$;
+
 -- Insert is_setup_complete setting with default value
 -- This setting tracks whether the initial setup (first user creation) has been completed
 INSERT INTO "app"."settings" ("key", "value", "is_public", "description")

@@ -27,3 +27,6 @@ DELETE FROM "app"."settings" WHERE "key" IN (
     'wayli.password_require_number',
     'wayli.password_require_special'
 );
+
+-- Drop unique constraint on key column
+ALTER TABLE "app"."settings" DROP CONSTRAINT IF EXISTS "settings_key_unique";

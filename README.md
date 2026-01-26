@@ -70,7 +70,7 @@ See [CLAUDE.md](CLAUDE.md) for development conventions and [web/README.md](web/R
 Wayli is designed with privacy as a core principle:
 
 - **Self-hosted** - Run on your own infrastructure
-- **Pelias geocoding** - Open-source geocoder that can be self-hosted, avoiding commercial geocoding services that log your location queries
+- **Pelias geocoding** - Uses [Pelias](https://pelias.io), an open-source geocoder, instead of commercial services. By default, Wayli uses a Wayli-hosted Pelias instance. For complete independence, you can configure your own Pelias instance
 - **No telemetry** - No usage data collected
 - **Data ownership** - Full export capabilities, your data stays yours
 

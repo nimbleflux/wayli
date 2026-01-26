@@ -1,197 +1,80 @@
 <div align="center">
 <img src="web/static/logo.svg" alt="Wayli Logo" width="128" height="128">
 
-# Wayli 🗺️
+# Wayli
 </div>
 
 [![CI](https://github.com/wayli-app/wayli/actions/workflows/ci.yml/badge.svg)](https://github.com/wayli-app/wayli/actions/workflows/ci.yml)
 [![Release](https://github.com/wayli-app/wayli/actions/workflows/release.yml/badge.svg)](https://github.com/wayli-app/wayli/actions/workflows/release.yml)
-<!-- [![Release Chart](https://github.com/wayli-app/wayli/actions/workflows/release-chart.yml/badge.svg)](https://github.com/wayli-app/wayli/actions/workflows/release-chart.yml) -->
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 [![Version](https://img.shields.io/github/v/release/wayli-app/wayli)](https://github.com/wayli-app/wayli/releases)
-[![GHCR](https://img.shields.io/badge/ghcr.io-wayli--app%2Fwayli-blue)](https://github.com/wayli-app/wayli/pkgs/container/wayli)
-[![Code Coverage](https://img.shields.io/badge/coverage-85%25-brightgreen)](web/README.md)
-[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://conventionalcommits.org)
 
-[![SvelteKit](https://img.shields.io/badge/SvelteKit-FF3E00?logo=svelte&logoColor=white)](https://kit.svelte.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Fluxbase](https://img.shields.io/badge/Fluxbase-3ECF8E?logoColor=white)](https://fluxbase.eu/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+Privacy-first location tracking and trip analysis. Self-hosted, no third-party data sharing.
 
-Alright, so... Wayli is basically a privacy-first location analysis app. The whole thing is kind of a love letter to people who want to track their travels without selling their soul to big tech.
+## Features
+
+- **Trip Detection** - Automatically detects trips from GPS data with transport mode classification
+- **Statistics** - Distance traveled, transport modes, and interactive visualizations
+- **Data Export** - Export everything in JSON, GeoJSON, or CSV
+- **Privacy-First Geocoding** - Uses [Pelias](https://pelias.io), an open-source geocoder, keeping location lookups off commercial services
+- **OwnTracks Integration** - Import location data from OwnTracks
 
 ## Screenshots
 
 <div align="center">
 
-### Track Your Trips
 ![Trips Overview](docs/images/screenshot-trips.jpg)
-*Automatically detected trips with cover photos and transport mode detection*
+*Automatically detected trips with cover photos and transport modes*
 
-### Analyze Your Movement Patterns
 ![Statistics Dashboard](docs/images/screenshot-statistics.jpg)
-*Detailed statistics including distance traveled, transport modes, and interactive maps*
-
-### Plan Future Adventures
-![Want to Visit](docs/images/screenshot-want-to-visit.jpg)
-*Keep track of places you want to visit with map visualization*
+*Distance traveled, transport modes, and interactive maps*
 
 </div>
 
-## What it does
+## Tech Stack
 
-- Tracks your GPS movements and automatically figures out your trips
-- Tries to guess your transport mode (car, train, bike, etc.)
-- Lets you upload cover photos for trips, and integrates with Pexels for pretty pictures
-- Export everything because YOUR data is YOURS
-- Privacy-first: your data, your control
-
-## The vibe-coded stack
-
-- **Frontend**: SvelteKit + TypeScript + Tailwind (because who doesn't love a good component framework)
-- **Backend**: Fluxbase doing the heavy lifting (PostgreSQL, auth, storage, realtime, the works)
-- **Architecture**: Got this whole layered thing going on - services, stores, API handlers, the full shebang. It's actually pretty well organized... for something mostly vibe-coded
-
-**Fun facts:**
-- Actually has test coverage goals (85%+) which is wild for a vibe-coded project
-- WCAG 2.1 AA compliant because accessibility matters
-- Has this whole service manager architecture with client-safe vs server-only services
-
-The codebase is at `/web` and honestly it's got more structure than you'd expect. Check out the [web README](web/README.md) for the full architecture breakdown.
+- **Frontend**: SvelteKit, TypeScript, Tailwind CSS
+- **Backend**: [Fluxbase](https://fluxbase.eu) (PostgreSQL, Auth, Storage, Jobs)
+- **Geocoding**: Pelias (self-hostable, privacy-preserving)
+- **Mapping**: Leaflet
 
 ## Quick Start
-```bash
-git clone https://github.com/wayli-app/wayli.git
-cd wayli/web
-npm install
-npm run dev
-```
-
-## 🚀 Releases & Semantic Versioning
-
-This project uses semantic versioning based on [Conventional Commits](https://www.conventionalcommits.org/).
-
-### Creating a Release
-
-Releases are triggered manually via GitHub Actions:
-
-1. Go to **Actions** → **Release** → **Run workflow**
-2. Optionally enable "Dry run" to preview the release without publishing
-3. The release pipeline automatically:
-   - Analyzes commit messages to determine version bumps
-   - Creates semantic version tags (e.g., `v1.2.3`)
-   - Generates GitHub releases with automatic release notes
-   - Builds and tags Docker images
-   - Updates deployment configurations (Helm charts, docker-compose)
-
-This approach allows you to:
-- Merge PRs to main anytime for CI/testing
-- Batch multiple changes into a single release
-- Control exactly when releases happen
-
-### 📝 Commit Message Format
-
-Follow this format for your commit messages:
-
-```
-<type>(<scope>): <subject>
-
-<body>
-
-<footer>
-```
-
-#### Types:
-- `feat`: New feature (minor version bump)
-- `fix`: Bug fix (patch version bump)
-- `docs`: Documentation changes (patch version bump)
-- `style`: Code style changes (patch version bump)
-- `refactor`: Code refactoring (patch version bump)
-- `perf`: Performance improvements (patch version bump)
-- `test`: Test changes (patch version bump)
-- `build`: Build system changes (patch version bump)
-- `ci`: CI/CD changes (patch version bump)
-- `chore`: Maintenance tasks (patch version bump)
-- `revert`: Revert previous commit (patch version bump)
-
-#### Scopes:
-- `web`: Web application
-- `api`: API endpoints
-- `db`: Database changes
-- `auth`: Authentication related
-- `ui`: User interface
-- `worker`: Background workers
-- `docker`: Docker configuration
-- `ci`: CI/CD pipeline
-
-#### Examples:
-```bash
-git commit -m "feat(web): add user dashboard"
-git commit -m "fix(auth): resolve login token expiration issue"
-git commit -m "docs(api): update API documentation"
-git commit -m "ci: add semantic versioning workflow"
-```
-
-#### Breaking Changes:
-Use `BREAKING CHANGE:` in the footer for major version bumps:
-```bash
-git commit -m "feat(api): change user endpoint response format
-
-BREAKING CHANGE: The user endpoint now returns user data in a different format."
-```
-
-### 🔄 Version Bumps
-
-- **Patch** (`1.0.0` → `1.0.1`): Bug fixes, documentation, style changes
-- **Minor** (`1.0.0` → `1.1.0`): New features (backward compatible)
-- **Major** (`1.0.0` → `2.0.0`): Breaking changes
-
-### 🐳 Docker Images
-
-Docker images are automatically tagged with:
-- `ghcr.io/wayli-app/wayli:v1.2.3` - Semantic version
-- `ghcr.io/wayli-app/wayli:latest` - Latest stable version
-- `ghcr.io/wayli-app/wayli:abc1234` - Git commit SHA
-
-## 📦 Deployment
-
-Wayli can be deployed using Docker Compose or Kubernetes (via Helm chart). Both deployment methods use Fluxbase as the backend.
-
-**Choose your deployment method:**
-- **Docker Compose**: Perfect for development, testing, and small self-hosted installations
-- **Kubernetes (Helm)**: Recommended for production deployments with automatic scaling and high availability
-
-See the [Deployment Guide](deploy/README.md) for detailed instructions.
-
-### Quick Start
 
 **Docker Compose:**
 ```bash
 cd deploy/docker-compose
-./generate-keys.sh
+./generate-secrets.sh
 # Edit .env with your configuration
 docker compose up -d
 ```
 
 **Kubernetes (Helm):**
 ```bash
-# Add the Wayli Helm repository
-helm repo add wayli https://wayli-app.github.io/wayli
-helm repo update
-
-# Install with default values
-helm install wayli wayli/wayli -n wayli --create-namespace
-
-# Or customize with your own values
-helm install wayli wayli/wayli -n wayli --create-namespace -f custom-values.yaml
+helm install wayli oci://ghcr.io/wayli-app/charts/wayli -n wayli --create-namespace
 ```
 
-For detailed Helm chart configuration options (ingress, autoscaling, resources, etc.), see the [Helm Chart README](charts/wayli/README.md).
+See the [Deployment Guide](deploy/README.md) for detailed instructions.
 
-Both deployment configurations are automatically updated with each release using semantic versioning.
+## Development
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+See [CLAUDE.md](CLAUDE.md) for development conventions and [web/README.md](web/README.md) for architecture details.
+
+## Privacy
+
+Your location data is sensitive. Wayli is designed to be self-hosted, giving you complete control over your data. All trip data, place visits, and personal information stay on your server.
+
+For geocoding, Wayli uses a hosted [Pelias](https://pelias.io) instance at `pelias.wayli.app` by default (a Wayli-managed server)—coordinates are sent for address lookup but no user information is included and nothing is persisted. You can also self-host Pelias for complete independence.
 
 ## Contributing
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute, file issues, and submit pull requests.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
-Wayli is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See [LICENSE](LICENSE) for details.
+
+AGPL-3.0. See [LICENSE](LICENSE).

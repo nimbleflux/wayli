@@ -66,6 +66,66 @@ print_info() {
     echo -e "${CYAN}ℹ${NC} $1"
 }
 
+# Parse existing .env file and return value for a key
+get_env_value() {
+    local key=$1
+    local file=$2
+    grep "^${key}=" "$file" 2>/dev/null | cut -d'=' -f2- | sed "s/^[\"']//;s/[\"']$//"
+}
+
+# Check if key exists and has non-empty value
+key_has_value() {
+    local key=$1
+    local file=$2
+    local value=$(get_env_value "$key" "$file")
+    [ -n "$value" ]
+}
+
+# Required keys that should be checked/generated
+REQUIRED_KEYS=(
+    "FLUXBASE_AUTH_JWT_SECRET"
+    "POSTGRES_PASSWORD"
+    "FLUXBASE_ENCRYPTION_KEY"
+    "FLUXBASE_SECURITY_SETUP_TOKEN"
+    "FLUXBASE_ANON_KEY"
+    "FLUXBASE_SERVICE_ROLE_KEY"
+)
+
+# Display status of all required keys in a file
+display_key_status() {
+    local file=$1
+    local missing=()
+
+    echo ""
+    echo "Current status:"
+    for key in "${REQUIRED_KEYS[@]}"; do
+        if key_has_value "$key" "$file"; then
+            echo -e "  ${GREEN}✓${NC} ${key} (set)"
+        else
+            echo -e "  ${RED}✗${NC} ${key} (missing)"
+            missing+=("$key")
+        fi
+    done
+    echo ""
+
+    # Return number of missing keys
+    echo "${#missing[@]}"
+}
+
+# Get list of missing keys
+get_missing_keys() {
+    local file=$1
+    local missing=()
+
+    for key in "${REQUIRED_KEYS[@]}"; do
+        if ! key_has_value "$key" "$file"; then
+            missing+=("$key")
+        fi
+    done
+
+    echo "${missing[@]}"
+}
+
 # Prompt for a value with default
 prompt_with_default() {
     local prompt=$1
@@ -307,50 +367,160 @@ main() {
     esac
 
     # Check if output file exists
+    UPDATE_MODE=false
     if [ -f "$OUTPUT_FILE" ]; then
         echo ""
-        print_warning "Warning: $OUTPUT_FILE already exists"
-        read -p "Overwrite? [y/N]: " OVERWRITE
-        if [ "$OVERWRITE" != "y" ] && [ "$OVERWRITE" != "Y" ]; then
-            print_error "Aborted."
-            exit 0
+        print_warning "Existing file found: $OUTPUT_FILE"
+
+        # Display status and capture number of missing keys
+        missing_count=$(display_key_status "$OUTPUT_FILE")
+        missing_keys=$(get_missing_keys "$OUTPUT_FILE")
+
+        if [ "$missing_count" -eq 0 ]; then
+            echo "All required keys are already set."
+            echo ""
+            echo "1) Regenerate all keys (overwrites existing)"
+            echo "2) Cancel"
+            echo ""
+            read -p "Enter choice [1-2]: " ENV_CHOICE
+
+            case $ENV_CHOICE in
+                1)
+                    # Will regenerate all
+                    ;;
+                *)
+                    print_info "No changes made."
+                    exit 0
+                    ;;
+            esac
+        else
+            echo "Missing keys: ${missing_keys}"
+            echo ""
+            echo "1) Generate missing keys only (preserves existing values)"
+            echo "2) Regenerate all keys (overwrites existing)"
+            echo "3) Cancel"
+            echo ""
+            read -p "Enter choice [1-3]: " ENV_CHOICE
+
+            case $ENV_CHOICE in
+                1)
+                    UPDATE_MODE=true
+                    # Load existing values
+                    EXISTING_JWT_SECRET=$(get_env_value "FLUXBASE_AUTH_JWT_SECRET" "$OUTPUT_FILE")
+                    EXISTING_POSTGRES_PASSWORD=$(get_env_value "POSTGRES_PASSWORD" "$OUTPUT_FILE")
+                    EXISTING_ENCRYPTION_KEY=$(get_env_value "FLUXBASE_ENCRYPTION_KEY" "$OUTPUT_FILE")
+                    EXISTING_SETUP_TOKEN=$(get_env_value "FLUXBASE_SECURITY_SETUP_TOKEN" "$OUTPUT_FILE")
+                    EXISTING_ANON_KEY=$(get_env_value "FLUXBASE_ANON_KEY" "$OUTPUT_FILE")
+                    EXISTING_SERVICE_ROLE_KEY=$(get_env_value "FLUXBASE_SERVICE_ROLE_KEY" "$OUTPUT_FILE")
+                    # Load existing URLs
+                    EXISTING_SITE_URL=$(get_env_value "SITE_URL" "$OUTPUT_FILE")
+                    EXISTING_FLUXBASE_PUBLIC_URL=$(get_env_value "FLUXBASE_PUBLIC_BASE_URL" "$OUTPUT_FILE")
+                    EXISTING_FLUXBASE_INTERNAL_URL=$(get_env_value "FLUXBASE_BASE_URL" "$OUTPUT_FILE")
+                    ;;
+                2)
+                    # Will regenerate all
+                    ;;
+                *)
+                    print_info "No changes made."
+                    exit 0
+                    ;;
+            esac
         fi
     fi
 
-    # Ask for URLs
+    # Ask for URLs (use existing values as defaults in update mode)
     print_header "Configuration"
 
     echo "Configure the URLs for your deployment."
     echo ""
 
-    SITE_URL=$(prompt_with_default "SITE_URL (public URL for Wayli app)" "http://localhost:4000")
-    FLUXBASE_PUBLIC_BASE_URL=$(prompt_with_default "FLUXBASE_PUBLIC_BASE_URL (public URL for Fluxbase API)" "http://localhost:8080")
-    FLUXBASE_BASE_URL=$(prompt_with_default "FLUXBASE_BASE_URL (internal URL for container-to-container)" "http://fluxbase:8080")
+    if [ "$UPDATE_MODE" = true ] && [ -n "$EXISTING_SITE_URL" ]; then
+        SITE_URL=$(prompt_with_default "SITE_URL (public URL for Wayli app)" "$EXISTING_SITE_URL")
+    else
+        SITE_URL=$(prompt_with_default "SITE_URL (public URL for Wayli app)" "http://localhost:4000")
+    fi
+
+    if [ "$UPDATE_MODE" = true ] && [ -n "$EXISTING_FLUXBASE_PUBLIC_URL" ]; then
+        FLUXBASE_PUBLIC_BASE_URL=$(prompt_with_default "FLUXBASE_PUBLIC_BASE_URL (public URL for Fluxbase API)" "$EXISTING_FLUXBASE_PUBLIC_URL")
+    else
+        FLUXBASE_PUBLIC_BASE_URL=$(prompt_with_default "FLUXBASE_PUBLIC_BASE_URL (public URL for Fluxbase API)" "http://localhost:8080")
+    fi
+
+    if [ "$UPDATE_MODE" = true ] && [ -n "$EXISTING_FLUXBASE_INTERNAL_URL" ]; then
+        FLUXBASE_BASE_URL=$(prompt_with_default "FLUXBASE_BASE_URL (internal URL for container-to-container)" "$EXISTING_FLUXBASE_INTERNAL_URL")
+    else
+        FLUXBASE_BASE_URL=$(prompt_with_default "FLUXBASE_BASE_URL (internal URL for container-to-container)" "http://fluxbase:8080")
+    fi
 
     # Ask for namespace if Kubernetes
     if [ "$OUTPUT_TYPE" = "k8s" ]; then
         NAMESPACE=$(prompt_with_default "Kubernetes namespace" "default")
     fi
 
-    # Generate secrets
+    # Generate secrets (or use existing in update mode)
     print_header "Generating Secrets"
 
-    FLUXBASE_AUTH_JWT_SECRET=$(generate_jwt_secret)
-    POSTGRES_PASSWORD=$(generate_password 40)
-    FLUXBASE_ENCRYPTION_KEY=$(generate_encryption_key)
-    FLUXBASE_SECURITY_SETUP_TOKEN=$(generate_password 32)
+    if [ "$UPDATE_MODE" = true ]; then
+        # Use existing values or generate new ones for missing keys
+        if [ -n "$EXISTING_JWT_SECRET" ]; then
+            FLUXBASE_AUTH_JWT_SECRET="$EXISTING_JWT_SECRET"
+            print_info "FLUXBASE_AUTH_JWT_SECRET (using existing)"
+        else
+            FLUXBASE_AUTH_JWT_SECRET=$(generate_jwt_secret)
+            print_success "FLUXBASE_AUTH_JWT_SECRET generated (base64, 48 bytes)"
+        fi
 
-    print_success "FLUXBASE_AUTH_JWT_SECRET generated (base64, 48 bytes)"
-    print_success "POSTGRES_PASSWORD generated (40 chars)"
-    print_success "FLUXBASE_ENCRYPTION_KEY generated (32 chars)"
-    print_success "FLUXBASE_SECURITY_SETUP_TOKEN generated (32 chars)"
+        if [ -n "$EXISTING_POSTGRES_PASSWORD" ]; then
+            POSTGRES_PASSWORD="$EXISTING_POSTGRES_PASSWORD"
+            print_info "POSTGRES_PASSWORD (using existing)"
+        else
+            POSTGRES_PASSWORD=$(generate_password 40)
+            print_success "POSTGRES_PASSWORD generated (40 chars)"
+        fi
+
+        if [ -n "$EXISTING_ENCRYPTION_KEY" ]; then
+            FLUXBASE_ENCRYPTION_KEY="$EXISTING_ENCRYPTION_KEY"
+            print_info "FLUXBASE_ENCRYPTION_KEY (using existing)"
+        else
+            FLUXBASE_ENCRYPTION_KEY=$(generate_encryption_key)
+            print_success "FLUXBASE_ENCRYPTION_KEY generated (32 chars)"
+        fi
+
+        if [ -n "$EXISTING_SETUP_TOKEN" ]; then
+            FLUXBASE_SECURITY_SETUP_TOKEN="$EXISTING_SETUP_TOKEN"
+            print_info "FLUXBASE_SECURITY_SETUP_TOKEN (using existing)"
+        else
+            FLUXBASE_SECURITY_SETUP_TOKEN=$(generate_password 32)
+            print_success "FLUXBASE_SECURITY_SETUP_TOKEN generated (32 chars)"
+        fi
+    else
+        # Generate all new secrets
+        FLUXBASE_AUTH_JWT_SECRET=$(generate_jwt_secret)
+        POSTGRES_PASSWORD=$(generate_password 40)
+        FLUXBASE_ENCRYPTION_KEY=$(generate_encryption_key)
+        FLUXBASE_SECURITY_SETUP_TOKEN=$(generate_password 32)
+
+        print_success "FLUXBASE_AUTH_JWT_SECRET generated (base64, 48 bytes)"
+        print_success "POSTGRES_PASSWORD generated (40 chars)"
+        print_success "FLUXBASE_ENCRYPTION_KEY generated (32 chars)"
+        print_success "FLUXBASE_SECURITY_SETUP_TOKEN generated (32 chars)"
+    fi
 
     # Generate JWT tokens
     FLUXBASE_ANON_KEY=""
     FLUXBASE_SERVICE_ROLE_KEY=""
     JWT_TOKENS_GENERATED=false
 
-    if [ "$has_docker" = true ]; then
+    if [ "$UPDATE_MODE" = true ] && [ -n "$EXISTING_ANON_KEY" ] && [ -n "$EXISTING_SERVICE_ROLE_KEY" ]; then
+        # Use existing JWT tokens
+        FLUXBASE_ANON_KEY="$EXISTING_ANON_KEY"
+        FLUXBASE_SERVICE_ROLE_KEY="$EXISTING_SERVICE_ROLE_KEY"
+        JWT_TOKENS_GENERATED=true
+        echo ""
+        print_info "FLUXBASE_ANON_KEY (using existing)"
+        print_info "FLUXBASE_SERVICE_ROLE_KEY (using existing)"
+    elif [ "$has_docker" = true ]; then
+        # Generate new JWT tokens (using existing or new JWT secret)
         echo ""
         jwt_output=$(generate_jwt_tokens "$FLUXBASE_AUTH_JWT_SECRET") || true
         if [ -n "$jwt_output" ]; then

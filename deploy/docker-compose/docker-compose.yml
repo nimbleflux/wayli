@@ -17,7 +17,7 @@ services:
     image: ghcr.io/wayli-app/wayli:${WAYLI_VERSION:-latest}
     restart: unless-stopped
     ports:
-      - '${WAYLI_WEB_PORT:-4000}:80'
+      - '${PORT:-4000}:80'
     environment:
       NODE_ENV: production
       HOST: '0.0.0.0'

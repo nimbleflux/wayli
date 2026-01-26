@@ -80,7 +80,7 @@ EXPOSE 80
 
 # Health check using nginx
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-80}/health || exit 1
 
 # Default environment
 ENV NODE_ENV=production

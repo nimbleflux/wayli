@@ -32,6 +32,7 @@ configure_nginx() {
     echo "Configuring Content Security Policy..."
     cp /etc/nginx/nginx.conf /tmp/nginx/nginx.conf
     sed -i "s|{{FLUXBASE_DOMAIN}}|$FLUXBASE_DOMAIN|g" /tmp/nginx/nginx.conf
+    sed -i "s|{{PORT}}|${PORT:-80}|g" /tmp/nginx/nginx.conf
 
     # Copy HTML files to writable location for env var injection
     echo "Copying static files..."

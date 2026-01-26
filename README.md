@@ -69,7 +69,7 @@ See [CLAUDE.md](CLAUDE.md) for development conventions and [web/README.md](web/R
 
 Your location data is sensitive. Wayli is designed to be self-hosted, giving you complete control over your data. All trip data, place visits, and personal information stay on your server.
 
-For geocoding, Wayli uses a hosted [Pelias](https://pelias.io) service by default—coordinates are sent for address lookup but no user information is included and nothing is persisted. You can also self-host Pelias for complete independence.
+For geocoding, Wayli uses a hosted [Pelias](https://pelias.io) instance at `pelias.wayli.app` by default (a Wayli-managed server)—coordinates are sent for address lookup but no user information is included and nothing is persisted. You can also self-host Pelias for complete independence.
 
 ## Contributing
 

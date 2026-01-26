@@ -1,16 +1,12 @@
 <div align="center">
-<img src="logo-icon.svg" alt="Wayli Logo" width="128" height="128">
+<img src="web/static/logo.svg" alt="Wayli Logo" width="128" height="128">
 
 # Wayli 🗺️
 </div>
 
-> ⚠️ **Pre-Release Software**: Wayli is currently in pre-release development (v0.x.x). The API and database schema may change between versions. Not recommended for production use until v1.0.0 release.
-
-**IMPORTANT NOTE:** I'm currently actively working on moving a way from Supabase to a different backend. There will not be a convenient upgrade path other than exporting and importing data again. Hold on for a bit before deploying Wayli at this moment. I can already tell the next release of Wayli is going to be _significantly_ better.
-
 [![CI](https://github.com/wayli-app/wayli/actions/workflows/ci.yml/badge.svg)](https://github.com/wayli-app/wayli/actions/workflows/ci.yml)
 [![Release](https://github.com/wayli-app/wayli/actions/workflows/release.yml/badge.svg)](https://github.com/wayli-app/wayli/actions/workflows/release.yml)
-[![Release Chart](https://github.com/wayli-app/wayli/actions/workflows/release-chart.yml/badge.svg)](https://github.com/wayli-app/wayli/actions/workflows/release-chart.yml)
+<!-- [![Release Chart](https://github.com/wayli-app/wayli/actions/workflows/release-chart.yml/badge.svg)](https://github.com/wayli-app/wayli/actions/workflows/release-chart.yml) -->
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version](https://img.shields.io/github/v/release/wayli-app/wayli)](https://github.com/wayli-app/wayli/releases)
 [![GHCR](https://img.shields.io/badge/ghcr.io-wayli--app%2Fwayli-blue)](https://github.com/wayli-app/wayli/pkgs/container/wayli)
@@ -172,9 +168,9 @@ See the [Deployment Guide](deploy/README.md) for detailed instructions.
 **Docker Compose:**
 ```bash
 cd deploy/docker-compose
-cp .env.example .env
+./generate-keys.sh
 # Edit .env with your configuration
-docker-compose up -d
+docker compose up -d
 ```
 
 **Kubernetes (Helm):**

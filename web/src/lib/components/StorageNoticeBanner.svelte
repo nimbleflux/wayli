@@ -37,7 +37,7 @@
 
 {#if shouldShow}
 	<!-- Spacer to prevent content from being hidden behind fixed banner -->
-	<div class="h-12"></div>
+	<div class="h-12 bg-gray-100 dark:bg-gray-800"></div>
 	<div
 		class="fixed top-0 left-0 right-0 z-50 border-b border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800"
 		transition:slide={{ duration: 300 }}

@@ -1,153 +1,82 @@
-# Environment Configuration Guide
+# Environment Configuration
 
-This directory contains the centralized environment configuration system for the Wayli project. The configuration is separated into different contexts to ensure security and proper separation of concerns.
+Wayli is a client-side SvelteKit application. All server-side operations (authentication, database queries, background jobs, edge functions) are handled by Fluxbase.
 
-## 🏗️ Architecture Overview
-
-The environment configuration follows a layered approach:
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Environment Layers                       │
+│  Client (Browser)                                           │
+│  └── src/lib/config.ts      → Runtime configuration         │
+│  └── src/lib/fluxbase.ts    → Fluxbase client SDK           │
 ├─────────────────────────────────────────────────────────────┤
-│  Server-Side (SvelteKit)                                    │
-│  ├── server-environment.ts (Private variables)              │
-│  └── $env/static/private                                    │
-├─────────────────────────────────────────────────────────────┤
-│  Worker (Node.js)                                           │
-│  └── worker-environment.ts (process.env)                    │
+│  Fluxbase (Backend)                                         │
+│  ├── Edge Functions         → fluxbase/functions/           │
+│  ├── Background Jobs        → fluxbase/jobs/                │
+│  └── Database + Auth        → PostgreSQL with RLS           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 📁 File Structure
+## Client Configuration
 
-```
-src/lib/core/config/
-├── server-environment.ts (Private variables)
-└── worker-environment.ts (process.env)
-```
+The client uses two files for configuration:
 
-### `server-environment.ts` - Server-Side Configuration
+### `src/lib/config.ts`
 
-- **Purpose**: Server-only configuration using SvelteKit's `$env/static/private`
-- **Usage**: API routes, server actions, server-side load functions
-- **Variables**: Service role keys, database URLs, secrets
-- **Security**: Private variables only, never exposed to client
+Runtime configuration that works in both development and production:
 
 ```typescript
-// ✅ Safe for server-side
-import { validateServerEnvironmentConfig } from '$lib/core/config/server-environment';
+import { config } from '$lib/config';
 
-// ❌ Never import in client-side code
-// This would cause build errors and security issues
+// Get Fluxbase URL (handles dev vs production automatically)
+const url = config.fluxbaseUrl;
+const anonKey = config.fluxbaseAnonKey;
 ```
 
-### `worker-environment.ts` - Worker Configuration
+### `src/lib/fluxbase.ts`
 
-- **Purpose**: Node.js worker environment using `process.env`
-- **Usage**: Background workers, job processors, standalone Node.js processes
-- **Variables**: Worker-specific configuration, process-level variables
-- **Security**: Uses `process.env` for Node.js compatibility
+Pre-configured Fluxbase client for database operations:
 
 ```typescript
-// ✅ Safe for worker processes
-import { validateWorkerEnvironmentConfig } from '$lib/core/config/worker-environment';
+import { fluxbase } from '$lib/fluxbase';
+
+// Use the client for queries (RLS enforced automatically)
+const { data } = await fluxbase.from('trips').select('*');
 ```
 
-## 🔒 Security Guidelines
+## Environment Variables
 
-### ✅ Do's
+### For Development (`.env`)
 
-- Use the appropriate config for each context
-- Validate environment variables at startup
-- Use TypeScript interfaces for type safety
-- Handle missing variables gracefully
-- Log configuration issues in development
-
-### ❌ Don'ts
-
-- Never import `$env/static/private` in client-side code
-- Never import server configs in client components
-- Never expose secrets in client bundles
-- Never use `process.env` in SvelteKit server code
-- Never hardcode sensitive values
-
-## 🚀 Usage Examples
-
-### Client-Side Configuration
-
-```typescript
-// src/routes/+page.svelte
-// Note: Pelias configuration is now handled directly in the service
-// Client-side can use PUBLIC_PELIAS_ENDPOINT env var (defaults to https://pelias.wayli.app)
+```env
+FLUXBASE_PUBLIC_BASE_URL=http://127.0.0.1:8080
+PUBLIC_FLUXBASE_ANON_KEY=your-anon-key
 ```
 
-### Server-Side Configuration
+### For Deployment (Docker/Kubernetes)
 
-```typescript
-// src/routes/api/v1/users/+server.ts
-import { validateServerEnvironmentConfig } from '$lib/core/config/server-environment';
-
-const config = validateServerEnvironmentConfig(true);
-// config.fluxbase.url = 'https://your-project.fluxbase.eu'
-// config.fluxbase.serviceRoleKey = 'your-service-role-key'
-```
-
-### Worker Configuration
-
-```typescript
-// src/lib/services/workers/job-worker.service.ts
-import { validateWorkerEnvironmentConfig } from '$lib/core/config/worker-environment';
-
-const config = validateWorkerEnvironmentConfig();
-// config.fluxbase.url = 'https://your-project.fluxbase.eu'
-// config.fluxbase.serviceRoleKey = 'your-service-role-key'
-```
-
-## 🔧 Environment Variables
-
-### Fluxbase URL Configuration
-
-There are two Fluxbase URL environment variables:
-
-| Variable                   | Purpose                                | Usage                                      |
-| -------------------------- | -------------------------------------- | ------------------------------------------ |
-| `FLUXBASE_PUBLIC_BASE_URL` | Public URL accessible from browsers    | Client-side code, browser requests         |
-| `FLUXBASE_BASE_URL`        | Internal URL for cluster communication | Server-side, workers, edge functions, jobs |
-
-In Kubernetes deployments, `FLUXBASE_BASE_URL` typically points to an internal service (e.g., `http://fluxbase:8080`) while `FLUXBASE_PUBLIC_BASE_URL` points to the external ingress URL (e.g., `https://flux.your-domain.com`).
-
-### Anonymous Key Naming Convention
-
-The anonymous key has two naming conventions depending on context:
-
-| Context | Variable Name | Notes |
-|---------|---------------|-------|
-| Docker/Deploy configs | `FLUXBASE_ANON_KEY` | Used in docker-compose, Helm charts |
-| SvelteKit web app | `PUBLIC_FLUXBASE_ANON_KEY` | Required by SvelteKit for client exposure |
-
-The `vite.config.ts` and `startup.sh` automatically map `FLUXBASE_ANON_KEY` to `PUBLIC_FLUXBASE_ANON_KEY`, so you only need to set `FLUXBASE_ANON_KEY` in deployment configs.
-
-### Public Variables (Client-Safe)
+Deployment configs use `FLUXBASE_ANON_KEY` (without `PUBLIC_` prefix). The `vite.config.ts` and `startup.sh` automatically map it to `PUBLIC_FLUXBASE_ANON_KEY`.
 
 ```env
 FLUXBASE_PUBLIC_BASE_URL=https://flux.your-domain.com
 FLUXBASE_ANON_KEY=your-anon-key
-NODE_ENV=development
 ```
 
-### Private Variables (Server-Only)
+### Fluxbase Internal URL
+
+For Kubernetes deployments, Fluxbase jobs and edge functions use `FLUXBASE_BASE_URL` for internal cluster communication:
 
 ```env
+# Public URL (browsers)
+FLUXBASE_PUBLIC_BASE_URL=https://flux.your-domain.com
+
+# Internal URL (Fluxbase jobs/functions within cluster)
 FLUXBASE_BASE_URL=http://fluxbase:8080
-FLUXBASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-### Worker Variables (Node.js)
+## Security Notes
 
-```env
-WORKER_POLL_INTERVAL=5000
-JOB_TIMEOUT=300000
-RETRY_ATTEMPTS=3
-RETRY_DELAY=1000
-```
+- The anonymous key (`FLUXBASE_ANON_KEY`) is safe to expose to clients
+- Row-Level Security (RLS) in PostgreSQL enforces data access policies
+- Service role keys are only used by Fluxbase itself, never by the client app
+- All sensitive operations go through Fluxbase's authenticated endpoints

@@ -287,25 +287,19 @@ Wayli is built with accessibility as a core principle:
 
 ## 🌍 Environment Configuration
 
-Wayli uses a secure, layered environment configuration:
+Wayli is a client-side application - all server-side operations are handled by Fluxbase.
 
-### Client-Safe Configuration
-
-```typescript
-// Note: Pelias configuration is now handled directly in the service
-// Client-side can use PUBLIC_PELIAS_ENDPOINT env var (defaults to https://pelias.wayli.app)
-```
-
-### Server-Only Configuration
+### Client Configuration
 
 ```typescript
-// src/lib/core/config/server-environment.ts
-import { validateServerEnvironmentConfig } from '$lib/core/config/server-environment';
+// src/lib/config.ts - Runtime configuration
+import { config } from '$lib/config';
+const url = config.fluxbaseUrl;
+const anonKey = config.fluxbaseAnonKey;
 
-// Validates and returns server-only environment variables
-const config = validateServerEnvironmentConfig();
-// config.fluxbase.url - Internal Fluxbase URL
-// config.fluxbase.serviceRoleKey - Service role key for privileged operations
+// src/lib/fluxbase.ts - Pre-configured Fluxbase client
+import { fluxbase } from '$lib/fluxbase';
+const { data } = await fluxbase.from('trips').select('*');
 ```
 
 ### Vite Configuration

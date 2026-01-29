@@ -14,26 +14,31 @@ Privacy-first location tracking and trip analysis application. SvelteKit fronten
 web/                      # Main SvelteKit application
 ├── src/
 │   ├── lib/
-│   │   ├── components/   # Reusable Svelte components
-│   │   ├── services/     # Business logic (trips, profile, statistics, etc.)
-│   │   ├── stores/       # Svelte reactive stores
-│   │   ├── utils/        # Utility functions
-│   │   ├── types/        # TypeScript type definitions
-│   │   ├── rules/        # Trip/transport detection rules
-│   │   ├── core/         # Service container, config, Fluxbase clients
-│   │   └── schemas/      # Zod validation schemas
+│   │   ├── accessibility/ # Accessibility utilities
+│   │   ├── architecture/  # Architecture documentation
+│   │   ├── components/    # Reusable Svelte components
+│   │   ├── core/          # Environment configuration (server/worker)
+│   │   ├── i18n/          # Internationalization
+│   │   ├── rules/         # Trip/transport detection rules
+│   │   ├── schemas/       # Zod validation schemas
+│   │   ├── services/      # Business logic (trips, profile, statistics, etc.)
+│   │   ├── stores/        # Svelte reactive stores
+│   │   ├── types/         # TypeScript type definitions
+│   │   └── utils/         # Utility functions
 │   ├── routes/
-│   │   ├── (user)/       # Protected user routes (dashboard, map, etc.)
-│   │   └── auth/         # Auth routes (signin, signup, 2FA)
-│   └── shared/           # Shared config and types
-├── tests/                # Unit, integration, accessibility tests
+│   │   ├── (user)/        # Protected user routes (dashboard, map, etc.)
+│   │   └── auth/          # Auth routes (signin, signup, 2FA)
+│   └── shared/            # Shared config and types
+├── tests/                 # Unit, integration, accessibility tests
 fluxbase/
-├── functions/            # Edge functions (health, owntracks, trips-suggest-image)
-├── jobs/                 # Background jobs (Deno): import, geocoding, trip detection
-├── migrations/           # SQL migrations
-└── rpc/                  # Remote procedure calls
-deploy/                   # Docker Compose configs
-charts/                   # Helm charts for Kubernetes
+├── chatbots/              # Chatbot definitions
+├── functions/             # Edge functions (health, owntracks, trips-suggest-image)
+├── jobs/                  # Background jobs (Deno): import, geocoding, trip detection
+├── mcp-tools/             # MCP tool definitions
+├── migrations/            # SQL migrations
+└── rpc/                   # Remote procedure calls
+deploy/                    # Docker Compose configs
+charts/                    # Helm charts for Kubernetes
 ```
 
 ## Commands (run from /web)
@@ -44,7 +49,7 @@ npm run test          # Run all tests
 npm run test:coverage # Tests with coverage
 npm run lint          # Check formatting/linting
 npm run check         # TypeScript + Svelte checks
-npm run sync:all      # Sync functions/jobs/migrations to Fluxbase
+npm run sync:all      # Sync all resources (functions, jobs, migrations, rpc, chatbots, mcp) to Fluxbase
 ```
 
 ## Coding Conventions
@@ -76,8 +81,9 @@ npm run sync:all      # Sync functions/jobs/migrations to Fluxbase
 - Target: 85%+ coverage
 
 ## Key Files
-- `web/src/lib/core/fluxbase-client.ts` - Database client setup
-- `web/src/lib/core/config/` - Environment configuration
+- `web/src/lib/fluxbase.ts` - Client-side Fluxbase database client
+- `web/src/lib/config.ts` - Client-side runtime configuration
+- `web/src/lib/core/config/` - Server/worker environment configuration
 - `web/src/routes/(user)/dashboard/` - Main user dashboard
 - `web/src/lib/services/trips.ts` - Core trip service
 - `web/src/lib/rules/` - Trip detection algorithms

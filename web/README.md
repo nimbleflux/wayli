@@ -212,29 +212,34 @@ web/
 ├── src/
 │   ├── lib/
 │   │   ├── accessibility/       # Accessibility utilities
+│   │   ├── architecture/        # Architecture documentation
 │   │   ├── components/          # Reusable UI components
 │   │   ├── core/
-│   │   │   ├── config/          # Environment configuration
-│   │   │   └── fluxbase/        # Fluxbase clients
+│   │   │   └── config/          # Server/worker environment configuration
+│   │   ├── i18n/               # Internationalization
+│   │   ├── rules/              # Trip/transport detection rules
+│   │   ├── schemas/            # Zod validation schemas
 │   │   ├── services/           # Business logic services
 │   │   ├── stores/             # Svelte stores
 │   │   ├── types/              # TypeScript types
 │   │   ├── utils/
 │   │   │   ├── api/            # API utilities and patterns
 │   │   │   └── ...             # Other utilities
-│   │   ├── validation/         # Zod validation schemas
-│   │   └── middleware/         # Request middleware
+│   │   ├── config.ts           # Client-side runtime configuration
+│   │   └── fluxbase.ts         # Client-side Fluxbase database client
 │   ├── routes/
 │   │   ├── (user)/             # Protected user routes
 │   │   ├── api/                # API endpoints
 │   │   └── setup/              # Initial setup flow
 │   └── static/                 # Static assets
-├── tests/                      # Test suite
-│   ├── unit/                   # Unit tests
-│   ├── components/             # Component tests
-│   ├── integration/            # Integration tests
-│   └── accessibility/          # Accessibility tests
-└── docs/                       # Documentation
+└── tests/                      # Test suite
+    ├── unit/                   # Unit tests
+    ├── components/             # Component tests
+    ├── integration/            # Integration tests
+    ├── accessibility/          # Accessibility tests
+    ├── e2e/                    # End-to-end tests
+    ├── mocks/                  # Test mocks
+    └── utils/                  # Test utilities
 ```
 
 ### Key Technologies
@@ -282,23 +287,19 @@ Wayli is built with accessibility as a core principle:
 
 ## 🌍 Environment Configuration
 
-Wayli uses a secure, layered environment configuration:
+Wayli is a client-side application - all server-side operations are handled by Fluxbase.
 
-### Client-Safe Configuration
-
-```typescript
-// Note: Pelias configuration is now handled directly in the service
-// Client-side can use PUBLIC_PELIAS_ENDPOINT env var (defaults to https://pelias.wayli.app)
-```
-
-### Server-Only Configuration
+### Client Configuration
 
 ```typescript
-// src/lib/core/config/server-environment.ts
-// Server-only variables from $env/static/private
-export function validateServerEnvironment() {
-	// Validate required environment variables
-}
+// src/lib/config.ts - Runtime configuration
+import { config } from '$lib/config';
+const url = config.fluxbaseUrl;
+const anonKey = config.fluxbaseAnonKey;
+
+// src/lib/fluxbase.ts - Pre-configured Fluxbase client
+import { fluxbase } from '$lib/fluxbase';
+const { data } = await fluxbase.from('trips').select('*');
 ```
 
 ### Vite Configuration

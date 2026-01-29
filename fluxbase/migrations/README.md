@@ -37,37 +37,70 @@ SKIP_MIGRATION_SYNC=false                        # Skip on startup (testing only
 
 ## Migration Files
 
-The initial schema has been split into 7 migration files that must be executed in order, following the logical dependency chain:
+The schema is organized into 20 migration files that must be executed in order, following logical dependency chains.
+
+### Core Schema (001-007)
 
 **schemas → functions → tables/views → indexes → constraints/triggers → RLS policies → grants**
 
-### Up Migrations (Forward)
+| File | Description | Dependencies |
+|------|-------------|--------------|
+| [001_schemas.up.sql](001_schemas.up.sql) | PostgreSQL settings & schema initialization | None |
+| [002_functions.up.sql](002_functions.up.sql) | All database functions (33 functions) | 001 |
+| [003_tables_views.up.sql](003_tables_views.up.sql) | Tables and views (9 tables + 1 view) | 002 |
+| [004_indexes.up.sql](004_indexes.up.sql) | Performance indexes (34 indexes) | 003 |
+| [005_constraints_triggers.up.sql](005_constraints_triggers.up.sql) | Triggers and foreign keys | 002, 003 |
+| [006_rls_policies.up.sql](006_rls_policies.up.sql) | Row-Level Security policies (45 policies) | 002, 003 |
+| [007_grants.up.sql](007_grants.up.sql) | Permission grants | All previous |
 
-Execute in this order: **1 → 2 → 3 → 4 → 5 → 6 → 7**
+### App Settings (008)
 
-| File | Description | Dependencies | Size |
-|------|-------------|--------------|------|
-| [001_schemas.up.sql](001_schemas.up.sql) | PostgreSQL settings & schema initialization | None | ~927B |
-| [002_functions.up.sql](002_functions.up.sql) | All database functions (33 functions) | 001 | ~57KB |
-| [003_tables_views.up.sql](003_tables_views.up.sql) | Tables and views (9 tables + 1 view) | 002 | ~6.4KB |
-| [004_indexes.up.sql](004_indexes.up.sql) | Performance indexes (34 indexes) | 003 | ~4.8KB |
-| [005_constraints_triggers.up.sql](005_constraints_triggers.up.sql) | Triggers and foreign keys | 002, 003 | ~3.3KB |
-| [006_rls_policies.up.sql](006_rls_policies.up.sql) | Row-Level Security policies (45 policies) | 002, 003 | ~12KB |
-| [007_grants.up.sql](007_grants.up.sql) | Permission grants | All previous | ~11KB |
+| File | Description | Dependencies |
+|------|-------------|--------------|
+| [008_app_settings_rls.up.sql](008_app_settings_rls.up.sql) | Configure RLS for `app.settings`, add `wayli.is_setup_complete` setting | Fluxbase `app.settings` table |
+
+### Vector Search / pgvector (009-014)
+
+These migrations add semantic search capabilities using pgvector.
+
+| File | Description | Dependencies |
+|------|-------------|--------------|
+| [009_pgvector_setup.up.sql](009_pgvector_setup.up.sql) | Enable pgvector extension, create embedding tables (`trip_embeddings`, `poi_embeddings`) | 003 |
+| [010_pgvector_indexes.up.sql](010_pgvector_indexes.up.sql) | Create HNSW indexes for vector similarity search | 009 |
+| [011_pgvector_rls.up.sql](011_pgvector_rls.up.sql) | RLS policies for embedding tables | 009 |
+| [012_pgvector_functions.up.sql](012_pgvector_functions.up.sql) | Vector search functions (semantic trip/POI search) | 009, 010 |
+| [013_pgvector_views.up.sql](013_pgvector_views.up.sql) | Views for embedding generation (`my_trip_summary`, `my_poi_summary`) | 009 |
+| [014_pgvector_grants.up.sql](014_pgvector_grants.up.sql) | Permission grants for pgvector objects | 009-013 |
+
+### Schema Maintenance (015-016)
+
+| File | Description | Dependencies |
+|------|-------------|--------------|
+| [015_remove_secret_columns.up.sql](015_remove_secret_columns.up.sql) | Remove deprecated `pexels_api_key` and `owntracks_api_key` columns (migrated to Fluxbase secrets) | 003 |
+| [016_fix_view_grants.up.sql](016_fix_view_grants.up.sql) | Fix missing grants on views | 007, 013 |
+
+### Place Visits (017)
+
+| File | Description | Dependencies |
+|------|-------------|--------------|
+| [017_place_visits_incremental.up.sql](017_place_visits_incremental.up.sql) | Create `place_visits` and `place_visits_state` tables for incremental POI visit detection | 003 |
+
+### Admin & Enhancements (018-020)
+
+| File | Description | Dependencies |
+|------|-------------|--------------|
+| [018_tracker_data_admin_permissions.up.sql](018_tracker_data_admin_permissions.up.sql) | Add admin permissions for tracker_data operations | 007 |
+| [019_view_column_comments.up.sql](019_view_column_comments.up.sql) | Add column comments to views for better documentation | 013 |
+| [020_enrich_poi_summary.up.sql](020_enrich_poi_summary.up.sql) | Enrich `my_poi_summary` view with additional columns for embeddings | 013 |
 
 ### Down Migrations (Rollback)
 
-Execute in **reverse order**: **7 → 6 → 5 → 4 → 3 → 2 → 1**
+Execute in **reverse order**: **20 → 19 → ... → 2 → 1**
 
-| File | Description |
-|------|-------------|
-| [007_grants.down.sql](007_grants.down.sql) | Revoke all grants |
-| [006_rls_policies.down.sql](006_rls_policies.down.sql) | Drop RLS policies and disable RLS |
-| [005_constraints_triggers.down.sql](005_constraints_triggers.down.sql) | Drop triggers and constraints |
-| [004_indexes.down.sql](004_indexes.down.sql) | Drop all indexes |
-| [003_tables_views.down.sql](003_tables_views.down.sql) | Drop tables and views (⚠️ data loss) |
-| [002_functions.down.sql](002_functions.down.sql) | Drop all functions |
-| [001_schemas.down.sql](001_schemas.down.sql) | Rollback schema initialization |
+Each `.up.sql` file has a corresponding `.down.sql` file for rollback. Down migrations:
+- Drop tables, functions, indexes, and policies created by the corresponding up migration
+- Restore previous state where applicable
+- ⚠️ **Warning**: Down migrations may cause data loss!
 
 ## Security Model
 
@@ -91,8 +124,9 @@ The migrations implement a three-tier permission model following the **Principle
 
 ## Database Objects
 
-### Tables (9)
+### Tables (12)
 
+**Core Tables:**
 - `audit_logs` - Security audit log with 30-day minimum retention
 - `database_migrations` - Migration version tracking
 - `jobs` - Background job queue with realtime updates
@@ -103,9 +137,19 @@ The migrations implement a three-tier permission model following the **Principle
 - `want_to_visit_places` - User's wishlist of places
 - `workers` - Background worker status tracking
 
-### Views (1)
+**Vector Search Tables (009):**
+- `trip_embeddings` - Vector embeddings for semantic trip search
+- `poi_embeddings` - Vector embeddings for semantic POI search
+
+**Place Visit Tables (017):**
+- `place_visits` - Detected place/POI visits with duration and frequency
+- `place_visits_state` - Incremental refresh state tracking (per-user watermarks)
+
+### Views (4)
 
 - `recent_security_events` - Last 24 hours of high/critical severity events (admin-only)
+- `my_trip_summary` - User's trip summaries for embedding generation (013)
+- `my_poi_summary` - User's POI summaries for embedding generation (013, enriched in 020)
 
 ### Functions (33)
 
@@ -214,28 +258,22 @@ Original migration files are preserved in [.backup/](.backup/):
 
 ### Initial Setup (Fresh Database)
 
+Migrations are automatically applied by Fluxbase on startup. For manual execution:
+
 ```bash
-# Execute up migrations in order
-psql -f 001_schemas.up.sql
-psql -f 002_functions.up.sql
-psql -f 003_tables_views.up.sql
-psql -f 004_indexes.up.sql
-psql -f 005_constraints_triggers.up.sql
-psql -f 006_rls_policies.up.sql
-psql -f 007_grants.up.sql
+# Execute up migrations in order (001-020)
+for i in $(seq -w 1 20); do
+  psql -f ${i}_*.up.sql
+done
 ```
 
 ### Rollback (Undo All Changes)
 
 ```bash
-# Execute down migrations in reverse order
-psql -f 007_grants.down.sql
-psql -f 006_rls_policies.down.sql
-psql -f 005_constraints_triggers.down.sql
-psql -f 004_indexes.down.sql
-psql -f 003_tables_views.down.sql
-psql -f 002_functions.down.sql
-psql -f 001_schemas.down.sql
+# Execute down migrations in reverse order (020-001)
+for i in $(seq -w 20 -1 1); do
+  psql -f ${i}_*.down.sql
+done
 ```
 
 ⚠️ **Warning**: Down migrations will delete all data! Always backup your database first.
@@ -276,4 +314,5 @@ psql -f 001_schemas.down.sql
 - RLS is disabled during migration (`SET row_security = off`)
 - The `jobs` table has `REPLICA IDENTITY FULL` for realtime updates
 - PostGIS extension is required for geographic functions
-- Migrations assume Supabase/PostgreSQL with `auth` schema present
+- Migrations assume Fluxbase/PostgreSQL with `auth` schema present
+- pgvector extension required for semantic search (009+)

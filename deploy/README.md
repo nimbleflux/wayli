@@ -6,7 +6,7 @@ This directory contains deployment configurations for Wayli. Choose the deployme
 
 ### 🐳 Docker Compose
 
-Docker Compose provides a simple way to run Wayli with all its dependencies (including Supabase) on a single machine.
+Docker Compose provides a simple way to run Wayli with all its dependencies (including Fluxbase) on a single machine.
 
 **Quick Start:**
 ```bash
@@ -39,8 +39,8 @@ See [charts/wayli/README.md](../charts/wayli/README.md) for detailed configurati
 ## Common Configuration
 
 Both deployment methods require:
-- **Supabase**: Included as a dependency in both setups
-- **PostgreSQL**: Provided by Supabase
+- **Fluxbase**: Backend API service, included as a dependency in both setups
+- **PostgreSQL**: Provided by Fluxbase
 - **SMTP**: Optional, for email notifications
 - **Storage**: For uploaded images and data
 

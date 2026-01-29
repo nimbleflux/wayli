@@ -190,15 +190,18 @@ await fluxbaseService.jobs.submit('distance-calculation',
 
 ## Available Jobs
 
-### Data Import
+### Data Import & Export
 
-- **data-import-geojson.ts** - Import GPS data from GeoJSON format
-- **data-import-gpx.ts** - Import GPS data from GPX format
-- **data-import-owntracks.ts** - Import data from OwnTracks JSON format
+| File | Description |
+|------|-------------|
+| [data-import.ts](data-import.ts) | Unified data import supporting GeoJSON, GPX, and OwnTracks JSON formats |
+| [data-export.ts](data-export.ts) | Export user data in GeoJSON, JSON, or CSV format |
 
 ### Geocoding
 
-- **reverse-geocoding.ts** - Batch reverse geocode location points using Pelias
+| File | Description |
+|------|-------------|
+| [reverse-geocoding.ts](reverse-geocoding.ts) | Batch reverse geocode location points using Pelias |
 
 #### Why Pelias?
 
@@ -212,13 +215,33 @@ For a deeper technical comparison of geocoding options, see [this article](https
 
 ### Trip Processing
 
-- **trip-generation.ts** - Detect trips from GPS data using sleep-based algorithm
-- **trip-detection.ts** - Alternative trip detection method
-- **distance-calculation.ts** - Calculate distances between consecutive points
+| File | Description |
+|------|-------------|
+| [trip-generation.ts](trip-generation.ts) | Detect trips from GPS data using sleep-based algorithm |
+| [trip-detection.ts](trip-detection.ts) | Alternative trip detection method |
 
-### Data Export
+### Place Visits & POI Detection
 
-- **data-export.ts** - Export user data in GeoJSON or JSON format
+| File | Description |
+|------|-------------|
+| [detect-place-visits.ts](detect-place-visits.ts) | Detect POI visits from user location data |
+| [scheduled-detect-place-visits.ts](scheduled-detect-place-visits.ts) | Scheduled job to detect place visits for all users |
+| [clear-and-rebuild-place-visits.ts](clear-and-rebuild-place-visits.ts) | Clear and rebuild place visits data |
+
+### Vector Embeddings (Semantic Search)
+
+| File | Description |
+|------|-------------|
+| [sync-trip-embeddings.ts](sync-trip-embeddings.ts) | Generate/sync vector embeddings for user trips |
+| [sync-poi-embeddings.ts](sync-poi-embeddings.ts) | Generate/sync vector embeddings for user POIs |
+| [scheduled-sync-trip-embeddings.ts](scheduled-sync-trip-embeddings.ts) | Scheduled job to sync trip embeddings for all users |
+| [scheduled-sync-poi-embeddings.ts](scheduled-sync-poi-embeddings.ts) | Scheduled job to sync POI embeddings for all users |
+
+### User Preferences
+
+| File | Description |
+|------|-------------|
+| [compute-user-preferences.ts](compute-user-preferences.ts) | Compute and update user preferences based on activity |
 
 ## Testing Jobs Locally
 
@@ -265,4 +288,3 @@ Job files should match the job type name with hyphens:
 
 - [Fluxbase Jobs Documentation](https://docs.fluxbase.sh/jobs)
 - [Edge Functions Architecture](../functions/ARCHITECTURE.md)
-- [Worker Implementation](../../src/worker/README.md) (temporary)

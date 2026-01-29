@@ -21,6 +21,15 @@ The environment configuration follows a layered approach:
 
 ## 📁 File Structure
 
+Configuration files are located in `src/lib/core/config/`:
+
+```
+src/lib/core/config/
+├── server-environment.ts  # Server-side (SvelteKit) configuration
+├── worker-environment.ts  # Worker (Node.js) configuration
+└── README.md              # Detailed configuration guide
+```
+
 ### `server-environment.ts` - Server-Side Configuration
 
 - **Purpose**: Server-only configuration using SvelteKit's `$env/static/private`
@@ -111,11 +120,22 @@ There are two Fluxbase URL environment variables:
 
 In Kubernetes deployments, `FLUXBASE_BASE_URL` typically points to an internal service (e.g., `http://fluxbase:8080`) while `FLUXBASE_PUBLIC_BASE_URL` points to the external ingress URL (e.g., `https://flux.your-domain.com`).
 
+### Anonymous Key Naming Convention
+
+The anonymous key has two naming conventions depending on context:
+
+| Context | Variable Name | Notes |
+|---------|---------------|-------|
+| Docker/Deploy configs | `FLUXBASE_ANON_KEY` | Used in docker-compose, Helm charts |
+| SvelteKit web app | `PUBLIC_FLUXBASE_ANON_KEY` | Required by SvelteKit for client exposure |
+
+The `vite.config.ts` and `startup.sh` automatically map `FLUXBASE_ANON_KEY` to `PUBLIC_FLUXBASE_ANON_KEY`.
+
 ### Public Variables (Client-Safe)
 
 ```env
 FLUXBASE_PUBLIC_BASE_URL=https://flux.your-domain.com
-PUBLIC_FLUXBASE_ANON_KEY=your-anon-key
+FLUXBASE_ANON_KEY=your-anon-key
 NODE_ENV=development
 ```
 
@@ -124,9 +144,6 @@ NODE_ENV=development
 ```env
 FLUXBASE_BASE_URL=http://fluxbase:8080
 FLUXBASE_SERVICE_ROLE_KEY=your-service-role-key
-JWT_SECRET=your-jwt-secret
-SESSION_SECRET=your-session-secret
-COOKIE_SECRET=your-cookie-secret
 ```
 
 ### Worker Variables (Node.js)

@@ -2,6 +2,33 @@ apiVersion: v1
 entries:
   wayli:
   - apiVersion: v2
+    appVersion: v2.0.3
+    created: "2026-01-29T22:27:39.193815604Z"
+    dependencies:
+    - condition: fluxbase.enabled
+      name: fluxbase
+      repository: oci://ghcr.io/fluxbase-eu/charts
+      version: 2026.1.21
+    description: A privacy-first location analysis and trip tracking application
+    digest: bdd6ac31f83971dd3201daef651dac40973fb10c191f8da5f6ac6ad59b4f1fdf
+    home: https://github.com/wayli-app/wayli
+    keywords:
+    - location
+    - tracking
+    - privacy
+    - trip-analysis
+    - gps
+    maintainers:
+    - name: wayli-app
+      url: https://github.com/wayli-app/wayli
+    name: wayli
+    sources:
+    - https://github.com/wayli-app/wayli
+    type: application
+    urls:
+    - https://github.com/wayli-app/wayli/releases/download/chart-2.0.3/wayli-2.0.3.tgz
+    version: 2.0.3
+  - apiVersion: v2
     appVersion: v2.0.2
     created: "2026-01-27T16:38:55.714428152Z"
     dependencies:
@@ -3173,4 +3200,4 @@ entries:
     urls:
     - https://github.com/wayli-app/wayli/releases/download/chart-0.0.1/wayli-0.0.1.tgz
     version: 0.0.1
-generated: "2026-01-27T16:38:55.714796351Z"
+generated: "2026-01-29T22:27:39.194149424Z"

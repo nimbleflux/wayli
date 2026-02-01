@@ -97,7 +97,7 @@
 		"leaflet.markercluster": "^1.5.3",
 		"lodash-es": "^4.17.21",
 		"lucide-svelte": "^0.344.0",
-		"marked": "^15.0.12",
+		"marked": "^17.0.1",
 		"qrcode": "^1.5.4",
 		"svelte-sonner": "^1.0.5",
 		"tailwind-merge": "^2.6.0",

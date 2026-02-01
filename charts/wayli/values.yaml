@@ -49,7 +49,7 @@ web:
       enabled: true
       image:
         repository: busybox
-        tag: "1.36"
+        tag: "1.37"
         pullPolicy: IfNotPresent
     ## Sync Fluxbase resources (functions, jobs, migrations, RPC, chatbots)
     ## Uses the Fluxbase CLI installed in the wayli image

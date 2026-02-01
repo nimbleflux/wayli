@@ -1,41 +1,11 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "mode": "full",
-  "extends": ["config:recommended", ":semanticCommitTypeAll(chore)", "group:allNonMajor"],
+  "extends": ["config:recommended", ":semanticCommitTypeAll(chore)", "group:all"],
   "labels": ["dependencies"],
   "rangeStrategy": "bump",
   "platformAutomerge": true,
   "packageRules": [
-    {
-      "description": "Group Svelte packages",
-      "matchPackagePatterns": ["^svelte", "^@sveltejs/"],
-      "groupName": "svelte"
-    },
-    {
-      "description": "Group Tailwind packages",
-      "matchPackagePatterns": ["^tailwind", "^@tailwindcss/"],
-      "groupName": "tailwind"
-    },
-    {
-      "description": "Group ESLint packages",
-      "matchPackagePatterns": ["^eslint", "^@eslint/"],
-      "groupName": "eslint"
-    },
-    {
-      "description": "Group testing packages",
-      "matchPackagePatterns": ["^vitest", "^@vitest/", "^@testing-library/", "^@playwright/"],
-      "groupName": "testing"
-    },
-    {
-      "description": "Group TypeScript packages",
-      "matchPackagePatterns": ["^typescript", "^@types/"],
-      "groupName": "typescript"
-    },
-    {
-      "description": "Group semantic-release packages",
-      "matchPackagePatterns": ["^semantic-release", "^@semantic-release/"],
-      "groupName": "semantic-release"
-    },
     {
       "description": "Automerge non-major dev dependencies",
       "matchDepTypes": ["devDependencies"],

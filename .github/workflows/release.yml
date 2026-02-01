@@ -90,7 +90,7 @@ jobs:
       is_rc: ${{ steps.calc_version.outputs.is_rc }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -183,14 +183,14 @@ jobs:
       IS_RC: ${{ needs.get-version.outputs.is_rc }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Use Node.js 20.x
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20.19.4'
+          node-version: '24.13.0'
           cache: 'npm'
           cache-dependency-path: 'web/package-lock.json'
 
@@ -279,7 +279,7 @@ jobs:
       VERSION: ${{ needs.get-version.outputs.version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: main
@@ -298,7 +298,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push AMD64 image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
@@ -316,7 +316,7 @@ jobs:
       VERSION: ${{ needs.get-version.outputs.version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: main
@@ -335,7 +335,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push ARM64 image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
@@ -400,7 +400,7 @@ jobs:
       IS_RC: ${{ needs.get-version.outputs.is_rc }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: main  # Checkout main to get the latest committed changes from release job

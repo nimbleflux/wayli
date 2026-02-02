@@ -67,7 +67,7 @@
 		"eslint-plugin-svelte": "^3.14.0",
 		"eslint-plugin-unused-imports": "^4.3.0",
 		"globals": "^17.3.0",
-		"jsdom": "^27.4.0",
+		"jsdom": "^28.0.0",
 		"lightningcss": "^1.31.1",
 		"lucide-static": "^0.563.0",
 		"prettier": "^3.8.1",
@@ -83,7 +83,7 @@
 		"vitest": "^4.0.18"
 	},
 	"dependencies": {
-		"@fluxbase/sdk": "^2026.1.22",
+		"@fluxbase/sdk": "^2026.2.1",
 		"@melt-ui/svelte": "^0.86.6",
 		"@svelte-plugins/datepicker": "^1.0.11",
 		"@turf/turf": "^7.3.3",

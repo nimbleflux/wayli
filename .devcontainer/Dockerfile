@@ -1,4 +1,4 @@
-FROM node:25.6.0-bookworm
+FROM node:25.6.1-bookworm
 
 # Build arguments for versions
 ARG TZ=UTC

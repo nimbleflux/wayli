@@ -106,6 +106,66 @@ sync_all() {
     echo "All sync operations completed successfully"
 }
 
+# Ensure knowledge base exists for POI semantic search
+ensure_knowledge_base() {
+    # Skip if sync was skipped (CLI environment not set up)
+    if [ "$SKIP_SYNC" = "true" ]; then
+        return 0
+    fi
+
+    echo "Ensuring knowledge base exists..."
+
+    # Create the wayli-pois knowledge base if it doesn't exist
+    # Check if KB exists first to avoid errors
+    KB_EXISTS=$(fluxbase kb list --namespace wayli --json 2>/dev/null | grep -o '"name":"wayli-pois"' | head -1)
+
+    if [ -z "$KB_EXISTS" ]; then
+        echo "Creating knowledge base..."
+        if fluxbase kb create wayli-pois \
+            --namespace wayli \
+            --description "User POI visits with behavioral context for semantic search" \
+            --chunk-size 500 \
+            --embedding-model text-embedding-3-small \
+            --embedding-dimensions 1536 2>&1; then
+            echo "Knowledge base created successfully"
+        else
+            echo "Warning: Failed to create knowledge base, skipping table exports"
+            return 0
+        fi
+    else
+        echo "Knowledge base already exists"
+    fi
+
+    # Get the KB ID for table exports
+    KB_ID=$(fluxbase kb list --namespace wayli --json 2>/dev/null | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+    if [ -z "$KB_ID" ]; then
+        echo "Warning: Could not get KB ID for table exports"
+        return 0
+    fi
+
+    echo "Checking if tables should be exported to knowledge base..."
+
+    # Call the edge function which will:
+    # 1. Check if embedding provider is configured
+    # 2. Check if tables exist
+    # 3. Export if conditions are met
+    if RESULT=$(curl -s -X POST "${FLUXBASE_BASE_URL}/functions/export-kb-tables/invoke" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer ${FLUXBASE_SERVICE_ROLE_KEY}" \
+        -d '{}'); then
+        # Try to extract and display the message
+        MESSAGE=$(echo "$RESULT" | jq -r '.message // "Table export check complete"' 2>/dev/null || echo "Table export check complete")
+        echo "  ✓ $MESSAGE"
+        # Log full result for debugging
+        echo "$RESULT" | jq '.' 2>/dev/null || echo "$RESULT"
+    else
+        echo "  Note: Table export skipped (embedding may not be configured yet)"
+    fi
+
+    echo "Knowledge base ready"
+}
+
 # Start nginx in foreground
 start_nginx() {
     echo "Starting nginx..."
@@ -115,4 +175,5 @@ start_nginx() {
 # Main execution
 configure_nginx
 sync_all
+ensure_knowledge_base
 start_nginx

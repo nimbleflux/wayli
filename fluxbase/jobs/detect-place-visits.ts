@@ -97,6 +97,34 @@ export async function handler(
 
     console.log(`✅ Place visit detection complete: ${insertedCount} visits for user ${userId}`);
 
+    // Chain: Submit sync-poi-to-kb job to update knowledge base with new visits
+    if (insertedCount > 0) {
+      console.log(`🔗 Submitting sync-poi-to-kb job for user ${userId}...`);
+      try {
+        const { error: submitError } = await fluxbaseService.jobs.submit(
+          'sync-poi-to-kb',
+          {},
+          {
+            namespace: 'wayli',
+            priority: 3,
+            onBehalfOf: {
+              user_id: userId
+            }
+          }
+        );
+
+        if (submitError) {
+          console.warn(`⚠️ Failed to submit KB sync job:`, submitError);
+          // Don't fail the detection job if sync submission fails
+        } else {
+          console.log(`✅ KB sync job submitted for user ${userId}`);
+        }
+      } catch (err) {
+        console.warn(`⚠️ Error submitting KB sync job:`, err);
+        // Don't fail the detection job if sync submission fails
+      }
+    }
+
     return {
       success: true,
       result: {

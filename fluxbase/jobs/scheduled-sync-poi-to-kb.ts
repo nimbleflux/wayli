@@ -1,14 +1,17 @@
 /**
- * Scheduled sync of POI embeddings for all users
+ * Scheduled sync of POI data to knowledge base for all users
  *
- * Runs daily at 04:00 UTC (after place visits detection at 03:00) to submit
- * sync-poi-embeddings jobs for all users who have place visits.
+ * Runs daily at 05:00 UTC (after POI embeddings sync at 04:00) to submit
+ * sync-poi-to-kb jobs for all users who have place visits.
+ *
+ * This keeps the knowledge base "wayli-pois" up to date with the latest
+ * POI data and behavioral context.
  *
  * @fluxbase:require-role admin
  * @fluxbase:timeout 3600
  * @fluxbase:allow-net true
  * @fluxbase:allow-env true
- * @fluxbase:schedule 0 4 * * *
+ * @fluxbase:schedule 0 5 * * *
  */
 
 import type { FluxbaseClient, JobUtils } from './types';
@@ -66,7 +69,7 @@ export async function handler(
 
 		safeReportProgress(job, 15, `Submitting jobs for ${uniqueUserIds.length} users...`);
 
-		// Submit sync-poi-embeddings job for each user (fire-and-forget)
+		// Submit sync-poi-to-kb job for each user (fire-and-forget)
 		let submitted = 0;
 		let errors = 0;
 
@@ -81,7 +84,7 @@ export async function handler(
 
 				// Submit job on behalf of this user
 				const { error: submitError } = await fluxbaseService.jobs.submit(
-					'sync-poi-embeddings',
+					'sync-poi-to-kb',
 					{},
 					{
 						namespace: 'wayli',
@@ -122,7 +125,7 @@ export async function handler(
 			`Completed: ${submitted} jobs submitted, ${errors} errors`
 		);
 
-		console.log(`✅ Scheduled POI embeddings sync complete: ${submitted} jobs submitted, ${errors} errors`);
+		console.log(`✅ Scheduled POI to KB sync complete: ${submitted} jobs submitted, ${errors} errors`);
 
 		return {
 			success: errors === 0,
@@ -133,7 +136,7 @@ export async function handler(
 			}
 		};
 	} catch (error: unknown) {
-		console.error('❌ Error in scheduled-sync-poi-embeddings job:', error);
+		console.error('❌ Error in scheduled-sync-poi-to-kb job:', error);
 		throw error;
 	}
 }

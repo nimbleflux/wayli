@@ -15,7 +15,39 @@
 -- When user_id is NULL: processes all users, each from their respective watermarks
 
 -- Get all users to process with their watermarks
-WITH users_to_process AS (
+WITH config AS (
+    -- Configuration CTE - single source of truth for all thresholds
+    SELECT
+        -- Distance thresholds (meters)
+        100::numeric as poi_nearby_search_radius,      -- Pelias nearby POI search radius
+        75::numeric as poi_nearby_accept_max_distance, -- Max distance to accept nearby POI (increased from 50)
+        100::numeric as cluster_spatial_threshold,     -- Max distance for cluster formation
+        120::numeric as cluster_unconditional_boundary,-- Unconditional cluster boundary
+        100::numeric as cluster_merge_spatial_distance,-- Max distance for merging clusters
+        100::numeric as home_detection_distance,       -- Distance to classify as home
+
+        -- Speed thresholds (m/s)
+        20::numeric as transit_speed_threshold,        -- Speed to filter transit points
+        5::numeric as home_detection_speed_threshold,  -- Max speed for home detection
+
+        -- Time gaps (seconds)
+        2700::numeric as time_gap_normal,              -- 45 min normal tracking
+        5400::numeric as time_gap_sparse,              -- 90 min sparse tracking
+        600::numeric as time_gap_sparse_threshold,     -- Previous gap > 10 min = sparse
+        900::numeric as cluster_merge_time_gap,        -- 15 min for cluster merging
+
+        -- POI attribution
+        0.6::numeric as poi_high_confidence_threshold, -- High confidence threshold
+        0.4::numeric as poi_min_confidence_threshold,  -- Minimum confidence threshold
+
+        -- Cluster validation
+        50::numeric as cluster_max_spread,             -- Max diagonal spread (GPS drift)
+        10::numeric as cluster_min_overnight_points,   -- Min points for home detection
+
+        -- Quality thresholds
+        25::numeric as cluster_good_accuracy_threshold -- Good accuracy for short visits
+),
+users_to_process AS (
     SELECT
         COALESCE(ps.user_id, td.user_id) as target_user_id,
         COALESCE(ps.last_processed_at, '1970-01-01'::timestamptz) as v_since
@@ -108,7 +140,7 @@ all_points AS (
     ) nearest_poi ON true
     WHERE td.recorded_at >= utp.v_since - INTERVAL '1 hour'
       -- Filter out high-speed transit points (speed > 20 m/s = 72 km/h) - more permissive
-      AND COALESCE(td.speed, 0) < 20
+      AND COALESCE(td.speed, 0) < c.transit_speed_threshold
 ),
 
 -- Calculate time gaps and distances for boundary detection (step 1)
@@ -142,20 +174,21 @@ with_boundaries AS (
             -- First point (no previous location) - use distance_meters IS NULL as indicator
             distance_meters IS NULL
             -- OR significant movement (100m+) with speed confirming travel
-            OR (distance_meters > 100 AND COALESCE(speed, 0) > 2)
+            OR (distance_meters > c.cluster_spatial_threshold AND COALESCE(speed, 0) > 2)
             -- OR moderate movement (50m+) with higher speed
             OR (distance_meters > 50 AND COALESCE(speed, 0) > 5)
-            -- OR large movement regardless of speed (catchall) - was 150m
-            OR distance_meters > 120
+            -- OR large movement regardless of speed (catchall)
+            OR distance_meters > c.cluster_unconditional_boundary
             -- OR adaptive time gap exceeded
             OR CASE
                 -- Sparse tracking (previous gap > 10 min): allow 90 min gaps (increased for OwnTracks)
-                WHEN COALESCE(prev_time_gap_seconds, 0) > 600 THEN time_gap_seconds > 5400
+                WHEN COALESCE(prev_time_gap_seconds, 0) > c.time_gap_sparse_threshold THEN time_gap_seconds > c.time_gap_sparse
                 -- Normal tracking: use 45 min threshold (increased from 30 min)
-                ELSE time_gap_seconds > 2700
+                ELSE time_gap_seconds > c.time_gap_normal
             END
         THEN 1 ELSE 0 END as new_cluster
     FROM with_prev_gaps
+    CROSS JOIN config c
 ),
 
 -- Assign initial cluster IDs
@@ -190,29 +223,63 @@ cluster_merging AS (
             -- This helps merge consecutive visits at the same location (esp. home)
             AND EXTRACT(EPOCH FROM (
                 cluster_start - LAG(cluster_end) OVER (PARTITION BY user_id ORDER BY cluster_start)
-            )) < 900
+            )) < c.cluster_merge_time_gap
             -- Close in space (< 100m between centroids)
             AND ST_Distance(
                 centroid::geography,
                 LAG(centroid) OVER (PARTITION BY user_id ORDER BY cluster_start)::geography
-            ) < 100
+            ) < c.cluster_merge_spatial_distance
         THEN LAG(cluster_id) OVER (PARTITION BY user_id ORDER BY cluster_start)
         ELSE cluster_id
         END as merged_cluster_id
     FROM cluster_stats cs
+    CROSS JOIN config c
 ),
 
--- Propagate merged cluster IDs (handle chain merging)
-cluster_final_ids AS (
+-- Propagate merged cluster IDs (handle chain merging) - Phase 3: Fixed with recursive CTE
+-- Transitive closure for cluster merging (A→B, C→B means all merge to A)
+cluster_merge_graph AS (
+    -- Base: each cluster points to its merge target
     SELECT
         user_id,
         cluster_id,
-        -- Use recursive logic: if merged, take the target's merged_cluster_id
-        FIRST_VALUE(merged_cluster_id) OVER (
-            PARTITION BY user_id, merged_cluster_id
-            ORDER BY cluster_start
-        ) as final_cluster_id
+        merged_cluster_id as target_id
     FROM cluster_merging
+    WHERE cluster_id != merged_cluster_id
+
+    UNION ALL
+
+    -- Recursive: follow merge chains to find root
+    SELECT
+        g.user_id,
+        g.cluster_id,
+        c.target_id
+    FROM cluster_merge_graph g
+    INNER JOIN cluster_merge_graph c
+        ON c.cluster_id = g.target_id
+        AND g.user_id = c.user_id
+    WHERE g.cluster_id != c.target_id
+),
+
+-- Find root cluster for each original cluster (smallest ID = root)
+cluster_roots AS (
+    SELECT DISTINCT ON (user_id, cluster_id)
+        user_id,
+        cluster_id,
+        MIN(target_id) OVER (PARTITION BY user_id, cluster_id) as root_cluster_id
+    FROM cluster_merge_graph
+),
+
+-- Assign final cluster IDs
+cluster_final_ids AS (
+    SELECT
+        ci.user_id,
+        ci.cluster_id,
+        COALESCE(cr.root_cluster_id, ci.cluster_id) as final_cluster_id
+    FROM clusters_initial ci
+    LEFT JOIN cluster_roots cr
+        ON ci.user_id = cr.user_id
+        AND ci.cluster_id = cr.cluster_id
 ),
 
 -- Join back to get final cluster assignment for each point
@@ -225,24 +292,59 @@ clusters AS (
         ON ci.user_id = cfi.user_id AND ci.cluster_id = cfi.cluster_id
 ),
 
--- IMPROVEMENT 17: Home detection from ALL historical overnight data
--- Fixes bug where home wasn't detected in incremental runs because
--- overnight data was processed in previous runs (before watermark).
--- Now queries tracker_data directly so home is always available.
+-- IMPROVEMENT 17: Home detection from ALL historical overnight data for users in current batch
+-- Optimized to only scan data for users in the current batch (via INNER JOIN),
+-- but includes all historical data for accurate home detection.
+-- This prevents scanning the entire tracker_data table for all users when processing.
 home_locations AS (
-    SELECT DISTINCT ON (user_id)
-        user_id,
-        ST_Centroid(ST_Collect(location)) as home_location
-    FROM tracker_data
-    WHERE EXTRACT(HOUR FROM recorded_at) BETWEEN 0 AND 6  -- Overnight hours
-      AND ($user_id::uuid IS NULL OR user_id = $user_id::uuid)
-      AND COALESCE(speed, 0) < 5  -- Exclude transit
-    GROUP BY user_id,
+    SELECT DISTINCT ON (td.user_id)
+        td.user_id,
+        ST_Centroid(ST_Collect(td.location)) as home_location
+    FROM tracker_data td
+    INNER JOIN users_to_process utp ON td.user_id = utp.target_user_id
+    CROSS JOIN config c
+    -- Only scan last 90 days for performance (Phase 6 optimization)
+    WHERE td.recorded_at >= CURRENT_DATE - INTERVAL '90 days'
+      AND EXTRACT(HOUR FROM td.recorded_at) BETWEEN 0 AND 6  -- Overnight hours
+      AND COALESCE(td.speed, 0) < c.home_detection_speed_threshold  -- Exclude transit
+    GROUP BY td.user_id,
         -- Spatial grouping (~100m precision for clustering)
-        ROUND(ST_X(location)::numeric, 3),
-        ROUND(ST_Y(location)::numeric, 3)
-    HAVING COUNT(*) >= 10  -- Require significant overnight presence
-    ORDER BY user_id, COUNT(*) DESC
+        ROUND(ST_X(td.location)::numeric, 3),
+        ROUND(ST_Y(td.location)::numeric, 3)
+    HAVING COUNT(*) >= c.cluster_min_overnight_points  -- Require significant overnight presence
+    ORDER BY td.user_id, COUNT(*) DESC
+),
+
+-- Home classification - computed once, used for both name and category (Phase 2)
+-- Consolidates duplicate home detection logic
+home_classification AS (
+    SELECT
+        clusters.user_id,
+        clusters.final_cluster_id,
+        EXISTS (
+            SELECT 1
+            FROM home_locations hl
+            CROSS JOIN config c
+            INNER JOIN clusters clusters_inner
+                ON clusters_inner.user_id = clusters.user_id
+                AND clusters_inner.final_cluster_id = clusters.final_cluster_id
+            WHERE hl.user_id = clusters.user_id
+              AND ST_Distance(
+                  ST_SetSRID(ST_MakePoint(
+                      AVG(ST_X(clusters_inner.location)),
+                      AVG(ST_Y(clusters_inner.location))
+                  ), 4326)::geography,
+                  hl.home_location::geography
+              ) < c.home_detection_distance
+              AND COALESCE(
+                  MODE() WITHIN GROUP (ORDER BY clusters_inner.amenity)
+                      FILTER (WHERE clusters_inner.amenity IS NOT NULL),
+                  MODE() WITHIN GROUP (ORDER BY clusters_inner.nearby_amenity)
+                      FILTER (WHERE clusters_inner.nearby_amenity IS NOT NULL)
+              ) NOT IN ('restaurant','cafe','bar','pub','fast_food','nightclub',
+                        'cinema','theatre','shop','supermarket')
+        ) as is_home
+    FROM (SELECT DISTINCT user_id, final_cluster_id FROM clusters) clusters
 ),
 
 -- Insert aggregated visits with enhanced logic
@@ -294,23 +396,8 @@ new_visits AS (
         -- IMPROVEMENT 5: Confidence-weighted venue attribution with fallback chain
         -- Use 'Home' as consistent name for home visits to avoid address fragmentation
         CASE
-            -- If this is a home visit (within 100m of home, not commercial), use 'Home'
-            WHEN (
-                SELECT ST_Distance(
-                    ST_SetSRID(ST_MakePoint(
-                        AVG(ST_X(clusters.location)),
-                        AVG(ST_Y(clusters.location))
-                    ), 4326)::geography,
-                    hl.home_location::geography
-                ) < 100
-                FROM home_locations hl
-                WHERE hl.user_id = clusters.user_id
-            )
-            AND COALESCE(
-                MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
-                MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
-            ) NOT IN ('restaurant','cafe','bar','pub','fast_food','nightclub','cinema','theatre','shop','supermarket')
-            THEN 'Home'
+            -- If this is a home visit, use 'Home' (Phase 2: consolidated from home_classification CTE)
+            WHEN hc.is_home THEN 'Home'
             -- Otherwise use the normal venue attribution
             ELSE COALESCE(
                 -- High-confidence venue from direct geocode
@@ -366,24 +453,8 @@ new_visits AS (
         -- IMPROVEMENT 12: Check home location first, with priority-based category assignment
         -- Priority order: home > healthcare > worship > transport > food > entertainment > culture > education > sports > accommodation > outdoors > grocery > shopping > other
         CASE
-            -- 1. Home detection: cluster centroid within 100m of user's home location
-            -- BUT exclude commercial POIs (bars, restaurants, shops) from being classified as home
-            WHEN (
-                SELECT ST_Distance(
-                    ST_SetSRID(ST_MakePoint(
-                        AVG(ST_X(clusters.location)),
-                        AVG(ST_Y(clusters.location))
-                    ), 4326)::geography,
-                    hl.home_location::geography
-                ) < 100
-                FROM home_locations hl
-                WHERE hl.user_id = clusters.user_id
-            )
-            AND COALESCE(
-                MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
-                MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
-            ) NOT IN ('restaurant','cafe','bar','pub','fast_food','nightclub','cinema','theatre','shop','supermarket')
-            THEN 'home'
+            -- 1. Home detection (Phase 2: consolidated from home_classification CTE)
+            WHEN hc.is_home THEN 'home'
             -- 2. Healthcare BEFORE food (pharmacy shouldn't become burger joint)
             WHEN COALESCE(
                 MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
@@ -400,15 +471,11 @@ new_visits AS (
                 MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
             ) IN ('bus_station','train_station','airport','ferry_terminal','taxi','car_rental','bicycle_rental','bicycle_parking','parking') THEN 'transport'
             -- 5. Food - ONLY when amenity IS a food place, not just cuisine tag from nearby POI
+            -- Phase 5: Removed shop-based food matching to prevent category conflicts
             WHEN COALESCE(
                 MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
                 MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
             ) IN ('restaurant','cafe','bar','pub','fast_food','food_court','biergarten','ice_cream','bakery','deli','juice_bar','confectionery') THEN 'food'
-            -- Food-related shops (only when shop tag matches, not cuisine alone)
-            WHEN COALESCE(
-                MODE() WITHIN GROUP (ORDER BY shop) FILTER (WHERE shop IS NOT NULL),
-                MODE() WITHIN GROUP (ORDER BY nearby_shop) FILTER (WHERE nearby_shop IS NOT NULL)
-            ) IN ('bakery','deli','confectionery','chocolate','pastry','coffee','tea') THEN 'food'
             -- 6. Entertainment
             WHEN COALESCE(
                 MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
@@ -542,7 +609,9 @@ new_visits AS (
         MODE() WITHIN GROUP (ORDER BY nearby_tags::text) FILTER (WHERE nearby_tags IS NOT NULL)::jsonb as alt_poi_tags,
         ROUND(AVG(nearby_confidence) FILTER (WHERE nearby_confidence IS NOT NULL)::numeric, 3) as alt_poi_confidence
     FROM clusters
-    GROUP BY user_id, final_cluster_id
+    LEFT JOIN home_classification hc ON clusters.user_id = hc.user_id AND clusters.final_cluster_id = hc.final_cluster_id
+    CROSS JOIN config c
+    GROUP BY user_id, final_cluster_id, hc.is_home
     -- IMPROVEMENT 4: Adaptive duration thresholds for sparse tracking
     -- Longer duration = fewer points required (accommodates OwnTracks motion-based tracking)
     HAVING (
@@ -559,16 +628,16 @@ new_visits AS (
            -- Short visits (8-10 min): Require good accuracy + 4+ points (dense tracking only)
            OR (
                EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) >= 480
-               AND AVG(COALESCE(accuracy, 50)) <= 25
+               AND AVG(COALESCE(accuracy, 50)) <= c.cluster_good_accuracy_threshold
                AND COUNT(*) >= 4
            )
        )
        -- IMPROVEMENT 8: Reject clusters with excessive spread (GPS drift)
-       -- True visits should be stationary - use tight 50m diagonal spread
+       -- True visits should be stationary - use config cluster_max_spread
        AND ST_Distance(
            ST_MakePoint(ST_XMin(ST_Collect(location)), ST_YMin(ST_Collect(location)))::geography,
            ST_MakePoint(ST_XMax(ST_Collect(location)), ST_YMax(ST_Collect(location)))::geography
-       ) < 50
+       ) < c.cluster_max_spread
        -- NOTE: Speed filter removed - GPS-derived speed data is unreliable
        -- (83% of Vietnam trip points had avg_speed > 2 m/s due to erroneous data)
        -- IMPROVEMENT 9: Require actual POI attribution (not just address)
@@ -584,12 +653,12 @@ new_visits AS (
            OR MODE() WITHIN GROUP (ORDER BY leisure) FILTER (WHERE leisure IS NOT NULL) IS NOT NULL
        )
        -- IMPROVEMENT 10: Distance filter for nearby POI attribution
-       -- Require user to be within 50m of POI (prevents matching distant restaurants)
+       -- Phase 7: Increased to 75m for better coverage while maintaining accuracy
        AND (
            -- Direct geocode (venue layer) is always OK (distance ~0)
            MODE() WITHIN GROUP (ORDER BY layer) FILTER (WHERE layer = 'venue') IS NOT NULL
-           -- For nearby POIs, require average distance <= 50m
-           OR COALESCE(AVG(nearby_distance) FILTER (WHERE nearby_distance IS NOT NULL), 0) <= 50
+           -- For nearby POIs, require average distance <= 75m
+           OR COALESCE(AVG(nearby_distance) FILTER (WHERE nearby_distance IS NOT NULL), 0) <= c.poi_nearby_accept_max_distance
        )
        -- IMPROVEMENT 14: Confidence threshold for POI attribution
        -- Require minimum confidence to avoid low-quality matches
@@ -597,7 +666,7 @@ new_visits AS (
            AVG(confidence) FILTER (WHERE confidence IS NOT NULL),
            AVG(nearby_confidence) FILTER (WHERE nearby_confidence IS NOT NULL),
            0
-       ) >= 0.4
+       ) >= c.poi_min_confidence_threshold
     ), -- end raw_visits
 
     -- Step 1: Mark visits that should merge with previous (same category, close in time/space)

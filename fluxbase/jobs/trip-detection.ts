@@ -123,32 +123,6 @@ export async function handler(
 			}
 
 			console.log(`✅ Successfully saved ${savedTrips?.length || 0} trips to database`);
-
-			// Chain: Submit sync-trip-embeddings job for this user
-			console.log(`🔗 Submitting sync-trip-embeddings job for user ${userId}...`);
-			try {
-				const { error: submitError } = await fluxbaseService.jobs.submit(
-					'sync-trip-embeddings',
-					{},
-					{
-						namespace: 'wayli',
-						priority: 6,
-						onBehalfOf: {
-							user_id: userId,
-							user_email: context.user?.email || '',
-							user_role: context.user?.role || 'authenticated'
-						}
-					}
-				);
-
-				if (submitError) {
-					console.warn(`⚠️ Failed to submit sync-trip-embeddings job: ${submitError.message}`);
-				} else {
-					console.log(`✅ sync-trip-embeddings job submitted for user ${userId}`);
-				}
-			} catch (chainError) {
-				console.warn(`⚠️ Error submitting sync-trip-embeddings job:`, chainError);
-			}
 		}
 
 		const totalTime = Date.now() - startTime;

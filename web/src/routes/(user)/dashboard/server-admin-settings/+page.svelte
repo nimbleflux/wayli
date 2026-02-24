@@ -130,7 +130,6 @@
 	// Database Maintenance
 	let isRefreshingPlaceVisits = $state(false);
 	let isSyncingPoiEmbeddings = $state(false);
-	let isSyncingTripEmbeddings = $state(false);
 	let isReverseGeocodingAllUsers = $state(false);
 	let isForceRegeocoding = $state(false);
 	let isFillingCountryCodes = $state(false);
@@ -712,15 +711,10 @@
 
 		isRefreshingPlaceVisits = true;
 		try {
-			// Use the scheduled job which has proper permissions to call the RPC
-			const { error } = await fluxbase.jobs.submit(
-				'scheduled-detect-place-visits',
-				{},
-				{
-					namespace: 'wayli',
-					priority: 5
-				}
-			);
+			const { error } = await fluxbase.jobs.submit('scheduled-detect-place-visits', {}, {
+				namespace: 'wayli',
+				priority: 5
+			});
 			if (error) throw error;
 
 			toast.success(t('serverAdmin.refreshPlaceVisitsQueued'));
@@ -734,10 +728,10 @@
 		}
 	}
 
-	async function syncPoiEmbeddingsForAllUsers() {
+	async function syncPoiToKnowledgeBase() {
 		if (isSyncingPoiEmbeddings) return;
 
-		// Check if AI is enabled before syncing embeddings
+		// Check if AI is enabled before syncing to knowledge base
 		if (!aiEnabled) {
 			toast.error(t('serverAdmin.aiNotEnabled'));
 			return;
@@ -745,54 +739,21 @@
 
 		isSyncingPoiEmbeddings = true;
 		try {
-			const { error } = await fluxbase.jobs.submit(
-				'sync-poi-embeddings',
-				{},
-				{
-					namespace: 'wayli',
-					priority: 5
-				}
-			);
+			// Sync POI data to the knowledge base for semantic search
+			const { error } = await fluxbase.jobs.submit('sync-poi-to-kb', {}, {
+				namespace: 'wayli',
+				priority: 5
+			});
 			if (error) throw error;
-			toast.success(t('serverAdmin.syncPoiEmbeddingsQueued'));
+
+			toast.success('POI data sync to knowledge base queued');
 		} catch (error: any) {
-			console.error('❌ Failed to sync POI embeddings:', error);
-			toast.error(t('serverAdmin.syncPoiEmbeddingsFailed'), {
+			console.error('❌ Failed to sync POI to knowledge base:', error);
+			toast.error('Failed to queue POI sync', {
 				description: error?.message
 			});
 		} finally {
 			isSyncingPoiEmbeddings = false;
-		}
-	}
-
-	async function syncTripEmbeddingsForAllUsers() {
-		if (isSyncingTripEmbeddings) return;
-
-		// Check if AI is enabled before syncing embeddings
-		if (!aiEnabled) {
-			toast.error(t('serverAdmin.aiNotEnabled'));
-			return;
-		}
-
-		isSyncingTripEmbeddings = true;
-		try {
-			const { error } = await fluxbase.jobs.submit(
-				'scheduled-sync-trip-embeddings',
-				{},
-				{
-					namespace: 'wayli',
-					priority: 5
-				}
-			);
-			if (error) throw error;
-			toast.success(t('serverAdmin.syncTripEmbeddingsQueued'));
-		} catch (error: any) {
-			console.error('❌ Failed to sync trip embeddings:', error);
-			toast.error(t('serverAdmin.syncTripEmbeddingsFailed'), {
-				description: error?.message
-			});
-		} finally {
-			isSyncingTripEmbeddings = false;
 		}
 	}
 
@@ -801,15 +762,12 @@
 
 		isReverseGeocodingAllUsers = true;
 		try {
-			const { error } = await fluxbase.jobs.submit(
-				'reverse-geocoding',
-				{ all_users: true },
-				{
-					namespace: 'wayli',
-					priority: 4
-				}
-			);
+			const { error } = await fluxbase.jobs.submit('reverse-geocoding', { all_users: true }, {
+				namespace: 'wayli',
+				priority: 4
+			});
 			if (error) throw error;
+
 			toast.success(t('serverAdmin.reverseGeocodeQueued'));
 		} catch (error: any) {
 			console.error('❌ Failed to queue reverse geocoding:', error);
@@ -844,6 +802,7 @@
 				}
 			);
 			if (error) throw error;
+
 			toast.success(t('serverAdmin.forceRegeocodeQueued'));
 		} catch (error: any) {
 			console.error('❌ Failed to queue force re-geocoding:', error);
@@ -869,6 +828,7 @@
 				}
 			);
 			if (error) throw error;
+
 			toast.success(t('serverAdmin.fillCountryCodesQueued'));
 		} catch (error: any) {
 			console.error('❌ Failed to queue fill country codes:', error);
@@ -895,15 +855,12 @@
 
 		isClearingPlaceVisits = true;
 		try {
-			const { error } = await fluxbase.jobs.submit(
-				'clear-and-rebuild-place-visits',
-				{},
-				{
-					namespace: 'wayli',
-					priority: 4
-				}
-			);
+			const { error } = await fluxbase.jobs.submit('clear-and-rebuild-place-visits', {}, {
+				namespace: 'wayli',
+				priority: 4
+			});
 			if (error) throw error;
+
 			toast.success(t('serverAdmin.clearPlaceVisitsQueued'));
 		} catch (error: any) {
 			console.error('❌ Failed to queue clear and rebuild place visits:', error);
@@ -934,15 +891,12 @@
 		isClearingUserPlaceVisits = true;
 
 		try {
-			const { error } = await fluxbase.jobs.submit(
-				'clear-and-rebuild-place-visits',
-				{ user_id: userId },
-				{
-					namespace: 'wayli',
-					priority: 4
-				}
-			);
+			const { error } = await fluxbase.jobs.submit('clear-and-rebuild-place-visits', { user_id: userId }, {
+				namespace: 'wayli',
+				priority: 4
+			});
 			if (error) throw error;
+
 			toast.success(t('serverAdmin.clearPlaceVisitsQueued'));
 		} catch (error: any) {
 			console.error('❌ Failed to queue clear and rebuild place visits for user:', error);
@@ -2851,7 +2805,7 @@
 									<ChevronDown class="-mt-0.5 h-4 w-4 text-gray-400" />
 								</div>
 
-								<!-- Step 3: Sync POI Embeddings -->
+								<!-- Step 3: Sync POI to Knowledge Base -->
 								<div
 									class="flex w-full max-w-xl items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-600 dark:bg-gray-800"
 								>
@@ -2862,15 +2816,15 @@
 										>
 										<div class="min-w-0">
 											<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-												{t('serverAdmin.syncPoiEmbeddings')}
+												Sync POI data to Knowledge Base
 											</span>
 											<p class="text-xs text-gray-500 dark:text-gray-400">
-												{t('serverAdmin.syncPoiEmbeddingsDescription')}
+												Sync user POI visits with behavioral context to the knowledge base for AI semantic search
 											</p>
 										</div>
 									</div>
 									<button
-										onclick={syncPoiEmbeddingsForAllUsers}
+										onclick={syncPoiToKnowledgeBase}
 										disabled={isSyncingPoiEmbeddings}
 										class="bg-primary hover:bg-primary/90 ml-3 inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
 									>
@@ -2990,38 +2944,6 @@
 							</div>
 						</div>
 
-						<!-- Trip Processing -->
-						<div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-							<h3 class="mb-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
-								{t('serverAdmin.tripProcessingTitle')}
-							</h3>
-							<p class="mb-4 text-xs text-gray-500 dark:text-gray-400">
-								{t('serverAdmin.tripProcessingDescription')}
-							</p>
-
-							<div
-								class="flex max-w-md min-w-[200px] items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-800"
-							>
-								<div class="min-w-0 flex-1">
-									<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-										{t('serverAdmin.syncTripEmbeddings')}
-									</span>
-									<p class="text-xs text-gray-500 dark:text-gray-400">
-										{t('serverAdmin.syncTripEmbeddingsDescription')}
-									</p>
-								</div>
-								<button
-									onclick={syncTripEmbeddingsForAllUsers}
-									disabled={isSyncingTripEmbeddings}
-									class="bg-primary hover:bg-primary/90 ml-3 inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-								>
-									<RefreshCw
-										class={`h-3.5 w-3.5 ${isSyncingTripEmbeddings ? 'animate-spin' : ''}`}
-									/>
-									{isSyncingTripEmbeddings ? t('serverAdmin.syncing') : t('serverAdmin.sync')}
-								</button>
-							</div>
-						</div>
 					</div>
 				</div>
 

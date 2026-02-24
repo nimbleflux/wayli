@@ -25,6 +25,45 @@ interface FluxbaseClient {
 				getUserSecretValue(userId: string, key: string): Promise<string>;
 			};
 		};
+		/**
+		 * Admin AI operations for chatbots and knowledge bases
+		 */
+		ai: {
+			/**
+			 * List knowledge bases in a namespace
+			 */
+			listKnowledgeBases(namespace?: string): Promise<{
+				data: KnowledgeBase[] | null;
+				error: Error | null;
+			}>;
+
+			/**
+			 * Create a knowledge base
+			 */
+			createKnowledgeBase(request: CreateKnowledgeBaseRequest): Promise<{
+				data: KnowledgeBase | null;
+				error: Error | null;
+			}>;
+
+			/**
+			 * Add a document to a knowledge base
+			 */
+			addDocument(knowledgeBaseId: string, request: AddDocumentRequest): Promise<{
+				data: { document_id: string } | null;
+				error: Error | null;
+			}>;
+
+			/**
+			 * Delete documents from a knowledge base by filter
+			 */
+			deleteDocumentsByFilter(
+				knowledgeBaseId: string,
+				filter: DeleteDocumentsByFilterRequest
+			): Promise<{
+				data: { deleted_count: number } | null;
+				error: Error | null;
+			}>;
+		};
 	};
 
 	/**
@@ -314,4 +353,62 @@ interface JobContext {
 	} | null;
 }
 
-export { FluxbaseClient, JobUtils, QueryBuilder, JobsClient, JobRecord, JobContext, OnBehalfOfUser };
+/**
+ * Knowledge base configuration
+ */
+interface KnowledgeBase {
+	id: string;
+	name: string;
+	namespace: string;
+	description?: string;
+	document_count: number;
+	chunk_count: number;
+	created_at: string;
+	updated_at: string;
+}
+
+/**
+ * Request to create a knowledge base
+ */
+interface CreateKnowledgeBaseRequest {
+	name: string;
+	namespace: string;
+	description?: string;
+	chunk_size?: number;
+	chunk_overlap?: number;
+	chunk_strategy?: 'recursive' | 'simple' | 'semantic';
+	embedding_model?: string;
+	embedding_dimensions?: number;
+}
+
+/**
+ * Request to add a document to a knowledge base
+ */
+interface AddDocumentRequest {
+	title: string;
+	content: string;
+	tags?: string[];
+	metadata?: Record<string, string>;
+}
+
+/**
+ * Request to delete documents by filter
+ */
+interface DeleteDocumentsByFilterRequest {
+	tags?: string[];
+	metadata?: Record<string, string>;
+}
+
+export {
+	FluxbaseClient,
+	JobUtils,
+	QueryBuilder,
+	JobsClient,
+	JobRecord,
+	JobContext,
+	OnBehalfOfUser,
+	KnowledgeBase,
+	CreateKnowledgeBaseRequest,
+	AddDocumentRequest,
+	DeleteDocumentsByFilterRequest
+};

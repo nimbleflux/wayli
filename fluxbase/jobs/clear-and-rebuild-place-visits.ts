@@ -13,6 +13,10 @@
 
 import type { FluxbaseClient, JobUtils } from './types';
 
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // Safe wrapper for reportProgress
 function safeReportProgress(job: JobUtils, percent: number, message: string): void {
 	if (typeof (job as any)?.reportProgress === 'function') {
@@ -143,22 +147,55 @@ export async function handler(
 
 		safeReportProgress(job, 30, `Deleted ${deletedCount} place visits. Starting rebuild...`);
 
-		// Step 2: Invoke incremental detection to rebuild
+		// Step 2: Invoke incremental detection to rebuild (async)
 		const { data, error } = await (fluxbaseService.rpc as any).invoke(
 			'detect-place-visits-incremental',
 			{ user_id: userId },
-			{ namespace: 'wayli' }
+			{ namespace: 'wayli', async: true }
 		);
 
 		if (error) {
-			console.error('❌ Failed to rebuild place visits:', error);
+			console.error('❌ Failed to start place visit rebuild:', error);
 			return {
 				success: false,
-				error: `Failed to rebuild place visits: ${error.message}`
+				error: `Failed to start place visit rebuild: ${error.message}`
 			};
 		}
 
-		const result = data?.[0] || data || {};
+		const executionId = data?.execution_id;
+		if (!executionId) {
+			console.warn('No execution ID returned from RPC');
+			return {
+				success: false,
+				error: 'RPC started but no execution ID returned'
+			};
+		}
+
+		console.log(`RPC started with execution ID: ${executionId}`);
+
+		// Poll for RPC completion while keeping job alive
+		let execution;
+		do {
+			await sleep(5000); // Wait 5 seconds between polls
+
+			const { data: status } = await (fluxbaseService.rpc as any).getStatus(executionId);
+			execution = status;
+
+			// This resets the job's progress timeout (null = don't update percentage)
+			(job.reportProgress as (percent: number | null, message: string) => void)(
+				null,
+				`Rebuilding place visits: ${execution.status}`
+			);
+		} while (execution.status === 'pending' || execution.status === 'running');
+
+		if (execution.status === 'failed') {
+			return {
+				success: false,
+				error: `Place visit rebuild failed: ${execution.error}`
+			};
+		}
+
+		const result = execution.result?.[0] || execution.result || {};
 		const insertedCount = result.inserted_count || 0;
 		const usersProcessed = result.users_processed || 0;
 

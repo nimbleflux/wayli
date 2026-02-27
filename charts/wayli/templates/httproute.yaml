@@ -24,6 +24,8 @@ spec:
     {{- range .Values.httpRoute.parentRefs }}
     {{- if .name }}
     - name: {{ .name }}
+      group: gateway.networking.k8s.io
+      kind: Gateway
       {{- with .namespace }}
       namespace: {{ . }}
       {{- end }}
@@ -49,6 +51,9 @@ spec:
       backendRefs:
         - name: {{ include "wayli.fullname" . }}-web
           port: {{ .Values.web.service.port }}
+          group: ""
+          kind: Service
+          weight: 1
       {{- if .Values.httpRoute.timeouts }}
       timeouts:
         {{- with .Values.httpRoute.timeouts.request }}

@@ -129,7 +129,6 @@
 
 	// Database Maintenance
 	let isRefreshingPlaceVisits = $state(false);
-	let isSyncingPoiEmbeddings = $state(false);
 	let isReverseGeocodingAllUsers = $state(false);
 	let isForceRegeocoding = $state(false);
 	let isFillingCountryCodes = $state(false);
@@ -725,35 +724,6 @@
 			});
 		} finally {
 			isRefreshingPlaceVisits = false;
-		}
-	}
-
-	async function syncPoiToKnowledgeBase() {
-		if (isSyncingPoiEmbeddings) return;
-
-		// Check if AI is enabled before syncing to knowledge base
-		if (!aiEnabled) {
-			toast.error(t('serverAdmin.aiNotEnabled'));
-			return;
-		}
-
-		isSyncingPoiEmbeddings = true;
-		try {
-			// Sync POI data to the knowledge base for semantic search
-			const { error } = await fluxbase.jobs.submit('sync-poi-to-kb', {}, {
-				namespace: 'wayli',
-				priority: 5
-			});
-			if (error) throw error;
-
-			toast.success('POI data sync to knowledge base queued');
-		} catch (error: any) {
-			console.error('❌ Failed to sync POI to knowledge base:', error);
-			toast.error('Failed to queue POI sync', {
-				description: error?.message
-			});
-		} finally {
-			isSyncingPoiEmbeddings = false;
 		}
 	}
 
@@ -2794,72 +2764,6 @@
 											? t('serverAdmin.refreshing')
 											: t('serverAdmin.refresh')}
 									</button>
-								</div>
-
-								<!-- Connector with "auto" label -->
-								<div class="flex flex-col items-center py-1">
-									<div class="h-3 w-0.5 bg-gray-300 dark:bg-gray-600"></div>
-									<span class="text-xs font-medium text-emerald-600 dark:text-emerald-400">
-										{t('serverAdmin.autoTrigger')}
-									</span>
-									<ChevronDown class="-mt-0.5 h-4 w-4 text-gray-400" />
-								</div>
-
-								<!-- Step 3: Sync POI to Knowledge Base -->
-								<div
-									class="flex w-full max-w-xl items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-600 dark:bg-gray-800"
-								>
-									<div class="flex items-start gap-3">
-										<span
-											class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400"
-											>3</span
-										>
-										<div class="min-w-0">
-											<span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-												Sync POI data to Knowledge Base
-											</span>
-											<p class="text-xs text-gray-500 dark:text-gray-400">
-												Sync user POI visits with behavioral context to the knowledge base for AI semantic search
-											</p>
-										</div>
-									</div>
-									<button
-										onclick={syncPoiToKnowledgeBase}
-										disabled={isSyncingPoiEmbeddings}
-										class="bg-primary hover:bg-primary/90 ml-3 inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-									>
-										<RefreshCw
-											class={`h-3.5 w-3.5 ${isSyncingPoiEmbeddings ? 'animate-spin' : ''}`}
-										/>
-										{isSyncingPoiEmbeddings ? t('serverAdmin.syncing') : t('serverAdmin.sync')}
-									</button>
-								</div>
-
-								<!-- Connector with "auto" label -->
-								<div class="flex flex-col items-center py-1">
-									<div class="h-3 w-0.5 bg-gray-300 dark:bg-gray-600"></div>
-									<span class="text-xs font-medium text-emerald-600 dark:text-emerald-400">
-										{t('serverAdmin.autoTrigger')}
-									</span>
-									<ChevronDown class="-mt-0.5 h-4 w-4 text-gray-400" />
-								</div>
-
-								<!-- Step 4: User Preferences (computed/info only) -->
-								<div
-									class="flex w-full max-w-xl items-center rounded-lg border border-dashed border-gray-300 bg-gray-100/50 p-4 dark:border-gray-600 dark:bg-gray-800/50"
-								>
-									<div class="flex items-start gap-3">
-										<span
-											class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-semibold text-gray-500 dark:bg-gray-700 dark:text-gray-400"
-											>4</span
-										>
-										<div class="min-w-0">
-											<span class="text-sm font-medium text-gray-500 dark:text-gray-400">
-												{t('serverAdmin.userPreferencesComputed')}
-											</span>
-											<span class="ml-2 text-xs text-gray-400 dark:text-gray-500">(computed)</span>
-										</div>
-									</div>
 								</div>
 							</div>
 						</div>

@@ -27,7 +27,7 @@ WITH config AS (
         100::numeric as home_detection_distance,       -- Distance to classify as home
 
         -- Speed thresholds (m/s)
-        20::numeric as transit_speed_threshold,        -- Speed to filter transit points
+        50::numeric as transit_speed_threshold,        -- Speed to filter transit points (increased from 20m/s due to unreliable GPS speed data - 3-4x inflated, IMPROVEMENT 21)
         5::numeric as home_detection_speed_threshold,  -- Max speed for home detection
 
         -- Time gaps (seconds)
@@ -38,10 +38,10 @@ WITH config AS (
 
         -- POI attribution
         0.6::numeric as poi_high_confidence_threshold, -- High confidence threshold
-        0.4::numeric as poi_min_confidence_threshold,  -- Minimum confidence threshold
+        0.25::numeric as poi_min_confidence_threshold, -- Minimum confidence threshold (reduced from 0.4, IMPROVEMENT 17)
 
         -- Cluster validation
-        50::numeric as cluster_max_spread,             -- Max diagonal spread (GPS drift)
+        200::numeric as cluster_max_spread,            -- Max diagonal spread (GPS drift + user movement), increased from 100m in IMPROVEMENT 22 for multi-venue stops
         10::numeric as cluster_min_overnight_points,   -- Min points for home detection
 
         -- Quality thresholds
@@ -302,16 +302,16 @@ exclusion_zones AS (
         'home' as exclusion_name,
         ST_SetSRID(
             ST_MakePoint(
-                (up.home_address->'location'->>'lon')::numeric,
-                (up.home_address->'location'->>'lat')::numeric
+                (up.home_address->>'lon')::numeric,
+                (up.home_address->>'lat')::numeric
             ),
             4326
         ) as exclusion_location
     FROM "public"."user_profiles" up
     INNER JOIN users_to_process utp ON up.id = utp.target_user_id
     WHERE up.home_address IS NOT NULL
-      AND up.home_address->'location'->>'lat' IS NOT NULL
-      AND up.home_address->'location'->>'lon' IS NOT NULL
+      AND up.home_address->>'lat' IS NOT NULL
+      AND up.home_address->>'lon' IS NOT NULL
 
     UNION ALL
 
@@ -443,7 +443,11 @@ new_visits AS (
                 -- Any nearby POI
                 MODE() WITHIN GROUP (ORDER BY nearby_name) FILTER (WHERE nearby_name IS NOT NULL),
                 -- Last resort: any OSM name
-                MODE() WITHIN GROUP (ORDER BY osm_name) FILTER (WHERE osm_name IS NOT NULL)
+                MODE() WITHIN GROUP (ORDER BY osm_name) FILTER (WHERE osm_name IS NOT NULL),
+                -- IMPROVEMENT 20: Fallback to city/display_name for neighbourhood/venueless points (21.4% of data)
+                MODE() WITHIN GROUP (ORDER BY city) FILTER (WHERE city IS NOT NULL),
+                MODE() WITHIN GROUP (ORDER BY address_label) FILTER (WHERE address_label IS NOT NULL),
+                'Unknown Location'
             )
         END as poi_name,
         -- Layer: prefer venue/address, fallback to any
@@ -651,22 +655,23 @@ new_visits AS (
     GROUP BY clusters.user_id, clusters.final_cluster_id, cs.centroid, cs.primary_amenity, cs.bbox_xmin, cs.bbox_ymin, cs.bbox_xmax, cs.bbox_ymax, ced.distance_from_exclusion_meters, c.home_detection_distance, c.poi_nearby_accept_max_distance, c.poi_min_confidence_threshold, c.cluster_max_spread, c.cluster_good_accuracy_threshold
     -- IMPROVEMENT 4: Adaptive duration thresholds for sparse tracking
     -- Longer duration = fewer points required (accommodates OwnTracks motion-based tracking)
+    -- IMPROVEMENT 18: Further relaxed point requirements for better recall (2026-02-27)
     HAVING (
-           -- Long visits (15+ min): Allow 2+ points (sparse tracking mode)
+           -- Long visits (15+ min): Allow 1+ point (reduced from 2, very permissive)
            (
                EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) >= 900
-               AND COUNT(*) >= 2
+               AND COUNT(*) >= 1
            )
-           -- Medium visits (10-15 min): Require 3+ points
+           -- Medium visits (10-15 min): Require 2+ points (reduced from 3)
            OR (
                EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) >= 600
-               AND COUNT(*) >= 3
+               AND COUNT(*) >= 2
            )
-           -- Short visits (8-10 min): Require good accuracy + 4+ points (dense tracking only)
+           -- Short visits (8-10 min): Require good accuracy + 2+ points (reduced from 4, dense tracking only)
            OR (
                EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) >= 480
                AND AVG(COALESCE(accuracy, 50)) <= c.cluster_good_accuracy_threshold
-               AND COUNT(*) >= 4
+               AND COUNT(*) >= 2
            )
        )
        -- IMPROVEMENT 8: Reject clusters with excessive spread (GPS drift)
@@ -678,8 +683,9 @@ new_visits AS (
        -- NOTE: Speed filter removed - GPS-derived speed data is unreliable
        -- (83% of Vietnam trip points had avg_speed > 2 m/s due to erroneous data)
        -- IMPROVEMENT 9: Require actual POI attribution (not just address)
+       -- IMPROVEMENT 11: Accept address layer with display_name (34.5% of data)
        AND (
-           -- Has venue layer
+           -- Has venue layer (highest quality)
            MODE() WITHIN GROUP (ORDER BY layer) FILTER (WHERE layer = 'venue') IS NOT NULL
            -- OR has nearby POI with name
            OR MODE() WITHIN GROUP (ORDER BY nearby_name) FILTER (WHERE nearby_name IS NOT NULL) IS NOT NULL
@@ -688,6 +694,11 @@ new_visits AS (
            OR MODE() WITHIN GROUP (ORDER BY shop) FILTER (WHERE shop IS NOT NULL) IS NOT NULL
            OR MODE() WITHIN GROUP (ORDER BY tourism) FILTER (WHERE tourism IS NOT NULL) IS NOT NULL
            OR MODE() WITHIN GROUP (ORDER BY leisure) FILTER (WHERE leisure IS NOT NULL) IS NOT NULL
+           -- OR has address layer with display_name (geocoded locations)
+           OR (
+               MODE() WITHIN GROUP (ORDER BY layer) FILTER (WHERE layer = 'address') IS NOT NULL
+               AND MODE() WITHIN GROUP (ORDER BY address_label) FILTER (WHERE address_label IS NOT NULL) IS NOT NULL
+           )
        )
        -- IMPROVEMENT 10: Distance filter for nearby POI attribution
        -- Phase 7: Increased to 75m for better coverage while maintaining accuracy
@@ -697,8 +708,8 @@ new_visits AS (
            -- For nearby POIs, require average distance <= 75m
            OR COALESCE(AVG(nearby_distance) FILTER (WHERE nearby_distance IS NOT NULL), 0) <= c.poi_nearby_accept_max_distance
        )
-       -- IMPROVEMENT 14: Confidence threshold for POI attribution
-       -- Require minimum confidence to avoid low-quality matches
+       -- IMPROVEMENT 14/17: Confidence threshold for POI attribution
+       -- Require minimum confidence to avoid low-quality matches (reduced from 40% to 25% in IMPROVEMENT 17)
        AND COALESCE(
            AVG(confidence) FILTER (WHERE confidence IS NOT NULL),
            AVG(nearby_confidence) FILTER (WHERE nearby_confidence IS NOT NULL),
@@ -841,29 +852,30 @@ new_visits AS (
         CROSS JOIN config c
         -- IMPROVEMENT 15: Category-specific duration thresholds
     -- Different POI types have different expected visit durations
+    -- IMPROVEMENT 16: Relaxed duration thresholds for better recall (2026-02-27)
     WHERE CASE
-        -- Services (ATM, toilets): quick transactions, 3+ min
-        WHEN poi_category = 'services' THEN duration_minutes >= 3
-        -- Transport (parking, station): brief stops, 5+ min
-        WHEN poi_category = 'transport' THEN duration_minutes >= 5
-        -- Grocery/shopping: quick shopping, 10+ min
-        WHEN poi_category IN ('grocery', 'shopping') THEN duration_minutes >= 10
-        -- Food (restaurant, cafe): seated dining, 15+ min
-        WHEN poi_category = 'food' THEN duration_minutes >= 15
-        -- Entertainment/culture/sports: extended activities, 20+ min
-        WHEN poi_category IN ('entertainment', 'culture', 'sports', 'education') THEN duration_minutes >= 20
-        -- Home: actual stays, 30+ min
-        WHEN poi_category = 'home' THEN duration_minutes >= 30
-        -- Healthcare: variable, 10+ min
-        WHEN poi_category = 'healthcare' THEN duration_minutes >= 10
-        -- Worship: services/visits, 15+ min
-        WHEN poi_category = 'worship' THEN duration_minutes >= 15
-        -- Accommodation: hotel stays, 60+ min
-        WHEN poi_category = 'accommodation' THEN duration_minutes >= 60
-        -- Outdoors: variable, 10+ min
-        WHEN poi_category = 'outdoors' THEN duration_minutes >= 10
-        -- Default: 8+ min
-        ELSE duration_minutes >= 8
+        -- Services (ATM, toilets): quick transactions, 2+ min (reduced from 3)
+        WHEN poi_category = 'services' THEN duration_minutes >= 2
+        -- Transport (parking, station): brief stops, 3+ min (reduced from 5)
+        WHEN poi_category = 'transport' THEN duration_minutes >= 3
+        -- Grocery/shopping: quick shopping, 5+ min (reduced from 10)
+        WHEN poi_category IN ('grocery', 'shopping') THEN duration_minutes >= 5
+        -- Food (restaurant, cafe): seated dining, 10+ min (reduced from 15)
+        WHEN poi_category = 'food' THEN duration_minutes >= 10
+        -- Entertainment/culture/sports: extended activities, 10+ min (reduced from 20)
+        WHEN poi_category IN ('entertainment', 'culture', 'sports', 'education') THEN duration_minutes >= 10
+        -- Home: actual stays, 15+ min (reduced from 30)
+        WHEN poi_category = 'home' THEN duration_minutes >= 15
+        -- Healthcare: variable, 5+ min (reduced from 10)
+        WHEN poi_category = 'healthcare' THEN duration_minutes >= 5
+        -- Worship: services/visits, 8+ min (reduced from 15)
+        WHEN poi_category = 'worship' THEN duration_minutes >= 8
+        -- Accommodation: hotel stays, 20+ min (reduced from 60)
+        WHEN poi_category = 'accommodation' THEN duration_minutes >= 20
+        -- Outdoors: variable, 5+ min (reduced from 10)
+        WHEN poi_category = 'outdoors' THEN duration_minutes >= 5
+        -- Default: 5+ min (reduced from 8)
+        ELSE duration_minutes >= 5
     END
     -- Exclude visits within any exclusion zone radius
     AND (

@@ -459,7 +459,8 @@
 		"cycling": "Cycling",
 		"walking": "Walking",
 		"unknown": "Unknown",
-		"modeColors": "Mode colors"
+		"modeColors": "Mode colors",
+		"exclusionZones": "Exclusion Zones"
 	},
 	"connections": {
 		"title": "Connections",

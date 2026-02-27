@@ -206,6 +206,18 @@ export class AdminAdapter extends BaseAdapter {
 			}
 		}
 
+		// Trigger table export via edge function after AI provider configuration
+		// This is fire-and-forget - errors won't fail the AI config save
+		try {
+			const { fluxbase } = await import('$lib/fluxbase');
+			fluxbase.functions.invoke('export-kb-tables', {}).catch((err) => {
+				console.warn('[AdminAdapter] Failed to trigger table export:', err);
+				// Don't fail the AI config save
+			});
+		} catch (err) {
+			console.warn('[AdminAdapter] Failed to trigger table export:', err);
+		}
+
 		return { updated: true };
 	}
 

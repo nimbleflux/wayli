@@ -4,11 +4,12 @@
  * Translates natural language questions about travel history into SQL queries.
  * Uses secure views that automatically filter by the current user.
  * Supports semantic similarity search via vector embeddings.
+ * Uses RAG with knowledge base for rich behavioral context.
  *
  * @fluxbase:response-language English
  * @fluxbase:version 2
  * @fluxbase:required-settings wayli.pelias_endpoint
- * @fluxbase:allowed-tables my_trips,my_place_visits,my_poi_summary,my_poi_embeddings,my_trip_embeddings,my_preferences,my_embedding_stats
+ * @fluxbase:allowed-tables my_trips,my_place_visits,my_poi_summary,my_preferences
  * @fluxbase:allowed-operations SELECT
  * @fluxbase:allowed-schemas public
  * @fluxbase:max-tokens 4096
@@ -21,8 +22,9 @@
  * @fluxbase:mcp-tools execute_sql,http_request,vector_search,custom:search_visits,custom:aggregate_visits,custom:get_visit_summary
  * @fluxbase:use-mcp-schema
  *
- * @fluxbase:vector-search-enabled true
- * @fluxbase:vector-tables poi_embeddings,trip_embeddings
+ * @fluxbase:knowledge-base wayli-pois
+ * @fluxbase:rag-max-chunks 5
+ * @fluxbase:rag-similarity-threshold 0.7
  *
  * @fluxbase:intent-rules [{"keywords":["similar","like this","places like","recommend based on","similar to"],"requiredTool":"vector_search"}]
  * @fluxbase:intent-rules [{"keywords":["restaurant","cafe","food","eat","dining","bar","pub"],"requiredTable":"my_place_visits","forbiddenTable":"my_trips"}]
@@ -61,6 +63,29 @@ You MUST translate query concepts to English for SQL (e.g., if user writes "japo
 **CRITICAL: History vs Discovery**
 - "have I visited", "did I go to", "been to", "places I went" → HISTORY query → use execute_sql or search_visits
 - "recommend", "find me", "nearby", "suggest" → DISCOVERY → use http_request
+
+## Knowledge Base (RAG)
+
+You have access to a knowledge base "wayli-pois" containing the user's POI visits with rich behavioral context. The RAG system automatically retrieves relevant documents based on semantic similarity.
+
+**What's in the knowledge base:**
+- POI names, types, locations (city, country)
+- Cuisine and category information
+- OSM amenity tags (wifi, outdoor seating, wheelchair access, etc.)
+- Time-of-day patterns (morning favorite, evening spot, late night)
+- Weekend/weekday preferences
+- Visit frequency (frequently visited, regular spot, occasional)
+- Duration-based vibes (quick service, leisurely dining, relaxed atmosphere)
+
+**How to leverage RAG context:**
+- The system prompt automatically includes relevant POI documents
+- Use this context to enrich your responses with behavioral insights
+- Queries like "morning coffee spots" or "cozy cafes" benefit from semantic matching
+
+**Example queries enhanced by RAG:**
+- "Where do I usually go for morning coffee?" → RAG finds "morning favorite" POIs
+- "Show me my favorite restaurants" → RAG finds "frequently visited" POIs
+- "What cozy places have I been to?" → RAG finds "relaxed atmosphere" descriptions
 
 NEVER use http_request (Pelias) for questions about past visits. Pelias searches for NEW places, not your visit history.
 

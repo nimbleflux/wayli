@@ -1625,16 +1625,19 @@
 				</div>
 			</div>
 
-			<!-- Trip Exclusions Section -->
+			<!-- Excluded Zones Section -->
 			<div>
 				<div class="mb-4 flex items-center gap-2">
 					<MapPin class="h-5 w-5 text-gray-400" />
 					<h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-						{t('accountSettings.tripExclusions')}
+						{t('accountSettings.excludedZones')}
 					</h3>
 				</div>
 				<p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
-					{t('accountSettings.tripExclusionsDescription')}
+					{t('accountSettings.excludedZonesDescription')}
+				</p>
+				<p class="mb-4 text-xs text-gray-500 dark:text-gray-500">
+					{t('accountSettings.excludedZonesHelp')}
 				</p>
 			</div>
 
@@ -1647,6 +1650,15 @@
 							>
 								<div class="flex-1">
 									<div class="font-medium text-gray-900 dark:text-gray-100">{exclusion.name}</div>
+									<!-- Dual-purpose badges -->
+									<div class="mt-1 flex gap-2">
+										<span class="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" title={t('accountSettings.excludedZoneTripsBadge')}>
+											🧳 {t('accountSettings.excludedZoneTripsBadge')}
+										</span>
+										<span class="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300" title={t('accountSettings.excludedZonePlacesBadge')}>
+											📍 {t('accountSettings.excludedZonePlacesBadge')}
+										</span>
+									</div>
 									<div class="text-sm text-gray-600 dark:text-gray-400">
 										{exclusion.location.display_name}
 									</div>
@@ -1679,9 +1691,9 @@
 				{:else}
 					<div class="py-8 text-center text-gray-500 dark:text-gray-400">
 						<MapPin class="mx-auto mb-4 h-12 w-12 opacity-50" />
-						<p>{t('accountSettings.noTripExclusions')}</p>
+						<p>{t('accountSettings.noExcludedZones')}</p>
 						<p class="text-sm">
-							{t('accountSettings.addTripExclusionsHint')}
+							{t('accountSettings.addExcludedZonesHint')}
 						</p>
 					</div>
 				{/if}

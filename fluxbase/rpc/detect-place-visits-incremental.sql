@@ -45,7 +45,14 @@ WITH config AS (
         10::numeric as cluster_min_overnight_points,   -- Min points for home detection
 
         -- Quality thresholds
-        25::numeric as cluster_good_accuracy_threshold -- Good accuracy for short visits
+        25::numeric as cluster_good_accuracy_threshold, -- Good accuracy for short visits
+
+        -- Visit consolidation
+        25::numeric as consolidation_proximity_distance, -- 25m for close proximity
+        150::numeric as consolidation_distance, -- 150m for same-category
+
+        -- Exclusion zones
+        100::numeric as exclusion_radius -- Radius in meters for all exclusion zones
 ),
 users_to_process AS (
     SELECT
@@ -95,6 +102,11 @@ all_points AS (
             td.geocode->'properties'->'addendum'->'osm'->>'addr:city'
         ) as city,
         td.country_code,
+        -- Address label for consolidation (full formatted address from Pelias)
+        COALESCE(
+            td.geocode->'properties'->>'label',
+            td.geocode->'properties'->>'display_name'
+        ) as address_label,
         -- Primary venue info (from direct geocode)
         td.geocode->'properties'->'addendum'->'osm'->>'name' as osm_name,
         td.geocode->'properties'->>'layer' as layer,
@@ -120,6 +132,7 @@ all_points AS (
         nearest_poi.distance as nearby_distance
     FROM "public"."tracker_data" td
     INNER JOIN users_to_process utp ON td.user_id = utp.target_user_id
+    CROSS JOIN config c
     LEFT JOIN LATERAL (
         SELECT
             poi->>'name' as name,
@@ -236,50 +249,38 @@ cluster_merging AS (
     CROSS JOIN config c
 ),
 
--- Propagate merged cluster IDs (handle chain merging) - Phase 3: Fixed with recursive CTE
--- Transitive closure for cluster merging (A→B, C→B means all merge to A)
-cluster_merge_graph AS (
-    -- Base: each cluster points to its merge target
+-- Propagate merged cluster IDs (handle chain merging) - Phase 3: Fixed transitive closure
+-- Find the root cluster ID for each cluster by following merge chains
+cluster_merge_chains AS (
     SELECT
         user_id,
         cluster_id,
-        merged_cluster_id as target_id
+        merged_cluster_id,
+        -- For each cluster, find if any cluster points to it (is a merge target)
+        -- If multiple chains point to same target, they should all merge
+        MIN(cluster_id) OVER (
+            PARTITION BY user_id, merged_cluster_id
+        ) as chain_root
     FROM cluster_merging
     WHERE cluster_id != merged_cluster_id
-
-    UNION ALL
-
-    -- Recursive: follow merge chains to find root
-    SELECT
-        g.user_id,
-        g.cluster_id,
-        c.target_id
-    FROM cluster_merge_graph g
-    INNER JOIN cluster_merge_graph c
-        ON c.cluster_id = g.target_id
-        AND g.user_id = c.user_id
-    WHERE g.cluster_id != c.target_id
 ),
 
--- Find root cluster for each original cluster (smallest ID = root)
-cluster_roots AS (
-    SELECT DISTINCT ON (user_id, cluster_id)
-        user_id,
-        cluster_id,
-        MIN(target_id) OVER (PARTITION BY user_id, cluster_id) as root_cluster_id
-    FROM cluster_merge_graph
-),
-
--- Assign final cluster IDs
+-- Assign final cluster IDs with proper transitive closure
 cluster_final_ids AS (
     SELECT
         ci.user_id,
         ci.cluster_id,
-        COALESCE(cr.root_cluster_id, ci.cluster_id) as final_cluster_id
+        -- If this cluster is a merge target, use the smallest cluster in its chain
+        -- Otherwise use its assigned merge target or itself
+        COALESCE(
+            cmc.chain_root,
+            (SELECT merged_cluster_id FROM cluster_merging cm
+             WHERE cm.user_id = ci.user_id AND cm.cluster_id = ci.cluster_id),
+            ci.cluster_id
+        ) as final_cluster_id
     FROM clusters_initial ci
-    LEFT JOIN cluster_roots cr
-        ON ci.user_id = cr.user_id
-        AND ci.cluster_id = cr.cluster_id
+    LEFT JOIN cluster_merge_chains cmc
+        ON ci.user_id = cmc.user_id AND ci.cluster_id = cmc.cluster_id
 ),
 
 -- Join back to get final cluster assignment for each point
@@ -292,59 +293,75 @@ clusters AS (
         ON ci.user_id = cfi.user_id AND ci.cluster_id = cfi.cluster_id
 ),
 
--- IMPROVEMENT 17: Home detection from ALL historical overnight data for users in current batch
--- Optimized to only scan data for users in the current batch (via INNER JOIN),
--- but includes all historical data for accurate home detection.
--- This prevents scanning the entire tracker_data table for all users when processing.
-home_locations AS (
-    SELECT DISTINCT ON (td.user_id)
-        td.user_id,
-        ST_Centroid(ST_Collect(td.location)) as home_location
-    FROM tracker_data td
-    INNER JOIN users_to_process utp ON td.user_id = utp.target_user_id
-    CROSS JOIN config c
-    -- Only scan last 90 days for performance (Phase 6 optimization)
-    WHERE td.recorded_at >= CURRENT_DATE - INTERVAL '90 days'
-      AND EXTRACT(HOUR FROM td.recorded_at) BETWEEN 0 AND 6  -- Overnight hours
-      AND COALESCE(td.speed, 0) < c.home_detection_speed_threshold  -- Exclude transit
-    GROUP BY td.user_id,
-        -- Spatial grouping (~100m precision for clustering)
-        ROUND(ST_X(td.location)::numeric, 3),
-        ROUND(ST_Y(td.location)::numeric, 3)
-    HAVING COUNT(*) >= c.cluster_min_overnight_points  -- Require significant overnight presence
-    ORDER BY td.user_id, COUNT(*) DESC
+-- Exclusion zones for place visit detection
+-- Combines user-provided home address AND trip exclusions from account settings
+exclusion_zones AS (
+    -- Source 1: User-provided home address
+    SELECT
+        up.id as user_id,
+        'home' as exclusion_name,
+        ST_SetSRID(
+            ST_MakePoint(
+                (up.home_address->'location'->>'lon')::numeric,
+                (up.home_address->'location'->>'lat')::numeric
+            ),
+            4326
+        ) as exclusion_location
+    FROM "public"."user_profiles" up
+    INNER JOIN users_to_process utp ON up.id = utp.target_user_id
+    WHERE up.home_address IS NOT NULL
+      AND up.home_address->'location'->>'lat' IS NOT NULL
+      AND up.home_address->'location'->>'lon' IS NOT NULL
+
+    UNION ALL
+
+    -- Source 2: Trip exclusions from account settings
+    -- Includes home, work, gym, etc. that users configured via settings page
+    SELECT
+        upref.id as user_id,
+        (excl->>'name') as exclusion_name,
+        ST_SetSRID(
+            ST_MakePoint(
+                (excl->'location'->>'lon')::numeric,
+                (excl->'location'->>'lat')::numeric
+            ),
+            4326
+        ) as exclusion_location
+    FROM "public"."user_preferences" upref
+    INNER JOIN users_to_process utp ON upref.id = utp.target_user_id
+    CROSS JOIN jsonb_array_elements(COALESCE(upref.trip_exclusions, '[]'::jsonb)) AS excl
+    WHERE excl->'location'->>'lat' IS NOT NULL
+      AND excl->'location'->>'lon' IS NOT NULL
 ),
 
--- Home classification - computed once, used for both name and category (Phase 2)
--- Consolidates duplicate home detection logic
-home_classification AS (
+-- Cluster summary: pre-compute cluster centroids and attributes for home detection
+cluster_summary AS (
     SELECT
-        clusters.user_id,
-        clusters.final_cluster_id,
-        EXISTS (
-            SELECT 1
-            FROM home_locations hl
-            CROSS JOIN config c
-            INNER JOIN clusters clusters_inner
-                ON clusters_inner.user_id = clusters.user_id
-                AND clusters_inner.final_cluster_id = clusters.final_cluster_id
-            WHERE hl.user_id = clusters.user_id
-              AND ST_Distance(
-                  ST_SetSRID(ST_MakePoint(
-                      AVG(ST_X(clusters_inner.location)),
-                      AVG(ST_Y(clusters_inner.location))
-                  ), 4326)::geography,
-                  hl.home_location::geography
-              ) < c.home_detection_distance
-              AND COALESCE(
-                  MODE() WITHIN GROUP (ORDER BY clusters_inner.amenity)
-                      FILTER (WHERE clusters_inner.amenity IS NOT NULL),
-                  MODE() WITHIN GROUP (ORDER BY clusters_inner.nearby_amenity)
-                      FILTER (WHERE clusters_inner.nearby_amenity IS NOT NULL)
-              ) NOT IN ('restaurant','cafe','bar','pub','fast_food','nightclub',
-                        'cinema','theatre','shop','supermarket')
-        ) as is_home
-    FROM (SELECT DISTINCT user_id, final_cluster_id FROM clusters) clusters
+        user_id,
+        final_cluster_id,
+        ST_Centroid(ST_Collect(location)) as centroid,
+        COALESCE(
+            MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
+            MODE() WITHIN GROUP (ORDER BY nearby_amenity) FILTER (WHERE nearby_amenity IS NOT NULL)
+        ) as primary_amenity,
+        -- Pre-compute bounding box (optimizes cluster_max_spread check)
+        ST_XMin(ST_Collect(location)) as bbox_xmin,
+        ST_YMin(ST_Collect(location)) as bbox_ymin,
+        ST_XMax(ST_Collect(location)) as bbox_xmax,
+        ST_YMax(ST_Collect(location)) as bbox_ymax
+    FROM clusters
+    GROUP BY user_id, final_cluster_id
+),
+
+-- Pre-calculate distances from clusters to exclusion zones (optimizes repeated calculations)
+cluster_exclusion_distances AS (
+    SELECT
+        cs.user_id,
+        cs.final_cluster_id,
+        MIN(ST_Distance(cs.centroid::geography, ez.exclusion_location::geography)) as distance_from_exclusion_meters
+    FROM cluster_summary cs
+    LEFT JOIN exclusion_zones ez ON ez.user_id = cs.user_id
+    GROUP BY cs.user_id, cs.final_cluster_id
 ),
 
 -- Insert aggregated visits with enhanced logic
@@ -386,8 +403,8 @@ new_visits AS (
     -- Wrap in WITH to allow merging consecutive same-location visits
     WITH raw_visits AS (
     SELECT
-        user_id,
-        MIN(recorded_at) as started_at,
+        clusters.user_id,
+        MIN(clusters.recorded_at) as started_at,
         LEAST(
             ROUND(EXTRACT(EPOCH FROM (MAX(recorded_at) - MIN(recorded_at))) / 60)::integer,
             720
@@ -396,8 +413,15 @@ new_visits AS (
         -- IMPROVEMENT 5: Confidence-weighted venue attribution with fallback chain
         -- Use 'Home' as consistent name for home visits to avoid address fragmentation
         CASE
-            -- If this is a home visit, use 'Home' (Phase 2: consolidated from home_classification CTE)
-            WHEN hc.is_home THEN 'Home'
+            -- If this is a home visit (within config distance of home, not commercial), use 'Home'
+            WHEN cs.primary_amenity NOT IN ('restaurant','cafe','bar','pub','fast_food','nightclub','cinema','theatre','shop','supermarket')
+            AND EXISTS (
+                SELECT 1 FROM exclusion_zones ez
+                WHERE ez.user_id = clusters.user_id
+                  AND ez.exclusion_name = 'home'
+                  AND ST_Distance(cs.centroid::geography, ez.exclusion_location::geography) < c.home_detection_distance  -- use config value
+            )
+            THEN 'Home'
             -- Otherwise use the normal venue attribution
             ELSE COALESCE(
                 -- High-confidence venue from direct geocode
@@ -453,8 +477,16 @@ new_visits AS (
         -- IMPROVEMENT 12: Check home location first, with priority-based category assignment
         -- Priority order: home > healthcare > worship > transport > food > entertainment > culture > education > sports > accommodation > outdoors > grocery > shopping > other
         CASE
-            -- 1. Home detection (Phase 2: consolidated from home_classification CTE)
-            WHEN hc.is_home THEN 'home'
+            -- 1. Home detection: cluster centroid within config distance of user's home location
+            -- BUT exclude commercial POIs (bars, restaurants, shops) from being classified as home
+            WHEN cs.primary_amenity NOT IN ('restaurant','cafe','bar','pub','fast_food','nightclub','cinema','theatre','shop','supermarket')
+            AND EXISTS (
+                SELECT 1 FROM exclusion_zones ez
+                WHERE ez.user_id = clusters.user_id
+                  AND ez.exclusion_name = 'home'
+                  AND ST_Distance(cs.centroid::geography, ez.exclusion_location::geography) < c.home_detection_distance  -- use config value
+            )
+            THEN 'home'
             -- 2. Healthcare BEFORE food (pharmacy shouldn't become burger joint)
             WHEN COALESCE(
                 MODE() WITHIN GROUP (ORDER BY amenity) FILTER (WHERE amenity IS NOT NULL),
@@ -562,6 +594,8 @@ new_visits AS (
         -- City and country
         MODE() WITHIN GROUP (ORDER BY city) FILTER (WHERE city IS NOT NULL) as city,
         MODE() WITHIN GROUP (ORDER BY country_code) FILTER (WHERE country_code IS NOT NULL) as country_code,
+        -- Address label for consolidation (full formatted address from Pelias)
+        MODE() WITHIN GROUP (ORDER BY address_label) FILTER (WHERE address_label IS NOT NULL) as address_label,
         -- Metadata
         COUNT(*)::integer as gps_points_count,
         EXTRACT(HOUR FROM MIN(recorded_at))::integer as visit_hour,
@@ -607,11 +641,14 @@ new_visits AS (
         MODE() WITHIN GROUP (ORDER BY nearby_sport) FILTER (WHERE nearby_sport IS NOT NULL) as alt_poi_sport,
         ROUND(AVG(nearby_distance) FILTER (WHERE nearby_distance IS NOT NULL)::numeric, 2) as alt_poi_distance,
         MODE() WITHIN GROUP (ORDER BY nearby_tags::text) FILTER (WHERE nearby_tags IS NOT NULL)::jsonb as alt_poi_tags,
-        ROUND(AVG(nearby_confidence) FILTER (WHERE nearby_confidence IS NOT NULL)::numeric, 3) as alt_poi_confidence
+        ROUND(AVG(nearby_confidence) FILTER (WHERE nearby_confidence IS NOT NULL)::numeric, 3) as alt_poi_confidence,
+        -- Distance from nearest exclusion zone (NULL if no exclusions configured)
+        ced.distance_from_exclusion_meters
     FROM clusters
-    LEFT JOIN home_classification hc ON clusters.user_id = hc.user_id AND clusters.final_cluster_id = hc.final_cluster_id
+    INNER JOIN cluster_summary cs ON clusters.user_id = cs.user_id AND clusters.final_cluster_id = cs.final_cluster_id
+    LEFT JOIN cluster_exclusion_distances ced ON ced.user_id = clusters.user_id AND ced.final_cluster_id = cs.final_cluster_id
     CROSS JOIN config c
-    GROUP BY user_id, final_cluster_id, hc.is_home
+    GROUP BY clusters.user_id, clusters.final_cluster_id, cs.centroid, cs.primary_amenity, cs.bbox_xmin, cs.bbox_ymin, cs.bbox_xmax, cs.bbox_ymax, ced.distance_from_exclusion_meters, c.home_detection_distance, c.poi_nearby_accept_max_distance, c.poi_min_confidence_threshold, c.cluster_max_spread, c.cluster_good_accuracy_threshold
     -- IMPROVEMENT 4: Adaptive duration thresholds for sparse tracking
     -- Longer duration = fewer points required (accommodates OwnTracks motion-based tracking)
     HAVING (
@@ -635,8 +672,8 @@ new_visits AS (
        -- IMPROVEMENT 8: Reject clusters with excessive spread (GPS drift)
        -- True visits should be stationary - use config cluster_max_spread
        AND ST_Distance(
-           ST_MakePoint(ST_XMin(ST_Collect(location)), ST_YMin(ST_Collect(location)))::geography,
-           ST_MakePoint(ST_XMax(ST_Collect(location)), ST_YMax(ST_Collect(location)))::geography
+           ST_MakePoint(cs.bbox_xmin, cs.bbox_ymin)::geography,
+           ST_MakePoint(cs.bbox_xmax, cs.bbox_ymax)::geography
        ) < c.cluster_max_spread
        -- NOTE: Speed filter removed - GPS-derived speed data is unreliable
        -- (83% of Vietnam trip points had avg_speed > 2 m/s due to erroneous data)
@@ -669,25 +706,30 @@ new_visits AS (
        ) >= c.poi_min_confidence_threshold
     ), -- end raw_visits
 
-    -- Step 1: Mark visits that should merge with previous (same category, close in time/space)
+    -- Step 1: Mark visits that should merge with previous (same-address first, then category)
     marked_visits AS (
         SELECT *,
             CASE WHEN
                 -- Same user as previous
                 user_id = LAG(user_id) OVER w
-                -- Same category
-                AND poi_category = LAG(poi_category) OVER w
-                -- Gap < 60 min between end of previous visit and start of this one
-                AND EXTRACT(EPOCH FROM (
-                    started_at - (LAG(started_at) OVER w + (LAG(duration_minutes) OVER w || ' minutes')::interval)
-                )) < 3600
-                -- Centroids within 150m
-                AND ST_Distance(
-                    location::geography,
-                    LAG(location) OVER w::geography
-                ) < 150
+                AND (
+                    -- Priority 1: Close proximity - NO time limit
+                    -- Merge nearby visits (same building, different house numbers, nearby venues)
+                    -- "If we have multiple of these addresses in a row, don't report on it separately"
+                    ST_Distance(location::geography, LAG(location) OVER w::geography) < c.consolidation_proximity_distance
+
+                    OR
+
+                    -- Priority 2: Same category, within 60 min, within 150m (existing behavior)
+                    (poi_category = LAG(poi_category) OVER w
+                     AND EXTRACT(EPOCH FROM (
+                         started_at - (LAG(started_at) OVER w + (LAG(duration_minutes) OVER w || ' minutes')::interval)
+                     )) < 3600
+                     AND ST_Distance(location::geography, LAG(location) OVER w::geography) < c.consolidation_distance)
+                )
             THEN 0 ELSE 1 END as new_group
         FROM raw_visits
+        CROSS JOIN config c
         WINDOW w AS (PARTITION BY user_id ORDER BY started_at)
     ),
 
@@ -755,14 +797,49 @@ new_visits AS (
             (array_agg(alt_poi_sport ORDER BY started_at))[1] as alt_poi_sport,
             (array_agg(alt_poi_distance ORDER BY started_at))[1] as alt_poi_distance,
             (array_agg(alt_poi_tags ORDER BY started_at))[1] as alt_poi_tags,
-            (array_agg(alt_poi_confidence ORDER BY started_at))[1] as alt_poi_confidence
+            (array_agg(alt_poi_confidence ORDER BY started_at))[1] as alt_poi_confidence,
+            -- Distance from nearest exclusion zone (for filtering)
+            (array_agg(distance_from_exclusion_meters ORDER BY started_at))[1] as distance_from_exclusion_meters
         FROM grouped_visits
         GROUP BY user_id, merge_group
-    )
+    ),
 
-    SELECT * FROM consolidated
-    ) AS aggregated
-    -- IMPROVEMENT 15: Category-specific duration thresholds
+    -- Filter consolidated visits by duration thresholds and exclusion zones
+    filtered_visits AS (
+        SELECT
+            consolidated.user_id,
+            consolidated.started_at,
+            consolidated.duration_minutes,
+            consolidated.location,
+            consolidated.poi_name,
+            consolidated.poi_layer,
+            consolidated.poi_amenity,
+            consolidated.poi_cuisine,
+            consolidated.poi_sport,
+            consolidated.poi_category,
+            consolidated.confidence_score,
+            consolidated.avg_distance_meters,
+            consolidated.poi_tags,
+            consolidated.city,
+            consolidated.country_code,
+            consolidated.gps_points_count,
+            consolidated.visit_hour,
+            consolidated.visit_time_of_day,
+            consolidated.day_of_week,
+            consolidated.is_weekend,
+            consolidated.duration_category,
+            consolidated.poi_name_search,
+            consolidated.alt_poi_name,
+            consolidated.alt_poi_amenity,
+            consolidated.alt_poi_cuisine,
+            consolidated.alt_poi_sport,
+            consolidated.alt_poi_distance,
+            consolidated.alt_poi_tags,
+            consolidated.alt_poi_confidence,
+            consolidated.distance_from_exclusion_meters
+        FROM consolidated
+        CROSS JOIN config c
+        -- IMPROVEMENT 15: Category-specific duration thresholds
     -- Different POI types have different expected visit durations
     WHERE CASE
         -- Services (ATM, toilets): quick transactions, 3+ min
@@ -788,6 +865,51 @@ new_visits AS (
         -- Default: 8+ min
         ELSE duration_minutes >= 8
     END
+    -- Exclude visits within any exclusion zone radius
+    AND (
+        -- No exclusion zones configured for this user
+        NOT EXISTS (
+            SELECT 1 FROM exclusion_zones ez
+            WHERE ez.user_id = consolidated.user_id
+        )
+        OR
+        -- Visit is outside the exclusion radius
+        COALESCE(consolidated.distance_from_exclusion_meters, c.exclusion_radius + 1) > c.exclusion_radius
+    )
+    )
+
+    SELECT
+        user_id,
+        started_at,
+        duration_minutes,
+        location,
+        poi_name,
+        poi_layer,
+        poi_amenity,
+        poi_cuisine,
+        poi_sport,
+        poi_category,
+        confidence_score,
+        avg_distance_meters,
+        poi_tags,
+        city,
+        country_code,
+        gps_points_count,
+        visit_hour,
+        visit_time_of_day,
+        day_of_week,
+        is_weekend,
+        duration_category,
+        poi_name_search,
+        alt_poi_name,
+        alt_poi_amenity,
+        alt_poi_cuisine,
+        alt_poi_sport,
+        alt_poi_distance,
+        alt_poi_tags,
+        alt_poi_confidence
+    FROM filtered_visits
+    ) AS source_data
     ON CONFLICT (user_id, started_at)
     DO UPDATE SET
         duration_minutes = EXCLUDED.duration_minutes,

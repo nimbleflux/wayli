@@ -125,8 +125,7 @@ ensure_knowledge_base() {
             --namespace wayli \
             --description "User POI visits with behavioral context for semantic search" \
             --chunk-size 500 \
-            --embedding-model text-embedding-3-small \
-            --embedding-dimensions 1536 2>&1; then
+            --embedding-model text-embedding-3-small 2>&1; then
             echo "Knowledge base created successfully"
         else
             echo "Warning: Failed to create knowledge base, skipping table exports"

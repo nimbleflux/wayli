@@ -717,15 +717,6 @@
 					<div class="text-xs text-gray-500">Radius: ${formatRadius(exclusionRadius)}</div>
 				`);
 
-				// Add popup with exclusion info
-				const displayName = exclusion.location?.display_name || exclusion.display_name || '';
-				const exclusionName = exclusion.layer === 'locality' ? (exclusion.name || exclusion.name) : exclusion.name;
-				exclusionCircle.bindPopup(`
-					<div class="text-sm font-medium">🚫 ${exclusionName}</div>
-					<div class="text-xs text-gray-600">${displayName}</div>
-					<div class="text-xs text-gray-500">Radius: ${formatRadius(exclusionRadius)}</div>
-				`);
-
 				exclusionCircle.addTo(map);
 				exclusionZoneCircles.push(exclusionCircle);
 			}

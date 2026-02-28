@@ -580,6 +580,41 @@
 		return null;
 	}
 
+	/**
+	 * Normalize trip exclusion data to handle both formats:
+	 * - New format: { id, name, location: { coordinates: { lat, lng }, ... } }
+	 * - Old/Raw format: { id, name, lat, lon, display_name, layer, address, ... }
+	 */
+	function normalizeTripExclusion(exclusion: any): any {
+		if (!exclusion) return null;
+
+		// If already has location.coordinates.lat/lng, return as-is
+		if (exclusion.location?.coordinates?.lat !== undefined && exclusion.location?.coordinates?.lng !== undefined) {
+			return exclusion;
+		}
+
+		// Otherwise, convert from raw Pelias format
+		if (exclusion.lat !== undefined && exclusion.lon !== undefined) {
+			return {
+				id: exclusion.id,
+				name: exclusion.name,
+				location: {
+					coordinates: {
+						lat: exclusion.lat,
+						lng: exclusion.lon
+					},
+					display_name: exclusion.display_name,
+					layer: exclusion.layer
+				},
+				// Preserve other properties
+				...(exclusion.created_at && { created_at: exclusion.created_at }),
+				...(exclusion.updated_at && { updated_at: exclusion.updated_at })
+			};
+		}
+
+		return exclusion;
+	}
+
 	// Load exclusion zones (home address and trip exclusions)
 	async function loadExclusionZones(): Promise<void> {
 		try {
@@ -594,7 +629,8 @@
 			// Load trip exclusions
 			const tripExclusionsService = new TripExclusionsApiService({ fluxbase });
 			const exclusionsData = await tripExclusionsService.getTripExclusions(userData.user.id);
-			tripExclusions = exclusionsData.exclusions || [];
+			// Normalize each trip exclusion to handle both coordinate formats
+			tripExclusions = (exclusionsData.exclusions || []).map(normalizeTripExclusion).filter(Boolean);
 
 			// Draw exclusion zones on map
 			drawExclusionZones();
@@ -653,17 +689,10 @@
 
 		// Draw trip exclusion zones (red)
 		tripExclusions.forEach((exclusion) => {
-			// Handle both coordinate formats
-			let lat, lng, layer;
-			if (exclusion.location?.coordinates?.lat && exclusion.location?.coordinates?.lng) {
-				lat = exclusion.location.coordinates.lat;
-				lng = exclusion.location.coordinates.lng;
-				layer = exclusion.location.layer;
-			} else if (exclusion.lat !== undefined && exclusion.lon !== undefined) {
-				lat = exclusion.lat;
-				lng = exclusion.lon;
-				layer = exclusion.layer;
-			}
+			// After normalization, we can expect location.coordinates format
+			const lat = exclusion.location?.coordinates?.lat;
+			const lng = exclusion.location?.coordinates?.lng;
+			const layer = exclusion.location?.layer;
 
 			if (lat !== undefined && lng !== undefined) {
 				const exclusionRadius = getRadiusForLayer(layer);
@@ -675,6 +704,18 @@
 					weight: 2,
 					dashArray: '5, 10'
 				});
+
+				// Add popup with exclusion info
+				// For cities, show the city name prominently; otherwise show the exclusion name
+				const displayName = exclusion.location?.display_name || exclusion.display_name || '';
+				const exclusionName = layer === 'locality'
+					? (exclusion.location?.name || exclusion.name || 'City Exclusion')
+					: (exclusion.name || 'Exclusion');
+				exclusionCircle.bindPopup(`
+					<div class="text-sm font-medium">🚫 ${exclusionName}</div>
+					<div class="text-xs text-gray-600">${displayName}</div>
+					<div class="text-xs text-gray-500">Radius: ${formatRadius(exclusionRadius)}</div>
+				`);
 
 				// Add popup with exclusion info
 				const displayName = exclusion.location?.display_name || exclusion.display_name || '';

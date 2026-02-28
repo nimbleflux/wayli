@@ -19,6 +19,12 @@
 			const refreshToken = hashParams.get('refresh_token');
 
 			if (accessToken) {
+				// Implicit flow - log tokens for debugging
+				console.log('🔍 [OAuth Callback] Implicit flow detected', {
+					hasAccessToken: !!accessToken,
+					hasRefreshToken: !!refreshToken
+				});
+
 				const { error: setError } = await fluxbase.auth.setSession({
 					access_token: accessToken,
 					refresh_token: refreshToken || ''
@@ -32,10 +38,34 @@
 				if (code) {
 					// Use SDK's built-in method - it handles redirect_uri automatically
 					// (SDK stores redirect_uri during signInWithOAuth and retrieves it here)
+					console.log('🔍 [OAuth Callback] Authorization code flow detected, exchanging code for session...');
 					const exchangeResult = await fluxbase.auth.exchangeCodeForSession(
 						code,
 						state || undefined
 					);
+
+					// Debug logging to inspect what the SDK returns
+					console.log('🔍 [OAuth Callback] exchangeCodeForSession result:', {
+						hasError: !!exchangeResult.error,
+						error: exchangeResult.error,
+						hasData: !!exchangeResult.data,
+						hasSession: !!exchangeResult.data?.session,
+						hasAccessToken: !!exchangeResult.data?.session?.access_token,
+						hasRefreshToken: !!exchangeResult.data?.session?.refresh_token,
+						accessTokenLength: exchangeResult.data?.session?.access_token?.length || 0,
+						refreshTokenLength: exchangeResult.data?.session?.refresh_token?.length || 0,
+						expiresAt: exchangeResult.data?.session?.expires_at,
+						expiresIn: exchangeResult.data?.session?.expires_in,
+						user: exchangeResult.data?.session?.user?.id || exchangeResult.data?.user?.id
+					});
+
+					// Check what's stored in localStorage after the exchange
+					const storedSession = localStorage.getItem('fluxbase.auth.session');
+					console.log('🔍 [OAuth Callback] Stored session in localStorage:', {
+						hasStoredSession: !!storedSession,
+						sessionLength: storedSession?.length || 0
+					});
+
 					if (exchangeResult.error) throw exchangeResult.error;
 				}
 			}

@@ -111,10 +111,13 @@
 	let statisticsError = $state('');
 
 	// Exclusion zones state
-	let homeAddress = $state<{ address: string; location: { lat: number; lon: number } } | null>(null);
-	let tripExclusions = $state<Array<{ id: string; name: string; location: { coordinates: { lat: number; lng: number } } }>>([]);
-	let showExclusionZones = $state(true); // Toggle for visibility
+	let homeAddress = $state<any>(null);
+	let tripExclusions = $state<Array<any>>([]);
 	let exclusionZoneCircles: any[] = []; // Store circle references for cleanup
+
+	// Radius constants for exclusion zones (in meters)
+	const DEFAULT_EXCLUSION_RADIUS = 100; // Point-level exclusion
+	const CITY_EXCLUSION_RADIUS = 5000; // City-level exclusion (5km)
 
 	// Warning state
 	let showLargeDatasetWarning = $state(false);
@@ -550,6 +553,33 @@
 		return transportModeColors[cleanMode] || transportModeColors.unknown;
 	}
 
+	/**
+	 * Normalize home address data to handle both formats:
+	 * - New format: { address, location: { lat, lon }, display_name }
+	 * - Old/Raw format: { display_name, lat, lon, name, layer, address, addendum }
+	 */
+	function normalizeHomeAddress(raw: any): any {
+		if (!raw) return null;
+
+		// If already has location.lat/lon, return as-is
+		if (raw.location?.lat && raw.location?.lon) {
+			return raw;
+		}
+
+		// Otherwise, convert from raw Pelias format
+		if (raw.lat !== undefined && raw.lon !== undefined) {
+			return {
+				address: raw.display_name || raw.name || 'Home',
+				location: { lat: raw.lat, lon: raw.lon },
+				display_name: raw.display_name,
+				layer: raw.layer, // 'locality' for cities, etc.
+				name: raw.name
+			};
+		}
+
+		return null;
+	}
+
 	// Load exclusion zones (home address and trip exclusions)
 	async function loadExclusionZones(): Promise<void> {
 		try {
@@ -559,17 +589,15 @@
 			// Load home address
 			const homeAddressAdapter = new HomeAddressAdapter({ session: { user: userData.user } });
 			const homeData = await homeAddressAdapter.getHomeAddress();
-			homeAddress = homeData.home_address;
+			homeAddress = normalizeHomeAddress(homeData.home_address);
 
 			// Load trip exclusions
 			const tripExclusionsService = new TripExclusionsApiService({ fluxbase });
 			const exclusionsData = await tripExclusionsService.getTripExclusions(userData.user.id);
 			tripExclusions = exclusionsData.exclusions || [];
 
-			// Draw exclusion zones on map if enabled
-			if (showExclusionZones) {
-				drawExclusionZones();
-			}
+			// Draw exclusion zones on map
+			drawExclusionZones();
 		} catch (error) {
 			console.error('❌ Error loading exclusion zones:', error);
 		}
@@ -582,13 +610,28 @@
 		// Clear existing exclusion zone circles
 		clearExclusionZones();
 
-		// Default radius for exclusion zones (in meters) - matches config
-		const defaultRadius = 100;
+		// Helper to get radius based on layer (city-level vs point-level)
+		function getRadiusForLayer(layer: string | undefined): number {
+			// Use larger radius for cities/localities
+			if (layer === 'locality' || layer === 'region' || layer === 'country') {
+				return CITY_EXCLUSION_RADIUS;
+			}
+			return DEFAULT_EXCLUSION_RADIUS;
+		}
+
+		// Helper to format radius for display
+		function formatRadius(radius: number): string {
+			if (radius >= 1000) {
+				return `${radius / 1000}km`;
+			}
+			return `${radius}m`;
+		}
 
 		// Draw home address exclusion zone (blue)
 		if (homeAddress?.location?.lat && homeAddress?.location?.lon) {
+			const homeRadius = getRadiusForLayer(homeAddress.layer);
 			const homeCircle = L.circle([homeAddress.location.lat, homeAddress.location.lon], {
-				radius: defaultRadius,
+				radius: homeRadius,
 				color: '#3b82f6', // Blue
 				fillColor: '#3b82f6',
 				fillOpacity: 0.1,
@@ -597,10 +640,11 @@
 			});
 
 			// Add popup with home address info
+			const homeName = homeAddress.layer === 'locality' ? (homeAddress.name || homeAddress.address) : 'Home';
 			homeCircle.bindPopup(`
-				<div class="text-sm font-medium">🏠 Home</div>
-				<div class="text-xs text-gray-600">${homeAddress.address}</div>
-				<div class="text-xs text-gray-500">Radius: ${defaultRadius}m</div>
+				<div class="text-sm font-medium">🏠 ${homeName}</div>
+				<div class="text-xs text-gray-600">${homeAddress.display_name || homeAddress.address}</div>
+				<div class="text-xs text-gray-500">Radius: ${formatRadius(homeRadius)}</div>
 			`);
 
 			homeCircle.addTo(map);
@@ -609,24 +653,36 @@
 
 		// Draw trip exclusion zones (red)
 		tripExclusions.forEach((exclusion) => {
+			// Handle both coordinate formats
+			let lat, lng, layer;
 			if (exclusion.location?.coordinates?.lat && exclusion.location?.coordinates?.lng) {
-				const exclusionCircle = L.circle(
-					[exclusion.location.coordinates.lat, exclusion.location.coordinates.lng],
-					{
-						radius: defaultRadius,
-						color: '#ef4444', // Red
-						fillColor: '#ef4444',
-						fillOpacity: 0.1,
-						weight: 2,
-						dashArray: '5, 10'
-					}
-				);
+				lat = exclusion.location.coordinates.lat;
+				lng = exclusion.location.coordinates.lng;
+				layer = exclusion.location.layer;
+			} else if (exclusion.lat !== undefined && exclusion.lon !== undefined) {
+				lat = exclusion.lat;
+				lng = exclusion.lon;
+				layer = exclusion.layer;
+			}
+
+			if (lat !== undefined && lng !== undefined) {
+				const exclusionRadius = getRadiusForLayer(layer);
+				const exclusionCircle = L.circle([lat, lng], {
+					radius: exclusionRadius,
+					color: '#ef4444', // Red
+					fillColor: '#ef4444',
+					fillOpacity: 0.1,
+					weight: 2,
+					dashArray: '5, 10'
+				});
 
 				// Add popup with exclusion info
+				const displayName = exclusion.location?.display_name || exclusion.display_name || '';
+				const exclusionName = exclusion.layer === 'locality' ? (exclusion.name || exclusion.name) : exclusion.name;
 				exclusionCircle.bindPopup(`
-					<div class="text-sm font-medium">🚫 ${exclusion.name}</div>
-					<div class="text-xs text-gray-600">${exclusion.location.display_name || ''}</div>
-					<div class="text-xs text-gray-500">Radius: ${defaultRadius}m</div>
+					<div class="text-sm font-medium">🚫 ${exclusionName}</div>
+					<div class="text-xs text-gray-600">${displayName}</div>
+					<div class="text-xs text-gray-500">Radius: ${formatRadius(exclusionRadius)}</div>
 				`);
 
 				exclusionCircle.addTo(map);
@@ -645,16 +701,6 @@
 			map.removeLayer(circle);
 		}
 		exclusionZoneCircles = [];
-	}
-
-	// Toggle exclusion zones visibility
-	function toggleExclusionZones(): void {
-		showExclusionZones = !showExclusionZones;
-		if (showExclusionZones) {
-			drawExclusionZones();
-		} else {
-			clearExclusionZones();
-		}
 	}
 
 	// Clear existing map markers
@@ -1101,27 +1147,11 @@
 						>
 					</div>
 				{/each}
-			</div>
-		</div>
-
-		<!-- Exclusion Zones Control -->
-		<div
-			class="absolute top-4 left-4 z-[1001] rounded-lg bg-white p-3 shadow-lg dark:bg-gray-800"
-		>
-			<h4 class="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
-				{t('statistics.exclusionZones') || 'Exclusion Zones'}
-			</h4>
-			<button
-				onclick={toggleExclusionZones}
-				class="flex w-full items-center justify-between space-x-2 rounded-md px-2 py-1 text-xs {showExclusionZones
-					? 'bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300'
-					: 'bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-700/30 dark:text-gray-300'}"
-			>
-				<span>{showExclusionZones ? 'Show' : 'Hide'}</span>
-				<span class="h-2 w-2 rounded-full {showExclusionZones ? 'bg-green-500' : 'bg-gray-400'}"></span>
-			</button>
-			{#if showExclusionZones}
-				<div class="mt-2 space-y-1 border-t border-gray-200 pt-2 dark:border-gray-700">
+				<!-- Exclusion Zones Legend -->
+				<div class="mt-2 border-t border-gray-200 pt-2 dark:border-gray-700">
+					<div class="mb-1 text-xs font-semibold text-gray-600 dark:text-gray-400">
+						{t('statistics.exclusionZones') || 'Exclusion Zones'}
+					</div>
 					<div class="flex items-center space-x-2">
 						<div class="h-3 w-3 rounded-full border-2 border-dashed border-blue-500 bg-blue-500/10"></div>
 						<span class="text-xs text-gray-600 dark:text-gray-400">🏠 Home</span>
@@ -1131,7 +1161,7 @@
 						<span class="text-xs text-gray-600 dark:text-gray-400">🚫 Exclusions</span>
 					</div>
 				</div>
-			{/if}
+			</div>
 		</div>
 
 		<!-- Point Details Popup -->

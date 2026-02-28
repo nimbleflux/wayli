@@ -447,7 +447,8 @@
 		"cycling": "Велоспорт",
 		"walking": "Прогулка",
 		"unknown": "Неизвестный",
-		"modeColors": "Цвета режима"
+		"modeColors": "Цвета режима",
+		"exclusionZones": "Зоны исключения"
 	},
 	"connections": {
 		"title": "Соединения",

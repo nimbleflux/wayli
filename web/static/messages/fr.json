@@ -447,7 +447,8 @@
 		"cycling": "Vélo",
 		"walking": "Marche",
 		"unknown": "Inconnu",
-		"modeColors": "Couleurs des modes"
+		"modeColors": "Couleurs des modes",
+		"exclusionZones": "Zones d'exclusion"
 	},
 	"connections": {
 		"title": "Relations",

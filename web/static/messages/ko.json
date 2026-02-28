@@ -447,7 +447,8 @@
 		"cycling": "사이클링",
 		"walking": "걷는",
 		"unknown": "알려지지 않은",
-		"modeColors": "모드 색상"
+		"modeColors": "모드 색상",
+		"exclusionZones": "제외 구역"
 	},
 	"connections": {
 		"title": "사이",

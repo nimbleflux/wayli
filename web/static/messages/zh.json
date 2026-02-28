@@ -447,7 +447,8 @@
 		"cycling": "骑自行车",
 		"walking": "步行",
 		"unknown": "未知",
-		"modeColors": "模式颜色"
+		"modeColors": "模式颜色",
+		"exclusionZones": "排除区域"
 	},
 	"connections": {
 		"title": "连接",

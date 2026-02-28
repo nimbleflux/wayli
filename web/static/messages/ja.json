@@ -447,7 +447,8 @@
 		"cycling": "サイクリング",
 		"walking": "ウォーキング",
 		"unknown": "未知",
-		"modeColors": "モードカラー"
+		"modeColors": "モードカラー",
+		"exclusionZones": "除外ゾーン"
 	},
 	"connections": {
 		"title": "接続",

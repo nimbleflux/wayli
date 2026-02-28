@@ -447,7 +447,8 @@
 		"cycling": "Fietsen",
 		"walking": "Lopen",
 		"unknown": "Onbekend",
-		"modeColors": "Vervoerswijze"
+		"modeColors": "Vervoerswijze",
+		"exclusionZones": "Uitsluitingszones"
 	},
 	"connections": {
 		"title": "Verbindingen",

@@ -3,32 +3,35 @@ name: Release
 # This workflow handles all release types: stable releases and release candidates (RC)
 #
 # Triggers:
-#   1. Manual workflow_dispatch - Create a new release by specifying version and release type
+#   1. Manual workflow_dispatch - Create a new release by specifying release type
 #
 # How to create a release:
 #   1. Go to Actions → Release → Run workflow
 #   2. Select branch (usually 'main')
-#   3. Choose version_type (patch/minor/major)
-#   4. Choose release_type (stable/rc)
-#   5. Select which components to publish (all enabled by default)
-#   6. Click "Run workflow"
+#   3. Choose version_type: auto (default), patch, minor, major, or continue
+#   4. Choose release_type: stable or rc
+#   5. Click "Run workflow"
+#
+# Version calculation:
+#   - auto: Auto-detects from conventional commits (BREAKING/feat!/feat/fix)
+#   - patch/minor/major: Manual override for specific bump type
+#   - continue: Only for current RC versions - continues RC or promotes to stable
 #
 # Version Examples:
-#   - patch + stable:    1.0.10 → 1.0.11
-#   - minor + stable:    1.0.10 → 1.1.0
-#   - major + stable:    1.0.10 → 2.0.0
-#   - patch + rc:        1.0.10 → 1.0.11-rc.1
-#   - minor + rc:        1.0.10 → 1.1.0-rc.1
-#   - major + rc:        1.0.10 → 2.0.0-rc.1
-#   - continue + rc:     1.0.11-rc.1 → 1.0.11-rc.2 (increment RC number)
-#   - continue + stable: 1.0.11-rc.1 → 1.0.11 (promote RC to stable)
+#   - auto + stable → Auto-detects bump type, creates stable release
+#   - auto + rc → Auto-detects bump type, creates RC
+#   - minor + stable → 1.0.10 → 1.1.0 (stable)
+#   - patch + rc → 1.0.10 → 1.0.11-rc.1 (RC)
+#   - continue + rc → 1.0.11-rc.1 → 1.0.11-rc.2 (increment RC)
+#   - continue + stable → 1.0.11-rc.1 → 1.0.11 (promote to stable)
 #
 # Component Toggles:
-#   - Publish Docker image: Build and push the Wayli Docker image to GitHub Container Registry (GHCR)
-#   - Publish Helm chart: Package and publish Helm chart to GHCR (OCI) and GitHub Pages
+#   - Publish Docker image: Build and push the Wayli Docker image to GHCR
+#   - Publish Helm chart: Package and publish Helm chart to GHCR and GitHub Pages
+#   - Generate AI notes: Use AI to summarize changes for release notes
 #
 # RC Release behavior:
-#   - Version format: vMAJOR.MINOR.PATCH-rc.N (e.g., v1.0.0-rc.1, v1.0.0-rc.2)
+#   - Version format: vMAJOR.MINOR.PATCH-rc.N (e.g., v1.0.0-rc.1)
 #   - Marked as GitHub pre-release
 #   - Docker images tagged with version and 'rc' (NOT 'latest')
 #   - Helm charts published with prerelease annotation
@@ -43,15 +46,16 @@ on:
   workflow_dispatch:
     inputs:
       version_type:
-        description: 'Version bump type'
-        required: true
+        description: 'Version bump type (auto-detects from conventional commits)'
+        required: false
         type: choice
         options:
+          - auto
           - patch
           - minor
           - major
           - continue
-        default: continue
+        default: auto
       release_type:
         description: 'Release type'
         required: true
@@ -75,6 +79,11 @@ on:
         required: false
         type: boolean
         default: true
+      generate_ai_notes:
+        description: 'Generate AI-assisted release notes'
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   packages: write
@@ -88,6 +97,8 @@ jobs:
     outputs:
       version: ${{ steps.calc_version.outputs.version }}
       is_rc: ${{ steps.calc_version.outputs.is_rc }}
+      version_type: ${{ steps.calc_version.outputs.version_type }}
+      prev_tag: ${{ steps.calc_version.outputs.prev_tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -101,7 +112,6 @@ jobs:
           CURRENT_VERSION=$(node -p "require('./web/package.json').version")
           echo "Current version: $CURRENT_VERSION"
 
-          VERSION_TYPE="${{ inputs.version_type }}"
           RELEASE_TYPE="${{ inputs.release_type }}"
 
           # Parse current version (handles both stable and RC versions)
@@ -128,20 +138,56 @@ jobs:
             IS_RC="true"
           fi
 
-          # Handle 'continue' specially - it requires current version to be an RC
-          if [ "$VERSION_TYPE" = "continue" ]; then
+          # Get previous tag
+          PREV_TAG=$(git tag -l 'v*' --sort=-v:refname | head -n1)
+          echo "prev_tag=${PREV_TAG}" >> $GITHUB_OUTPUT
+
+          # Determine version type
+          INPUT_VERSION_TYPE="${{ inputs.version_type }}"
+          VERSION_TYPE=""
+
+          if [ "$INPUT_VERSION_TYPE" = "continue" ]; then
             if [ "$IS_CURRENT_RC" != "true" ]; then
               echo "Error: 'continue' requires current version to be an RC (current: $CURRENT_VERSION)"
-              echo "Use patch/minor/major to create a new version instead."
+              echo "Use auto/patch/minor/major to create a new version instead."
               exit 1
             fi
+            VERSION_TYPE="continue"
+          elif [ "$INPUT_VERSION_TYPE" = "auto" ]; then
+            # Auto-detect version type from conventional commits
+            VERSION_TYPE="patch"  # default
+
+            if [ -n "$PREV_TAG" ]; then
+              # Check for breaking changes
+              if git log "$PREV_TAG"..HEAD --oneline --grep="BREAKING CHANGE:" > /dev/null 2>&1; then
+                VERSION_TYPE="major"
+              # Check for feat! (breaking change notation)
+              elif git log "$PREV_TAG"..HEAD --oneline --grep="feat!" > /dev/null 2>&1; then
+                VERSION_TYPE="major"
+              # Check for new features
+              elif git log "$PREV_TAG"..HEAD --oneline --grep="^feat:" > /dev/null 2>&1; then
+                VERSION_TYPE="minor"
+              fi
+            fi
+            echo "Auto-detected version type: $VERSION_TYPE"
+          else
+            VERSION_TYPE="$INPUT_VERSION_TYPE"
+            echo "Using manual version type: $VERSION_TYPE"
+          fi
+
+          echo "version_type=$VERSION_TYPE" >> $GITHUB_OUTPUT
+
+          # Handle RC → RC (continue) or RC → stable (promote)
+          if [ "$IS_CURRENT_RC" = "true" ] && [ "$VERSION_TYPE" = "continue" ]; then
             BASE_VERSION="${MAJOR}.${MINOR}.${PATCH}"
             if [ "$IS_RC" = "true" ]; then
               # Continue RC series: increment RC number
               NEW_VERSION="${BASE_VERSION}-rc.$((RC_NUM + 1))"
+              echo "Continuing RC series: $CURRENT_VERSION → $NEW_VERSION"
             else
               # Promote RC to stable: strip RC suffix
               NEW_VERSION="${BASE_VERSION}"
+              echo "Promoting RC to stable: $CURRENT_VERSION → $NEW_VERSION"
             fi
           else
             # Calculate base version based on version_type
@@ -167,10 +213,8 @@ jobs:
             else
               NEW_VERSION="$BASE_VERSION"
             fi
+            echo "New $VERSION_TYPE release: $CURRENT_VERSION → $NEW_VERSION"
           fi
-
-          echo "New version: $NEW_VERSION"
-          echo "Is RC: $IS_RC"
 
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "is_rc=$IS_RC" >> $GITHUB_OUTPUT
@@ -181,13 +225,14 @@ jobs:
     env:
       VERSION: ${{ needs.get-version.outputs.version }}
       IS_RC: ${{ needs.get-version.outputs.is_rc }}
+      PREV_TAG: ${{ needs.get-version.outputs.prev_tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Use Node.js 20.x
+      - name: Use Node.js
         uses: actions/setup-node@v6
         with:
           node-version: '24.14.0'
@@ -217,7 +262,87 @@ jobs:
         run: |
           echo "Version: ${{ env.VERSION }}"
           echo "Is RC: ${{ env.IS_RC }}"
+          echo "Previous tag: ${{ env.PREV_TAG }}"
           echo "Dry run: ${{ inputs.dry_run }}"
+
+      - name: Generate AI summary
+        id: ai_summary
+        if: inputs.generate_ai_notes && !inputs.dry_run
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          # Check if API key is set
+          if [ -z "$GROQ_API_KEY" ]; then
+            echo "::warning::GROQ_API_KEY secret is not set, skipping AI summary"
+            echo "summary=This release includes bug fixes, improvements, and new features. See the changelog below for details." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Get commit messages for summary
+          COMMITS=$(git log "${{ env.PREV_TAG }}"..HEAD --oneline 2>/dev/null | head -50)
+
+          # Get changed files summary
+          CHANGED_FILES=$(git diff --stat "${{ env.PREV_TAG }}"..HEAD 2>/dev/null | tail -1)
+
+          # Create prompt
+          cat > /tmp/prompt.txt << 'PROMPT_EOF'
+          Summarize these commits for a release changelog.
+
+          Rules:
+          - Focus ONLY on user-facing features and bug fixes
+          - Ignore: CI changes, dependency updates, test changes, workflow changes
+          - Do NOT mention: GitHub Actions, CI/CD, pipelines, internal tooling, Groq, Claude
+          - Do NOT use marketing language like "excited to announce" or "we are pleased"
+          - Be factual and concise
+          - If there are no significant user-facing changes, just say "Bug fixes and maintenance improvements."
+
+          Commits:
+          COMMITS_PLACEHOLDER
+
+          Changed files: CHANGED_FILES_PLACEHOLDER
+
+          Write the summary now (1-2 sentences only):
+          PROMPT_EOF
+
+          sed -i "s/COMMITS_PLACEHOLDER/$COMMITS/" /tmp/prompt.txt
+          sed -i "s/CHANGED_FILES_PLACEHOLDER/$CHANGED_FILES/" /tmp/prompt.txt
+
+          # Call Groq API (OpenAI-compatible)
+          HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" https://api.groq.com/openai/v1/chat/completions \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $GROQ_API_KEY" \
+            -d "{
+              \"model\": \"llama-3.3-70b-versatile\",
+              \"max_tokens\": 300,
+              \"messages\": [{
+                \"role\": \"user\",
+                \"content\": $(jq -Rs . /tmp/prompt.txt)
+              }]
+            }")
+
+          # Extract HTTP status code and response body
+          HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tail -n1)
+          RESPONSE_BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
+
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "::warning::Groq API returned status $HTTP_STATUS"
+            echo "summary=This release includes bug fixes, improvements, and new features. See the changelog below for details." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Extract the summary from the response
+          SUMMARY=$(echo "$RESPONSE_BODY" | jq -r '.choices[0].message.content // empty')
+
+          if [ -z "$SUMMARY" ]; then
+            echo "::warning::Could not extract summary from API response"
+            echo "summary=This release includes bug fixes, improvements, and new features. See the changelog below for details." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "AI Summary: $SUMMARY"
+          # Escape for use in body
+          SUMMARY=$(echo "$SUMMARY" | sed 's/\"/\\\"/g' | tr '\n' ' ')
+          echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
 
       - name: Update package.json version
         if: inputs.dry_run == false
@@ -233,7 +358,7 @@ jobs:
           sed -i "s/^appVersion: .*/appVersion: \"v${{ env.VERSION }}\"/" charts/wayli/Chart.yaml
           echo "Updated Helm chart appVersion to v${{ env.VERSION }}"
 
-          # Update Supabase functions init container image in values.yaml
+          # Update init container image in values.yaml
           sed -i "s|image: ghcr.io/wayli-app/wayli:.*|image: ghcr.io/wayli-app/wayli:v${{ env.VERSION }}|" charts/wayli/values.yaml
           echo "Updated init container image to v${{ env.VERSION }}"
 
@@ -255,6 +380,24 @@ jobs:
 
           echo "Committed and tagged v${{ env.VERSION }}"
 
+      - name: Generate release body
+        id: release_body
+        if: inputs.dry_run == false
+        run: |
+          AI_SUMMARY="${{ steps.ai_summary.outputs.summary }}"
+          VERSION="${{ env.VERSION }}"
+
+          # Create release body
+          cat > /tmp/release-body.txt << EOF
+          $AI_SUMMARY
+
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ env.PREV_TAG }}...v$VERSION
+          EOF
+
+          # Read body and set as output (properly escaped)
+          BODY=$(cat /tmp/release-body.txt | jq -Rs .)
+          echo "body=$BODY" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
         if: inputs.dry_run == false
         uses: softprops/action-gh-release@v2
@@ -262,6 +405,7 @@ jobs:
           tag_name: v${{ env.VERSION }}
           name: v${{ env.VERSION }}
           prerelease: ${{ env.IS_RC == 'true' }}
+          body: ${{ steps.release_body.outputs.body }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -403,7 +547,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: main  # Checkout main to get the latest committed changes from release job
+          ref: main
 
       - name: Pull latest changes
         run: git pull origin main
@@ -420,7 +564,7 @@ jobs:
 
       - name: Update chart dependencies
         run: |
-          # Clean existing dependencies and lock file to avoid stale cache issues
+          # Clean existing dependencies and lock file
           rm -rf charts/wayli/charts/*
           rm -f charts/wayli/Chart.lock
 
@@ -428,12 +572,10 @@ jobs:
           rm -rf ~/.cache/helm
 
           # OCI-based dependencies don't need helm repo add
-          # Update dependencies (regenerates Chart.lock and downloads deps)
           helm dependency update charts/wayli
 
       - name: Bump chart version
         run: |
-          # Use the same version as the app (already calculated by get-version job)
           NEW_VERSION="${{ env.VERSION }}"
           IS_RC="${{ env.IS_RC }}"
 
@@ -444,30 +586,24 @@ jobs:
 
           # Add prerelease annotation for RC versions
           if [ "$IS_RC" = "true" ]; then
-            # Check if annotations section exists
             if grep -q "^annotations:" charts/wayli/Chart.yaml; then
-              # Add to existing annotations (only if not already present)
               if ! grep -q "artifacthub.io/prerelease" charts/wayli/Chart.yaml; then
                 sed -i '/^annotations:/a\  artifacthub.io/prerelease: "true"' charts/wayli/Chart.yaml
               fi
             else
-              # Add new annotations section
               echo -e "\nannotations:\n  artifacthub.io/prerelease: \"true\"" >> charts/wayli/Chart.yaml
             fi
           else
             # Remove prerelease annotation for stable releases
             sed -i '/artifacthub.io\/prerelease/d' charts/wayli/Chart.yaml
-            # Remove empty annotations section if it exists
             sed -i '/^annotations:$/{ N; /^annotations:\n$/d }' charts/wayli/Chart.yaml
           fi
 
-          # Commit the version bump
           git add charts/wayli/Chart.yaml
           git commit -m "chore(chart): Bump version to $NEW_VERSION [skip ci]"
           git push
 
           echo "📦 Chart version set to $NEW_VERSION"
-          echo "CHART_VERSION=$NEW_VERSION" >> $GITHUB_ENV
 
       - name: Package Helm chart
         run: |
@@ -514,7 +650,6 @@ jobs:
             git show gh-pages:index.yaml > .cr-index/index.yaml 2>/dev/null || true
           fi
 
-          # Generate/update index (must use same release-name-template as upload)
           cr index \
             --owner wayli-app \
             --git-repo wayli \
@@ -524,13 +659,9 @@ jobs:
 
       - name: Deploy index.yaml to gh-pages
         run: |
-          # Copy the generated index.yaml to a temporary location
           cp .cr-index/index.yaml /tmp/index.yaml
-
-          # Stash any local changes before switching branches
           git stash --include-untracked
 
-          # Checkout gh-pages branch
           if git fetch origin gh-pages:gh-pages 2>/dev/null; then
             git checkout gh-pages
           else
@@ -538,7 +669,6 @@ jobs:
             git rm -rf . || true
           fi
 
-          # Copy the index.yaml from temp to root
           cp /tmp/index.yaml index.yaml
           git add index.yaml
           git commit -m "Update Helm repository index [skip ci]" || echo "No changes to commit"

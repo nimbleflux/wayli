@@ -284,8 +284,8 @@ jobs:
           # Get changed files summary
           CHANGED_FILES=$(git diff --stat "${{ env.PREV_TAG }}"..HEAD 2>/dev/null | tail -1)
 
-          # Create prompt
-          cat > /tmp/prompt.txt << 'PROMPT_EOF'
+          # Create prompt with heredoc (avoids sed escaping issues with special characters)
+          cat > /tmp/prompt.txt << PROMPT_EOF
           Summarize these commits for a release changelog.
 
           Rules:
@@ -297,15 +297,12 @@ jobs:
           - If there are no significant user-facing changes, just say "Bug fixes and maintenance improvements."
 
           Commits:
-          COMMITS_PLACEHOLDER
+          $COMMITS
 
-          Changed files: CHANGED_FILES_PLACEHOLDER
+          Changed files: $CHANGED_FILES
 
           Write the summary now (1-2 sentences only):
           PROMPT_EOF
-
-          sed -i "s/COMMITS_PLACEHOLDER/$COMMITS/" /tmp/prompt.txt
-          sed -i "s/CHANGED_FILES_PLACEHOLDER/$CHANGED_FILES/" /tmp/prompt.txt
 
           # Call Groq API (OpenAI-compatible)
           HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" https://api.groq.com/openai/v1/chat/completions \

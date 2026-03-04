@@ -12,7 +12,7 @@ FROM denoland/deno:bin-2.6.4 AS deno-bin
 #############################################
 # Stage 1: Builder
 #############################################
-FROM node:25.7.0-alpine AS builder
+FROM node:25.8.0-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache python3 make g++

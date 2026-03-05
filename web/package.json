@@ -87,7 +87,7 @@
 		"@turf/turf": "^7.3.4",
 		"clsx": "^2.1.1",
 		"date-fns": "^4.1.0",
-		"dompurify": "^3.3.1",
+		"dompurify": "^3.3.2",
 		"dotenv": "^17.3.1",
 		"fast-xml-parser": "^5.4.2",
 		"jszip": "^3.10.1",

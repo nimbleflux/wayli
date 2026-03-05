@@ -67,7 +67,7 @@
 		"globals": "^17.4.0",
 		"jsdom": "^28.1.0",
 		"lightningcss": "^1.31.1",
-		"lucide-static": "^0.576.0",
+		"lucide-static": "^0.577.0",
 		"prettier": "^3.8.1",
 		"prettier-plugin-svelte": "^3.5.1",
 		"prettier-plugin-tailwindcss": "^0.7.2",
@@ -95,7 +95,7 @@
 		"leaflet.markercluster": "^1.5.3",
 		"lodash-es": "^4.17.23",
 		"lucide-svelte": "^0.577.0",
-		"marked": "^17.0.3",
+		"marked": "^17.0.4",
 		"qrcode": "^1.5.4",
 		"svelte-sonner": "^1.0.8",
 		"tailwind-merge": "^3.5.0",
@@ -107,7 +107,7 @@
 	},
 	"overrides": {
 		"marked-terminal": {
-			"marked": "^17.0.3"
+			"marked": "^17.0.4"
 		}
 	}
 }

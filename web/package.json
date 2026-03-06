@@ -81,7 +81,7 @@
 		"vitest": "^4.0.18"
 	},
 	"dependencies": {
-		"@fluxbase/sdk": "^2026.2.7",
+		"@fluxbase/sdk": "^2026.3.1",
 		"@melt-ui/svelte": "^0.86.6",
 		"@svelte-plugins/datepicker": "^1.0.11",
 		"@turf/turf": "^7.3.4",

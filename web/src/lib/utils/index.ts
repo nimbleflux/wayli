@@ -4,3 +4,6 @@
 
 // Core utilities
 export { cn, haversineDistance } from './utils';
+
+// Function utilities
+export { debounce } from './debounce';

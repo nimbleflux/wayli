@@ -83,7 +83,6 @@ export default defineConfig(({ mode }) => {
 				'@fluxbase/sdk',
 				'lucide-svelte',
 				'date-fns',
-				'lodash-es',
 				'leaflet',
 				'@turf/turf',
 				'otplib',

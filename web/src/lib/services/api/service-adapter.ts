@@ -2033,20 +2033,6 @@ export class ServiceAdapter {
 	}
 
 	/**
-	 * List all system secrets (metadata only)
-	 */
-	async listSystemSecrets() {
-		const { fluxbase } = await import('$lib/fluxbase');
-
-		try {
-			const secrets = await fluxbase.admin.settings.app.listSecretSettings();
-			return secrets || [];
-		} catch {
-			return [];
-		}
-	}
-
-	/**
 	 * Delete a system secret
 	 */
 	async deleteSystemSecret(key: string) {

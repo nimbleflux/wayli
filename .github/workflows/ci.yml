@@ -15,37 +15,36 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-      - name: Use Node.js 20.x
-        uses: actions/setup-node@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: '24.14.0'
-          cache: 'npm'
-          cache-dependency-path: 'web/package-lock.json'
+          bun-version: latest
 
       - name: Install dependencies
         working-directory: web
         run: |
-          npm ci
-          npm list @sveltejs/vite-plugin-svelte
-          npm list @sveltejs/kit
-          npm list vitest
+          bun install --frozen-lockfile
+          bun pm ls @sveltejs/vite-plugin-svelte
+          bun pm ls @sveltejs/kit
+          bun pm ls vitest
 
       - name: Prepare SvelteKit
         working-directory: web
-        run: npx svelte-kit sync
+        run: bunx svelte-kit sync
 
       # - name: Lint
       #   working-directory: web
-      #   run: npm run lint --if-present
+      #   run: bun run lint --if-present
 
       # - name: Type check
       #   working-directory: web
       #   run: |
       #     # Try the normal check first
-      #     npm run check --if-present || {
+      #     bun run check --if-present || {
       #       echo "⚠️ Type check failed, trying alternative approach..."
-      #       # Fallback: run svelte-check directly with npx
-      #       npx svelte-check --tsconfig ./tsconfig.json || {
+      #       # Fallback: run svelte-check directly
+      #       bunx svelte-check --tsconfig ./tsconfig.json || {
       #         echo "❌ Type check failed even with fallback"
       #         exit 1
       #       }
@@ -53,8 +52,8 @@ jobs:
 
       - name: Run unit tests
         working-directory: web
-        run: npx vitest --run --config vitest.ci.config.ts
+        run: bun run test:unit -- --run --config vitest.ci.config.ts
 
       - name: Build app
         working-directory: web
-        run: npm run build --if-present
+        run: bun run build --if-present

@@ -232,31 +232,29 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Use Node.js
-        uses: actions/setup-node@v6
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: '24.14.0'
-          cache: 'npm'
-          cache-dependency-path: 'web/package-lock.json'
+          bun-version: latest
 
       - name: Install dependencies
         working-directory: web
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Install Fluxbase CLI
         run: curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash
 
       - name: Prepare SvelteKit
         working-directory: web
-        run: npx svelte-kit sync
+        run: bunx svelte-kit sync
 
       - name: Run unit tests
         working-directory: web
-        run: npm run test
+        run: bun run test
 
       - name: Build app
         working-directory: web
-        run: npm run build --if-present
+        run: bun run build --if-present
 
       - name: Display version info
         run: |
@@ -345,7 +343,8 @@ jobs:
         if: inputs.dry_run == false
         working-directory: web
         run: |
-          npm version ${{ env.VERSION }} --no-git-tag-version
+          # Update version in package.json using jq
+          jq '.version = "${{ env.VERSION }}"' package.json > package.json.tmp && mv package.json.tmp package.json
           echo "Updated package.json to version ${{ env.VERSION }}"
 
       - name: Update deployment files with new version
@@ -369,7 +368,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add web/package.json web/package-lock.json charts/wayli/Chart.yaml charts/wayli/values.yaml deploy/docker-compose/.env.example
+          git add web/package.json web/bun.lockb charts/wayli/Chart.yaml charts/wayli/values.yaml deploy/docker-compose/.env.example
           git commit -m "chore(release): v${{ env.VERSION }}"
           git tag v${{ env.VERSION }}
           git push

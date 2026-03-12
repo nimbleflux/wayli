@@ -49,11 +49,11 @@ echo ""
 echo "Updating web/package.json..."
 sed -i '' "s|\"@fluxbase/sdk\": \"\\^[0-9a-zA-Z.-]*\"|\"@fluxbase/sdk\": \"^$NEW_VERSION\"|g" "$ROOT_DIR/web/package.json"
 
-# Update web package-lock.json
+# Update web bun.lockb
 echo ""
-echo "Updating web/package-lock.json..."
+echo "Updating web/bun.lockb..."
 cd "$ROOT_DIR/web"
-npm install
+bun install
 
 echo ""
 echo "Done! Fluxbase updated to version $NEW_VERSION"
@@ -66,4 +66,4 @@ echo "  - charts/wayli/Chart.yaml"
 echo "  - charts/wayli/Chart.lock"
 echo "  - Dockerfile"
 echo "  - web/package.json"
-echo "  - web/package-lock.json"
+echo "  - web/bun.lockb"

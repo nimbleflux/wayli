@@ -12,7 +12,7 @@ FROM denoland/deno:bin-2.6.4 AS deno-bin
 #############################################
 # Stage 1: Builder
 #############################################
-FROM node:25.8.1-alpine AS builder
+FROM oven/bun:1-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache python3 make g++
@@ -20,16 +20,16 @@ RUN apk add --no-cache python3 make g++
 WORKDIR /app/web
 
 # Copy package files first (for better caching)
-COPY web/package*.json ./
+COPY web/package.json web/bun.lockb* ./
 
 # Install ALL dependencies (including devDependencies for build)
-RUN npm ci --legacy-peer-deps
+RUN bun install --frozen-lockfile
 
 # Copy web source code (node_modules excluded via .dockerignore)
 COPY web/ ./
 
 # Generate SvelteKit TypeScript configuration and build app
-RUN npm run prepare && npm run build
+RUN bun run prepare && bun run build
 
 #############################################
 # Stage 2: Production Runtime
@@ -47,7 +47,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Fluxbase CLI for resource synchronization
 # Set FLUXBASE_CLI_VERSION to 'local' to use a pre-built CLI from ./bin/fluxbase
 # Otherwise, installs from GitHub release (e.g., 'latest' or 'v0.0.1-rc.112')
-ARG FLUXBASE_CLI_VERSION=v2026.3.1
+ARG FLUXBASE_CLI_VERSION=v2026.3.5
 RUN curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- ${FLUXBASE_CLI_VERSION}
 
 WORKDIR /app

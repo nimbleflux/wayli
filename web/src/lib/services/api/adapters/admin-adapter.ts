@@ -426,20 +426,6 @@ export class AdminAdapter extends BaseAdapter {
 	}
 
 	/**
-	 * List system secrets
-	 */
-	async listSystemSecrets() {
-		const { fluxbase } = await import('$lib/fluxbase');
-
-		try {
-			const secrets = await fluxbase.admin.settings.app.listSecretSettings();
-			return secrets || [];
-		} catch {
-			return [];
-		}
-	}
-
-	/**
 	 * Delete system secret
 	 */
 	async deleteSystemSecret(key: string) {

@@ -48,8 +48,12 @@ RUN ARCH=$(dpkg --print-architecture) \
 # Install pnpm globally
 RUN npm install -g pnpm
 
+# Install Bun
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH=/home/$USERNAME/.bun/bin:$PATH
+
 # Install Fluxbase CLI for resource synchronization
-ARG FLUXBASE_CLI_VERSION=v2026.3.1
+ARG FLUXBASE_CLI_VERSION=v2026.3.5
 RUN curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- ${FLUXBASE_CLI_VERSION:-latest}
 
 # Set up non-root user

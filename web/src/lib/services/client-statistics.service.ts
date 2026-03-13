@@ -17,7 +17,7 @@ import {
 import type { GeocodeGeoJSONFeature } from '$lib/utils/geojson-converter';
 import { TransportDetectionReason } from '$lib/types/transport-mode.types';
 
-import type { FluxbaseClient } from '@fluxbase/sdk';
+import type { FluxbaseClient } from '@nimbleflux/fluxbase-sdk';
 
 // Type for visit data tracking
 export interface VisitData {

@@ -34,7 +34,6 @@ const mockFluxbase = {
 				listSettings: vi.fn(),
 				getSecretSetting: vi.fn(),
 				setSecretSetting: vi.fn(),
-				listSecretSettings: vi.fn(),
 				deleteSecretSetting: vi.fn(),
 				enableSignup: vi.fn(),
 				disableSignup: vi.fn(),
@@ -1127,19 +1126,6 @@ describe('ServiceAdapter', () => {
 				const result = await adapter.getSystemSecretMetadata('nonexistent');
 
 				expect(result).toBeNull();
-			});
-		});
-
-		describe('listSystemSecrets', () => {
-			it('should list all secrets metadata', async () => {
-				mockFluxbase.admin.settings.app.listSecretSettings.mockResolvedValue([
-					{ key: 'secret1' },
-					{ key: 'secret2' }
-				]);
-
-				const result = await adapter.listSystemSecrets();
-
-				expect(result).toHaveLength(2);
 			});
 		});
 

@@ -6,7 +6,7 @@
 
 import { writable, get, derived } from 'svelte/store';
 import { fluxbase } from '$lib/fluxbase';
-import type { RealtimeChannel, ExecutionLogsChannel } from '@fluxbase/sdk';
+import type { RealtimeChannel, ExecutionLogsChannel } from '@nimbleflux/fluxbase-sdk';
 
 // RPC Execution type (mirrors SDK's RPCExecution interface)
 interface RPCExecution {

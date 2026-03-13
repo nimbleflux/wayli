@@ -1,5 +1,5 @@
 # Configuration for Helm Chart Releaser
-owner: wayli-app
+owner: nimbleflux
 git-repo: wayli
-charts-repo-url: https://wayli-app.github.io/wayli
+charts-repo-url: https://nimbleflux.github.io/wayli
 release-name-template: "chart-{{ .Version }}"

@@ -1,4 +1,4 @@
-import { createClient, type FluxbaseClient } from '@fluxbase/sdk';
+import { createClient, type FluxbaseClient } from '@nimbleflux/fluxbase-sdk';
 
 export function createFluxbaseClient(
 	url: string,

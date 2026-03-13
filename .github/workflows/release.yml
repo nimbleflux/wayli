@@ -232,31 +232,29 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Use Node.js
-        uses: actions/setup-node@v6
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: '24.14.0'
-          cache: 'npm'
-          cache-dependency-path: 'web/package-lock.json'
+          bun-version: latest
 
       - name: Install dependencies
         working-directory: web
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Install Fluxbase CLI
-        run: curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash
+        run: curl -fsSL https://raw.githubusercontent.com/nimbleflux/fluxbase/main/install-cli.sh | bash
 
       - name: Prepare SvelteKit
         working-directory: web
-        run: npx svelte-kit sync
+        run: bunx svelte-kit sync
 
       - name: Run unit tests
         working-directory: web
-        run: npm run test
+        run: bun run test
 
       - name: Build app
         working-directory: web
-        run: npm run build --if-present
+        run: bun run build
 
       - name: Display version info
         run: |
@@ -345,7 +343,8 @@ jobs:
         if: inputs.dry_run == false
         working-directory: web
         run: |
-          npm version ${{ env.VERSION }} --no-git-tag-version
+          # Update version in package.json using jq
+          jq '.version = "${{ env.VERSION }}"' package.json > package.json.tmp && mv package.json.tmp package.json
           echo "Updated package.json to version ${{ env.VERSION }}"
 
       - name: Update deployment files with new version
@@ -356,7 +355,7 @@ jobs:
           echo "Updated Helm chart appVersion to v${{ env.VERSION }}"
 
           # Update init container image in values.yaml
-          sed -i "s|image: ghcr.io/wayli-app/wayli:.*|image: ghcr.io/wayli-app/wayli:v${{ env.VERSION }}|" charts/wayli/values.yaml
+          sed -i "s|image: ghcr.io/nimbleflux/wayli:.*|image: ghcr.io/nimbleflux/wayli:v${{ env.VERSION }}|" charts/wayli/values.yaml
           echo "Updated init container image to v${{ env.VERSION }}"
 
           # Update docker-compose .env.example with new version
@@ -369,7 +368,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add web/package.json web/package-lock.json charts/wayli/Chart.yaml charts/wayli/values.yaml deploy/docker-compose/.env.example
+          git add web/package.json web/bun.lock charts/wayli/Chart.yaml charts/wayli/values.yaml deploy/docker-compose/.env.example
           git commit -m "chore(release): v${{ env.VERSION }}"
           git tag v${{ env.VERSION }}
           git push
@@ -444,7 +443,7 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64
-          tags: ghcr.io/wayli-app/wayli:v${{ env.VERSION }}-amd64
+          tags: ghcr.io/nimbleflux/wayli:v${{ env.VERSION }}-amd64
           cache-from: type=gha,scope=amd64
           cache-to: type=gha,mode=max,scope=amd64
 
@@ -481,7 +480,7 @@ jobs:
           context: .
           push: true
           platforms: linux/arm64
-          tags: ghcr.io/wayli-app/wayli:v${{ env.VERSION }}-arm64
+          tags: ghcr.io/nimbleflux/wayli:v${{ env.VERSION }}-arm64
           cache-from: type=gha,scope=arm64
           cache-to: type=gha,mode=max,scope=arm64
 
@@ -507,25 +506,25 @@ jobs:
       - name: Create and push multi-arch manifest
         run: |
           # Create manifest for version tag
-          docker buildx imagetools create -t ghcr.io/wayli-app/wayli:v${{ env.VERSION }} \
-            ghcr.io/wayli-app/wayli:v${{ env.VERSION }}-amd64 \
-            ghcr.io/wayli-app/wayli:v${{ env.VERSION }}-arm64
+          docker buildx imagetools create -t ghcr.io/nimbleflux/wayli:v${{ env.VERSION }} \
+            ghcr.io/nimbleflux/wayli:v${{ env.VERSION }}-amd64 \
+            ghcr.io/nimbleflux/wayli:v${{ env.VERSION }}-arm64
 
           # Create manifest for latest/rc tag
           if [ "${{ env.IS_RC }}" = "true" ]; then
-            docker buildx imagetools create -t ghcr.io/wayli-app/wayli:rc \
-              ghcr.io/wayli-app/wayli:v${{ env.VERSION }}-amd64 \
-              ghcr.io/wayli-app/wayli:v${{ env.VERSION }}-arm64
+            docker buildx imagetools create -t ghcr.io/nimbleflux/wayli:rc \
+              ghcr.io/nimbleflux/wayli:v${{ env.VERSION }}-amd64 \
+              ghcr.io/nimbleflux/wayli:v${{ env.VERSION }}-arm64
           else
-            docker buildx imagetools create -t ghcr.io/wayli-app/wayli:latest \
-              ghcr.io/wayli-app/wayli:v${{ env.VERSION }}-amd64 \
-              ghcr.io/wayli-app/wayli:v${{ env.VERSION }}-arm64
+            docker buildx imagetools create -t ghcr.io/nimbleflux/wayli:latest \
+              ghcr.io/nimbleflux/wayli:v${{ env.VERSION }}-amd64 \
+              ghcr.io/nimbleflux/wayli:v${{ env.VERSION }}-arm64
           fi
 
           # Create manifest for short SHA tag
-          docker buildx imagetools create -t ghcr.io/wayli-app/wayli:${{ env.SHORT_SHA }} \
-            ghcr.io/wayli-app/wayli:v${{ env.VERSION }}-amd64 \
-            ghcr.io/wayli-app/wayli:v${{ env.VERSION }}-arm64
+          docker buildx imagetools create -t ghcr.io/nimbleflux/wayli:${{ env.SHORT_SHA }} \
+            ghcr.io/nimbleflux/wayli:v${{ env.VERSION }}-amd64 \
+            ghcr.io/nimbleflux/wayli:v${{ env.VERSION }}-arm64
 
   # ==========================================================================
   # Helm Chart Publishing
@@ -616,8 +615,8 @@ jobs:
 
       - name: Push Helm chart to GHCR (OCI)
         run: |
-          helm push .cr-release-packages/wayli-${{ env.VERSION }}.tgz oci://ghcr.io/wayli-app/charts
-          echo "📦 Helm chart pushed to ghcr.io/wayli-app/charts/wayli:${{ env.VERSION }}"
+          helm push .cr-release-packages/wayli-${{ env.VERSION }}.tgz oci://ghcr.io/nimbleflux/charts
+          echo "📦 Helm chart pushed to ghcr.io/nimbleflux/charts/wayli:${{ env.VERSION }}"
 
       - name: Install chart-releaser
         run: |
@@ -630,7 +629,7 @@ jobs:
           CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cr upload \
-            --owner wayli-app \
+            --owner nimbleflux \
             --git-repo wayli \
             --package-path .cr-release-packages \
             --release-name-template "chart-{{ .Version }}" \
@@ -648,7 +647,7 @@ jobs:
           fi
 
           cr index \
-            --owner wayli-app \
+            --owner nimbleflux \
             --git-repo wayli \
             --package-path .cr-release-packages \
             --index-path .cr-index/index.yaml \

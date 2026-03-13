@@ -5,7 +5,7 @@ import { errorHandler, ErrorCode } from '../error-handler.service';
 import { UserProfileService } from '../user-profile.service';
 
 import type { UserProfile, UserPreferences } from '$lib/types/user.types';
-import type { FluxbaseClient } from '@fluxbase/sdk';
+import type { FluxbaseClient } from '@nimbleflux/fluxbase-sdk';
 
 export interface AuthApiServiceConfig {
 	fluxbase: FluxbaseClient;

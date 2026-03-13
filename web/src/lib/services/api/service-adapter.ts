@@ -1,7 +1,7 @@
 // src/lib/services/api/service-adapter.ts
 // Service adapter that uses Fluxbase SDK edge functions
 
-import type { AuthSession } from '@fluxbase/sdk';
+import type { AuthSession } from '@nimbleflux/fluxbase-sdk';
 import type { PublicServerSettings, AdminSettingsResponse } from '$lib/types/settings.types';
 
 export interface ServiceAdapterConfig {
@@ -2029,20 +2029,6 @@ export class ServiceAdapter {
 			return metadata || null;
 		} catch {
 			return null;
-		}
-	}
-
-	/**
-	 * List all system secrets (metadata only)
-	 */
-	async listSystemSecrets() {
-		const { fluxbase } = await import('$lib/fluxbase');
-
-		try {
-			const secrets = await fluxbase.admin.settings.app.listSecretSettings();
-			return secrets || [];
-		} catch {
-			return [];
 		}
 	}
 

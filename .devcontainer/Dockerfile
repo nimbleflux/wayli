@@ -45,12 +45,13 @@ RUN ARCH=$(dpkg --print-architecture) \
     && rm /tmp/deno.zip \
     && deno --version
 
-# Install pnpm globally
-RUN npm install -g pnpm
+# Install Bun
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH=/home/$USERNAME/.bun/bin:$PATH
 
 # Install Fluxbase CLI for resource synchronization
-ARG FLUXBASE_CLI_VERSION=v2026.3.1
-RUN curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- ${FLUXBASE_CLI_VERSION:-latest}
+ARG FLUXBASE_CLI_VERSION=v2026.3.6
+RUN curl -fsSL https://raw.githubusercontent.com/nimbleflux/fluxbase/main/install-cli.sh | bash -s -- ${FLUXBASE_CLI_VERSION:-latest}
 
 # Set up non-root user
 ARG USERNAME=node

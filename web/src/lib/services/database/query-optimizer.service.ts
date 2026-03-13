@@ -1,6 +1,6 @@
 import { errorHandler } from '../error-handler.service';
 
-import type { FluxbaseClient } from '@fluxbase/sdk';
+import type { FluxbaseClient } from '@nimbleflux/fluxbase-sdk';
 
 interface QueryCacheEntry<T> {
 	data: T;

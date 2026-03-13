@@ -4,7 +4,7 @@
  * @module adapters/base-adapter
  */
 
-import type { AuthSession } from '@fluxbase/sdk';
+import type { AuthSession } from '@nimbleflux/fluxbase-sdk';
 
 /**
  * Configuration options for initializing a base adapter.

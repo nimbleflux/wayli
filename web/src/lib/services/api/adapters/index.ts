@@ -27,7 +27,7 @@ export { GeocodingAdapter, type GeocodingResult } from './geocoding-adapter';
 export { TripExclusionsAdapter, type TripExclusion } from './trip-exclusions-adapter';
 export { POIAdapter, type POIVisit, type DetectPOIVisitsOptions } from './poi-adapter';
 
-import type { AuthSession } from '@fluxbase/sdk';
+import type { AuthSession } from '@nimbleflux/fluxbase-sdk';
 import { ProfileAdapter } from './profile-adapter';
 import { TwoFactorAdapter } from './two-factor-adapter';
 import { TripsAdapter } from './trips-adapter';

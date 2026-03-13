@@ -4,7 +4,7 @@
 import { errorHandler, ErrorCode } from '../error-handler.service';
 
 import type { GeocodedLocation } from '$lib/types/geocoding.types';
-import type { FluxbaseClient } from '@fluxbase/sdk';
+import type { FluxbaseClient } from '@nimbleflux/fluxbase-sdk';
 
 export interface TripExclusionsApiServiceConfig {
 	fluxbase: FluxbaseClient;

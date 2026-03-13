@@ -4,7 +4,7 @@
 import { errorHandler, ErrorCode } from '../error-handler.service';
 import { forwardGeocode } from '../external/pelias.service';
 
-import type { FluxbaseClient } from '@fluxbase/sdk';
+import type { FluxbaseClient } from '@nimbleflux/fluxbase-sdk';
 
 export interface GeocodingApiServiceConfig {
 	fluxbase: FluxbaseClient;

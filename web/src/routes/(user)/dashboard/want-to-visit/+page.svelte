@@ -3,7 +3,7 @@
 
 	import type { Map as LeafletMap } from 'leaflet';
 
-	import { debounce } from 'lodash-es';
+	import { debounce } from '$lib/utils';
 	import {
 		Search,
 		Plus,

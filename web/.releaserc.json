@@ -1,6 +1,6 @@
 {
 	"branches": ["main"],
-	"repositoryUrl": "https://github.com/wayli-app/wayli",
+	"repositoryUrl": "https://github.com/nimbleflux/wayli",
 	"plugins": [
 		"@semantic-release/commit-analyzer",
 		"@semantic-release/release-notes-generator",

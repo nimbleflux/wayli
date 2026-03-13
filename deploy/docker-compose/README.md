@@ -68,5 +68,5 @@ docker compose exec -T db psql -U postgres postgres < backup.sql
 
 ## Support
 
-- [GitHub Issues](https://github.com/wayli-app/wayli/issues)
-- [Documentation](https://github.com/wayli-app/wayli)
+- [GitHub Issues](https://github.com/nimbleflux/wayli/issues)
+- [Documentation](https://github.com/nimbleflux/wayli)

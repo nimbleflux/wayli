@@ -80,10 +80,9 @@ export default defineConfig(({ mode }) => {
 		optimizeDeps: {
 			include: [
 				'svelte',
-				'@fluxbase/sdk',
+				'@nimbleflux/fluxbase-sdk',
 				'lucide-svelte',
 				'date-fns',
-				'lodash-es',
 				'leaflet',
 				'@turf/turf',
 				'otplib',

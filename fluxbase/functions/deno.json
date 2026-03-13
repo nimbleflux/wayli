@@ -2,8 +2,8 @@
   "$schema": "https://deno.land/x/deno/cli/schemas/config-file.v1.json",
   "// NOTICE": "This is the PRODUCTION configuration. For local development, use deno.dev.json",
   "imports": {
-    "@fluxbase/sdk": "npm:@fluxbase/sdk@0.1.0",
-    "@fluxbase/sdk/": "npm:@fluxbase/sdk@0.1.0/",
+    "@nimbleflux/fluxbase-sdk": "npm:@nimbleflux/fluxbase-sdk@2026.3.6",
+    "@nimbleflux/fluxbase-sdk/": "npm:@nimbleflux/fluxbase-sdk@2026.3.6/",
     "_shared/": "./_shared/",
     "cross-fetch": "npm:cross-fetch@4.0.0"
   },

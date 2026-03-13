@@ -138,7 +138,7 @@ graph TB
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/wayli-app/wayli.git
+   git clone https://github.com/nimbleflux/wayli.git
    cd wayli/web
    ```
 

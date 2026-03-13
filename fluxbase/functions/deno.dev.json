@@ -2,8 +2,8 @@
   "$schema": "https://deno.land/x/deno/cli/schemas/config-file.v1.json",
   "// NOTICE": "This is the DEVELOPMENT configuration with local SDK path",
   "imports": {
-    "@fluxbase/sdk": "/fluxbase-sdk/dist/index.js",
-    "@fluxbase/sdk/": "/fluxbase-sdk/dist/",
+    "@nimbleflux/fluxbase-sdk": "/fluxbase-sdk/dist/index.js",
+    "@nimbleflux/fluxbase-sdk/": "/fluxbase-sdk/dist/",
     "_shared/": "./_shared/",
     "cross-fetch": "npm:cross-fetch@4.0.0"
   },

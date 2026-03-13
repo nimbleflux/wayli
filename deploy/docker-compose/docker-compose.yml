@@ -14,7 +14,7 @@ services:
   # Wayli web application
   wayli-web:
     container_name: wayli-web
-    image: ghcr.io/wayli-app/wayli:${WAYLI_VERSION:-latest}
+    image: ghcr.io/nimbleflux/wayli:${WAYLI_VERSION:-latest}
     restart: unless-stopped
     ports:
       - '${PORT:-4000}:80'
@@ -43,7 +43,7 @@ services:
 
   # PostgreSQL Database (with extensions for Fluxbase)
   postgres:
-    image: ghcr.io/fluxbase-eu/fluxbase-postgres:18
+    image: ghcr.io/nimbleflux/fluxbase-postgres:18
     container_name: fluxbase-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-fluxbase}
@@ -61,7 +61,7 @@ services:
 
   # Fluxbase API
   fluxbase:
-    image: ghcr.io/fluxbase-eu/fluxbase:2026.3.5
+    image: ghcr.io/nimbleflux/fluxbase:2026.3.6
     container_name: fluxbase
     ports:
       - '8080:8080'

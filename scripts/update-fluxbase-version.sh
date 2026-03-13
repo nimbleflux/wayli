@@ -28,7 +28,7 @@ sed -i '' "s|ARG FLUXBASE_CLI_VERSION=v[0-9a-zA-Z.-]*|ARG FLUXBASE_CLI_VERSION=v
 
 # Update deploy/docker-compose/docker-compose.yml
 echo "Updating deploy/docker-compose/docker-compose.yml..."
-sed -i '' "s|ghcr.io/fluxbase-eu/fluxbase:[0-9a-zA-Z.-]*|ghcr.io/fluxbase-eu/fluxbase:$NEW_VERSION|g" "$ROOT_DIR/deploy/docker-compose/docker-compose.yml"
+sed -i '' "s|ghcr.io/nimbleflux/fluxbase:[0-9a-zA-Z.-]*|ghcr.io/nimbleflux/fluxbase:$NEW_VERSION|g" "$ROOT_DIR/deploy/docker-compose/docker-compose.yml"
 
 # Update charts/wayli/Chart.yaml
 echo "Updating charts/wayli/Chart.yaml..."
@@ -44,16 +44,41 @@ echo "Updating Helm dependencies..."
 cd "$ROOT_DIR/charts/wayli"
 helm dependency update
 
-# Update web/package.json
+# Update web/package.json - Fluxbase SDK packages
 echo ""
 echo "Updating web/package.json..."
-sed -i '' "s|\"@fluxbase/sdk\": \"\\^[0-9a-zA-Z.-]*\"|\"@fluxbase/sdk\": \"^$NEW_VERSION\"|g" "$ROOT_DIR/web/package.json"
+SDK_PACKAGE="@nimbleflux/fluxbase-sdk"
+SDK_REACT_PACKAGE="@nimbleflux/fluxbase-sdk-react"
 
-# Update web package-lock.json
+if grep -q "$SDK_PACKAGE" "$ROOT_DIR/web/package.json"; then
+    sed -i '' "s|\"$SDK_PACKAGE\": \"\\^[0-9a-zA-Z._-]*\"|\"$SDK_PACKAGE\": \"^$NEW_VERSION\"|g" "$ROOT_DIR/web/package.json"
+    echo "  Updated $SDK_PACKAGE to ^$NEW_VERSION"
+else
+    # Add the package to dependencies
+    sed -i '' "s|\"dependencies\": {|\"dependencies\": {\n\t\t\"$SDK_PACKAGE\": \"^$NEW_VERSION\",|g" "$ROOT_DIR/web/package.json"
+    echo "  Added $SDK_PACKAGE ^$NEW_VERSION"
+fi
+
+if grep -q "$SDK_REACT_PACKAGE" "$ROOT_DIR/web/package.json"; then
+    sed -i '' "s|\"$SDK_REACT_PACKAGE\": \"\\^[0-9a-zA-Z._-]*\"|\"$SDK_REACT_PACKAGE\": \"^$NEW_VERSION\"|g" "$ROOT_DIR/web/package.json"
+    echo "  Updated $SDK_REACT_PACKAGE to ^$NEW_VERSION"
+else
+    echo "  Note: $SDK_REACT_PACKAGE not found in package.json (skipping)"
+fi
+
+# Update web bun.lockb
 echo ""
-echo "Updating web/package-lock.json..."
+echo "Updating web/bun.lockb..."
 cd "$ROOT_DIR/web"
-npm install
+bun install
+
+# Update fluxbase/functions/deno.json - Fluxbase SDK for Deno edge functions
+echo ""
+echo "Updating fluxbase/functions/deno.json..."
+SDK_PACKAGE="npm:@nimbleflux/fluxbase-sdk"
+sed -i '' "s|\"$SDK_PACKAGE@[0-9a-zA-Z.-]*\"|\"$SDK_PACKAGE@$NEW_VERSION\"|g" "$ROOT_DIR/fluxbase/functions/deno.json"
+sed -i '' "s|\"$SDK_PACKAGE@[0-9a-zA-Z.-]*/\"|\"$SDK_PACKAGE@$NEW_VERSION/\"|g" "$ROOT_DIR/fluxbase/functions/deno.json"
+echo "  Updated SDK to $NEW_VERSION"
 
 echo ""
 echo "Done! Fluxbase updated to version $NEW_VERSION"
@@ -65,5 +90,6 @@ echo "  - deploy/docker-compose/docker-compose.yml"
 echo "  - charts/wayli/Chart.yaml"
 echo "  - charts/wayli/Chart.lock"
 echo "  - Dockerfile"
-echo "  - web/package.json"
-echo "  - web/package-lock.json"
+echo "  - web/package.json (@nimbleflux/fluxbase-sdk, @nimbleflux/fluxbase-sdk-react)"
+echo "  - web/bun.lockb"
+echo "  - fluxbase/functions/deno.json (@nimbleflux/fluxbase-sdk)"

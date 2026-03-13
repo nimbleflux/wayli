@@ -5,7 +5,7 @@
  * Uses WebSocket-based streaming for real-time chat interactions.
  */
 
-import { FluxbaseAIChat, type AIChatOptions } from '@fluxbase/sdk';
+import { FluxbaseAIChat, type AIChatOptions } from '@nimbleflux/fluxbase-sdk';
 import { fluxbase } from '$lib/fluxbase';
 import { config } from '$lib/config';
 

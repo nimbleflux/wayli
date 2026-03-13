@@ -149,7 +149,7 @@ cd ../../web
 npm install
 
 # Install Fluxbase SDK
-npm install @fluxbase/sdk
+npm install @nimbleflux/fluxbase-sdk
 
 # Update environment
 cat > .env.development.local <<EOF
@@ -305,7 +305,7 @@ docker network prune -f
 
 # 1. Use specific versions (not :latest)
 fluxbase:
-  image: ghcr.io/fluxbase-eu/fluxbase:v1.2.3
+  image: ghcr.io/nimbleflux/fluxbase:v1.2.3
 
 # 2. Resource limits
   deploy:
@@ -350,7 +350,7 @@ fluxbase:
 See the migration guide in `/fluxbase-row-filtering-spec.md` for detailed instructions.
 
 **Summary**:
-1. Replace `@supabase/supabase-js` with `@fluxbase/sdk`
+1. Replace `@supabase/supabase-js` with `@nimbleflux/fluxbase-sdk`
 2. Update client initialization
 3. Add `.execute()` to database queries
 4. Update environment variables
@@ -376,7 +376,7 @@ docker compose -f docker-compose.fluxbase.yml exec -T postgres \
 ## Support
 
 - **Fluxbase Docs**: https://fluxbase.eu/docs
-- **GitHub**: https://github.com/wayli-app/fluxbase
+- **GitHub**: https://github.com/nimbleflux/fluxbase
 - **Discord**: https://discord.gg/BXPRHkQzkA
 
 ## License

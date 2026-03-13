@@ -1,9 +1,9 @@
 // Settings type definitions for Fluxbase AppSettingsManager
 
-import type { EmailProviderSettings } from '@fluxbase/sdk';
+import type { EmailProviderSettings } from '@nimbleflux/fluxbase-sdk';
 
 // Re-export SDK email types for use in the app
-export type { EmailProviderSettings, UpdateEmailProviderSettingsRequest } from '@fluxbase/sdk';
+export type { EmailProviderSettings, UpdateEmailProviderSettingsRequest } from '@nimbleflux/fluxbase-sdk';
 
 /**
  * Public server settings - returned by server-settings endpoint

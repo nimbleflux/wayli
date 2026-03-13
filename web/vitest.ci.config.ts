@@ -59,8 +59,8 @@ export default defineConfig({
 			$utils: path.resolve(__dirname, './src/lib/utils'),
 			$services: path.resolve(__dirname, './src/lib/services'),
 			$types: path.resolve(__dirname, './src/lib/types'),
-			// Alias @fluxbase/sdk to mock for CI - ensures tests work regardless of npm install
-			'@fluxbase/sdk': path.resolve(__dirname, './tests/mocks/fluxbase-sdk.ts')
+			// Alias @nimbleflux/fluxbase-sdk to mock for CI - ensures tests work regardless of npm install
+			'@nimbleflux/fluxbase-sdk': path.resolve(__dirname, './tests/mocks/fluxbase-sdk.ts')
 		}
 	}
 });

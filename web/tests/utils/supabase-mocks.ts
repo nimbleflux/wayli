@@ -1,5 +1,5 @@
 // web/tests/utils/fluxbase-mocks.ts
-import type { FluxbaseClient } from '@fluxbase/sdk';
+import type { FluxbaseClient } from '@nimbleflux/fluxbase-sdk';
 
 type TableApi = {
 	select: ReturnType<typeof vi.fn>;

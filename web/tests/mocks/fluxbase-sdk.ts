@@ -1,5 +1,5 @@
 /**
- * Mock implementation of @fluxbase/sdk for CI testing
+ * Mock implementation of @nimbleflux/fluxbase-sdk for CI testing
  * This file is used as an alias in vitest.ci.config.ts to ensure
  * tests work even if the npm package isn't properly installed
  */

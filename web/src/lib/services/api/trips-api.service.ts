@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { errorHandler, ErrorCode } from '../error-handler.service';
 import { getTripsService } from '../service-layer-adapter';
 
-import type { FluxbaseClient } from '@fluxbase/sdk';
+import type { FluxbaseClient } from '@nimbleflux/fluxbase-sdk';
 
 // Validation schemas
 const createTripSchema = z.object({

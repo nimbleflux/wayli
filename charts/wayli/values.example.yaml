@@ -46,7 +46,7 @@ httpRoute:
 #     nginx.ingress.kubernetes.io/ssl-redirect: 'true'
 
 ## Fluxbase dependency configuration
-## See: https://github.com/fluxbase-eu/fluxbase for full configuration options
+## See: https://github.com/nimbleflux/fluxbase for full configuration options
 fluxbase:
   global:
     storageClass: "local-storage"

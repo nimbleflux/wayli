@@ -51,7 +51,7 @@ ENV PATH=/home/$USERNAME/.bun/bin:$PATH
 
 # Install Fluxbase CLI for resource synchronization
 ARG FLUXBASE_CLI_VERSION=v2026.3.5
-RUN curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- ${FLUXBASE_CLI_VERSION:-latest}
+RUN curl -fsSL https://raw.githubusercontent.com/nimbleflux/fluxbase/main/install-cli.sh | bash -s -- ${FLUXBASE_CLI_VERSION:-latest}
 
 # Set up non-root user
 ARG USERNAME=node

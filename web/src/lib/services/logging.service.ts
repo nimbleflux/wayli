@@ -42,7 +42,7 @@ class LoggingService {
 	constructor(config: Partial<LogConfig> = {}) {
 		this.config = {
 			level: LogLevel.INFO,
-			service: 'wayli-app',
+			service: 'nimbleflux',
 			version: process.env.npm_package_version || '1.0.0',
 			enableConsole: true,
 			enableDatabase: false,
@@ -394,7 +394,7 @@ class LoggingService {
 // Export singleton instance
 export const logger = new LoggingService({
 	level: process.env.NODE_ENV === 'development' ? LogLevel.DEBUG : LogLevel.INFO,
-	service: 'wayli-app',
+	service: 'nimbleflux',
 	version: process.env.npm_package_version || '1.0.0',
 	enableConsole: true,
 	enableDatabase: process.env.NODE_ENV === 'production',

@@ -56,4 +56,4 @@ jobs:
 
       - name: Build app
         working-directory: web
-        run: bun run build --if-present
+        run: bun run build

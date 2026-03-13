@@ -4,10 +4,10 @@
 # Wayli
 </div>
 
-[![CI](https://github.com/wayli-app/wayli/actions/workflows/ci.yml/badge.svg)](https://github.com/wayli-app/wayli/actions/workflows/ci.yml)
-[![Release](https://github.com/wayli-app/wayli/actions/workflows/release.yml/badge.svg)](https://github.com/wayli-app/wayli/actions/workflows/release.yml)
+[![CI](https://github.com/nimbleflux/wayli/actions/workflows/ci.yml/badge.svg)](https://github.com/nimbleflux/wayli/actions/workflows/ci.yml)
+[![Release](https://github.com/nimbleflux/wayli/actions/workflows/release.yml/badge.svg)](https://github.com/nimbleflux/wayli/actions/workflows/release.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
-[![Version](https://img.shields.io/github/v/release/wayli-app/wayli)](https://github.com/wayli-app/wayli/releases)
+[![Version](https://img.shields.io/github/v/release/nimbleflux/wayli)](https://github.com/nimbleflux/wayli/releases)
 
 Privacy-first location tracking and trip analysis. Self-hosted, no third-party data sharing.
 
@@ -50,7 +50,7 @@ docker compose up -d
 
 **Kubernetes (Helm):**
 ```bash
-helm install wayli oci://ghcr.io/wayli-app/charts/wayli -n wayli --create-namespace
+helm install wayli oci://ghcr.io/nimbleflux/charts/wayli -n wayli --create-namespace
 ```
 
 See the [Deployment Guide](deploy/README.md) for detailed instructions.

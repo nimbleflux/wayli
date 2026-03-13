@@ -16,7 +16,7 @@ Thank you for your interest in contributing to Wayli! This guide will help you g
 1. **Fork and Clone**
 
    ```bash
-   git clone https://github.com/wayli-app/wayli.git
+   git clone https://github.com/nimbleflux/wayli.git
    cd wayli/web
    ```
 

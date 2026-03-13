@@ -35,7 +35,7 @@ services:
   #     - fluxbase
   # ============================================================================
   fluxbase:
-    image: ghcr.io/fluxbase-eu/fluxbase:${FLUXBASE_VERSION:-2026.3.5}
+    image: ghcr.io/nimbleflux/fluxbase:${FLUXBASE_VERSION:-2026.3.5}
     container_name: fluxbase
     depends_on:
       postgres:
@@ -70,7 +70,7 @@ services:
       - fluxbase-network
 
   postgres:
-    image: ghcr.io/fluxbase-eu/fluxbase-postgres:18
+    image: ghcr.io/nimbleflux/fluxbase-postgres:18
     # Or build locally: build: ./postgres
     container_name: fluxbase-postgres
     environment:

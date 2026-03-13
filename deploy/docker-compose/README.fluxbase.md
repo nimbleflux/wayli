@@ -305,7 +305,7 @@ docker network prune -f
 
 # 1. Use specific versions (not :latest)
 fluxbase:
-  image: ghcr.io/fluxbase-eu/fluxbase:v1.2.3
+  image: ghcr.io/nimbleflux/fluxbase:v1.2.3
 
 # 2. Resource limits
   deploy:
@@ -376,7 +376,7 @@ docker compose -f docker-compose.fluxbase.yml exec -T postgres \
 ## Support
 
 - **Fluxbase Docs**: https://fluxbase.eu/docs
-- **GitHub**: https://github.com/wayli-app/fluxbase
+- **GitHub**: https://github.com/nimbleflux/fluxbase
 - **Discord**: https://discord.gg/BXPRHkQzkA
 
 ## License

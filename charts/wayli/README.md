@@ -39,20 +39,20 @@ kubectl apply -f wayli-secrets.yaml -n wayli
 
 ```bash
 # Install with default values
-helm install wayli oci://ghcr.io/wayli-app/charts/wayli -n wayli
+helm install wayli oci://ghcr.io/nimbleflux/charts/wayli -n wayli
 
 # Install with custom values
-helm install wayli oci://ghcr.io/wayli-app/charts/wayli -n wayli -f custom-values.yaml
+helm install wayli oci://ghcr.io/nimbleflux/charts/wayli -n wayli -f custom-values.yaml
 
 # Install a specific version
-helm install wayli oci://ghcr.io/wayli-app/charts/wayli --version 1.2.3 -n wayli
+helm install wayli oci://ghcr.io/nimbleflux/charts/wayli --version 1.2.3 -n wayli
 ```
 
 ### Option B: Install from Helm Repository
 
 ```bash
 # Add the Wayli Helm repository
-helm repo add wayli https://wayli-app.github.io/wayli
+helm repo add wayli https://nimbleflux.github.io/wayli
 helm repo update
 
 # Install with default values
@@ -70,7 +70,7 @@ The following table lists the main configurable parameters of the Wayli chart an
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `image.repository` | Wayli image repository | `ghcr.io/wayli-app/wayli` |
+| `image.repository` | Wayli image repository | `ghcr.io/nimbleflux/wayli` |
 | `image.tag` | Wayli image tag (overrides Chart.yaml appVersion) | `""` |
 | `image.pullPolicy` | Image pull policy | `IfNotPresent` |
 | `web.enabled` | Enable web deployment | `true` |
@@ -206,13 +206,13 @@ Options for Fluxbase deployment:
 **OCI Registry:**
 ```bash
 # Upgrade to latest version
-helm upgrade wayli oci://ghcr.io/wayli-app/charts/wayli -n wayli
+helm upgrade wayli oci://ghcr.io/nimbleflux/charts/wayli -n wayli
 
 # Upgrade to specific version
-helm upgrade wayli oci://ghcr.io/wayli-app/charts/wayli --version 1.2.3 -n wayli
+helm upgrade wayli oci://ghcr.io/nimbleflux/charts/wayli --version 1.2.3 -n wayli
 
 # Upgrade with custom values
-helm upgrade wayli oci://ghcr.io/wayli-app/charts/wayli -n wayli -f custom-values.yaml
+helm upgrade wayli oci://ghcr.io/nimbleflux/charts/wayli -n wayli -f custom-values.yaml
 ```
 
 **Helm Repository:**
@@ -258,9 +258,9 @@ This Helm chart is automatically versioned and released via GitHub Actions:
 - **Docker Images**: Tagged with semantic versions (e.g., `v0.0.1`)
 
 Available versions:
-- [Helm Chart (OCI)](https://github.com/wayli-app/wayli/pkgs/container/charts%2Fwayli) - `oci://ghcr.io/wayli-app/charts/wayli`
-- [Helm Chart Releases](https://github.com/wayli-app/wayli/releases) - GitHub Pages repository
-- [Docker Images](https://github.com/wayli-app/wayli/pkgs/container/wayli) - `ghcr.io/wayli-app/wayli`
+- [Helm Chart (OCI)](https://github.com/nimbleflux/wayli/pkgs/container/charts%2Fwayli) - `oci://ghcr.io/nimbleflux/charts/wayli`
+- [Helm Chart Releases](https://github.com/nimbleflux/wayli/releases) - GitHub Pages repository
+- [Docker Images](https://github.com/nimbleflux/wayli/pkgs/container/wayli) - `ghcr.io/nimbleflux/wayli`
 
 ## Examples
 
@@ -355,9 +355,9 @@ curl http://wayli-web
 ## Support
 
 For issues and questions:
-- [GitHub Issues](https://github.com/wayli-app/wayli/issues)
-- [Documentation](https://github.com/wayli-app/wayli)
-- [Helm Chart Repository](https://wayli-app.github.io/wayli)
+- [GitHub Issues](https://github.com/nimbleflux/wayli/issues)
+- [Documentation](https://github.com/nimbleflux/wayli)
+- [Helm Chart Repository](https://nimbleflux.github.io/wayli)
 
 ## Contributing
 

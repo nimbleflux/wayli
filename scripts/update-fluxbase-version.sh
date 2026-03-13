@@ -28,7 +28,7 @@ sed -i '' "s|ARG FLUXBASE_CLI_VERSION=v[0-9a-zA-Z.-]*|ARG FLUXBASE_CLI_VERSION=v
 
 # Update deploy/docker-compose/docker-compose.yml
 echo "Updating deploy/docker-compose/docker-compose.yml..."
-sed -i '' "s|ghcr.io/fluxbase-eu/fluxbase:[0-9a-zA-Z.-]*|ghcr.io/fluxbase-eu/fluxbase:$NEW_VERSION|g" "$ROOT_DIR/deploy/docker-compose/docker-compose.yml"
+sed -i '' "s|ghcr.io/nimbleflux/fluxbase:[0-9a-zA-Z.-]*|ghcr.io/nimbleflux/fluxbase:$NEW_VERSION|g" "$ROOT_DIR/deploy/docker-compose/docker-compose.yml"
 
 # Update charts/wayli/Chart.yaml
 echo "Updating charts/wayli/Chart.yaml..."

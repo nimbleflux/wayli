@@ -24,12 +24,12 @@ The Helm chart provides a production-ready Kubernetes deployment with automatic 
 
 **Quick Start (OCI - Recommended):**
 ```bash
-helm install wayli oci://ghcr.io/wayli-app/charts/wayli -n wayli --create-namespace
+helm install wayli oci://ghcr.io/nimbleflux/charts/wayli -n wayli --create-namespace
 ```
 
 **Alternative (Helm Repository):**
 ```bash
-helm repo add wayli https://wayli-app.github.io/wayli
+helm repo add wayli https://nimbleflux.github.io/wayli
 helm repo update
 helm install wayli wayli/wayli -n wayli --create-namespace
 ```
@@ -47,7 +47,7 @@ Both deployment methods require:
 ## Updates
 
 Both deployment methods support semantic versioning:
-- Docker images: `ghcr.io/wayli-app/wayli:v1.2.3`, `ghcr.io/wayli-app/wayli:latest`
+- Docker images: `ghcr.io/nimbleflux/wayli:v1.2.3`, `ghcr.io/nimbleflux/wayli:latest`
 - Helm chart: Automatically tracks application versions
 
 To update to the latest version:
@@ -69,4 +69,4 @@ helm upgrade wayli wayli/wayli -n wayli
 For issues or questions:
 - Docker Compose: See [docker-compose/README.md](docker-compose/README.md)
 - Kubernetes: See [charts/wayli/README.md](../charts/wayli/README.md)
-- General: [GitHub Issues](https://github.com/wayli-app/wayli/issues)
+- General: [GitHub Issues](https://github.com/nimbleflux/wayli/issues)

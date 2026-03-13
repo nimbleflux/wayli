@@ -20,7 +20,7 @@ secrets:
 
 ## Image configuration
 image:
-  repository: ghcr.io/wayli-app/wayli
+  repository: ghcr.io/nimbleflux/wayli
   pullPolicy: IfNotPresent
   tag: ""  # Defaults to .Chart.AppVersion
   ## Optional image pull secrets
@@ -290,7 +290,7 @@ serviceAccount:
   automountServiceAccountToken: true
 
 ## Fluxbase dependency configuration
-## See: https://github.com/fluxbase-eu/fluxbase for full configuration options
+## See: https://github.com/nimbleflux/fluxbase for full configuration options
 fluxbase:
   enabled: true
 
@@ -303,7 +303,7 @@ fluxbase:
   ## Fluxbase image
   image:
     registry: ghcr.io
-    repository: fluxbase-eu/fluxbase
+    repository: nimbleflux/fluxbase
     tag: ""
     pullPolicy: IfNotPresent
 
@@ -669,7 +669,7 @@ fluxbase:
       existingSecret: ""
     image:
       registry: ghcr.io
-      repository: fluxbase-eu/fluxbase-postgres
+      repository: nimbleflux/fluxbase-postgres
       pullPolicy: IfNotPresent
     persistence:
       enabled: true

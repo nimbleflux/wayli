@@ -48,7 +48,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Set FLUXBASE_CLI_VERSION to 'local' to use a pre-built CLI from ./bin/fluxbase
 # Otherwise, installs from GitHub release (e.g., 'latest' or 'v0.0.1-rc.112')
 ARG FLUXBASE_CLI_VERSION=v2026.3.5
-RUN curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- ${FLUXBASE_CLI_VERSION}
+RUN curl -fsSL https://raw.githubusercontent.com/nimbleflux/fluxbase/main/install-cli.sh | bash -s -- ${FLUXBASE_CLI_VERSION}
 
 WORKDIR /app
 

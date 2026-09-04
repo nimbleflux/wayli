@@ -298,6 +298,11 @@ class HomeViewModel @Inject constructor(
                 val pointRows = pointsResult.getOrNull().orEmpty()
 
                 if (dailyResult.isFailure && pointsResult.isFailure && countriesResult.isFailure) {
+                    // A 401-shaped failure must be adjudicated before it is
+                    // treated as a transient blip — the same rule as load().
+                    if (adjudicateWindowAuth(listOf(dailyResult, pointsResult, countriesResult))) {
+                        return@launch
+                    }
                     // Keep the previous numbers on screen — zeroing them out
                     // on a flaky connection would look like lost data.
                     _windowError.value = true
@@ -336,6 +341,35 @@ class HomeViewModel @Inject constructor(
             } finally {
                 _windowLoading.value = false
             }
+        }
+    }
+
+    /**
+     * Adjudicates a session-dead-shaped stats-window failure — the same rule
+     * as [load]: only a double-confirmed refresh rejection (DEAD) ends the
+     * session (the arbiter fires the expiry bus, which routes to sign-in).
+     * Returns true when the verdict was handled (DEAD surfaced, RECOVERED
+     * reloaded the window); false for TRANSIENT, where the caller keeps the
+     * previous numbers with the connectivity-style banner.
+     */
+    private suspend fun adjudicateWindowAuth(failures: List<kotlin.Result<*>>): Boolean {
+        val deadCandidate = failures.firstNotNullOfOrNull { it.exceptionOrNull() }
+            ?.takeIf { io.github.nimbleflux.wayli.session.isSessionDeadError(it) } ?: return false
+        return when (sessionArbiter.adjudicate("home:window", deadCandidate)) {
+            io.github.nimbleflux.wayli.session.SessionArbiter.Verdict.DEAD -> {
+                sessionDead = true
+                _uiState.value = HomeUiState.Error("Session expired — please sign in again")
+                true
+            }
+            io.github.nimbleflux.wayli.session.SessionArbiter.Verdict.RECOVERED -> {
+                // The refresh just rotated the token — retry the window
+                // with the working session.
+                loadWindow()
+                true
+            }
+            // Transient (network/5xx): connectivity-style failure, not a
+            // dead session — the banner is the honest message.
+            io.github.nimbleflux.wayli.session.SessionArbiter.Verdict.TRANSIENT -> false
         }
     }
 

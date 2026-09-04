@@ -47,7 +47,16 @@ class TripRepository @Inject constructor(
                     .select()
                     .eq("id", tripId)
                     .single()
-                result.data ?: throw Exception("Trip not found")
+                // Propagate the real error: a 401 or transport failure must
+                // reach CacheStore's adjudication — masking it here would
+                // surface a dead session as "Trip not found". `single()`
+                // never returns data-without-error; a missing row arrives as
+                // PostgREST's PGRST116, the one error that means "not found".
+                val error = result.error
+                result.data ?: throw when {
+                    error == null || error.code == "PGRST116" -> Exception("Trip not found")
+                    else -> error
+                }
             }
         }
 

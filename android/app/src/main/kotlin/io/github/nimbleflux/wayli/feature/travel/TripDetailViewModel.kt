@@ -124,7 +124,16 @@ class TripDetailViewModel @Inject constructor(
                         loadTrack(trip)
                     }
                     .onFailure {
-                        _state.value = TripDetailUiState.Error(it.message ?: "Failed to load trip")
+                        // A dead session shows its own message — the expiry
+                        // bus (fired by the arbiter in withCache) performs
+                        // the sign-in routing while this is on screen.
+                        _state.value = TripDetailUiState.Error(
+                            if (io.github.nimbleflux.wayli.session.isSessionDeadError(it)) {
+                                "Session expired — please sign in again"
+                            } else {
+                                it.message ?: "Failed to load trip"
+                            },
+                        )
                     }
                 mediaDeferred.await()
             }

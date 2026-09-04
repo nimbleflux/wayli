@@ -49,15 +49,23 @@ interface PendingPointDao {
     @Query("DELETE FROM pending_points WHERE id IN (:ids)")
     suspend fun deleteByIds(ids: List<Long>)
 
-    /** Drop points that failed too many uploads so the queue can't clog. */
+    /** Drop points that failed too many uploads so the queue can't clog. Returns the deleted count. */
     @Query("DELETE FROM pending_points WHERE attempts >= :maxAttempts")
-    suspend fun dropExhausted(maxAttempts: Int)
+    suspend fun dropExhausted(maxAttempts: Int): Int
 
     @Query("UPDATE pending_points SET attempts = attempts + 1 WHERE id IN (:ids)")
     suspend fun bumpAttempts(ids: List<Long>)
 
     @Query("SELECT COUNT(*) FROM pending_points")
     suspend fun count(): Int
+
+    /** Live queue depth for the tracking-diagnostics surface. */
+    @Query("SELECT COUNT(*) FROM pending_points")
+    fun observeCount(): kotlinx.coroutines.flow.Flow<Int>
+
+    /** When the oldest still-queued point was captured — a large age means uploads are stuck. */
+    @Query("SELECT MIN(created_at_ms) FROM pending_points")
+    suspend fun oldestCreatedAtMs(): Long?
 
     @Query("DELETE FROM pending_points")
     suspend fun clear()

@@ -104,10 +104,20 @@ class NotificationsViewModel @Inject constructor(
             }
             return
         }
+        val userId = client.auth.currentSession?.user?.id ?: return
+        val now = java.time.Instant.now().toString()
         _notifications.value = _notifications.value.map {
-            if (it.id == notification.id) it.copy(readAt = "now") else it
+            if (it.id == notification.id) it.copy(readAt = now) else it
         }
-        viewModelScope.launch(Dispatchers.IO) { repo.markRead(notification.id) }
+        viewModelScope.launch(Dispatchers.IO) {
+            repo.markRead(userId, notification.id).onFailure {
+                // The write didn't land (cancelled on back, offline, auth) —
+                // revert so the list doesn't lie about the server state.
+                _notifications.value = _notifications.value.map {
+                    if (it.id == notification.id) it.copy(readAt = null) else it
+                }
+            }
+        }
     }
 
     fun markAllRead() {
@@ -115,9 +125,14 @@ class NotificationsViewModel @Inject constructor(
             _notifications.value = _notifications.value.map { it.copy(readAt = "now") }
             return
         }
-        _notifications.value = _notifications.value.map { it.copy(readAt = "now") }
         val userId = client.auth.currentSession?.user?.id ?: return
-        viewModelScope.launch(Dispatchers.IO) { repo.markAllRead(userId) }
+        val now = java.time.Instant.now().toString()
+        _notifications.value = _notifications.value.map { it.copy(readAt = now) }
+        viewModelScope.launch(Dispatchers.IO) {
+            repo.markAllRead(userId).onFailure {
+                _notifications.value = _notifications.value.map { it.copy(readAt = null) }
+            }
+        }
     }
 }
 

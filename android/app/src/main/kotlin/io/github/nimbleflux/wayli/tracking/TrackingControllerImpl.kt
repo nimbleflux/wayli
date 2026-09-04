@@ -49,6 +49,7 @@ class TrackingControllerImpl @Inject constructor(
     private val configStore: TrackingConfigStore,
     private val activityDriver: ActivityRecognitionDriver,
     private val resumeTrigger: StationaryResumeTrigger,
+    private val diagnostics: io.github.nimbleflux.wayli.repo.TrackingDiagnosticsRepository,
 ) : TrackingController {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -64,11 +65,16 @@ class TrackingControllerImpl @Inject constructor(
             provider.startUpdates(config).collect { point ->
                 if (passesBatteryRules(config)) {
                     dao.insert(point.toEntity(config))
+                    diagnostics.onPointsCaptured(1)
                     scheduleUpload()
                     maybePauseWhenStationary(point, config)
                 }
             }
         }
+    }
+
+    override fun syncNow() {
+        scheduleUpload()
     }
 
     override fun onServiceStopped() {

@@ -3,10 +3,10 @@ package io.github.nimbleflux.wayli.repo
 import io.github.nimbleflux.fluxbase.FluxbaseClient
 import io.github.nimbleflux.fluxbase.from
 import io.github.nimbleflux.wayli.models.Notification
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
+import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.serialization.builtins.ListSerializer
 
 /**
  * The `notifications` table (owner-private via RLS) — job completions,
@@ -36,28 +36,45 @@ class NotificationRepository @Inject constructor(
     suspend fun unreadCount(userId: String): Int =
         list(userId).getOrDefault(emptyList()).count { it.readAt == null }
 
-    suspend fun markRead(id: String): Result<Unit> = runCatching {
-        client.from<Notification>("notifications")
+    /**
+     * Mark one notification read and mirror the change into the Room cache.
+     * The cache is serve-stale, so without this a later failed refetch would
+     * resurrect the unread row on screen. Mutations return HTTP errors
+     * in-band (never throw) — surface them instead of swallowing, or a failed
+     * write is indistinguishable from a successful one.
+     */
+    suspend fun markRead(userId: String, id: String): Result<Unit> = runCatching {
+        val now = nowIso()
+        val result = client.from<Notification>("notifications")
             .eq("id", id)
-            .update(mapOf("read_at" to nowIso()))
+            .update(mapOf("read_at" to now))
+        result.error?.let { throw it }
+        updateCache(userId) { if (it.id == id) it.copy(readAt = now) else it }
     }
 
-    /** Best-effort bulk read — loops the unread ids (no bulk-null filter needed). */
+    /**
+     * Mark ALL unread rows read in a single UPDATE (`read_at IS NULL`),
+     * instead of one PATCH per id — same call shape as the web client.
+     */
     suspend fun markAllRead(userId: String): Result<Unit> = runCatching {
-        val unread = list(userId).getOrDefault(emptyList()).filter { it.readAt == null }
-        unread.forEach { n ->
-            runCatching {
-                client.from<Notification>("notifications")
-                    .eq("id", n.id)
-                    .update(mapOf("read_at" to nowIso()))
-            }
-        }
+        val now = nowIso()
+        val result = client.from<Notification>("notifications")
+            .eq("user_id", userId)
+            .is_("read_at", null)
+            .update(mapOf("read_at" to now))
+        result.error?.let { throw it }
+        updateCache(userId) { if (it.readAt == null) it.copy(readAt = now) else it }
     }
 
     suspend fun delete(id: String): Result<Unit> = runCatching {
-        client.from<Notification>("notifications").eq("id", id).delete()
+        val result = client.from<Notification>("notifications").eq("id", id).delete()
+        result.error?.let { throw it }
     }
 
-    private fun nowIso(): String =
-        LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) + "Z"
+    private suspend fun updateCache(userId: String, transform: (Notification) -> Notification) {
+        cache.get("notifications:$userId", ListSerializer(Notification.serializer()))
+            ?.let { cached -> cache.put("notifications:$userId", cached.map(transform), ListSerializer(Notification.serializer())) }
+    }
+
+    private fun nowIso(): String = Instant.now().toString()
 }

@@ -31,6 +31,7 @@ class GpsUploadWorker @AssistedInject constructor(
     private val dao: PendingPointDao,
     private val deviceTokenStore: DeviceTokenStore,
     private val instanceManager: InstanceManager,
+    private val diagnostics: io.github.nimbleflux.wayli.repo.TrackingDiagnosticsRepository,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
@@ -45,7 +46,11 @@ class GpsUploadWorker @AssistedInject constructor(
     }
 
     private suspend fun drain(endpoint: String, token: String): Result {
-        dao.dropExhausted(MAX_ATTEMPTS)
+        // Points that exhausted their attempts are gone for good — count them
+        // so the diagnostics surface can show the loss instead of hiding it.
+        val dropped = dao.dropExhausted(MAX_ATTEMPTS)
+        if (dropped > 0) diagnostics.onPointsDropped(dropped)
+
         val batch = dao.takeBatch(BATCH_SIZE)
         if (batch.isEmpty()) return Result.success()
 
@@ -54,17 +59,31 @@ class GpsUploadWorker @AssistedInject constructor(
             OwnTracksPayloadMapper.toPayload(batch),
         )
 
-        return when (postPoints(endpoint, token, payload)) {
+        val outcome = when (val post = postPoints(endpoint, token, payload)) {
             is PostResult.Success -> {
                 dao.deleteByIds(batch.map { it.id })
-                // More queued? Run again immediately drains the next batch.
-                if (batch.size == BATCH_SIZE) Result.retry() else Result.success()
+                "ok" to post.code
             }
             is PostResult.Retryable -> {
                 dao.bumpAttempts(batch.map { it.id })
-                if (runAttemptCount < MAX_RUN_ATTEMPTS) Result.retry() else Result.failure()
+                "retry" to post.code
             }
-            is PostResult.Fatal -> Result.failure()
+            is PostResult.Fatal -> "fatal" to post.code
+        }
+        diagnostics.logUpload(
+            io.github.nimbleflux.wayli.repo.UploadLogEntry(
+                atMs = System.currentTimeMillis(),
+                batch = batch.size,
+                outcome = outcome.first,
+                httpCode = outcome.second,
+                queuedAfter = dao.count(),
+            ),
+        )
+
+        return when (outcome.first) {
+            "ok" -> if (batch.size == BATCH_SIZE) Result.retry() else Result.success()
+            "retry" -> if (runAttemptCount < MAX_RUN_ATTEMPTS) Result.retry() else Result.failure()
+            else -> Result.failure()
         }
     }
 
@@ -84,21 +103,21 @@ class GpsUploadWorker @AssistedInject constructor(
             }
             connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
             when (val code = connection.responseCode) {
-                in 200..299 -> PostResult.Success
-                401, 403, 400, 404 -> PostResult.Fatal // bad token/payload — retrying won't help
-                else -> PostResult.Retryable
+                in 200..299 -> PostResult.Success(code)
+                401, 403, 400, 404 -> PostResult.Fatal(code) // bad token/payload — retrying won't help
+                else -> PostResult.Retryable(code)
             }
         } catch (e: Exception) {
-            PostResult.Retryable // network error — backoff and retry
+            PostResult.Retryable(null) // network error — backoff and retry
         } finally {
             connection?.disconnect()
         }
     }
 
     private sealed class PostResult {
-        object Success : PostResult()
-        object Retryable : PostResult()
-        object Fatal : PostResult()
+        data class Success(val code: Int) : PostResult()
+        data class Retryable(val code: Int?) : PostResult()
+        data class Fatal(val code: Int) : PostResult()
     }
 
     companion object {

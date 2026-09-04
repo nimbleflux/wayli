@@ -45,6 +45,20 @@ object RepositoryModule {
 
     @Provides
     @Singleton
+    fun provideMetadataDao(db: WayliDatabase): io.github.nimbleflux.wayli.db.MetadataDao =
+        db.metadataDao()
+
+    @Provides
+    @Singleton
+    fun provideTrackingDiagnosticsRepository(
+        pendingPointDao: PendingPointDao,
+        metadataDao: io.github.nimbleflux.wayli.db.MetadataDao,
+        client: FluxbaseClient,
+    ): TrackingDiagnosticsRepository =
+        TrackingDiagnosticsRepository(pendingPointDao, metadataDao, client)
+
+    @Provides
+    @Singleton
     fun provideDraftRepository(dao: io.github.nimbleflux.wayli.db.DraftEntryDao): DraftRepository =
         DraftRepository(dao)
 

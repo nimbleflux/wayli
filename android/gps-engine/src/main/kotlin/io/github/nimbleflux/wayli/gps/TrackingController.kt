@@ -16,4 +16,7 @@ interface TrackingController {
 
     /** Stop collecting. Called from the service's onDestroy. */
     fun onServiceStopped()
+
+    /** Force an upload attempt now (ignores the network backoff schedule). */
+    fun syncNow()
 }

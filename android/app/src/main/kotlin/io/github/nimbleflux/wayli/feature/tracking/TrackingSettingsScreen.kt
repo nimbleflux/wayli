@@ -45,7 +45,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.github.nimbleflux.fluxbase.FluxbaseClient
 import io.github.nimbleflux.wayli.designsystem.SliderRow
 import io.github.nimbleflux.wayli.designsystem.SwitchRow
 import io.github.nimbleflux.wayli.designsystem.WayliSectionCard
@@ -54,6 +56,8 @@ import io.github.nimbleflux.wayli.gps.TrackingConfig
 import io.github.nimbleflux.wayli.gps.TrackingConfigStore
 import io.github.nimbleflux.wayli.gps.TrackingMode
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * Tracking settings — mobile-native design with segmented buttons, sliders,
@@ -252,20 +256,176 @@ fun TrackingSettingsScreen(
                 }
             }
 
+            // Data & sync — is tracking data flowing, and where is it stuck?
+            DataSyncCard(
+                diag = viewModel.diagnostics,
+                onSyncNow = { viewModel.syncNow() },
+            )
+
             Spacer(Modifier.height(io.github.nimbleflux.wayli.designsystem.rememberDockClearance()))
         }
     }
 }
 
+@Composable
+private fun DataSyncCard(
+    diag: TrackingSettingsViewModel.Diagnostics,
+    onSyncNow: () -> Unit,
+) {
+    WayliSectionCard(title = "Data & sync") {
+        DiagRow("Points on server", diag.serverPoints?.let { "%,d".format(it) } ?: "—")
+        DiagRow(
+            "Queued for upload",
+            buildString {
+                append("%,d".format(diag.queued))
+                diag.oldestQueuedAtMs?.takeIf { diag.queued > 0 }?.let { append(" · oldest ${ageLabel(it)}") }
+            },
+        )
+        DiagRow("Captured today", "%,d".format(diag.capturedToday))
+        DiagRow("Captured (total)", "%,d".format(diag.capturedTotal))
+        if (diag.droppedTotal > 0) {
+            DiagRow("Dropped (failed uploads)", "%,d".format(diag.droppedTotal))
+        }
+        DiagRow(
+            "Last accepted by server",
+            diag.lastAcceptedAt?.let { formatTimestamp(it) } ?: "—",
+        )
+        diag.log.firstOrNull()?.let { last ->
+            DiagRow(
+                "Last upload",
+                "${last.outcome} · ${last.batch} pts" + (last.httpCode?.let { " · HTTP $it" } ?: ""),
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        androidx.compose.material3.OutlinedButton(
+            onClick = onSyncNow,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Sync now") }
+
+        if (diag.log.size > 1) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Recent uploads",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            diag.log.take(5).forEach { entry ->
+                Text(
+                    "${formatLogTime(entry.atMs)} · ${entry.outcome}" +
+                        (entry.httpCode?.let { " · HTTP $it" } ?: "") +
+                        " · ${entry.batch} pts",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DiagRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+private fun ageLabel(fromMs: Long): String {
+    val minutes = (System.currentTimeMillis() - fromMs) / 60_000
+    return when {
+        minutes < 1 -> "just now"
+        minutes < 60 -> "${minutes}min ago"
+        minutes < 1440 -> "${minutes / 60}h ago"
+        else -> "${minutes / 1440}d ago"
+    }
+}
+
+private fun formatLogTime(atMs: Long): String =
+    java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(atMs))
+
+private fun formatTimestamp(iso: String): String = runCatching {
+    java.time.format.DateTimeFormatter.ofPattern("MMM d, HH:mm", java.util.Locale.getDefault())
+        .withZone(java.time.ZoneId.systemDefault())
+        .format(java.time.Instant.parse(iso))
+}.getOrDefault(iso)
+
 @HiltViewModel
 class TrackingSettingsViewModel @Inject constructor(
     private val store: TrackingConfigStore,
+    private val controller: io.github.nimbleflux.wayli.gps.TrackingController,
+    private val diagnosticsRepo: io.github.nimbleflux.wayli.repo.TrackingDiagnosticsRepository,
+    private val deviceTokenRepo: io.github.nimbleflux.wayli.repo.DeviceTokenRepository,
+    private val deviceTokenStore: io.github.nimbleflux.wayli.session.DeviceTokenStore,
+    private val client: FluxbaseClient,
 ) : ViewModel() {
     var config by mutableStateOf(store.get())
         private set
 
     var statusNotification by mutableStateOf(store.statusNotificationEnabled)
         private set
+
+    /** Tracking data diagnostics for the "Data & sync" card. */
+    data class Diagnostics(
+        val queued: Int = 0,
+        val oldestQueuedAtMs: Long? = null,
+        val capturedToday: Int = 0,
+        val capturedTotal: Int = 0,
+        val droppedTotal: Int = 0,
+        val serverPoints: Long? = null,
+        val lastAcceptedAt: String? = null,
+        val log: List<io.github.nimbleflux.wayli.repo.UploadLogEntry> = emptyList(),
+    )
+
+    var diagnostics by mutableStateOf(Diagnostics())
+        private set
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            // Live queue depth — updates on screen as points are captured/uploaded.
+            diagnosticsRepo.observeQueueCount().collect { queued ->
+                diagnostics = diagnostics.copy(queued = queued)
+            }
+        }
+        refreshDiagnostics()
+    }
+
+    /** Local counters instantly; server-side numbers best-effort (network). */
+    fun refreshDiagnostics() {
+        viewModelScope.launch(Dispatchers.IO) {
+            diagnostics = diagnostics.copy(
+                oldestQueuedAtMs = diagnosticsRepo.oldestQueuedAtMs(),
+                capturedToday = diagnosticsRepo.capturedToday(),
+                capturedTotal = diagnosticsRepo.capturedTotal(),
+                droppedTotal = diagnosticsRepo.droppedTotal(),
+                log = diagnosticsRepo.uploadLog(),
+            )
+            val userId = client.auth.currentSession?.user?.id ?: return@launch
+            diagnostics = diagnostics.copy(
+                serverPoints = diagnosticsRepo.serverPointCount(userId).getOrNull(),
+                lastAcceptedAt = deviceTokenRepo.list().getOrNull()
+                    ?.firstOrNull { it.id == deviceTokenStore.tokenId }?.lastUsedAt,
+            )
+        }
+    }
+
+    /** Force an upload attempt now, then refresh the log/queue numbers. */
+    fun syncNow() {
+        controller.syncNow()
+        viewModelScope.launch(Dispatchers.IO) {
+            kotlinx.coroutines.delay(2_000)
+            refreshDiagnostics()
+        }
+    }
 
     fun update(newConfig: TrackingConfig) {
         config = newConfig

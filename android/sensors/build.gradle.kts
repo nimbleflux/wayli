@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "io.github.nimbleflux.wayli.sensors"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 26

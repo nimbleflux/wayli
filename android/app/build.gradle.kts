@@ -13,12 +13,12 @@ android {
     testOptions { unitTests { isReturnDefaultValues = true } }
 
     namespace = "io.github.nimbleflux.wayli"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.nimbleflux.wayli"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         // Release builds stamp these via -PversionName/-PversionCode
         // (see .github/workflows/release.yml publish-android).
         versionCode = providers.gradleProperty("versionCode").orNull?.toInt() ?: 1

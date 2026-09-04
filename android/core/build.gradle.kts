@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "io.github.nimbleflux.wayli.core"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 26

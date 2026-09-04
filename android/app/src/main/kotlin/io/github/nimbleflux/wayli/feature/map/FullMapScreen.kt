@@ -1,8 +1,12 @@
 package io.github.nimbleflux.wayli.feature.map
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -53,6 +57,10 @@ fun FullMapScreen(
 ) {
     val state by viewModel.state.collectAsState()
     Scaffold(
+        // Viewport reaches the screen bottom; the map extends beneath the dock.
+        contentWindowInsets = WindowInsets.systemBars.only(
+            WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+        ),
         topBar = {
             TopAppBar(
                 title = { Text("Map") },
@@ -76,6 +84,8 @@ fun FullMapScreen(
                         tracks = s.tracks,
                         zoom = 6.0,
                         controls = true,
+                        // keep the zoom buttons above the floating dock
+                        controlsBottomPadding = io.github.nimbleflux.wayli.designsystem.rememberDockClearance(),
                     )
                     // Compact legend — mode colors only appear when present.
                     val presentModes = s.tracks.map { it.color }.distinct()

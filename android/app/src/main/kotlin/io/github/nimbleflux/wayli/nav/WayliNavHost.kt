@@ -419,10 +419,8 @@ fun WayliNavHost() {
         }
     }
 
-    // The strip below the floating dock (nav-bar inset + margin) is painted by
-    // the window background, which follows the SYSTEM dark mode — a dark bar
-    // under a light theme. Paint the root with the Compose theme background so
-    // it always matches the in-app theme.
+    // The root paints the in-app theme background (the window background
+    // would follow SYSTEM dark mode instead of the in-app theme).
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -431,18 +429,10 @@ fun WayliNavHost() {
         NavHost(
             navController = navController,
             startDestination = viewModel.startRoute,
-            modifier = Modifier
-                .fillMaxSize()
-                // clear the persistent floating dock (absent on auth screens):
-                // dock surface + float margin (~96dp) plus the navigation-bar
-                // inset the dock also occupies.
-                .padding(
-                    bottom = if (isAuthRoute) {
-                        0.dp
-                    } else {
-                        WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 96.dp
-                    },
-                ),
+            modifier = Modifier.fillMaxSize(),
+            // Content is full-height: screens scroll beneath the floating
+            // dock and clear it via bottom content padding (dock clearance),
+            // not via a reserved viewport margin.
 
             enterTransition = { fadeIn(animationSpec = tween(220)) },
             exitTransition = { fadeOut(animationSpec = tween(160)) },

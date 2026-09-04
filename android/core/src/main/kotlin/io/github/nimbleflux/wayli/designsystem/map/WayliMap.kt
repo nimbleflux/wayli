@@ -38,10 +38,14 @@ import java.util.concurrent.atomic.AtomicInteger
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.fillMaxSize
 
 data class MapPoint(
     val lat: Double,
@@ -87,6 +91,12 @@ fun WayliMap(
     panEnabled: Boolean = true,
     /** Zoom +/- and reframe buttons (fullscreen maps; mini cards go without). */
     controls: Boolean = false,
+    /**
+     * Bottom offset of the [controls] row. Fullscreen maps float beneath the
+     * app's bottom dock and raise the buttons above it via
+     * `rememberDockClearance()`; the default keeps cards/hero maps untouched.
+     */
+    controlsBottomPadding: androidx.compose.ui.unit.Dp = 12.dp,
 ) {
     // MapLibre.getInstance() is called in WayliApplication.onCreate() — must
     // happen before any MapView is created.
@@ -154,7 +164,7 @@ fun WayliMap(
             Row(
                 modifier = Modifier
                     .align(androidx.compose.ui.Alignment.BottomEnd)
-                    .padding(12.dp),
+                    .padding(start = 12.dp, end = 12.dp, bottom = controlsBottomPadding),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 MapControlButton("−", contentDescription = "Zoom out") {

@@ -70,10 +70,7 @@ fun WayliBottomBar(
     ) {
         Surface(
             shape = RoundedCornerShape(28.dp),
-            // Translucent so content scrolls faintly beneath the floating
-            // dock; opaque enough that icons stay readable and the shadow
-            // (which needs a non-transparent color) still renders.
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+            color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp,
             shadowElevation = 12.dp,
         ) {

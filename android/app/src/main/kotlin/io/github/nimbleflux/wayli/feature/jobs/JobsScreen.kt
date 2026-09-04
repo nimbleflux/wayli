@@ -6,11 +6,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -240,7 +244,17 @@ fun JobsScreen(
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = {
+            SnackbarHost(
+                snackbar,
+                // stay above the floating dock
+                Modifier.padding(bottom = io.github.nimbleflux.wayli.designsystem.rememberDockClearance()),
+            )
+        },
+        // Viewport reaches the screen bottom; content scrolls beneath the dock.
+        contentWindowInsets = WindowInsets.systemBars.only(
+            WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+        ),
         topBar = {
             TopAppBar(
                 title = { Text("Jobs") },
@@ -299,7 +313,9 @@ fun JobsScreen(
                     items(jobs, key = { it.id }) { job ->
                         JobCard(job = job, onClick = { viewModel.openJob(job) })
                     }
-                    item { Spacer(Modifier.height(32.dp)) }
+                    item {
+                        Spacer(Modifier.height(io.github.nimbleflux.wayli.designsystem.rememberDockClearance()))
+                    }
                 }
             }
         }

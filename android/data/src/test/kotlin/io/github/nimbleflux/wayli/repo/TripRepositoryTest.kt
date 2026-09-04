@@ -8,6 +8,8 @@ import io.github.nimbleflux.fluxbase.core.FluxbaseHttpClient
 import io.github.nimbleflux.fluxbase.core.HttpResponse
 import io.github.nimbleflux.wayli.db.CacheDao
 import io.github.nimbleflux.wayli.db.CacheEntity
+import io.github.nimbleflux.wayli.models.Trip
+import io.github.nimbleflux.wayli.models.TripEntry
 import io.github.nimbleflux.wayli.session.SessionArbiter
 import io.github.nimbleflux.wayli.session.SessionExpiryBus
 import io.mockk.coEvery
@@ -20,6 +22,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.builtins.ListSerializer
 
 /**
  * Regression guards for [TripRepository.getTrip]'s error handling: an
@@ -33,6 +36,7 @@ class TripRepositoryTest {
     private lateinit var client: FluxbaseClient
     private lateinit var http: FluxbaseHttpClient
     private lateinit var repo: TripRepository
+    private lateinit var cache: CacheStore
 
     @BeforeTest
     fun setUp() {
@@ -46,7 +50,8 @@ class TripRepositoryTest {
             coEvery { payload(any()) } coAnswers { cacheMap[firstArg<String>()] }
             coEvery { upsert(any()) } coAnswers { cacheMap[firstArg<CacheEntity>().key] = firstArg<CacheEntity>().payload }
         }
-        repo = TripRepository(client, CacheStore(dao, SessionArbiter(client)), SessionArbiter(client))
+        cache = CacheStore(dao, SessionArbiter(client))
+        repo = TripRepository(client, cache, SessionArbiter(client))
         SessionExpiryBus.consume()
     }
 
@@ -111,5 +116,31 @@ class TripRepositoryTest {
         // 503 is not auth-shaped: no adjudication, stale cache served.
         assertEquals("Cached", stale.getOrThrow().title)
         assertFalse(SessionExpiryBus.expired.value)
+    }
+
+    @Test
+    fun `cached accessors serve the stale paint for trip detail`() = runTest {
+        // Nothing cached yet (first-ever open).
+        assertEquals(null, repo.getTripCached("t1"))
+        assertEquals(emptyList(), repo.listEntriesCached("t1"))
+
+        // Prime the cache the same way getTrip/listEntries would.
+        val trip = Trip(id = "t1", userId = "u1", title = "Cached", startDate = "2026-01-01")
+        val entries = listOf(
+            TripEntry(
+                id = "e2", tripId = "t1", title = "Older",
+                entryDate = "2026-01-02", createdAt = "2026-01-02T10:00:00Z",
+            ),
+            TripEntry(
+                id = "e1", tripId = "t1", title = "Newer",
+                entryDate = "2026-01-05", createdAt = "2026-01-05T10:00:00Z",
+            ),
+        )
+        cache.put("trip:t1", trip, Trip.serializer())
+        cache.put("entries:t1", entries, ListSerializer(TripEntry.serializer()))
+
+        assertEquals("Cached", repo.getTripCached("t1")?.title)
+        // Same newest-first ordering guarantee as listEntries.
+        assertEquals(listOf("Newer", "Older"), repo.listEntriesCached("t1").map { it.title })
     }
 }

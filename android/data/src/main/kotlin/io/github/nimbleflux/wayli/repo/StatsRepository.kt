@@ -91,6 +91,20 @@ class StatsRepository @Inject constructor(
     }
 
     /**
+     * Stale cached track polyline (same shape as [fetchTrack], chronological)
+     * for immediate paint; null when this range was never loaded.
+     */
+    suspend fun fetchTrackCached(
+        userId: String,
+        startDate: String,
+        endDate: String,
+    ): List<Pair<Double, Double>>? =
+        cache.get(
+            "track:$userId:$startDate:$endDate",
+            ListSerializer(PairSerializer(Double.serializer(), Double.serializer())),
+        )
+
+    /**
      * Fetch just the track coordinates for a date range — a fraction of the
      * payload of [fetchPoints] (18 columns → 1), used for map polylines.
      * Returns ordered (lat, lng) pairs.

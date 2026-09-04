@@ -7,11 +7,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -115,7 +119,13 @@ fun HomeScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    Scaffold { padding ->
+    Scaffold(
+        // Viewport reaches the screen bottom; the floating dock is cleared
+        // via content padding, so content scrolls beneath it.
+        contentWindowInsets = WindowInsets.systemBars.only(
+            WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+        ),
+    ) { padding ->
         when (val state = uiState) {
             is HomeUiState.Loading -> LoadingState(Modifier.padding(padding))
             is HomeUiState.Error -> ErrorState(
@@ -306,8 +316,8 @@ private fun HomeContent(
             start = 16.dp,
             end = 16.dp,
             top = 8.dp,
-            // extra room so the last section clears the floating dock
-            bottom = 24.dp,
+            // the last section scrolls fully clear of the floating dock
+            bottom = io.github.nimbleflux.wayli.designsystem.rememberDockClearance(),
         ),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {

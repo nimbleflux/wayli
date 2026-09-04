@@ -9,11 +9,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -81,8 +85,18 @@ fun StatsScreen(
 
     val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.enterAlwaysScrollBehavior()
     Scaffold(
-        snackbarHost = { androidx.compose.material3.SnackbarHost(snackbar) },
+        snackbarHost = {
+            androidx.compose.material3.SnackbarHost(
+                snackbar,
+                // stay above the floating dock
+                Modifier.padding(bottom = io.github.nimbleflux.wayli.designsystem.rememberDockClearance()),
+            )
+        },
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        // Viewport reaches the screen bottom; content scrolls beneath the dock.
+        contentWindowInsets = WindowInsets.systemBars.only(
+            WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+        ),
         topBar = {
             TopAppBar(
                 scrollBehavior = scrollBehavior,
@@ -298,7 +312,7 @@ private fun StatsContent(
             // NOTE: no duplicate track map here — the Home "Your journeys"
             // map already shows the same range WITH transport-mode colors.
 
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(io.github.nimbleflux.wayli.designsystem.rememberDockClearance()))
         }
         selectedDay?.let { (day, row) ->
             DayDetailSheet(day = day, row = row, onDismiss = { selectedDay = null })

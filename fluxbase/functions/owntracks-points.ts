@@ -400,7 +400,10 @@ async function authenticateDeviceToken(
   req: Request,
   fluxbaseService: FluxbaseClient
 ): Promise<string | null> {
-  const authHeader = req.headers.get('authorization') ?? '';
+  // The device token rides in a dedicated header: the API auth middleware
+  // intercepts any `Authorization: Bearer` value and 401s non-JWT tokens
+  // (e.g. `wayli_dt_…`) before the function runs.
+  const authHeader = req.headers.get('x-device-token') ?? req.headers.get('authorization') ?? '';
   const match = /^Bearer\s+(wayli_dt_[0-9a-f]{64})$/i.exec(authHeader.trim());
   if (!match) return null;
 

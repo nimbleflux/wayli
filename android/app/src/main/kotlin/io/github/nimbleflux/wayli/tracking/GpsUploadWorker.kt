@@ -105,16 +105,23 @@ class GpsUploadWorker @AssistedInject constructor(
                 connectTimeout = 15_000
                 readTimeout = 30_000
                 doOutput = true
-                setRequestProperty("Authorization", "Bearer $token")
+                // Custom header: the API auth middleware rejects non-JWT
+                // Bearer tokens before the function runs, and the device
+                // token is validated by the function itself.
+                setRequestProperty("X-Device-Token", token)
                 setRequestProperty("Content-Type", "application/json")
             }
             connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
             val code = connection.responseCode
-            // TEMP debug (token provisioning investigation): identify the
-            // exact credential presented to the ingest endpoint.
+            // TEMP debug (token provisioning investigation): response body.
+            if (code !in 200..299) {
+                val errBody = runCatching { connection.errorStream?.bufferedReader()?.readText() }.getOrNull()
+                android.util.Log.i("WayliTokens", "ingest POST code=$code body=${errBody?.take(300)}")
+            }
+            // Diagnostic: identify the exact credential presented to the ingest.
             android.util.Log.i(
                 "WayliTokens",
-                "ingest POST done code=$code token=$token sha256=${io.github.nimbleflux.wayli.repo.DeviceTokenCodec.sha256Hex(token)}",
+                "ingest POST done code=$code token=${token.take(13)}… sha256=${io.github.nimbleflux.wayli.repo.DeviceTokenCodec.sha256Hex(token)}",
             )
             when (code) {
                 in 200..299 -> PostResult.Success(code)

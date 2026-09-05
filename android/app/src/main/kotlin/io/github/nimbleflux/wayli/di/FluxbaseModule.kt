@@ -87,7 +87,14 @@ object FluxbaseModule {
             key = config.anonKey,
             options = FluxbaseClientOptions(
                 storage = storage,
-                autoRefresh = true,
+                // OFF: the SDK's internal refresh loop is uncontrolled — with an
+                // expired/bricked token it spun refresh attempts at its 1s floor,
+                // feeding the server's auth_refresh rate limiter (a 429-per-second
+                // flood that masked the real 401). Proactive refreshing is
+                // SessionRefresher's job (5-min cadence, pre-expiry, backoff,
+                // cooldown gate); demand-driven refresh uses the rate-limit-aware
+                // callback below.
+                autoRefresh = false,
             ),
         )
         // Replace the SDK's reactive refresh-on-401 callback with a

@@ -113,25 +113,20 @@ class GpsUploadWorker @AssistedInject constructor(
                 setRequestProperty("Content-Type", "application/json")
             }
             connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
-            val code = connection.responseCode
-            // TEMP debug (token provisioning investigation): response body.
-            if (code !in 200..299) {
-                val errBody = runCatching { connection.errorStream?.bufferedReader()?.readText() }.getOrNull()
-                android.util.Log.i("WayliTokens", "ingest POST code=$code body=${errBody?.take(300)}")
+            val code = runCatching { connection.responseCode }.getOrNull()
+            // Single redacted failure line — token material never appears;
+            // successful outcomes are visible in the in-app upload log.
+            if (code == null || code !in 200..299) {
+                android.util.Log.w("WayliTokens", "ingest POST failed code=$code token=${token.take(6)}…")
             }
-            // Diagnostic: identify the exact credential presented to the ingest.
-            android.util.Log.i(
-                "WayliTokens",
-                "ingest POST done code=$code token=${token.take(13)}… " +
-                    "sha256=${io.github.nimbleflux.wayli.repo.DeviceTokenCodec.sha256Hex(token)}",
-            )
-            when (code) {
+            return when (code) {
+                null -> PostResult.Retryable(null) // couldn't even get a status
                 in 200..299 -> PostResult.Success(code)
                 401, 403, 400, 404 -> PostResult.Fatal(code) // bad token/payload — retrying won't help
                 else -> PostResult.Retryable(code)
             }
         } catch (e: Exception) {
-            android.util.Log.i("WayliTokens", "ingest POST network error: ${e.message}")
+            android.util.Log.w("WayliTokens", "ingest POST error: ${e.message?.take(80)}")
             PostResult.Retryable(null) // network error — backoff and retry
         } finally {
             connection?.disconnect()

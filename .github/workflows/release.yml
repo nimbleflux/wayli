@@ -588,6 +588,9 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # NDK required by ndk.debugSymbolLevel (pinned in app/build.gradle.kts)
+          packages: 'platform-tools platforms;android-37.0 build-tools;36.0.0 ndk;28.2.13676358'
 
       # fluxbase-kotlin resolves from GitHub Packages with the workflow token
       # (settings.gradle.kts reads GITHUB_ACTOR/GITHUB_TOKEN).

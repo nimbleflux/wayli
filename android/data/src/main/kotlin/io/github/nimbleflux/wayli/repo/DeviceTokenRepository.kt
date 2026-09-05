@@ -88,6 +88,10 @@ class DeviceTokenRepository @Inject constructor(
     /** Outcome of [repairIfOrphaned]. */
     enum class TokenRepair { OK, REPAIRED, OFFLINE }
 
+    data class TokenRepairResult(val status: TokenRepair, val error: String? = null) {
+        val repaired: Boolean get() = status == TokenRepair.REPAIRED
+    }
+
     /**
      * Ensures the locally stored upload credential is still known to the
      * server, and self-heals when it isn't. A server-side DB restore wipes
@@ -99,23 +103,25 @@ class DeviceTokenRepository @Inject constructor(
      * - Local token present → verify against the server list; unknown or
      * revoked → clear + provision (REPAIRED).
      * - The verification RPC fails (offline/expired session) → OFFLINE, no
-     * action taken.
+     * action taken. [TokenRepairResult.error] carries the failure message.
      */
-    suspend fun repairIfOrphaned(label: String): TokenRepair {
+    suspend fun repairIfOrphaned(label: String): TokenRepairResult {
         if (!store.isActive) {
             return create(label).fold(
-                onSuccess = { TokenRepair.REPAIRED },
-                onFailure = { TokenRepair.OFFLINE },
+                onSuccess = { TokenRepairResult(TokenRepair.REPAIRED) },
+                onFailure = { TokenRepairResult(TokenRepair.OFFLINE, it.message) },
             )
         }
-        val rows = list().getOrNull() ?: return TokenRepair.OFFLINE
+        val listResult = list()
+        val rows = listResult.getOrNull()
+            ?: return TokenRepairResult(TokenRepair.OFFLINE, listResult.exceptionOrNull()?.message)
         val tokenId = store.tokenId
         val known = tokenId != null && rows.any { it.id == tokenId && !it.isRevoked }
-        if (known) return TokenRepair.OK
+        if (known) return TokenRepairResult(TokenRepair.OK)
         store.clear()
         return create(label).fold(
-            onSuccess = { TokenRepair.REPAIRED },
-            onFailure = { TokenRepair.OFFLINE },
+            onSuccess = { TokenRepairResult(TokenRepair.REPAIRED) },
+            onFailure = { TokenRepairResult(TokenRepair.OFFLINE, it.message) },
         )
     }
 

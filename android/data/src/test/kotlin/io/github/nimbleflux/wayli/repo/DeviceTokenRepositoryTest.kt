@@ -64,7 +64,7 @@ class DeviceTokenRepositoryTest {
 
         val result = repo.repairIfOrphaned("Test device")
 
-        assertEquals(DeviceTokenRepository.TokenRepair.OK, result)
+        assertEquals(DeviceTokenRepository.TokenRepair.OK, result.status)
         coVerify(exactly = 0) { store.clear() }
         coVerify(exactly = 0) { store.save(any(), any(), any()) }
     }
@@ -83,7 +83,7 @@ class DeviceTokenRepositoryTest {
 
         val result = repo.repairIfOrphaned("Test device")
 
-        assertEquals(DeviceTokenRepository.TokenRepair.REPAIRED, result)
+        assertEquals(DeviceTokenRepository.TokenRepair.REPAIRED, result.status)
         coVerify { store.clear() }
         coVerify { store.save(match { it.startsWith("wayli_dt_") }, "dt-new", any()) }
     }
@@ -98,7 +98,7 @@ class DeviceTokenRepositoryTest {
 
         val result = repo.repairIfOrphaned("Test device")
 
-        assertEquals(DeviceTokenRepository.TokenRepair.REPAIRED, result)
+        assertEquals(DeviceTokenRepository.TokenRepair.REPAIRED, result.status)
         coVerify(exactly = 0) { rpc.invoke(eq("list-device-tokens"), any(), any()) }
         coVerify { store.save(any(), "dt-new", any()) }
     }
@@ -112,7 +112,7 @@ class DeviceTokenRepositoryTest {
 
         val result = repo.repairIfOrphaned("Test device")
 
-        assertEquals(DeviceTokenRepository.TokenRepair.OFFLINE, result)
+        assertEquals(DeviceTokenRepository.TokenRepair.OFFLINE, result.status)
         coVerify(exactly = 0) { store.clear() }
         coVerify(exactly = 0) { store.save(any(), any(), any()) }
     }

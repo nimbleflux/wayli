@@ -57,6 +57,7 @@ import io.github.nimbleflux.wayli.gps.TrackingConfigStore
 import io.github.nimbleflux.wayli.gps.TrackingMode
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -69,11 +70,11 @@ import kotlinx.coroutines.launch
  * - Update Frequency (interval + distance sliders)
  * - Accuracy (radio buttons)
  * - Battery Optimization (threshold, stationary pause/resume, charging)
- * - Server (HTTP endpoint, auth token, publish topic — OwnTracks transport)
  * - Locator (displacement, interval, ignore inaccurate — OwnTracks locator)
  * - Data Payload (altitude, heading, speed, battery)
  * - Identity (device ID)
  * - System (start on boot)
+ * - Data & sync (credential/queue diagnostics, manual submit, sync now)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -529,7 +530,10 @@ class TrackingSettingsViewModel @Inject constructor(
     /** Heal the credential if orphaned, then force an upload attempt. */
     fun syncNow() {
         viewModelScope.launch(Dispatchers.IO) {
-            deviceTokenRepo.repairIfOrphaned(android.os.Build.MODEL)
+            val repair = deviceTokenRepo.repairIfOrphaned(android.os.Build.MODEL)
+            if (repair.status == io.github.nimbleflux.wayli.repo.DeviceTokenRepository.TokenRepair.OFFLINE) {
+                android.util.Log.e("WayliTokens", "device token provision failed: ${repair.error}")
+            }
             controller.syncNow()
             kotlinx.coroutines.delay(2_000)
             refreshDiagnostics()
@@ -546,15 +550,40 @@ class TrackingSettingsViewModel @Inject constructor(
         if (manualSubmit.inProgress) return
         manualSubmit = ManualSubmit(inProgress = true)
         viewModelScope.launch(Dispatchers.IO) {
+            val startedAt = System.currentTimeMillis()
             val result = controller.submitManualLocation()
-            manualSubmit = ManualSubmit(
-                inProgress = false,
-                message = result.fold(
-                    onSuccess = { point ->
-                        "Location captured (%.5f, %.5f) — queued for upload".format(point.lat, point.lon)
-                    },
-                    onFailure = { it.message ?: "Couldn't get a GPS fix" },
-                ),
+            result.fold(
+                onSuccess = { point ->
+                    manualSubmit = ManualSubmit(
+                        inProgress = false,
+                        message = "Location captured (%.5f, %.5f) — queued for upload"
+                            .format(point.lat, point.lon),
+                    )
+                    // The upload log is the in-app submission log: poll it
+                    // briefly so this button reports its own outcome.
+                    var outcome: String? = null
+                    val deadline = System.currentTimeMillis() + 20_000
+                    while (System.currentTimeMillis() < deadline && outcome == null) {
+                        delay(2_000)
+                        outcome = diagnosticsRepo.uploadLog()
+                            .firstOrNull { it.atMs >= startedAt }
+                            ?.let { entry ->
+                                "Upload ${entry.outcome}" +
+                                    (entry.httpCode?.let { " · HTTP ${it}" } ?: "") +
+                                    " · ${entry.batch} pts"
+                            }
+                    }
+                    manualSubmit = ManualSubmit(
+                        inProgress = false,
+                        message = outcome ?: "Queued — upload will retry automatically",
+                    )
+                },
+                onFailure = {
+                    manualSubmit = ManualSubmit(
+                        inProgress = false,
+                        message = it.message ?: "Couldn't get a GPS fix",
+                    )
+                },
             )
             refreshDiagnostics()
         }

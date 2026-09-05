@@ -278,9 +278,11 @@ class NavViewModel @Inject constructor(
     fun ensureTrackingToken() {
         if (demoManager.isDemoMode) return
         viewModelScope.launch(Dispatchers.IO) {
-            val repaired = deviceTokenRepo.repairIfOrphaned(label = android.os.Build.MODEL)
-            if (repaired == io.github.nimbleflux.wayli.repo.DeviceTokenRepository.TokenRepair.REPAIRED) {
+            val repair = deviceTokenRepo.repairIfOrphaned(label = android.os.Build.MODEL)
+            if (repair.status == io.github.nimbleflux.wayli.repo.DeviceTokenRepository.TokenRepair.REPAIRED) {
                 trackingController.syncNow()
+            } else if (repair.status == io.github.nimbleflux.wayli.repo.DeviceTokenRepository.TokenRepair.OFFLINE) {
+                android.util.Log.e(TAG, "device token provision failed: ${repair.error}")
             }
         }
     }
@@ -309,6 +311,7 @@ class NavViewModel @Inject constructor(
     companion object {
         /** Storage key the SDK persists its session under. */
         private const val SESSION_STORAGE_KEY = "fluxbase.auth.session"
+        private const val TAG = "WayliTokens"
     }
 }
 

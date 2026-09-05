@@ -65,8 +65,16 @@ class DeviceTokenRepository @Inject constructor(
             RpcInvokeOptions(namespace = NAMESPACE),
         )
         res.error?.let { error(it.message ?: "create-device-token failed") }
-        val row = parseRows(res.data?.result).firstOrNull()
-            ?: error("create-device-token returned no row")
+        val rows = parseRows(res.data?.result)
+        if (rows.isEmpty()) {
+            // Diagnostic for provisioning failures — shows the exact shape the
+            // server returned (uuid arrays, string-wrapped rows, …).
+            android.util.Log.w(
+                "WayliTokens",
+                "create-device-token returned no parsable row; raw result=${res.data?.result}",
+            )
+        }
+        val row = rows.firstOrNull() ?: error("create-device-token returned no row")
         store.save(token = token, id = row.id, label = row.label)
         token
     } }

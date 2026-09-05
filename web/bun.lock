@@ -7,7 +7,7 @@
       "dependencies": {
         "@fontsource-variable/inter": "^5.3.0",
         "@maplibre/maplibre-gl-leaflet": "^0.1.4",
-        "@nimbleflux/fluxbase-sdk": "2026.8.14",
+        "@nimbleflux/fluxbase-sdk": "2026.9.1",
         "@svelte-plugins/datepicker": "^1.0.11",
         "@turf/turf": "^7.3.5",
         "clsx": "^2.1.1",
@@ -250,7 +250,7 @@
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.1.6", "", { "dependencies": { "@tybys/wasm-util": "^0.10.3" }, "peerDependencies": { "@emnapi/core": "^1.7.1", "@emnapi/runtime": "^1.7.1" } }, "sha512-ZLv/JdUfkvOy9eCnnBaGfiO+XimbjebAeO+MRQqD/B+FR1tnRN0tpKSJHRbE8sFfS6aqsXZ67TQjfwfsxULVbg=="],
 
-    "@nimbleflux/fluxbase-sdk": ["@nimbleflux/fluxbase-sdk@2026.8.14", "", { "dependencies": { "cross-fetch": "^4.1.0" }, "optionalDependencies": { "@rollup/rollup-darwin-arm64": "^4.62.2" }, "peerDependencies": { "esbuild": ">=0.28.1" }, "optionalPeers": ["esbuild"] }, "sha512-WZM/X0fZGazF9yDTemJNnVvSJgg/S+4dc9mVvi7wx5N1y4VaQ06/lhnajUO4grZ7udg9VVOuJmjGsW6HzQRBzA=="],
+    "@nimbleflux/fluxbase-sdk": ["@nimbleflux/fluxbase-sdk@2026.9.1", "", { "dependencies": { "cross-fetch": "^4.1.0" }, "optionalDependencies": { "@rollup/rollup-darwin-arm64": "^4.62.2" }, "peerDependencies": { "esbuild": ">=0.28.1" }, "optionalPeers": ["esbuild"] }, "sha512-0I32rNMprzR44VMOzf4HKj5yHZ/YahVEGFy5dd2cKUypkExmUU3L/7rRGAZC/q2YS1axyv5glcnTm/kEayb/Xw=="],
 
     "@nodable/entities": ["@nodable/entities@3.0.0", "", {}, "sha512-8L9xFeTYKhm49xfIypoe2W5wV1m/3Z58kT+7kR9A8OyFxcPduI4VmxaUMQyKYrRjUoLLSXv6EKKID5Tvj9cUVw=="],
 

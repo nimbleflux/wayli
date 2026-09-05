@@ -121,7 +121,8 @@ class GpsUploadWorker @AssistedInject constructor(
             // Diagnostic: identify the exact credential presented to the ingest.
             android.util.Log.i(
                 "WayliTokens",
-                "ingest POST done code=$code token=${token.take(13)}… sha256=${io.github.nimbleflux.wayli.repo.DeviceTokenCodec.sha256Hex(token)}",
+                "ingest POST done code=$code token=${token.take(13)}… " +
+                    "sha256=${io.github.nimbleflux.wayli.repo.DeviceTokenCodec.sha256Hex(token)}",
             )
             when (code) {
                 in 200..299 -> PostResult.Success(code)

@@ -85,7 +85,7 @@
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
     "@maplibre/maplibre-gl-leaflet": "^0.1.4",
-    "@nimbleflux/fluxbase-sdk": "2026.8.14",
+    "@nimbleflux/fluxbase-sdk": "2026.9.1",
     "@svelte-plugins/datepicker": "^1.0.11",
     "@turf/turf": "^7.3.5",
     "clsx": "^2.1.1",

@@ -65,6 +65,11 @@ class DeviceTokenRepository @Inject constructor(
             RpcInvokeOptions(namespace = NAMESPACE),
         )
         res.error?.let { error(it.message ?: "create-device-token failed") }
+        // TEMP debug (token provisioning investigation).
+        android.util.Log.i(
+            "WayliTokens",
+            "create-device-token OK: label=$label token=$token hash=${DeviceTokenCodec.sha256Hex(token)}",
+        )
         val rows = parseRows(res.data?.result)
         if (rows.isEmpty()) {
             // Diagnostic for provisioning failures — shows the exact shape the

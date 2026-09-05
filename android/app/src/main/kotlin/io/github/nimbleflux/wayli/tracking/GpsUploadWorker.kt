@@ -109,12 +109,20 @@ class GpsUploadWorker @AssistedInject constructor(
                 setRequestProperty("Content-Type", "application/json")
             }
             connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
-            when (val code = connection.responseCode) {
+            val code = connection.responseCode
+            // TEMP debug (token provisioning investigation): identify the
+            // exact credential presented to the ingest endpoint.
+            android.util.Log.i(
+                "WayliTokens",
+                "ingest POST done code=$code token=$token sha256=${io.github.nimbleflux.wayli.repo.DeviceTokenCodec.sha256Hex(token)}",
+            )
+            when (code) {
                 in 200..299 -> PostResult.Success(code)
                 401, 403, 400, 404 -> PostResult.Fatal(code) // bad token/payload — retrying won't help
                 else -> PostResult.Retryable(code)
             }
         } catch (e: Exception) {
+            android.util.Log.i("WayliTokens", "ingest POST network error: ${e.message}")
             PostResult.Retryable(null) // network error — backoff and retry
         } finally {
             connection?.disconnect()

@@ -17,9 +17,10 @@ import kotlinx.serialization.json.Json
 
 /**
  * Drains the pending-point queue: batches up to [BATCH_SIZE] points, POSTs
- * them to the `owntracks-points` function authenticated with the device
- * token (`Authorization: Bearer wayli_dt_…` — never in the URL), and deletes
- * the batch on success.
+ * them to the `wayli-points` function (the app's dedicated ingest endpoint —
+ * external OwnTracks apps use `owntracks-points`) authenticated with the
+ * device token (`X-Device-Token: wayli_dt_…` — never in the URL), and
+ * deletes the batch on success.
  *
  * Retries with WorkManager's exponential backoff; points that exhausted
  * [MAX_ATTEMPTS] uploads are dropped so the queue can't clog.
@@ -42,7 +43,7 @@ class GpsUploadWorker @AssistedInject constructor(
             // if they're not ready yet, retry until the device token lands.
             return if (runAttemptCount < MAX_RUN_ATTEMPTS) Result.retry() else Result.failure()
         }
-        return drain("$instanceUrl/api/v1/functions/owntracks-points/invoke?namespace=wayli", token)
+        return drain("$instanceUrl/api/v1/functions/wayli-points/invoke?namespace=wayli", token)
     }
 
     private suspend fun drain(endpoint: String, token: String): Result {

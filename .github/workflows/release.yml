@@ -373,7 +373,13 @@ jobs:
           fi
 
           echo "AI Summary: $SUMMARY"
-          echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
+          # Heredoc form: a multi-line summary (any line without key=value)
+          # otherwise fails the whole step with "Invalid format".
+          {
+            echo "summary<<SUMMARY_EOF"
+            echo "$SUMMARY"
+            echo "SUMMARY_EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build changelog body
         id: build_body

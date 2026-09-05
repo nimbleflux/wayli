@@ -142,8 +142,26 @@ class DeviceTokenRepository @Inject constructor(
             else -> return emptyList()
         }
         return array.mapNotNull { row ->
-            runCatching { Json.decodeFromJsonElement(DeviceToken.serializer(), row) }.getOrNull()
+            runCatching { Json.decodeFromJsonElement(DeviceToken.serializer(), normalizeUuids(row)) }.getOrNull()
         }
+    }
+
+    /**
+     * The Go RPC executor serializes native uuid columns (pgx [16]byte) as a
+     * 16-number JSON array, which [DeviceToken.id] (String) can't decode —
+     * every row would be silently dropped. Normalize to the canonical
+     * hyphenated uuid string. (Older deployed servers still do this; fixed
+     * in fluxbase's convertValue.)
+     */
+    private fun normalizeUuids(row: JsonElement): JsonElement {
+        val obj = row as? JsonObject ?: return row
+        val id = obj["id"] as? JsonArray ?: return row
+        if (id.size != 16) return row
+        val bytes = id.map { (it as? JsonPrimitive)?.content?.toIntOrNull()?.coerceIn(0, 255)?.toByte() ?: 0 }
+        val hex = bytes.joinToString("") { "%02x".format(it) }
+        val uuid = hex.substring(0, 8) + "-" + hex.substring(8, 12) + "-" + hex.substring(12, 16) +
+            "-" + hex.substring(16, 20) + "-" + hex.substring(20, 32)
+        return JsonObject(obj.toMutableMap().apply { put("id", JsonPrimitive(uuid)) })
     }
 
     companion object {

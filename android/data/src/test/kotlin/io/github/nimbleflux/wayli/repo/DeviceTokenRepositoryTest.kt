@@ -57,6 +57,32 @@ class DeviceTokenRepositoryTest {
     }
 
     @Test
+    fun `uuid columns serialized as byte arrays are normalized to strings`() = runTest {
+        every { store.isActive } returns true
+        every { store.tokenId } returns "5560e2a7-9c1e-4a6e-9f1e-2b3c4d5e6f70"
+        // The Go executor emits native uuid columns as a 16-number array.
+        val bytes = listOf(0x55, 0x60, 0xe2, 0xa7, 0x9c, 0x1e, 0x4a, 0x6e, 0x9f, 0x1e, 0x2b, 0x3c, 0x4d, 0x5e, 0x6f, 0x70)
+        val arrayRow = RpcInvokeResponse(
+            result = JsonArray(
+                listOf(
+                    JsonObject(
+                        mapOf(
+                            "id" to JsonArray(bytes.map { JsonPrimitive(it) }),
+                            "label" to JsonPrimitive("Device"),
+                            "revoked_at" to kotlinx.serialization.json.JsonNull,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        coEvery { rpc.invoke(any(), any(), any()) } returns FluxbaseResponse.Success(arrayRow)
+
+        val parsed = repo.list().getOrThrow()
+
+        assertEquals("5560e2a7-9c1e-4a6e-9f1e-2b3c4d5e6f70", parsed.single().id)
+    }
+
+    @Test
     fun `token known to the server is left alone`() = runTest {
         every { store.isActive } returns true
         every { store.tokenId } returns "dt-old"

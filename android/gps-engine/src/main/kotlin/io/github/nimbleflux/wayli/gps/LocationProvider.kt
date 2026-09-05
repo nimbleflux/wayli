@@ -37,6 +37,14 @@ interface LocationProvider {
     fun stopUpdates()
 
     /**
+     * One-shot fix, independent of [startUpdates] (which must not be touched
+     * while the live pipeline is running). Suspends until a fresh location is
+     * available (bounded by the caller's timeout) or returns null when no fix
+     * can be obtained. Requires foreground location permission.
+     */
+    suspend fun getCurrentPoint(config: TrackingConfig): CapturedPoint?
+
+    /**
      * Whether this provider requires Google Play Services.
      */
     val requiresGooglePlayServices: Boolean

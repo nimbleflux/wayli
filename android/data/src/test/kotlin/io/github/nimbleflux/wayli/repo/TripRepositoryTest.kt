@@ -50,8 +50,8 @@ class TripRepositoryTest {
             coEvery { payload(any()) } coAnswers { cacheMap[firstArg<String>()] }
             coEvery { upsert(any()) } coAnswers { cacheMap[firstArg<CacheEntity>().key] = firstArg<CacheEntity>().payload }
         }
-        cache = CacheStore(dao, SessionArbiter(client))
-        repo = TripRepository(client, cache, SessionArbiter(client))
+        cache = CacheStore(dao, SessionArbiter(client, io.github.nimbleflux.wayli.session.RefreshGate()))
+        repo = TripRepository(client, cache, SessionArbiter(client, io.github.nimbleflux.wayli.session.RefreshGate()))
         SessionExpiryBus.consume()
     }
 

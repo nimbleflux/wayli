@@ -6,6 +6,7 @@ import io.github.nimbleflux.fluxbase.FluxbaseResponse
 import io.github.nimbleflux.fluxbase.auth.AuthSession
 import io.github.nimbleflux.fluxbase.auth.User
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.async
@@ -34,7 +35,7 @@ class SessionArbiterTest {
     @BeforeTest
     fun setUp() {
         client = mockk(relaxed = true)
-        arbiter = SessionArbiter(client)
+        arbiter = SessionArbiter(client, io.github.nimbleflux.wayli.session.RefreshGate())
         SessionExpiryBus.consume()
     }
 
@@ -44,6 +45,22 @@ class SessionArbiterTest {
     }
 
     // ---- classify: only a definitive server rejection is DEAD ----
+
+    @Test
+    fun `429 arms the cooldown and adjudication skips while it lasts`() = runTest {
+        coEvery { client.auth.refreshSession() } returns
+            FluxbaseResponse.Error(FluxbaseError(status = 429, message = "Rate limit exceeded"))
+
+        val first = arbiter.adjudicate("test")
+
+        assertEquals(SessionArbiter.Verdict.TRANSIENT, first)
+        // While cooling down, no refresh is attempted at all — this is what
+        // stops the client from feeding the server's per-token limiter.
+        val second = arbiter.adjudicate("test")
+        assertEquals(SessionArbiter.Verdict.TRANSIENT, second)
+        coVerify(exactly = 1) { client.auth.refreshSession() }
+        assertFalse(SessionExpiryBus.expired.value)
+    }
 
     @Test
     fun `401 from the refresh endpoint is DEAD`() {

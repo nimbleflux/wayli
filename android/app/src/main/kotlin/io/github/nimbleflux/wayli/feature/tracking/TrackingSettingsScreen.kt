@@ -259,6 +259,8 @@ fun TrackingSettingsScreen(
             // Data & sync — is tracking data flowing, and where is it stuck?
             DataSyncCard(
                 diag = viewModel.diagnostics,
+                manualSubmit = viewModel.manualSubmit,
+                onManualSubmit = { viewModel.submitManualLocation() },
                 onSyncNow = { viewModel.syncNow() },
             )
 
@@ -270,6 +272,8 @@ fun TrackingSettingsScreen(
 @Composable
 private fun DataSyncCard(
     diag: TrackingSettingsViewModel.Diagnostics,
+    manualSubmit: TrackingSettingsViewModel.ManualSubmit,
+    onManualSubmit: () -> Unit,
     onSyncNow: () -> Unit,
 ) {
     WayliSectionCard(title = "Data & sync") {
@@ -299,28 +303,79 @@ private fun DataSyncCard(
 
         Spacer(Modifier.height(8.dp))
 
+        ManualSubmitButton(
+            inProgress = manualSubmit.inProgress,
+            onSubmit = onManualSubmit,
+        )
+        manualSubmit.message?.let { message ->
+            Text(
+                message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+
         androidx.compose.material3.OutlinedButton(
             onClick = onSyncNow,
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Sync now") }
 
-        if (diag.log.size > 1) {
-            Spacer(Modifier.height(12.dp))
-            Text(
-                "Recent uploads",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            diag.log.take(5).forEach { entry ->
-                Text(
-                    "${formatLogTime(entry.atMs)} · ${entry.outcome}" +
-                        (entry.httpCode?.let { " · HTTP $it" } ?: "") +
-                        " · ${entry.batch} pts",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+        RecentUploads(diag.log)
+    }
+}
+
+@Composable
+private fun ManualSubmitButton(inProgress: Boolean, onSubmit: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var requestPermission by remember { mutableStateOf(false) }
+    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) onSubmit()
+    }
+    androidx.compose.material3.Button(
+        onClick = {
+            val fine = androidx.core.content.ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.ACCESS_FINE_LOCATION,
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            val coarse = androidx.core.content.ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION,
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (fine || coarse) onSubmit() else requestPermission = true
+        },
+        enabled = !inProgress,
+        modifier = Modifier.fillMaxWidth(),
+    ) { Text(if (inProgress) "Locating…" else "Submit current location") }
+
+    androidx.compose.runtime.LaunchedEffect(requestPermission) {
+        if (requestPermission) {
+            permissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+            requestPermission = false
         }
+    }
+}
+
+@Composable
+private fun RecentUploads(log: List<io.github.nimbleflux.wayli.repo.UploadLogEntry>) {
+    if (log.size <= 1) return
+    Spacer(Modifier.height(12.dp))
+    Text(
+        "Recent uploads",
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    log.take(5).forEach { entry ->
+        Text(
+            "${formatLogTime(entry.atMs)} · ${entry.outcome}" +
+                (entry.httpCode?.let { " · HTTP $it" } ?: "") +
+                " · ${entry.batch} pts",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -423,6 +478,30 @@ class TrackingSettingsViewModel @Inject constructor(
         controller.syncNow()
         viewModelScope.launch(Dispatchers.IO) {
             kotlinx.coroutines.delay(2_000)
+            refreshDiagnostics()
+        }
+    }
+
+    /** Manual "submit one location" attempt, shown inline in the card. */
+    data class ManualSubmit(val inProgress: Boolean = false, val message: String? = null)
+
+    var manualSubmit by mutableStateOf(ManualSubmit())
+        private set
+
+    fun submitManualLocation() {
+        if (manualSubmit.inProgress) return
+        manualSubmit = ManualSubmit(inProgress = true)
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = controller.submitManualLocation()
+            manualSubmit = ManualSubmit(
+                inProgress = false,
+                message = result.fold(
+                    onSuccess = { point ->
+                        "Location captured (%.5f, %.5f) — uploading".format(point.lat, point.lon)
+                    },
+                    onFailure = { it.message ?: "Couldn't get a GPS fix" },
+                ),
+            )
             refreshDiagnostics()
         }
     }

@@ -68,7 +68,14 @@ class GpsUploadWorker @AssistedInject constructor(
                 dao.bumpAttempts(batch.map { it.id })
                 "retry" to post.code
             }
-            is PostResult.Fatal -> "fatal" to post.code
+            is PostResult.Fatal -> {
+                // 401/403 on ingest means the device token is unknown to the
+                // server (e.g. orphaned by a DB restore) — every retry would
+                // fail forever. Clear it so the next app start provisions a
+                // fresh one; the durable queue drains on the new token.
+                if (post.code == 401 || post.code == 403) deviceTokenStore.clear()
+                "fatal" to post.code
+            }
         }
         diagnostics.logUpload(
             io.github.nimbleflux.wayli.repo.UploadLogEntry(

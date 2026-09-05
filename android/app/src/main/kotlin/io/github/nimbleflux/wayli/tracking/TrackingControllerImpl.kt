@@ -77,6 +77,22 @@ class TrackingControllerImpl @Inject constructor(
         scheduleUpload()
     }
 
+    override suspend fun submitManualLocation(): Result<CapturedPoint> =
+        kotlinx.coroutines.withContext(Dispatchers.IO) {
+            runCatching {
+                val config = configStore.get()
+                // A manual submission is explicit — battery gating does not
+                // apply; payload toggles still shape the stored point.
+                val point = kotlinx.coroutines.withTimeout(MANUAL_FIX_TIMEOUT_MS) {
+                    provider.getCurrentPoint(config)
+                } ?: error("No GPS fix available — try again outside with a clear sky view")
+                dao.insert(point.toEntity(config))
+                diagnostics.onPointsCaptured(1)
+                scheduleUpload()
+                point
+            }
+        }
+
     override fun onServiceStopped() {
         job?.cancel()
         job = null
@@ -155,5 +171,9 @@ class TrackingControllerImpl @Inject constructor(
             ExistingWorkPolicy.REPLACE,
             request,
         )
+    }
+
+    private companion object {
+        const val MANUAL_FIX_TIMEOUT_MS = 30_000L
     }
 }

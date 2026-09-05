@@ -30,6 +30,7 @@ import io.github.nimbleflux.wayli.gps.TrackingConfig
 import io.github.nimbleflux.wayli.gps.TrackingMode
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.resume
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -168,6 +169,31 @@ class FusedLocationProvider @Inject constructor(
     override fun stopUpdates() {
         callback?.let { client.removeLocationUpdates(it) }
         callback = null
+    }
+
+    /** One-shot fix via getCurrentLocation — independent of [startUpdates]. */
+    @SuppressLint("MissingPermission") // caller checks permission before starting
+    override suspend fun getCurrentPoint(config: TrackingConfig): CapturedPoint? =
+        kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+            val cts = CancellationTokenSource()
+            continuation.invokeOnCancellation { cts.cancel() }
+            client.getCurrentLocation(priorityOf(config), cts.token)
+                .addOnSuccessListener { location ->
+                    if (continuation.isActive) {
+                        continuation.resume(location?.toCapturedPoint(config))
+                    }
+                }
+                .addOnFailureListener {
+                    if (continuation.isActive) continuation.resume(null)
+                }
+        }
+
+    private fun priorityOf(config: TrackingConfig): Int = when (config.accuracy) {
+        AccuracyProfile.HIGH -> Priority.PRIORITY_HIGH_ACCURACY
+        AccuracyProfile.BALANCED -> Priority.PRIORITY_BALANCED_POWER_ACCURACY
+        AccuracyProfile.LOW -> Priority.PRIORITY_LOW_POWER
+        // Passive delivers nothing on demand — a manual fix wants real GPS.
+        AccuracyProfile.POWER -> Priority.PRIORITY_BALANCED_POWER_ACCURACY
     }
 
     companion object {

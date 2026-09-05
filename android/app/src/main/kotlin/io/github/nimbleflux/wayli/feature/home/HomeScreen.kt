@@ -102,13 +102,16 @@ fun HomeScreen(
     val online by viewModel.online.collectAsState()
     val refreshing by viewModel.refreshing.collectAsState()
 
-    // One silent retry when returning to a failed dashboard — e.g. the app
-    // resumed with connectivity restored.
+    // Refresh on return: the badge/activity list reflects marks made in the
+    // tray, a failed stats window retries, and a full-error dashboard gets
+    // one silent retry (e.g. resumed with connectivity restored).
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         var retried = false
         val observer = object : androidx.lifecycle.DefaultLifecycleObserver {
             override fun onResume(owner: androidx.lifecycle.LifecycleOwner) {
+                viewModel.refreshActivity()
+                if (windowError) viewModel.retryWindow()
                 if (!retried && uiState is HomeUiState.Error && !viewModel.isDemoMode) {
                     retried = true
                     viewModel.load()

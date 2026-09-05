@@ -169,6 +169,7 @@ class NavViewModel @Inject constructor(
     private val tripRepo: io.github.nimbleflux.wayli.repo.TripRepository,
     private val draftRepo: io.github.nimbleflux.wayli.repo.DraftRepository,
     private val preferencesRepository: io.github.nimbleflux.wayli.repo.PreferencesRepository,
+    private val trackingController: io.github.nimbleflux.wayli.gps.TrackingController,
     val sessionRefresher: io.github.nimbleflux.wayli.session.SessionRefresher,
 ) : ViewModel() {
 
@@ -271,11 +272,14 @@ class NavViewModel @Inject constructor(
      * Auto-provision the tracking upload credential: a device token created
      * via the authenticated RPC (the user is signed in — nothing to configure
      * by hand). Guarded by isActive so re-sign-ins don't spawn extra tokens.
+     * After creating one, drain the queue — the reason provisioning was
+     * needed is usually queued points that couldn't upload.
      */
     fun ensureTrackingToken() {
         if (deviceTokenStore.isActive || demoManager.isDemoMode) return
         viewModelScope.launch(Dispatchers.IO) {
             runCatching { deviceTokenRepo.create(label = android.os.Build.MODEL) }
+                .onSuccess { trackingController.syncNow() }
         }
     }
 
@@ -501,7 +505,10 @@ fun WayliNavHost() {
                     onStatsClick = { navController.navigate(Routes.STATS) },
                     onTripClick = { trip: Trip -> navController.navigate("trip_detail/${trip.id}") },
                     onWishlistClick = { switchTab(Routes.WISHLIST) },
-                    onOpenMap = { navController.navigate(Routes.FULL_MAP) },
+                    // Base route only — the pattern contains the {tripId}
+                    // placeholder, and navigating it verbatim leaks the
+                    // literal into the trip query (seen in server SQL logs).
+                    onOpenMap = { navController.navigate("full_map") },
                     autoStartRecording = autoRecord,
                     onAutoActionConsumed = { autoRecord = false },
                 )

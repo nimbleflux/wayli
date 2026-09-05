@@ -55,9 +55,15 @@ object FluxbaseModule {
 
     @Provides
     @Singleton
+    fun provideRefreshGate(): io.github.nimbleflux.wayli.session.RefreshGate =
+        io.github.nimbleflux.wayli.session.RefreshGate()
+
+    @Provides
+    @Singleton
     fun provideFluxbaseClient(
         storage: EncryptedStorageAdapter,
         instanceManager: InstanceManager,
+        refreshGate: io.github.nimbleflux.wayli.session.RefreshGate,
     ): FluxbaseClient {
         val config = instanceManager.getConfig()
             ?: return FluxbaseClient.create(
@@ -76,7 +82,7 @@ object FluxbaseModule {
                 io.github.nimbleflux.wayli.session.InsecureTls.installGlobalFor(it)
             }
         }
-        return FluxbaseClient.create(
+        val client = FluxbaseClient.create(
             url = config.url,
             key = config.anonKey,
             options = FluxbaseClientOptions(
@@ -84,5 +90,22 @@ object FluxbaseModule {
                 autoRefresh = true,
             ),
         )
+        // Replace the SDK's reactive refresh-on-401 callback with a
+        // rate-limit-aware one: during a cooldown the refresh is skipped (the
+        // request retries with the current token and fails through with its
+        // own error) and a 429 arms the shared cooldown instead of hammering
+        // the server's auth_refresh limiter into a deeper hole.
+        client.http.setRefreshTokenCallback {
+            if (refreshGate.isCoolingDown()) {
+                null
+            } else {
+                val result = client.auth.refreshSession()
+                if (io.github.nimbleflux.wayli.session.isRateLimitedError(result.error)) {
+                    refreshGate.onRateLimited()
+                }
+                result.data?.accessToken
+            }
+        }
+        return client
     }
 }

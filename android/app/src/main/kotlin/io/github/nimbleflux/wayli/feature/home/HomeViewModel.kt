@@ -373,6 +373,26 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Re-list notifications into the current Success state — called on every
+     * ON_RESUME so the bell badge reflects marks made in the tray (the list
+     * is cache-backed, so this is instant and reflects mark-read mirrors).
+     */
+    fun refreshActivity() {
+        if (demoManager.isDemoMode || sessionDead) return
+        val userId = fluxbaseClient.auth?.currentSession?.user?.id ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val notifications = notificationRepo.list(userId, limit = 20).getOrDefault(emptyList())
+            val current = _uiState.value as? HomeUiState.Success ?: return@launch
+            _uiState.value = current.copy(data = current.data.copy(activity = notifications))
+        }
+    }
+
+    /** Retry the stats window after the "Couldn't refresh" banner appeared. */
+    fun retryWindow() {
+        if (_windowError.value && !sessionDead) loadWindow()
+    }
+
     private fun initials(profile: UserProfile?): String {
         val first = profile?.firstName?.firstOrNull()?.uppercase() ?: ""
         val last = profile?.lastName?.firstOrNull()?.uppercase() ?: ""

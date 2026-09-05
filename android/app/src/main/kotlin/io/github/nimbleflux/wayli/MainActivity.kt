@@ -26,6 +26,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var themeManager: ThemeManager
 
+    @Inject
+    lateinit var sessionRefresher: io.github.nimbleflux.wayli.session.SessionRefresher
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         OAuthDeepLinkBus.deliver(intent.data)
@@ -38,6 +41,11 @@ class MainActivity : ComponentActivity() {
         // clears a stale "paused" notification after a process death and
         // keeps the persistent tracking toggle posted while off.
         TrackingActionReceiver.syncNotifications(applicationContext)
+        // Foreground revalidation: the in-process refresh timers don't tick
+        // while the process is frozen/killed, so on return the access token
+        // is usually expired — refresh now, before data requests race it.
+        // No-op when the token is still fresh.
+        lifecycleScope.launch(Dispatchers.IO) { sessionRefresher.refreshIfDue() }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

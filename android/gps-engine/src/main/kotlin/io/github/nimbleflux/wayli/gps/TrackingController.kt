@@ -19,4 +19,10 @@ interface TrackingController {
 
     /** Force an upload attempt now (ignores the network backoff schedule). */
     fun syncNow()
+
+    /**
+     * Capture one fresh GPS fix and queue it for upload (bypasses battery
+     * gating — the request is explicit). Fails when no fix could be obtained.
+     */
+    suspend fun submitManualLocation(): Result<CapturedPoint>
 }

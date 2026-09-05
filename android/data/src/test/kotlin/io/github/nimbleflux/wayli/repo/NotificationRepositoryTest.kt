@@ -80,7 +80,7 @@ class NotificationRepositoryTest {
             coEvery { payload(any()) } coAnswers { cacheMap[firstArg<String>()] }
             coEvery { upsert(any()) } coAnswers { cacheMap[firstArg<CacheEntity>().key] = firstArg<CacheEntity>().payload }
         }
-        cache = CacheStore(dao, SessionArbiter(client))
+        cache = CacheStore(dao, SessionArbiter(client, io.github.nimbleflux.wayli.session.RefreshGate()))
         repo = NotificationRepository(client, cache)
     }
 

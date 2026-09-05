@@ -17,3 +17,10 @@ fun isSessionDeadError(error: Throwable?): Boolean {
         // The auth endpoint's exact refresh-failure wording.
         message.contains("invalid or expired refresh token", ignoreCase = true)
 }
+
+/** True when the server's auth_refresh rate limiter answered with 429. */
+fun isRateLimitedError(error: Throwable?): Boolean {
+    val status = (error as? io.github.nimbleflux.fluxbase.FluxbaseError)?.status
+        ?: (error as? io.github.nimbleflux.fluxbase.core.FluxbaseException)?.status
+    return status == 429
+}

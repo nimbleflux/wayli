@@ -299,7 +299,8 @@ private fun DataSyncCard(
             "Last accepted by server",
             diag.lastAcceptedAt?.let { formatTimestamp(it) } ?: "—",
         )
-        diag.log.firstOrNull()?.let { last ->
+        // Log is stored oldest→newest — "Last upload" is the newest entry.
+        diag.log.lastOrNull()?.let { last ->
             DiagRow(
                 "Last upload",
                 "${last.outcome} · ${last.batch} pts" + (last.httpCode?.let { " · HTTP $it" } ?: ""),
@@ -394,7 +395,8 @@ private fun RecentUploads(log: List<io.github.nimbleflux.wayli.repo.UploadLogEnt
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    log.take(5).forEach { entry ->
+    // Newest first — matches "Last upload".
+    log.takeLast(5).reversed().forEach { entry ->
         Text(
             "${formatLogTime(entry.atMs)} · ${entry.outcome}" +
                 (entry.httpCode?.let { " · HTTP $it" } ?: "") +
@@ -566,7 +568,7 @@ class TrackingSettingsViewModel @Inject constructor(
                     while (System.currentTimeMillis() < deadline && outcome == null) {
                         delay(2_000)
                         outcome = diagnosticsRepo.uploadLog()
-                            .firstOrNull { it.atMs >= startedAt }
+                            .lastOrNull { it.atMs >= startedAt }
                             ?.let { entry ->
                                 "Upload ${entry.outcome}" +
                                     (entry.httpCode?.let { " · HTTP ${it}" } ?: "") +

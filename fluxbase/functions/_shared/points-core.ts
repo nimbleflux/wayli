@@ -21,7 +21,11 @@ interface MultiPolygon { type: 'MultiPolygon'; coordinates: Position[][][]; }
 interface Feature<G = Polygon | MultiPolygon> { type: 'Feature'; geometry: G; properties: Record<string, unknown> | null; }
 interface FeatureCollection<G = Polygon | MultiPolygon> { type: 'FeatureCollection'; features: Feature<G>[]; }
 
-import timezonesRaw from '_shared/timezones';
+// NOTE: sibling-relative path with explicit extension. The sync bundler
+// resolves the '_shared/…' import-map prefix relative to the importing file,
+// which from inside _shared/ doubles up (_shared/_shared/timezones) and fails
+// the bundle — as the sibling valhalla.service.ts warning has long shown.
+import timezonesRaw from './timezones.ts';
 const timezonesGeoJSON = timezonesRaw as unknown as FeatureCollection;
 
 // ===== Utility Functions =====

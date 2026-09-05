@@ -269,17 +269,19 @@ class NavViewModel @Inject constructor(
     }
 
     /**
-     * Auto-provision the tracking upload credential: a device token created
-     * via the authenticated RPC (the user is signed in — nothing to configure
-     * by hand). Guarded by isActive so re-sign-ins don't spawn extra tokens.
-     * After creating one, drain the queue — the reason provisioning was
-     * needed is usually queued points that couldn't upload.
+     * Auto-provision / self-heal the tracking upload credential. The local
+     * store can hold a token the server no longer knows (e.g. orphaned by a
+     * DB restore) — [io.github.nimbleflux.wayli.repo.DeviceTokenRepository.repairIfOrphaned]
+     * detects that and provisions a replacement. Drains the queue after a
+     * repair so stuck points upload immediately.
      */
     fun ensureTrackingToken() {
-        if (deviceTokenStore.isActive || demoManager.isDemoMode) return
+        if (demoManager.isDemoMode) return
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching { deviceTokenRepo.create(label = android.os.Build.MODEL) }
-                .onSuccess { trackingController.syncNow() }
+            val repaired = deviceTokenRepo.repairIfOrphaned(label = android.os.Build.MODEL)
+            if (repaired == io.github.nimbleflux.wayli.repo.DeviceTokenRepository.TokenRepair.REPAIRED) {
+                trackingController.syncNow()
+            }
         }
     }
 

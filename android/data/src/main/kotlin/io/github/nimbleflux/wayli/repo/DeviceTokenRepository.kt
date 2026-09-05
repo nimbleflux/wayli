@@ -85,6 +85,40 @@ class DeviceTokenRepository @Inject constructor(
     /** True when this device holds an active token (ready to submit points). */
     fun hasActiveToken(): Boolean = store.isActive
 
+    /** Outcome of [repairIfOrphaned]. */
+    enum class TokenRepair { OK, REPAIRED, OFFLINE }
+
+    /**
+     * Ensures the locally stored upload credential is still known to the
+     * server, and self-heals when it isn't. A server-side DB restore wipes
+     * `device_tokens` while the phone keeps its (now orphaned) copy —
+     * `isActive` stays true, `ensureTrackingToken` never re-provisions, and
+     * every ingest attempt 401s forever with points stuck in the queue.
+     *
+     * - No local token → provision one (REPAIRED).
+     * - Local token present → verify against the server list; unknown or
+     * revoked → clear + provision (REPAIRED).
+     * - The verification RPC fails (offline/expired session) → OFFLINE, no
+     * action taken.
+     */
+    suspend fun repairIfOrphaned(label: String): TokenRepair {
+        if (!store.isActive) {
+            return create(label).fold(
+                onSuccess = { TokenRepair.REPAIRED },
+                onFailure = { TokenRepair.OFFLINE },
+            )
+        }
+        val rows = list().getOrNull() ?: return TokenRepair.OFFLINE
+        val tokenId = store.tokenId
+        val known = tokenId != null && rows.any { it.id == tokenId && !it.isRevoked }
+        if (known) return TokenRepair.OK
+        store.clear()
+        return create(label).fold(
+            onSuccess = { TokenRepair.REPAIRED },
+            onFailure = { TokenRepair.OFFLINE },
+        )
+    }
+
     /**
      * RPC results arrive as a JsonElement that may be an array of rows, a
      * JSON-encoded string, or nested — unwrap defensively (the web app does

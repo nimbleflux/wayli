@@ -261,6 +261,7 @@ fun TrackingSettingsScreen(
                 diag = viewModel.diagnostics,
                 manualSubmit = viewModel.manualSubmit,
                 onManualSubmit = { viewModel.submitManualLocation() },
+                onClearManualMessage = { viewModel.clearManualSubmitMessage() },
                 onSyncNow = { viewModel.syncNow() },
             )
 
@@ -274,6 +275,7 @@ private fun DataSyncCard(
     diag: TrackingSettingsViewModel.Diagnostics,
     manualSubmit: TrackingSettingsViewModel.ManualSubmit,
     onManualSubmit: () -> Unit,
+    onClearManualMessage: () -> Unit,
     onSyncNow: () -> Unit,
 ) {
     WayliSectionCard(title = "Data & sync") {
@@ -290,6 +292,8 @@ private fun DataSyncCard(
         if (diag.droppedTotal > 0) {
             DiagRow("Dropped (failed uploads)", "%,d".format(diag.droppedTotal))
         }
+        DiagRow("Upload credential", diag.credential)
+        DiagRow("Upload", diag.uploadState)
         DiagRow(
             "Last accepted by server",
             diag.lastAcceptedAt?.let { formatTimestamp(it) } ?: "—",
@@ -305,15 +309,10 @@ private fun DataSyncCard(
 
         ManualSubmitButton(
             inProgress = manualSubmit.inProgress,
+            message = manualSubmit.message,
             onSubmit = onManualSubmit,
+            onDismissMessage = onClearManualMessage,
         )
-        manualSubmit.message?.let { message ->
-            Text(
-                message,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
 
         Spacer(Modifier.height(8.dp))
 
@@ -327,7 +326,12 @@ private fun DataSyncCard(
 }
 
 @Composable
-private fun ManualSubmitButton(inProgress: Boolean, onSubmit: () -> Unit) {
+private fun ManualSubmitButton(
+    inProgress: Boolean,
+    message: String?,
+    onSubmit: () -> Unit,
+    onDismissMessage: () -> Unit,
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var requestPermission by remember { mutableStateOf(false) }
     val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -351,11 +355,32 @@ private fun ManualSubmitButton(inProgress: Boolean, onSubmit: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
     ) { Text(if (inProgress) "Locating…" else "Submit current location") }
 
+    if (inProgress) {
+        Spacer(Modifier.height(6.dp))
+        androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+    }
+
     androidx.compose.runtime.LaunchedEffect(requestPermission) {
         if (requestPermission) {
             permissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
             requestPermission = false
         }
+    }
+
+    // Status auto-dismisses — a lingering "queued for upload" line is noise.
+    androidx.compose.runtime.LaunchedEffect(message) {
+        if (message != null) {
+            kotlinx.coroutines.delay(6_000)
+            onDismissMessage()
+        }
+    }
+    message?.let { text ->
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -416,6 +441,7 @@ private fun formatTimestamp(iso: String): String = runCatching {
 
 @HiltViewModel
 class TrackingSettingsViewModel @Inject constructor(
+    @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: android.content.Context,
     private val store: TrackingConfigStore,
     private val controller: io.github.nimbleflux.wayli.gps.TrackingController,
     private val diagnosticsRepo: io.github.nimbleflux.wayli.repo.TrackingDiagnosticsRepository,
@@ -438,6 +464,8 @@ class TrackingSettingsViewModel @Inject constructor(
         val droppedTotal: Int = 0,
         val serverPoints: Long? = null,
         val lastAcceptedAt: String? = null,
+        val credential: String = "checking…",
+        val uploadState: String = "idle",
         val log: List<io.github.nimbleflux.wayli.repo.UploadLogEntry> = emptyList(),
     )
 
@@ -451,6 +479,21 @@ class TrackingSettingsViewModel @Inject constructor(
                 diagnostics = diagnostics.copy(queued = queued)
             }
         }
+        viewModelScope.launch {
+            // Live upload-worker state so "Sync now" has a visible effect.
+            androidx.work.WorkManager.getInstance(appContext)
+                .getWorkInfosForUniqueWorkFlow(io.github.nimbleflux.wayli.tracking.GpsUploadWorker.UNIQUE_NAME)
+                .collect { infos ->
+                    diagnostics = diagnostics.copy(
+                        uploadState = when (infos.firstOrNull()?.state) {
+                            androidx.work.WorkInfo.State.RUNNING -> "running…"
+                            androidx.work.WorkInfo.State.ENQUEUED -> "queued"
+                            androidx.work.WorkInfo.State.FAILED -> "failed"
+                            else -> "idle"
+                        },
+                    )
+                }
+        }
         refreshDiagnostics()
     }
 
@@ -463,6 +506,7 @@ class TrackingSettingsViewModel @Inject constructor(
                 capturedTotal = diagnosticsRepo.capturedTotal(),
                 droppedTotal = diagnosticsRepo.droppedTotal(),
                 log = diagnosticsRepo.uploadLog(),
+                credential = credentialStatus(),
             )
             val userId = client.auth.currentSession?.user?.id ?: return@launch
             diagnostics = diagnostics.copy(
@@ -473,10 +517,20 @@ class TrackingSettingsViewModel @Inject constructor(
         }
     }
 
-    /** Force an upload attempt now, then refresh the log/queue numbers. */
+    /** Local credential state, cross-checked against the server when possible. */
+    private suspend fun credentialStatus(): String {
+        if (!deviceTokenStore.isActive) return "missing"
+        val rows = deviceTokenRepo.list().getOrNull() ?: return "active"
+        val known = deviceTokenStore.tokenId != null &&
+            rows.any { it.id == deviceTokenStore.tokenId && !it.isRevoked }
+        return if (known) "active" else "orphaned — sync re-provisions"
+    }
+
+    /** Heal the credential if orphaned, then force an upload attempt. */
     fun syncNow() {
-        controller.syncNow()
         viewModelScope.launch(Dispatchers.IO) {
+            deviceTokenRepo.repairIfOrphaned(android.os.Build.MODEL)
+            controller.syncNow()
             kotlinx.coroutines.delay(2_000)
             refreshDiagnostics()
         }
@@ -497,13 +551,18 @@ class TrackingSettingsViewModel @Inject constructor(
                 inProgress = false,
                 message = result.fold(
                     onSuccess = { point ->
-                        "Location captured (%.5f, %.5f) — uploading".format(point.lat, point.lon)
+                        "Location captured (%.5f, %.5f) — queued for upload".format(point.lat, point.lon)
                     },
                     onFailure = { it.message ?: "Couldn't get a GPS fix" },
                 ),
             )
             refreshDiagnostics()
         }
+    }
+
+    /** Auto-dismiss callback target for the manual-submit status line. */
+    fun clearManualSubmitMessage() {
+        manualSubmit = ManualSubmit()
     }
 
     fun update(newConfig: TrackingConfig) {

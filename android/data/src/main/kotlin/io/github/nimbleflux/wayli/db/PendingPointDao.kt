@@ -53,6 +53,17 @@ interface PendingPointDao {
     @Query("DELETE FROM pending_points WHERE attempts >= :maxAttempts")
     suspend fun dropExhausted(maxAttempts: Int): Int
 
+    /**
+     * Keep the queue bounded: evict the oldest points beyond [keep] so a long
+     * offline stretch can't grow storage unbounded (network failures no longer
+     * count toward attempt-based drops). Returns the deleted count.
+     */
+    @Query(
+        "DELETE FROM pending_points WHERE id IN " +
+            "(SELECT id FROM pending_points ORDER BY recorded_at_sec ASC, id ASC LIMIT -1 OFFSET :keep)",
+    )
+    suspend fun evictOldestBeyond(keep: Int): Int
+
     @Query("UPDATE pending_points SET attempts = attempts + 1 WHERE id IN (:ids)")
     suspend fun bumpAttempts(ids: List<Long>)
 

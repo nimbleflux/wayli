@@ -6,9 +6,11 @@ import android.content.IntentFilter
 import android.os.BatteryManager
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.nimbleflux.wayli.db.PendingPointDao
@@ -158,6 +160,21 @@ class TrackingControllerImpl @Inject constructor(
     }
 
     private fun scheduleUpload() {
+        // The periodic schedule is the safety net for stranded batches: the
+        // one-shot's retry cycle gives up after ~30 minutes, which an outage
+        // (phone-side network loss overnight) outlives. KEEP policy makes
+        // re-enqueueing free; an empty queue makes each run a no-op.
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            GpsUploadWorker.PERIODIC_UNIQUE_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            PeriodicWorkRequestBuilder<GpsUploadWorker>(15, TimeUnit.MINUTES)
+                .setConstraints(
+                    Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .build(),
+                )
+                .build(),
+        )
         val request = OneTimeWorkRequestBuilder<GpsUploadWorker>()
             .setConstraints(
                 Constraints.Builder()

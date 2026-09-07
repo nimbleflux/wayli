@@ -278,6 +278,10 @@ class NavViewModel @Inject constructor(
     fun ensureTrackingToken() {
         if (demoManager.isDemoMode) return
         viewModelScope.launch(Dispatchers.IO) {
+            // The orphan check talks to the server — with the stale token a
+            // cold start restores, that RPC is a guaranteed 403. Refresh
+            // first; a no-op while the token is still fresh.
+            runCatching { sessionRefresher.refreshIfDue() }
             val repair = deviceTokenRepo.repairIfOrphaned(label = android.os.Build.MODEL)
             if (repair.status == io.github.nimbleflux.wayli.repo.DeviceTokenRepository.TokenRepair.REPAIRED) {
                 trackingController.syncNow()

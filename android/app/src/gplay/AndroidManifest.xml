@@ -4,4 +4,13 @@
     <!-- Play Services Activity Recognition (adaptive tracking + AR hints). -->
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
 
+    <application>
+        <!-- Stationary-resume geofence transitions: must be manifest-declared
+             so the EXIT transition can wake a dead process. -->
+        <receiver
+            android:name="io.github.nimbleflux.wayli.location.GeofenceBroadcastReceiver"
+            android:enabled="true"
+            android:exported="false" />
+    </application>
+
 </manifest>

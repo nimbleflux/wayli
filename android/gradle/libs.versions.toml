@@ -8,7 +8,13 @@ hilt-navigation = "1.2.0"
 navigation = "2.8.5"
 room = "2.6.1"
 workmanager = "2.10.0"
-fluxbase-kotlin = "2026.9.1"
+# Minimum artifact containing the Android-compat fixes (fluxbase 948de639):
+# refresh responses without `user` are tolerated instead of dropped. The
+# published 2026.9.1 artifact PREDATES those fixes — the repo tag of the same
+# name points at fixed code, but Maven coordinates are immutable. Don't let a
+# server-version bump blanket-downgrade this pin (that's how 2026.9.6 → 2026.9.1
+# regressed rc.9+).
+fluxbase-kotlin = "2026.9.6"
 detekt = "1.23.7"
 maplibre = "11.8.0"
 kotlinx-serialization = "1.7.3"

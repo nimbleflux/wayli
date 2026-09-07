@@ -77,6 +77,7 @@ class HomeViewModel @Inject constructor(
     private val userRepo: UserRepository,
     private val notificationRepo: io.github.nimbleflux.wayli.repo.NotificationRepository,
     private val sessionArbiter: io.github.nimbleflux.wayli.session.SessionArbiter,
+    private val sessionRefresher: io.github.nimbleflux.wayli.session.SessionRefresher,
     private val rangeStore: io.github.nimbleflux.wayli.feature.stats.StatsRangeStore,
     onlineMonitor: io.github.nimbleflux.wayli.util.OnlineMonitor,
 ) : ViewModel() {
@@ -180,6 +181,11 @@ class HomeViewModel @Inject constructor(
         val keepContent = silent && _uiState.value is HomeUiState.Success
         loadJob = viewModelScope.launch(Dispatchers.IO) {
             if (keepContent) _refreshing.value = true else _uiState.value = HomeUiState.Loading
+            // A cold start restores an access token that is usually already
+            // expired; firing the reads before the refresh lands burns a
+            // burst of 401s (and a 403 on the token self-heal) on every
+            // open. Refresh first — a no-op while the token is still fresh.
+            runCatching { sessionRefresher.refreshIfDue() }
             try {
             // Parallel fetches — the dashboard's first paint waits on the
             // slowest call, not the sum of all of them.

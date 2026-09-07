@@ -111,6 +111,18 @@ class HomeViewModel @Inject constructor(
 
     init {
         load()
+        // The stats period is app-wide — Statistics writes the same store,
+        // and this ViewModel outlives tab switches. Follow the store instead
+        // of the construction-time snapshot, or a range picked on Statistics
+        // never reaches the Home picker and map.
+        viewModelScope.launch {
+            rangeStore.range.collect { range ->
+                if (range != _selectedRange.value) {
+                    _selectedRange.value = range
+                    loadWindow()
+                }
+            }
+        }
         // Reload when the session is (re)established — e.g. the OAuth return
         // after a cold start restored a dead token: the first load() failed,
         // and without this the dashboard would stay empty until a process
@@ -134,10 +146,8 @@ class HomeViewModel @Inject constructor(
     }
 
     fun setRange(range: DateRange) {
-        if (_selectedRange.value == range) return
-        _selectedRange.value = range
+        // The store collector applies the change (and no-ops when equal).
         rangeStore.set(range)
-        loadWindow()
     }
 
     /** In-flight initial load, so retries/auth-event reloads can't overlap it. */
@@ -314,7 +324,11 @@ class HomeViewModel @Inject constructor(
                     _windowError.value = true
                     return@launch
                 }
-                _windowError.value = false
+                // The journeys track comes only from the points fetch — when
+                // just that fails (stats and countries have their own
+                // sources), say so instead of silently keeping the previous
+                // range's map.
+                _windowError.value = pointsResult.isFailure
 
                 val totals = if (daily.isNotEmpty()) {
                     StatsAggregator.totalsFromDailyActivity(daily)

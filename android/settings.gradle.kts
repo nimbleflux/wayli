@@ -62,8 +62,15 @@ if (
     providers.gradleProperty("useLocalSdk").isPresent ||
     ((gprUser == null || gprToken == null) && file("../../fluxbase/sdk-kotlin").exists())
 ) {
+    // Surface WHICH local source is substituted: a checkout left on an old
+    // branch silently compiles weeks-old SDK code into every local APK —
+    // app-side fixes then can't take effect and the failures look mysterious.
+    val sdkRev = providers.exec {
+        workingDir = file("../../fluxbase")
+        commandLine("git", "log", "-1", "--format=%h %cs %d")
+    }.standardOutput.asText.get().trim()
     println(
-        "wayli: using LOCAL fluxbase-kotlin source (../../fluxbase/sdk-kotlin). " +
+        "wayli: using LOCAL fluxbase-kotlin source (../../fluxbase/sdk-kotlin) @ $sdkRev. " +
             "Set gpr.user/gpr.key in ~/.gradle/gradle.properties to use the published artifact.",
     )
     includeBuild("../../fluxbase/sdk-kotlin") {

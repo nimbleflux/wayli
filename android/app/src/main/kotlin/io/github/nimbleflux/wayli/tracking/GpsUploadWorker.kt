@@ -22,8 +22,13 @@ import kotlinx.serialization.json.Json
  * device token (`X-Device-Token: wayli_dt_…` — never in the URL), and
  * deletes the batch on success.
  *
- * Retries with WorkManager's exponential backoff; points that exhausted
- * [MAX_ATTEMPTS] uploads are dropped so the queue can't clog.
+ * Retries with WorkManager's exponential backoff. Attempts are only counted
+ * for failures where the server answered: an outage (no HTTP status at all)
+ * must strand points for later, not spend their lives — the periodic schedule
+ * ([PERIODIC_UNIQUE_NAME], armed by TrackingControllerImpl) re-drains until
+ * connectivity returns. Server-rejected points drop at [MAX_ATTEMPTS] and the
+ * queue itself is capped at [MAX_QUEUE] (oldest evicted) so neither poison
+ * payloads nor a long offline stretch can grow it unbounded.
  */
 @HiltWorker
 class GpsUploadWorker @AssistedInject constructor(
@@ -47,9 +52,10 @@ class GpsUploadWorker @AssistedInject constructor(
     }
 
     private suspend fun drain(endpoint: String, token: String): Result {
-        // Points that exhausted their attempts are gone for good — count them
-        // so the diagnostics surface can show the loss instead of hiding it.
-        val dropped = dao.dropExhausted(MAX_ATTEMPTS)
+        // Points that exhausted their attempts, and points evicted by the
+        // queue cap, are gone for good — count them so the diagnostics
+        // surface can show the loss instead of hiding it.
+        val dropped = dao.dropExhausted(MAX_ATTEMPTS) + dao.evictOldestBeyond(MAX_QUEUE)
         if (dropped > 0) diagnostics.onPointsDropped(dropped)
 
         val batch = dao.takeBatch(BATCH_SIZE)
@@ -66,7 +72,10 @@ class GpsUploadWorker @AssistedInject constructor(
                 "ok" to post.code
             }
             is PostResult.Retryable -> {
-                dao.bumpAttempts(batch.map { it.id })
+                // No HTTP status means the request never reached the server
+                // (offline / captive portal) — keep the points' drop budget
+                // intact so an outage can't graduate into data loss.
+                if (post.code != null) dao.bumpAttempts(batch.map { it.id })
                 "retry" to post.code
             }
             is PostResult.Fatal -> {
@@ -75,6 +84,10 @@ class GpsUploadWorker @AssistedInject constructor(
                 // fail forever. Clear it so the next app start provisions a
                 // fresh one; the durable queue drains on the new token.
                 if (post.code == 401 || post.code == 403) deviceTokenStore.clear()
+                // The server did answer, so this is a real rejection: count
+                // it against the drop budget, otherwise a poison batch would
+                // ride the periodic schedule forever.
+                dao.bumpAttempts(batch.map { it.id })
                 "fatal" to post.code
             }
         }
@@ -141,8 +154,10 @@ class GpsUploadWorker @AssistedInject constructor(
 
     companion object {
         const val UNIQUE_NAME = "wayli-gps-upload"
+        const val PERIODIC_UNIQUE_NAME = "wayli-gps-upload-periodic"
         const val BATCH_SIZE = 100
-        const val MAX_ATTEMPTS = 10 // per-point upload attempts before dropping
+        const val MAX_ATTEMPTS = 10 // per-point server-rejection attempts before dropping
         const val MAX_RUN_ATTEMPTS = 6 // WorkManager runAttemptCount cap
+        const val MAX_QUEUE = 20_000 // oldest points evicted beyond this (~weeks offline)
     }
 }

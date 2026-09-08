@@ -8,12 +8,14 @@ hilt-navigation = "1.2.0"
 navigation = "2.8.5"
 room = "2.6.1"
 workmanager = "2.10.0"
-# NOTE: the published fluxbase-kotlin:2026.9.1 artifact PREDATES the Android
-# compat fixes (fluxbase 948de639): /auth/refresh responses without a `user`
-# field fail deserialization, so successful refreshes are discarded client-side
-# and the app 401s forever (frozen dashboard/journeys map). Bump this pin to
-# the first artifact published from fixed code — and don't let server-version
-# bumps blanket-downgrade it (that's how 2026.9.6 → 2026.9.1 regressed rc.9+).
+# NOTE (verified by bytecode-diffing the published jars): fluxbase-kotlin
+# 2026.9.1 was published by the Fluxbase release CI from the fixed tag
+# (948de639) and contains ALL Android-compat fixes — nullable `user` in
+# AuthResponse, the refreshSession carry-over, the JsonElement transport
+# passthrough, and the 5s autoRefresh floor. 2026.9.5/2026.9.6 were partial
+# MANUAL publishes from an incomplete chain (missing the transport
+# passthrough) — do NOT pin those. Next server bumps should pin the next
+# release-CI artifact (≥ 2026.9.2).
 fluxbase-kotlin = "2026.9.1"
 detekt = "1.23.7"
 maplibre = "11.8.0"

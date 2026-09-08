@@ -51,7 +51,13 @@ class StatsRepository @Inject constructor(
      * (MaxPageSize, typically 1000), so one un-paginated query silently sees
      * only the newest ~1000 rows. The web pages by 1000 for the same reason.
      */
-    private suspend fun countTrackerData(userId: String, startDate: String, endDate: String): Long {
+    /**
+     * Total rows in the range, or null when the server's Content-Range count
+     * is unavailable — the SDK's header lookup is case-sensitive while
+     * HTTP/2 delivers lowercase header names, so over TLS the count reads as
+     * null (fixed SDK-side; this null path is the degraded mode until then).
+     */
+    private suspend fun countTrackerData(userId: String, startDate: String, endDate: String): Long? {
         val result = client.from<TrackerPoint>("tracker_data")
             .select()
             .eq("user_id", userId)
@@ -60,7 +66,7 @@ class StatsRepository @Inject constructor(
             .count()
             .limit(1)
             .execute()
-        return result.count ?: result.dataOrThrow()?.size?.toLong() ?: 0L
+        return result.count
     }
 
     /**
@@ -82,7 +88,11 @@ class StatsRepository @Inject constructor(
         startDate: String,
         endDate: String,
     ): List<TrackerPoint> {
-        val total = countTrackerData(userId, startDate, endDate)
+        // Count unknown (no Content-Range) → assume the cap: the windows then
+        // tile the first MAX rows contiguously, which fully covers any range
+        // up to the cap and degrades to an evenly-spread sample beyond it —
+        // never the newest-N-only trap that froze the map on range switches.
+        val total = countTrackerData(userId, startDate, endDate) ?: MAX_SAMPLED_ROWS.toLong()
         if (total == 0L) return emptyList()
 
         val byKey = LinkedHashMap<String, TrackerPoint>()

@@ -184,7 +184,7 @@
   },
   "workspace": {
     "dependencies": [
-      "npm:@nimbleflux/fluxbase-sdk@2026.9.1",
+      "npm:@nimbleflux/fluxbase-sdk@2026.9.2",
       "npm:cross-fetch@4.1.0"
     ]
   }

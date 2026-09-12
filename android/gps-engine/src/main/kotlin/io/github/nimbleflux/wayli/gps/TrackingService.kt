@@ -40,6 +40,7 @@ class TrackingService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        running = true
         configStore = TrackingConfigStore(this)
         createNotificationChannel()
     }
@@ -72,6 +73,7 @@ class TrackingService : Service() {
     override fun onDestroy() {
         controller.onServiceStopped()
         configStore.isTracking = false
+        running = false
         scope.cancel()
         super.onDestroy()
     }
@@ -114,6 +116,15 @@ class TrackingService : Service() {
     companion object {
         private const val CHANNEL_ID = "wayli-tracking"
         private const val NOTIFICATION_ID = 1
+
+        /**
+         * Process-liveness of the foreground service. Deliberately not
+         * persisted: [TrackingConfigStore.isTracking] can go stale (a crash
+         * skips onDestroy), while this dies with the process and tells the
+         * app-open auto-restart whether the service genuinely isn't running.
+         */
+        var running: Boolean = false
+            private set
 
         fun start(context: Context) {
             val intent = Intent(context, TrackingService::class.java)

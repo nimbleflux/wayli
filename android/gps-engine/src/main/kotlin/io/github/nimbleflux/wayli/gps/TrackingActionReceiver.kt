@@ -33,6 +33,7 @@ class TrackingActionReceiver : BroadcastReceiver() {
             ACTION_START -> {
                 if (hasFineLocation(context)) {
                     store.isTracking = true
+                    store.trackingDesired = true
                     cancelIdleNotification(context)
                     TrackingService.start(context)
                 } else {
@@ -44,12 +45,14 @@ class TrackingActionReceiver : BroadcastReceiver() {
             }
             ACTION_PAUSE -> {
                 store.isTracking = false
+                store.trackingDesired = false
                 TrackingService.stop(context)
                 postPausedNotification(context)
             }
             ACTION_RESUME -> {
                 if (hasFineLocation(context)) {
                     store.isTracking = true
+                    store.trackingDesired = true
                     cancelPausedNotification(context)
                     TrackingService.start(context)
                 } else {
@@ -58,6 +61,7 @@ class TrackingActionReceiver : BroadcastReceiver() {
             }
             ACTION_STOP -> {
                 store.isTracking = false
+                store.trackingDesired = false
                 TrackingService.stop(context)
                 cancelPausedNotification(context)
                 postIdleNotification(context)

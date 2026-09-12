@@ -80,6 +80,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun TrackingSettingsScreen(
     onBack: () -> Unit,
+    onOpenDiagnostics: () -> Unit = {},
     viewModel: TrackingSettingsViewModel = hiltViewModel(),
 ) {
     val config = viewModel.config
@@ -255,6 +256,10 @@ fun TrackingSettingsScreen(
                         io.github.nimbleflux.wayli.gps.TrackingActionReceiver.cancelIdleNotification(context)
                     }
                 }
+                SwitchRow(
+                    label = "Show current place in notification",
+                    checked = viewModel.showPlaceInNotification,
+                ) { viewModel.updateShowPlaceInNotification(it) }
             }
 
             // Data & sync — is tracking data flowing, and where is it stuck?
@@ -264,6 +269,7 @@ fun TrackingSettingsScreen(
                 onManualSubmit = { viewModel.submitManualLocation() },
                 onClearManualMessage = { viewModel.clearManualSubmitMessage() },
                 onSyncNow = { viewModel.syncNow() },
+                onOpenDiagnostics = onOpenDiagnostics,
             )
 
             Spacer(Modifier.height(io.github.nimbleflux.wayli.designsystem.rememberDockClearance()))
@@ -278,6 +284,7 @@ private fun DataSyncCard(
     onManualSubmit: () -> Unit,
     onClearManualMessage: () -> Unit,
     onSyncNow: () -> Unit,
+    onOpenDiagnostics: () -> Unit,
 ) {
     WayliSectionCard(title = "Data & sync") {
         DiagRow("Points on server", diag.serverPoints?.let { "%,d".format(it) } ?: "—")
@@ -322,6 +329,11 @@ private fun DataSyncCard(
             onClick = onSyncNow,
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Sync now") }
+
+        androidx.compose.material3.OutlinedButton(
+            onClick = onOpenDiagnostics,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Diagnostics log ›") }
 
         RecentUploads(diag.log)
     }
@@ -434,7 +446,7 @@ private fun ageLabel(fromMs: Long): String {
 }
 
 private fun formatLogTime(atMs: Long): String =
-    java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(atMs))
+    java.text.SimpleDateFormat("MMM d, HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(atMs))
 
 private fun formatTimestamp(iso: String): String = runCatching {
     java.time.format.DateTimeFormatter.ofPattern("MMM d, HH:mm", java.util.Locale.getDefault())
@@ -456,6 +468,9 @@ class TrackingSettingsViewModel @Inject constructor(
         private set
 
     var statusNotification by mutableStateOf(store.statusNotificationEnabled)
+        private set
+
+    var showPlaceInNotification by mutableStateOf(store.showPlaceInNotification)
         private set
 
     /** Tracking data diagnostics for the "Data & sync" card. */
@@ -604,6 +619,11 @@ class TrackingSettingsViewModel @Inject constructor(
     fun updateStatusNotification(enabled: Boolean) {
         statusNotification = enabled
         store.statusNotificationEnabled = enabled
+    }
+
+    fun updateShowPlaceInNotification(enabled: Boolean) {
+        showPlaceInNotification = enabled
+        store.showPlaceInNotification = enabled
     }
 }
 

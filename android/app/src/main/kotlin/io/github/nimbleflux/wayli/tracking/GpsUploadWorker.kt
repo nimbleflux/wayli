@@ -8,12 +8,18 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import io.github.nimbleflux.wayli.db.PendingPointDao
 import io.github.nimbleflux.wayli.gps.TrackingConfigStore
+import io.github.nimbleflux.wayli.gps.TrackingService
 import io.github.nimbleflux.wayli.session.DeviceTokenStore
 import io.github.nimbleflux.wayli.session.InstanceManager
 import io.github.nimbleflux.wayli.sync.OwnTracksPayloadMapper
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+
+/** Success body of the wayli-points ingest response (both fields optional). */
+@Serializable
+private data class IngestResponse(val accepted: Int? = null, val address: String? = null)
 
 /**
  * Drains the pending-point queue: batches up to [BATCH_SIZE] points, POSTs
@@ -48,15 +54,19 @@ class GpsUploadWorker @AssistedInject constructor(
             // if they're not ready yet, retry until the device token lands.
             return if (runAttemptCount < MAX_RUN_ATTEMPTS) Result.retry() else Result.failure()
         }
-        return drain("$instanceUrl/api/v1/functions/wayli-points/invoke?namespace=wayli", token)
+        val trigger = inputData.getString(KEY_TRIGGER) ?: TRIGGER_CAPTURE
+        return drain("$instanceUrl/api/v1/functions/wayli-points/invoke?namespace=wayli", token, trigger)
     }
 
-    private suspend fun drain(endpoint: String, token: String): Result {
+    private suspend fun drain(endpoint: String, token: String, trigger: String): Result {
         // Points that exhausted their attempts, and points evicted by the
         // queue cap, are gone for good — count them so the diagnostics
         // surface can show the loss instead of hiding it.
         val dropped = dao.dropExhausted(MAX_ATTEMPTS) + dao.evictOldestBeyond(MAX_QUEUE)
-        if (dropped > 0) diagnostics.onPointsDropped(dropped)
+        if (dropped > 0) {
+            diagnostics.onPointsDropped(dropped)
+            diagnostics.logEvent("points_dropped", "$dropped point(s) dropped after exhausting upload attempts")
+        }
 
         val batch = dao.takeBatch(BATCH_SIZE)
         if (batch.isEmpty()) return Result.success()
@@ -66,9 +76,14 @@ class GpsUploadWorker @AssistedInject constructor(
             OwnTracksPayloadMapper.toPayload(batch),
         )
 
+        val startedAtMs = System.currentTimeMillis()
         val outcome = when (val post = postPoints(endpoint, token, payload)) {
             is PostResult.Success -> {
                 dao.deleteByIds(batch.map { it.id })
+                // OwnTracks parity: the ingest response carries the newest
+                // point's reverse-geocoded address for the tracking
+                // notification.
+                TrackingService.notifyAddress(applicationContext, post.address)
                 "ok" to post.code
             }
             is PostResult.Retryable -> {
@@ -98,6 +113,10 @@ class GpsUploadWorker @AssistedInject constructor(
                 outcome = outcome.first,
                 httpCode = outcome.second,
                 queuedAfter = dao.count(),
+                trigger = trigger,
+                durationMs = System.currentTimeMillis() - startedAtMs,
+                firstPointAtMs = batch.first().recordedAtSec * 1000L,
+                lastPointAtMs = batch.last().recordedAtSec * 1000L,
             ),
         )
 
@@ -134,7 +153,7 @@ class GpsUploadWorker @AssistedInject constructor(
             }
             return when (code) {
                 null -> PostResult.Retryable(null) // couldn't even get a status
-                in 200..299 -> PostResult.Success(code)
+                in 200..299 -> PostResult.Success(code, parseAddress(connection))
                 401, 403, 400, 404 -> PostResult.Fatal(code) // bad token/payload — retrying won't help
                 else -> PostResult.Retryable(code)
             }
@@ -146,8 +165,19 @@ class GpsUploadWorker @AssistedInject constructor(
         }
     }
 
+    /**
+     * The ingest response body is `{ "accepted": n, "address": "…" }` —
+     * `address` is the newest point's Pelias label for the tracking
+     * notification, null when reverse geocoding found nothing or the server
+     * predates the field. Old servers answer `[]`, which also parses to null.
+     */
+    private fun parseAddress(connection: HttpURLConnection): String? = runCatching {
+        val body = connection.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
+        json.decodeFromString(IngestResponse.serializer(), body).address?.takeIf { it.isNotBlank() }
+    }.getOrNull()
+
     private sealed class PostResult {
-        data class Success(val code: Int) : PostResult()
+        data class Success(val code: Int, val address: String?) : PostResult()
         data class Retryable(val code: Int?) : PostResult()
         data class Fatal(val code: Int) : PostResult()
     }
@@ -155,9 +185,15 @@ class GpsUploadWorker @AssistedInject constructor(
     companion object {
         const val UNIQUE_NAME = "wayli-gps-upload"
         const val PERIODIC_UNIQUE_NAME = "wayli-gps-upload-periodic"
+        const val KEY_TRIGGER = "trigger"
+        const val TRIGGER_CAPTURE = "capture"
+        const val TRIGGER_PERIODIC = "periodic"
+        const val TRIGGER_MANUAL = "manual"
         const val BATCH_SIZE = 100
         const val MAX_ATTEMPTS = 10 // per-point server-rejection attempts before dropping
         const val MAX_RUN_ATTEMPTS = 6 // WorkManager runAttemptCount cap
         const val MAX_QUEUE = 20_000 // oldest points evicted beyond this (~weeks offline)
+
+        private val json = Json { ignoreUnknownKeys = true }
     }
 }

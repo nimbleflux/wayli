@@ -68,7 +68,7 @@ class TrackingControllerImpl @Inject constructor(
                 if (passesBatteryRules(config)) {
                     dao.insert(point.toEntity(config))
                     diagnostics.onPointsCaptured(1)
-                    scheduleUpload()
+                    scheduleUpload(GpsUploadWorker.TRIGGER_CAPTURE)
                     maybePauseWhenStationary(point, config)
                 }
             }
@@ -76,7 +76,7 @@ class TrackingControllerImpl @Inject constructor(
     }
 
     override fun syncNow() {
-        scheduleUpload()
+        scheduleUpload(GpsUploadWorker.TRIGGER_MANUAL)
     }
 
     override suspend fun submitManualLocation(): Result<CapturedPoint> =
@@ -90,7 +90,7 @@ class TrackingControllerImpl @Inject constructor(
                 } ?: error("No GPS fix available — try again outside with a clear sky view")
                 dao.insert(point.toEntity(config))
                 diagnostics.onPointsCaptured(1)
-                scheduleUpload()
+                scheduleUpload(GpsUploadWorker.TRIGGER_MANUAL)
                 point
             }
         }
@@ -110,11 +110,18 @@ class TrackingControllerImpl @Inject constructor(
     private fun maybePauseWhenStationary(point: CapturedPoint, config: TrackingConfig) {
         val decision = stationaryTracker.onPoint(point, config)
         if (decision == StationaryTracker.Decision.PAUSE) {
+            scope.launch {
+                diagnostics.logEvent(
+                    "stationary_pause",
+                    "paused after ${config.stationaryPauseMin} min within ${config.stationaryResumeRadiusM.toInt()} m",
+                )
+            }
             job?.cancel()
             job = null
             provider.stopUpdates()
             resumeTrigger.arm(point, config.stationaryResumeRadiusM) {
                 // Movement detected — resume the full pipeline.
+                scope.launch { diagnostics.logEvent("stationary_resume", "movement detected — tracking resumed") }
                 onServiceStarted()
             }
         }
@@ -159,7 +166,7 @@ class TrackingControllerImpl @Inject constructor(
         null to true // unavailable → don't block recording
     }
 
-    private fun scheduleUpload() {
+    private fun scheduleUpload(trigger: String) {
         // The periodic schedule is the safety net for stranded batches: the
         // one-shot's retry cycle gives up after ~30 minutes, which an outage
         // (phone-side network loss overnight) outlives. KEEP policy makes
@@ -173,6 +180,7 @@ class TrackingControllerImpl @Inject constructor(
                         .setRequiredNetworkType(NetworkType.CONNECTED)
                         .build(),
                 )
+                .setInputData(androidx.work.workDataOf(GpsUploadWorker.KEY_TRIGGER to GpsUploadWorker.TRIGGER_PERIODIC))
                 .build(),
         )
         val request = OneTimeWorkRequestBuilder<GpsUploadWorker>()
@@ -182,6 +190,7 @@ class TrackingControllerImpl @Inject constructor(
                     .build(),
             )
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .setInputData(androidx.work.workDataOf(GpsUploadWorker.KEY_TRIGGER to trigger))
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(
             GpsUploadWorker.UNIQUE_NAME,

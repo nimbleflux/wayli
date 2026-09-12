@@ -37,8 +37,8 @@ class RecordingViewModel @Inject constructor(
     private val demoManager: DemoManager,
     private val deviceTokenStore: io.github.nimbleflux.wayli.session.DeviceTokenStore,
     private val deviceTokenRepo: io.github.nimbleflux.wayli.repo.DeviceTokenRepository,
+    private val diagnostics: io.github.nimbleflux.wayli.repo.TrackingDiagnosticsRepository,
 ) : ViewModel() {
-    /** Reflects reality: intent AND a service that is actually running. */
     private val _isRecording = MutableStateFlow(store.isTracking && TrackingService.running)
     val isRecording: StateFlow<Boolean> = _isRecording.asStateFlow()
 
@@ -53,6 +53,12 @@ class RecordingViewModel @Inject constructor(
             _isRecording.value = canRestart
             store.isTracking = canRestart
             if (canRestart) {
+                viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                    diagnostics.logEvent(
+                        "auto_restart",
+                        "tracking service was down — restarted on app open",
+                    )
+                }
                 TrackingService.start(appContext)
                 ensureTrackingToken()
             } else {
@@ -62,11 +68,6 @@ class RecordingViewModel @Inject constructor(
             }
         }
     }
-
-    private fun hasFineLocation(context: Context): Boolean =
-        androidx.core.content.ContextCompat.checkSelfPermission(
-            context, android.Manifest.permission.ACCESS_FINE_LOCATION,
-        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
     fun pause() {
         _isRecording.value = false
@@ -90,6 +91,11 @@ class RecordingViewModel @Inject constructor(
         }
     }
 
+    private fun hasFineLocation(context: Context): Boolean =
+        androidx.core.content.ContextCompat.checkSelfPermission(
+            context, android.Manifest.permission.ACCESS_FINE_LOCATION,
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
     /**
      * Tracking uploads authenticate with an auto-provisioned device token
      * (created at sign-in). If it's somehow missing, create it now — the
@@ -99,6 +105,9 @@ class RecordingViewModel @Inject constructor(
         if (deviceTokenStore.isActive) return
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             runCatching { deviceTokenRepo.create(label = android.os.Build.MODEL) }
+                .onSuccess {
+                    diagnostics.logEvent("token_provisioned", "device token created/refreshed")
+                }
         }
     }
 }

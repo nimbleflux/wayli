@@ -99,7 +99,12 @@ async function handler(
     }
 
     const body = await req.json();
-    return ingestPoints(fluxbaseService, userId, 'device_token', body, 'WAYLI_POINTS');
+    // includeAddress: the response carries the newest point's reverse-geocoded
+    // address so the app can show it in its tracking notification (OwnTracks
+    // parity). The legacy owntracks-points endpoint keeps its `[]` body.
+    return ingestPoints(fluxbaseService, userId, 'device_token', body, 'WAYLI_POINTS', {
+      includeAddress: true,
+    });
   } catch (error) {
     logError(error, 'WAYLI_POINTS');
     return errorResponse(500);

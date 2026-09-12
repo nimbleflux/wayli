@@ -100,6 +100,7 @@ object Routes {
     const val STATS = "stats"
     const val SUGGESTIONS = "suggestions"
     const val TRACKING_SETTINGS = "tracking_settings"
+    const val TRACKING_DIAGNOSTICS = "tracking_diagnostics"
     const val PROFILE = "profile"
     const val SECURITY = "security"
     const val PREFERENCES = "preferences"
@@ -145,6 +146,7 @@ private fun parentTabOf(route: String?): String? = when {
         Routes.PROFILE,
         Routes.SECURITY,
         Routes.TRACKING_SETTINGS,
+        Routes.TRACKING_DIAGNOSTICS,
         Routes.CONNECTIONS,
         Routes.DATA_SAMPLING,
         Routes.TRIP_EXCLUSIONS,
@@ -691,7 +693,15 @@ fun WayliNavHost() {
                 )
             }
             composable(Routes.TRACKING_SETTINGS) {
-                TrackingSettingsScreen(onBack = { navController.popBackStack() })
+                TrackingSettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenDiagnostics = { navController.navigate(Routes.TRACKING_DIAGNOSTICS) },
+                )
+            }
+            composable(Routes.TRACKING_DIAGNOSTICS) {
+                io.github.nimbleflux.wayli.feature.tracking.TrackingDiagnosticsScreen(
+                    onBack = { navController.popBackStack() },
+                )
             }
             composable(Routes.PROFILE) {
                 ProfileEditScreen(onBack = { navController.popBackStack() })

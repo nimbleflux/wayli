@@ -119,6 +119,19 @@ class TrackingConfigStore(context: Context) {
         get() = prefs.getBoolean(KEY_STATUS_NOTIFICATION, true)
         set(value) = prefs.edit { putBoolean(KEY_STATUS_NOTIFICATION, value) }
 
+    /**
+     * OwnTracks parity: show the current place in the tracking notification.
+     * Off by the user if they don't want an address visible on the lock screen.
+     */
+    var showPlaceInNotification: Boolean
+        get() = prefs.getBoolean(KEY_SHOW_PLACE, true)
+        set(value) = prefs.edit { putBoolean(KEY_SHOW_PLACE, value) }
+
+    /** Last address shown in the tracking notification — restored on service restart. */
+    var lastNotificationAddress: String?
+        get() = prefs.getString(KEY_LAST_ADDRESS, null)
+        set(value) = prefs.edit { putString(KEY_LAST_ADDRESS, value) }
+
     companion object {
         private const val KEY_MODE = "mode"
         private const val KEY_MIN_INTERVAL = "min_interval"
@@ -140,5 +153,7 @@ class TrackingConfigStore(context: Context) {
         private const val KEY_IS_TRACKING = "is_tracking"
         private const val KEY_TRACKING_DESIRED = "tracking_desired"
         private const val KEY_STATUS_NOTIFICATION = "status_notification"
+        private const val KEY_SHOW_PLACE = "show_place_in_notification"
+        private const val KEY_LAST_ADDRESS = "last_notification_address"
     }
 }

@@ -24,10 +24,30 @@ data class UploadLogEntry(
     val httpCode: Int? = null,
     /** Queue depth right after the attempt. */
     val queuedAfter: Int? = null,
+    /** What scheduled the drain: capture / periodic / manual. */
+    val trigger: String? = null,
+    /** Round-trip duration of the POST. */
+    val durationMs: Long? = null,
+    /** Oldest / newest fix in the batch (epoch ms). */
+    val firstPointAtMs: Long? = null,
+    val lastPointAtMs: Long? = null,
+)
+
+/**
+ * One tracking-lifecycle event — the "why did tracking stop" trail the upload
+ * log can't show (auto-restarts, stationary pauses, drops, token repairs).
+ */
+@Serializable
+data class EventLogEntry(
+    val atMs: Long,
+    /** auto_restart / stationary_pause / stationary_resume / points_dropped / token_provisioned */
+    val kind: String,
+    val detail: String? = null,
 )
 
 private val uploadLogJson = Json { ignoreUnknownKeys = true }
-private const val LOG_CAP = 20
+private const val LOG_CAP = 50
+private const val EVENT_CAP = 50
 
 /**
  * Local tracking diagnostics: how many points the device captured vs.
@@ -86,6 +106,19 @@ class TrackingDiagnosticsRepository @Inject constructor(
         )
     }
 
+    suspend fun eventLog(): List<EventLogEntry> =
+        metadataDao.get(KEY_EVENT_LOG)
+            ?.let { runCatching { uploadLogJson.decodeFromString(EVENT_SERIALIZER, it) }.getOrNull() }
+            ?: emptyList()
+
+    /** Append one lifecycle event, keeping the newest [EVENT_CAP] entries. */
+    suspend fun logEvent(kind: String, detail: String? = null, atMs: Long = System.currentTimeMillis()) {
+        val updated = (eventLog() + EventLogEntry(atMs = atMs, kind = kind, detail = detail)).takeLast(EVENT_CAP)
+        metadataDao.put(
+            MetadataEntity(KEY_EVENT_LOG, uploadLogJson.encodeToString(EVENT_SERIALIZER, updated)),
+        )
+    }
+
     /**
      * Total points stored for this user on the server (`tracker_data` exact
      * count, no rows transferred) — the "submitted" number.
@@ -115,6 +148,8 @@ class TrackingDiagnosticsRepository @Inject constructor(
         const val KEY_CAPTURED_DAY_COUNT = "diag_captured_day_count"
         const val KEY_DROPPED_TOTAL = "diag_dropped_total"
         const val KEY_UPLOAD_LOG = "diag_upload_log"
+        const val KEY_EVENT_LOG = "diag_event_log"
         val LOG_SERIALIZER = ListSerializer(UploadLogEntry.serializer())
+        val EVENT_SERIALIZER = ListSerializer(EventLogEntry.serializer())
     }
 }

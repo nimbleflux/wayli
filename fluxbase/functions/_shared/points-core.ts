@@ -36,6 +36,19 @@ export function successResponse(_status = 200): Response {
   });
 }
 
+/**
+ * Success with a JSON body — used by wayli-points, which returns the newest
+ * point's reverse-geocoded address so the app can show it in its tracking
+ * notification. owntracks-points keeps the bodyless `[]` (third-party
+ * clients post there).
+ */
+export function successWithBody(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' }
+  });
+}
+
 export function errorResponse(status = 400): Response {
   return new Response('[]', {
     status,
@@ -425,7 +438,8 @@ export async function ingestPoints(
   userId: string,
   authMethod: string,
   body: unknown,
-  logTag: string
+  logTag: string,
+  options?: { includeAddress?: boolean }
 ): Promise<Response> {
   try {
     // The runtime injects the service client only when the execution has a
@@ -588,6 +602,18 @@ export async function ingestPoints(
       geocodedCount,
       ungeocodedCount: insertedCount - geocodedCount
     });
+
+    if (options?.includeAddress) {
+      // The app batches points oldest-first, so the last element is the
+      // newest fix. Its Pelias label is what the tracking notification shows.
+      const newest = processedPoints[processedPoints.length - 1];
+      const props = newest?.geocode?.properties;
+      const address =
+        typeof props?.display_name === 'string' && props.display_name.length > 0
+          ? props.display_name
+          : null;
+      return successWithBody({ accepted: insertedCount, address });
+    }
 
     return successResponse();
   } catch (error) {

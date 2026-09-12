@@ -38,24 +38,28 @@ class RecordingViewModel @Inject constructor(
     private val deviceTokenStore: io.github.nimbleflux.wayli.session.DeviceTokenStore,
     private val deviceTokenRepo: io.github.nimbleflux.wayli.repo.DeviceTokenRepository,
 ) : ViewModel() {
-    private val _isRecording = MutableStateFlow(store.isTracking)
+    /** Reflects reality: intent AND a service that is actually running. */
+    private val _isRecording = MutableStateFlow(store.isTracking && TrackingService.running)
     val isRecording: StateFlow<Boolean> = _isRecording.asStateFlow()
 
     val isDemo: Boolean get() = demoManager.isDemoMode
 
     init {
-        if (!demoManager.isDemoMode &&
-            store.trackingDesired &&
-            !TrackingService.running
-        ) {
-            // Deliberately not gated on store.isTracking: a crash can leave it
-            // stale-true while the service is gone; TrackingService.running is
-            // the process-liveness truth.
-            _isRecording.value = true
-            if (hasFineLocation(appContext)) {
+        if (!demoManager.isDemoMode && !TrackingService.running) {
+            // The service is genuinely dead in this process — reconcile state
+            // and self-heal when the user's intent says tracking should run.
+            val canRestart = store.trackingDesired &&
+                hasFineLocation(appContext)
+            _isRecording.value = canRestart
+            store.isTracking = canRestart
+            if (canRestart) {
                 TrackingService.start(appContext)
+                ensureTrackingToken()
+            } else {
+                // Dead for a reason (paused, or permission revoked): keep the
+                // drawer honest instead of leaving it mute.
+                TrackingActionReceiver.syncNotifications(appContext)
             }
-            ensureTrackingToken()
         }
     }
 

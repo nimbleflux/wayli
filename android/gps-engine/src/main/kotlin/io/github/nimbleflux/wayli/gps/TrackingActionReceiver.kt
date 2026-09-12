@@ -161,7 +161,9 @@ class TrackingActionReceiver : BroadcastReceiver() {
          */
         fun postIdleNotification(context: Context) {
             val store = TrackingConfigStore(context)
-            if (!store.statusNotificationEnabled || store.isTracking) return
+            if (!store.statusNotificationEnabled) return
+            // Stale-true after a silent death must not mute the idle toggle.
+            if (store.isTracking && TrackingService.running) return
             if (!canPostNotifications(context)) return
             val manager = context.getSystemService(NotificationManager::class.java) ?: return
             ensureChannel(manager, STATUS_CHANNEL_ID, "Wayli Status", "Tracking status and quick toggle")
@@ -183,13 +185,19 @@ class TrackingActionReceiver : BroadcastReceiver() {
         }
 
         /**
-         * Reconcile the drawer with the persisted state: clears a stale
-         * "paused" notification left by a process death and re-posts the idle
-         * toggle when tracking isn't active. Call on app start and boot.
+         * Reconcile the drawer with the *actual* tracking state: clears a
+         * stale "paused" notification left by a process death and re-posts the
+         * idle toggle when tracking isn't active. Call on app start and boot.
+         *
+         * Liveness-aware on purpose: after a silent service death (crash or
+         * kill skips onDestroy) [TrackingConfigStore.isTracking] stays
+         * stale-true, and gating on it alone posted neither the foreground
+         * notification (service dead) nor the idle toggle — the drawer went
+         * mute about tracking entirely.
          */
         fun syncNotifications(context: Context) {
             val store = TrackingConfigStore(context)
-            if (!store.isTracking) {
+            if (!store.isTracking || !TrackingService.running) {
                 cancelPausedNotification(context)
                 postIdleNotification(context)
             }

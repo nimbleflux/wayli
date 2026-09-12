@@ -29,6 +29,9 @@ class TrackingConfigStoreTest {
         assertEquals(TrackingConfig(), config)
         // Recording intent is ON by default (see RecordingViewModel).
         assertTrue(store.isTracking)
+        // The durable intent defaults on with the toggle, so a fresh install
+        // self-heals a service death instead of silently staying off.
+        assertTrue(store.trackingDesired)
     }
 
     @Test
@@ -74,5 +77,20 @@ class TrackingConfigStoreTest {
         assertTrue(store.isTracking)
         store.isTracking = false
         assertFalse(store.isTracking)
+    }
+
+    @Test
+    fun trackingDesiredSurvivesIndependentlyOfIsTracking() {
+        // The service-death path: liveness flips off, the intent stays on so
+        // the app-open auto-restart can fire.
+        store.isTracking = false
+        store.trackingDesired = true
+        assertFalse(TrackingConfigStore(context).isTracking)
+        assertTrue(TrackingConfigStore(context).trackingDesired)
+
+        // The explicit pause/stop path: the user's intent is withdrawn.
+        store.trackingDesired = false
+        assertFalse(TrackingConfigStore(context).trackingDesired)
+        assertTrue(TrackingConfigStore(context).isTracking == false)
     }
 }

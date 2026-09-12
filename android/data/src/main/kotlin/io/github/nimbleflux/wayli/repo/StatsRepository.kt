@@ -51,32 +51,64 @@ class StatsRepository @Inject constructor(
      * (MaxPageSize, typically 1000), so one un-paginated query silently sees
      * only the newest ~1000 rows. The web pages by 1000 for the same reason.
      */
-    private suspend fun pageTrackerData(
+    /**
+     * Total rows in the range, or null when the server's Content-Range count
+     * is unavailable — the SDK's header lookup is case-sensitive while
+     * HTTP/2 delivers lowercase header names, so over TLS the count reads as
+     * null (fixed SDK-side; this null path is the degraded mode until then).
+     */
+    private suspend fun countTrackerData(userId: String, startDate: String, endDate: String): Long? {
+        val result = client.from<TrackerPoint>("tracker_data")
+            .select()
+            .eq("user_id", userId)
+            .gte("recorded_at", "${startDate}T00:00:00Z")
+            .lte("recorded_at", "${endDate}T23:59:59Z")
+            .count()
+            .limit(1)
+            .execute()
+        return result.count
+    }
+
+    /**
+     * Slim columns the aggregators consume — the fat `geocode` jsonb would
+     * multiply every page's payload for nothing.
+     */
+    private val pointsSelect =
+        "user_id,recorded_at,location,speed,distance,time_spent,accuracy,country_code,activity_type,transport_mode"
+
+    /**
+     * Evenly-spread sample of the range's points, bounded for a phone:
+     * at most [MAX_SAMPLED_ROWS] rows fetched in windows spaced uniformly
+     * across the range (recorded_at is unique per user — the PK — so window
+     * offsets over a DESC ordering are stable). Mirrors the web's
+     * fetch-all-then-stride, without the fetch-all.
+     */
+    private suspend fun sampleTrackerData(
         userId: String,
         startDate: String,
         endDate: String,
-        maxRows: Int,
     ): List<TrackerPoint> {
-        val all = mutableListOf<TrackerPoint>()
-        var offset = 0
-        while (offset < maxRows) {
+        // Count unknown (no Content-Range) → assume the cap: the windows then
+        // tile the first MAX rows contiguously, which fully covers any range
+        // up to the cap and degrades to an evenly-spread sample beyond it —
+        // never the newest-N-only trap that froze the map on range switches.
+        val total = countTrackerData(userId, startDate, endDate) ?: MAX_SAMPLED_ROWS.toLong()
+        if (total == 0L) return emptyList()
+
+        val byKey = LinkedHashMap<String, TrackerPoint>()
+        windowOffsets(total).forEach { offset ->
             val result = client.from<TrackerPoint>("tracker_data")
-                .select()
+                .select(pointsSelect)
                 .eq("user_id", userId)
                 .gte("recorded_at", "${startDate}T00:00:00Z")
                 .lte("recorded_at", "${endDate}T23:59:59Z")
                 .order("recorded_at", ascending = false)
                 .range(offset, offset + PAGE_SIZE - 1)
                 .execute()
-            val batch = result.dataOrThrow()
-            if (batch == null || batch.isEmpty()) {
-                break
-            }
-            all += batch
-            if (batch.size < PAGE_SIZE) break
-            offset += PAGE_SIZE
+            val batch = result.dataOrThrow() ?: return@forEach
+            batch.forEach { byKey[it.recordedAt] = it }
         }
-        return all.reversed() // back to chronological order
+        return byKey.values.sortedBy { it.recordedAt }
     }
 
     private suspend fun fetchPointsLive(
@@ -84,11 +116,31 @@ class StatsRepository @Inject constructor(
         startDate: String,
         endDate: String,
     ): Result<List<TrackerPoint>> = runCatching {
-        // Two pages is plenty for on-device aggregation (modes, countries
-        // fallback, local-day heat): the year-long heatmap comes from the
-        // server-side calendar RPC, and track rendering uses fetchTrack.
-        pageTrackerData(userId, startDate, endDate, maxRows = 2 * PAGE_SIZE)
+        // Range-REPRESENTATIVE sample, not the newest N: capping at the
+        // newest rows made every wide range (30d/3m/1y) render the same
+        // trailing week on the journeys map.
+        val sample = sampleTrackerData(userId, startDate, endDate)
+        if (sample.size <= MAP_MAX_POINTS) {
+            sample
+        } else {
+            val stride = Math.ceil(sample.size.toDouble() / MAP_MAX_POINTS).toInt()
+            sample.filterIndexed { index, _ -> index % stride == 0 } + sample.last()
+        }
     }
+
+    /**
+     * Stale cached track polyline (same shape as [fetchTrack], chronological)
+     * for immediate paint; null when this range was never loaded.
+     */
+    suspend fun fetchTrackCached(
+        userId: String,
+        startDate: String,
+        endDate: String,
+    ): List<Pair<Double, Double>>? =
+        cache.get(
+            "track:$userId:$startDate:$endDate",
+            ListSerializer(PairSerializer(Double.serializer(), Double.serializer())),
+        )
 
     /**
      * Fetch just the track coordinates for a date range — a fraction of the
@@ -190,8 +242,33 @@ class StatsRepository @Inject constructor(
             }
         }
 
-    private companion object {
+    companion object {
         const val PAGE_SIZE = 1000
+
+        /** Row ceiling for range sampling — bounds requests, payload and heap. */
+        const val MAX_SAMPLED_ROWS = 20_000
+
+        /** Render/stat ceiling after sampling (web parity for map polylines). */
+        const val MAP_MAX_POINTS = 5_000
+
+        /**
+         * Start offsets of the sampling windows over a range of [total] rows
+         * (DESC ordering): uniformly spaced, first pinned to the oldest rows,
+         * last pinned to `total - PAGE_SIZE` so the newest rows are always
+         * included despite integer-division drift. Public-invariant: the
+         * windows' union covers the whole range whenever total ≤
+         * [MAX_SAMPLED_ROWS] (neighbouring windows then overlap or touch).
+         */
+        fun windowOffsets(total: Long, pageSize: Int = PAGE_SIZE, maxSampled: Int = MAX_SAMPLED_ROWS): List<Int> {
+            if (total <= 0) return emptyList()
+            val fetchRows = minOf(total, maxSampled.toLong()).toInt()
+            val windows = (fetchRows + pageSize - 1) / pageSize
+            if (windows <= 1) return listOf(0)
+            val span = (total - pageSize).coerceAtLeast(0)
+            return (0 until windows).map { w ->
+                if (w == windows - 1) span.toInt() else (w.toLong() * span / (windows - 1)).toInt()
+            }
+        }
     }
 
     /**

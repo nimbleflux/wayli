@@ -13,12 +13,15 @@ android {
     testOptions { unitTests { isReturnDefaultValues = true } }
 
     namespace = "io.github.nimbleflux.wayli"
-    compileSdk = 35
+    compileSdk = 37
+    // Pinned so local and CI symbol packaging match exactly (the NDK is only
+    // used for native debug-symbol extraction — there is no NDK source).
+    ndkVersion = "28.2.13676358"
 
     defaultConfig {
         applicationId = "com.nimbleflux.wayli"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         // Release builds stamp these via -PversionName/-PversionCode
         // (see .github/workflows/release.yml publish-android).
         versionCode = providers.gradleProperty("versionCode").orNull?.toInt() ?: 1
@@ -43,6 +46,14 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            // Embed native symbol tables (function names) in the AAB so Play
+            // Console can symbolicate native crashes (MapLibre,
+            // androidx.graphics.path). FULL would add line info but bloat the
+            // bundle; our native libs are third-party and stripped, so
+            // SYMBOL_TABLE is the effective maximum anyway.
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

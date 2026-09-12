@@ -28,6 +28,7 @@ import kotlinx.coroutines.sync.withLock
 @Singleton
 class SessionArbiter @Inject constructor(
     private val client: FluxbaseClient,
+    private val refreshGate: io.github.nimbleflux.wayli.session.RefreshGate,
 ) {
 
     private val mutex = Mutex()
@@ -73,6 +74,16 @@ class SessionArbiter @Inject constructor(
      * recovery during confirmation returns [Verdict.RECOVERED] untouched.
      */
     suspend fun adjudicate(site: String, cause: Throwable? = null): Verdict = mutex.withLock {
+        // Mid-cooldown a refresh attempt would just 429 again — no verdict is
+        // possible, and 429s must never be double-confirmed into a DEAD.
+        if (refreshGate.isCoolingDown()) {
+            Log.w(
+                TAG,
+                "refresh rate-limited recently at $site (cause: ${describe(cause)}); " +
+                    "cooldown ${refreshGate.remainingMs() / 1000}s — keeping the session",
+            )
+            return@withLock Verdict.TRANSIENT
+        }
         val first = client.auth.refreshSession()
         val verdict = refreshVerdict(first)
 
@@ -111,8 +122,16 @@ class SessionArbiter @Inject constructor(
         verdict
     }
 
-    private fun refreshVerdict(result: io.github.nimbleflux.fluxbase.FluxbaseResponse<*>): Verdict =
-        result.error?.let { classify(it) } ?: Verdict.RECOVERED
+    private fun refreshVerdict(result: io.github.nimbleflux.fluxbase.FluxbaseResponse<*>): Verdict {
+        val error = result.error
+        // Rate-limited: enter the shared cooldown so every other refresh
+        // entry point backs off too; a 429 carries no death information.
+        if (io.github.nimbleflux.wayli.session.isRateLimitedError(error)) {
+            refreshGate.onRateLimited()
+            return Verdict.TRANSIENT
+        }
+        return error?.let { classify(it) } ?: Verdict.RECOVERED
+    }
 
     private fun describe(error: Throwable?): String =
         error?.let { "${it.javaClass.simpleName}(status=${statusOf(it)}): ${it.message?.take(120)}" } ?: "none"

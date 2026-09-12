@@ -55,9 +55,15 @@ object FluxbaseModule {
 
     @Provides
     @Singleton
+    fun provideRefreshGate(): io.github.nimbleflux.wayli.session.RefreshGate =
+        io.github.nimbleflux.wayli.session.RefreshGate()
+
+    @Provides
+    @Singleton
     fun provideFluxbaseClient(
         storage: EncryptedStorageAdapter,
         instanceManager: InstanceManager,
+        refreshGate: io.github.nimbleflux.wayli.session.RefreshGate,
     ): FluxbaseClient {
         val config = instanceManager.getConfig()
             ?: return FluxbaseClient.create(
@@ -76,13 +82,37 @@ object FluxbaseModule {
                 io.github.nimbleflux.wayli.session.InsecureTls.installGlobalFor(it)
             }
         }
-        return FluxbaseClient.create(
+        val client = FluxbaseClient.create(
             url = config.url,
             key = config.anonKey,
             options = FluxbaseClientOptions(
                 storage = storage,
-                autoRefresh = true,
+                // OFF: the SDK's internal refresh loop is uncontrolled — with an
+                // expired/bricked token it spun refresh attempts at its 1s floor,
+                // feeding the server's auth_refresh rate limiter (a 429-per-second
+                // flood that masked the real 401). Proactive refreshing is
+                // SessionRefresher's job (5-min cadence, pre-expiry, backoff,
+                // cooldown gate); demand-driven refresh uses the rate-limit-aware
+                // callback below.
+                autoRefresh = false,
             ),
         )
+        // Replace the SDK's reactive refresh-on-401 callback with a
+        // rate-limit-aware one: during a cooldown the refresh is skipped (the
+        // request retries with the current token and fails through with its
+        // own error) and a 429 arms the shared cooldown instead of hammering
+        // the server's auth_refresh limiter into a deeper hole.
+        client.http.setRefreshTokenCallback {
+            if (refreshGate.isCoolingDown()) {
+                null
+            } else {
+                val result = client.auth.refreshSession()
+                if (io.github.nimbleflux.wayli.session.isRateLimitedError(result.error)) {
+                    refreshGate.onRateLimited()
+                }
+                result.data?.accessToken
+            }
+        }
+        return client
     }
 }

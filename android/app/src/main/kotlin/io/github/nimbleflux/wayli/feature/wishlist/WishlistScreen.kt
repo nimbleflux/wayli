@@ -7,11 +7,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -90,6 +94,10 @@ fun WishlistScreen(
     val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.enterAlwaysScrollBehavior()
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        // Viewport reaches the screen bottom; content scrolls beneath the dock.
+        contentWindowInsets = WindowInsets.systemBars.only(
+            WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+        ),
         topBar = {
             TopAppBar(
                 scrollBehavior = scrollBehavior,
@@ -112,7 +120,9 @@ fun WishlistScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { showAdd = true },
-                modifier = Modifier.padding(bottom = 110.dp), // clear the floating dock
+                modifier = Modifier.padding(
+                    bottom = io.github.nimbleflux.wayli.designsystem.rememberDockClearance(),
+                ), // float above the dock
                 icon = { Icon(Icons.Filled.Add, contentDescription = null) },
                 text = { Text("Add Place") },
                 containerColor = MaterialTheme.colorScheme.primary,
@@ -148,6 +158,9 @@ fun WishlistScreen(
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                bottom = io.github.nimbleflux.wayli.designsystem.rememberDockClearance(),
+                            ),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             items(placeState, key = { it.id }) { place ->

@@ -4,6 +4,7 @@ import io.github.nimbleflux.fluxbase.FluxbaseClient
 import io.github.nimbleflux.fluxbase.from
 import io.github.nimbleflux.wayli.models.Trip
 import io.github.nimbleflux.wayli.models.TripEntry
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import javax.inject.Inject
@@ -47,9 +48,36 @@ class TripRepository @Inject constructor(
                     .select()
                     .eq("id", tripId)
                     .single()
-                result.data ?: throw Exception("Trip not found")
+                // Propagate the real error: a 401 or transport failure must
+                // reach CacheStore's adjudication — masking it here would
+                // surface a dead session as "Trip not found". `single()`
+                // never returns data-without-error; a missing row arrives as
+                // PostgREST's PGRST116, the one error that means "not found".
+                val error = result.error
+                result.data ?: throw when {
+                    error == null || error.code == "PGRST116" -> Exception("Trip not found")
+                    else -> error
+                }
             }
         }
+
+    /**
+     * Stale cached trip for immediate paint (null when never opened on this
+     * device) — the network refresh still runs via [getTrip].
+     */
+    suspend fun getTripCached(tripId: String): Trip? =
+        cache.get("trip:$tripId", Trip.serializer())
+
+    /**
+     * Stale cached journal entries, same ordering guarantee as [listEntries]
+     * (newest first) — the cached payload is the raw server order.
+     */
+    suspend fun listEntriesCached(tripId: String): List<TripEntry> =
+        cache.get("entries:$tripId", ListSerializer(TripEntry.serializer()))
+            ?.sortedWith(
+                compareByDescending<TripEntry> { it.entryDate }.thenByDescending { it.createdAt },
+            )
+            ?: emptyList()
 
     /**
      * One entry by id, filtered server-side — opening a single entry must not

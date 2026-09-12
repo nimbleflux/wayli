@@ -8,21 +8,33 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import io.github.nimbleflux.wayli.db.PendingPointDao
 import io.github.nimbleflux.wayli.gps.TrackingConfigStore
+import io.github.nimbleflux.wayli.gps.TrackingService
 import io.github.nimbleflux.wayli.session.DeviceTokenStore
 import io.github.nimbleflux.wayli.session.InstanceManager
 import io.github.nimbleflux.wayli.sync.OwnTracksPayloadMapper
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+
+/** Success body of the wayli-points ingest response (both fields optional). */
+@Serializable
+private data class IngestResponse(val accepted: Int? = null, val address: String? = null)
 
 /**
  * Drains the pending-point queue: batches up to [BATCH_SIZE] points, POSTs
- * them to the `owntracks-points` function authenticated with the device
- * token (`Authorization: Bearer wayli_dt_…` — never in the URL), and deletes
- * the batch on success.
+ * them to the `wayli-points` function (the app's dedicated ingest endpoint —
+ * external OwnTracks apps use `owntracks-points`) authenticated with the
+ * device token (`X-Device-Token: wayli_dt_…` — never in the URL), and
+ * deletes the batch on success.
  *
- * Retries with WorkManager's exponential backoff; points that exhausted
- * [MAX_ATTEMPTS] uploads are dropped so the queue can't clog.
+ * Retries with WorkManager's exponential backoff. Attempts are only counted
+ * for failures where the server answered: an outage (no HTTP status at all)
+ * must strand points for later, not spend their lives — the periodic schedule
+ * ([PERIODIC_UNIQUE_NAME], armed by TrackingControllerImpl) re-drains until
+ * connectivity returns. Server-rejected points drop at [MAX_ATTEMPTS] and the
+ * queue itself is capped at [MAX_QUEUE] (oldest evicted) so neither poison
+ * payloads nor a long offline stretch can grow it unbounded.
  */
 @HiltWorker
 class GpsUploadWorker @AssistedInject constructor(
@@ -31,6 +43,7 @@ class GpsUploadWorker @AssistedInject constructor(
     private val dao: PendingPointDao,
     private val deviceTokenStore: DeviceTokenStore,
     private val instanceManager: InstanceManager,
+    private val diagnostics: io.github.nimbleflux.wayli.repo.TrackingDiagnosticsRepository,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
@@ -41,11 +54,20 @@ class GpsUploadWorker @AssistedInject constructor(
             // if they're not ready yet, retry until the device token lands.
             return if (runAttemptCount < MAX_RUN_ATTEMPTS) Result.retry() else Result.failure()
         }
-        return drain("$instanceUrl/api/v1/functions/owntracks-points/invoke?namespace=wayli", token)
+        val trigger = inputData.getString(KEY_TRIGGER) ?: TRIGGER_CAPTURE
+        return drain("$instanceUrl/api/v1/functions/wayli-points/invoke?namespace=wayli", token, trigger)
     }
 
-    private suspend fun drain(endpoint: String, token: String): Result {
-        dao.dropExhausted(MAX_ATTEMPTS)
+    private suspend fun drain(endpoint: String, token: String, trigger: String): Result {
+        // Points that exhausted their attempts, and points evicted by the
+        // queue cap, are gone for good — count them so the diagnostics
+        // surface can show the loss instead of hiding it.
+        val dropped = dao.dropExhausted(MAX_ATTEMPTS) + dao.evictOldestBeyond(MAX_QUEUE)
+        if (dropped > 0) {
+            diagnostics.onPointsDropped(dropped)
+            diagnostics.logEvent("points_dropped", "$dropped point(s) dropped after exhausting upload attempts")
+        }
+
         val batch = dao.takeBatch(BATCH_SIZE)
         if (batch.isEmpty()) return Result.success()
 
@@ -54,17 +76,54 @@ class GpsUploadWorker @AssistedInject constructor(
             OwnTracksPayloadMapper.toPayload(batch),
         )
 
-        return when (postPoints(endpoint, token, payload)) {
+        val startedAtMs = System.currentTimeMillis()
+        val outcome = when (val post = postPoints(endpoint, token, payload)) {
             is PostResult.Success -> {
                 dao.deleteByIds(batch.map { it.id })
-                // More queued? Run again immediately drains the next batch.
-                if (batch.size == BATCH_SIZE) Result.retry() else Result.success()
+                // OwnTracks parity: the ingest response carries the newest
+                // point's reverse-geocoded address for the tracking
+                // notification.
+                TrackingService.notifyAddress(applicationContext, post.address)
+                "ok" to post.code
             }
             is PostResult.Retryable -> {
-                dao.bumpAttempts(batch.map { it.id })
-                if (runAttemptCount < MAX_RUN_ATTEMPTS) Result.retry() else Result.failure()
+                // No HTTP status means the request never reached the server
+                // (offline / captive portal) — keep the points' drop budget
+                // intact so an outage can't graduate into data loss.
+                if (post.code != null) dao.bumpAttempts(batch.map { it.id })
+                "retry" to post.code
             }
-            is PostResult.Fatal -> Result.failure()
+            is PostResult.Fatal -> {
+                // 401/403 on ingest means the device token is unknown to the
+                // server (e.g. orphaned by a DB restore) — every retry would
+                // fail forever. Clear it so the next app start provisions a
+                // fresh one; the durable queue drains on the new token.
+                if (post.code == 401 || post.code == 403) deviceTokenStore.clear()
+                // The server did answer, so this is a real rejection: count
+                // it against the drop budget, otherwise a poison batch would
+                // ride the periodic schedule forever.
+                dao.bumpAttempts(batch.map { it.id })
+                "fatal" to post.code
+            }
+        }
+        diagnostics.logUpload(
+            io.github.nimbleflux.wayli.repo.UploadLogEntry(
+                atMs = System.currentTimeMillis(),
+                batch = batch.size,
+                outcome = outcome.first,
+                httpCode = outcome.second,
+                queuedAfter = dao.count(),
+                trigger = trigger,
+                durationMs = System.currentTimeMillis() - startedAtMs,
+                firstPointAtMs = batch.first().recordedAtSec * 1000L,
+                lastPointAtMs = batch.last().recordedAtSec * 1000L,
+            ),
+        )
+
+        return when (outcome.first) {
+            "ok" -> if (batch.size == BATCH_SIZE) Result.retry() else Result.success()
+            "retry" -> if (runAttemptCount < MAX_RUN_ATTEMPTS) Result.retry() else Result.failure()
+            else -> Result.failure()
         }
     }
 
@@ -79,32 +138,62 @@ class GpsUploadWorker @AssistedInject constructor(
                 connectTimeout = 15_000
                 readTimeout = 30_000
                 doOutput = true
-                setRequestProperty("Authorization", "Bearer $token")
+                // Custom header: the API auth middleware rejects non-JWT
+                // Bearer tokens before the function runs, and the device
+                // token is validated by the function itself.
+                setRequestProperty("X-Device-Token", token)
                 setRequestProperty("Content-Type", "application/json")
             }
             connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
-            when (val code = connection.responseCode) {
-                in 200..299 -> PostResult.Success
-                401, 403, 400, 404 -> PostResult.Fatal // bad token/payload — retrying won't help
-                else -> PostResult.Retryable
+            val code = runCatching { connection.responseCode }.getOrNull()
+            // Single redacted failure line — token material never appears;
+            // successful outcomes are visible in the in-app upload log.
+            if (code == null || code !in 200..299) {
+                android.util.Log.w("WayliTokens", "ingest POST failed code=$code token=${token.take(6)}…")
+            }
+            return when (code) {
+                null -> PostResult.Retryable(null) // couldn't even get a status
+                in 200..299 -> PostResult.Success(code, parseAddress(connection))
+                401, 403, 400, 404 -> PostResult.Fatal(code) // bad token/payload — retrying won't help
+                else -> PostResult.Retryable(code)
             }
         } catch (e: Exception) {
-            PostResult.Retryable // network error — backoff and retry
+            android.util.Log.w("WayliTokens", "ingest POST error: ${e.message?.take(80)}")
+            PostResult.Retryable(null) // network error — backoff and retry
         } finally {
             connection?.disconnect()
         }
     }
 
+    /**
+     * The ingest response body is `{ "accepted": n, "address": "…" }` —
+     * `address` is the newest point's Pelias label for the tracking
+     * notification, null when reverse geocoding found nothing or the server
+     * predates the field. Old servers answer `[]`, which also parses to null.
+     */
+    private fun parseAddress(connection: HttpURLConnection): String? = runCatching {
+        val body = connection.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
+        json.decodeFromString(IngestResponse.serializer(), body).address?.takeIf { it.isNotBlank() }
+    }.getOrNull()
+
     private sealed class PostResult {
-        object Success : PostResult()
-        object Retryable : PostResult()
-        object Fatal : PostResult()
+        data class Success(val code: Int, val address: String?) : PostResult()
+        data class Retryable(val code: Int?) : PostResult()
+        data class Fatal(val code: Int) : PostResult()
     }
 
     companion object {
         const val UNIQUE_NAME = "wayli-gps-upload"
+        const val PERIODIC_UNIQUE_NAME = "wayli-gps-upload-periodic"
+        const val KEY_TRIGGER = "trigger"
+        const val TRIGGER_CAPTURE = "capture"
+        const val TRIGGER_PERIODIC = "periodic"
+        const val TRIGGER_MANUAL = "manual"
         const val BATCH_SIZE = 100
-        const val MAX_ATTEMPTS = 10 // per-point upload attempts before dropping
+        const val MAX_ATTEMPTS = 10 // per-point server-rejection attempts before dropping
         const val MAX_RUN_ATTEMPTS = 6 // WorkManager runAttemptCount cap
+        const val MAX_QUEUE = 20_000 // oldest points evicted beyond this (~weeks offline)
+
+        private val json = Json { ignoreUnknownKeys = true }
     }
 }

@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "io.github.nimbleflux.wayli.gps"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 26

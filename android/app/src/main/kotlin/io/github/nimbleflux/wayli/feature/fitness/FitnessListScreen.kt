@@ -8,11 +8,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -106,6 +110,10 @@ fun FitnessListScreen(
     val state by viewModel.state.collectAsState()
 
     Scaffold(
+        // Viewport reaches the screen bottom; content scrolls beneath the dock.
+        contentWindowInsets = WindowInsets.systemBars.only(
+            WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+        ),
         topBar = {
             TopAppBar(
                 title = {
@@ -127,7 +135,9 @@ fun FitnessListScreen(
                 onClick = onImport,
                 icon = { Icon(Icons.Filled.CloudUpload, contentDescription = null) },
                 text = { Text("Import .fit") },
-                modifier = Modifier.padding(bottom = 12.dp), // content area already sits above the dock
+                modifier = Modifier.padding(
+                    bottom = io.github.nimbleflux.wayli.designsystem.rememberDockClearance(),
+                ), // float above the dock
             )
         },
     ) { padding ->
@@ -183,7 +193,12 @@ fun FitnessListScreen(
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize().padding(padding),
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = 8.dp,
+                            bottom = io.github.nimbleflux.wayli.designsystem.rememberDockClearance(),
+                        ),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         groupByMonth(s.activities).forEach { (monthLabel, activities) ->

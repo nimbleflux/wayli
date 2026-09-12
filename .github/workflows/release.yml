@@ -291,7 +291,8 @@ jobs:
           fi
 
           # Get commit messages for summary
-          COMMITS=$(git log "${{ env.PREV_TAG }}"..HEAD --oneline 2>/dev/null | head -50)
+          COMMITS=$(git log "${{ env.PREV_TAG }}"..HEAD --oneline --no-merges \
+            --grep="^chore(release)" --grep="^chore(chart)" --grep="^ci(" --invert-grep 2>/dev/null | head -50)
 
           # Get changed files summary
           CHANGED_FILES=$(git diff --stat "${{ env.PREV_TAG }}"..HEAD 2>/dev/null | tail -1)
@@ -373,7 +374,13 @@ jobs:
           fi
 
           echo "AI Summary: $SUMMARY"
-          echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
+          # Heredoc form: a multi-line summary (any line without key=value)
+          # otherwise fails the whole step with "Invalid format".
+          {
+            echo "summary<<SUMMARY_EOF"
+            echo "$SUMMARY"
+            echo "SUMMARY_EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build changelog body
         id: build_body
@@ -390,11 +397,18 @@ jobs:
           # Group commits by conventional-commit type (feat → Features, fix → Bug Fixes, else → Other)
           FEATURES=$(git log "${PREV_TAG}"..HEAD --oneline --no-merges --grep="^feat" 2>/dev/null | sed 's/^/ - /')
           FIXES=$(git log "${PREV_TAG}"..HEAD --oneline --no-merges --grep="^fix" 2>/dev/null | sed 's/^/ - /')
+          # Release-automation (chore(release)/chore(chart)) and CI commits are
+          # never user-facing — keep them out of the notes entirely.
           OTHER=$(git log "${PREV_TAG}"..HEAD --oneline --no-merges \
-            --grep="^feat" --grep="^fix" --invert-grep 2>/dev/null | sed 's/^/ - /')
+            --grep="^feat" --grep="^fix" --grep="^chore(release)" --grep="^chore(chart)" --grep="^ci(" \
+            --invert-grep 2>/dev/null | sed 's/^/ - /')
 
           # Stats: commit count + contributor count since the last tag
           COMMIT_COUNT=$(git rev-list --count --no-merges "${PREV_TAG}"..HEAD 2>/dev/null || echo 0)
+          # Report the count excluding release-automation commits (they inflate
+          # the number without representing change).
+          COMMIT_COUNT=$(git log "${PREV_TAG}"..HEAD --oneline --no-merges \
+            --grep="^chore(release)" --grep="^chore(chart)" --grep="^ci(" --invert-grep 2>/dev/null | wc -l | tr -d ' ')
           CONTRIBUTOR_COUNT=$(git shortlog -sne --no-merges "${PREV_TAG}"..HEAD 2>/dev/null | wc -l | tr -d ' ')
 
           # GitHub's `merged:` qualifier needs a date; derive it from the tag's commit
@@ -582,6 +596,9 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # NDK required by ndk.debugSymbolLevel (pinned in app/build.gradle.kts)
+          packages: 'platform-tools platforms;android-37.0 build-tools;36.0.0 ndk;28.2.13676358'
 
       # fluxbase-kotlin resolves from GitHub Packages with the workflow token
       # (settings.gradle.kts reads GITHUB_ACTOR/GITHUB_TOKEN).

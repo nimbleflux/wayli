@@ -77,6 +77,7 @@ class HomeViewModel @Inject constructor(
     private val userRepo: UserRepository,
     private val notificationRepo: io.github.nimbleflux.wayli.repo.NotificationRepository,
     private val sessionArbiter: io.github.nimbleflux.wayli.session.SessionArbiter,
+    private val sessionRefresher: io.github.nimbleflux.wayli.session.SessionRefresher,
     private val rangeStore: io.github.nimbleflux.wayli.feature.stats.StatsRangeStore,
     onlineMonitor: io.github.nimbleflux.wayli.util.OnlineMonitor,
 ) : ViewModel() {
@@ -110,6 +111,18 @@ class HomeViewModel @Inject constructor(
 
     init {
         load()
+        // The stats period is app-wide — Statistics writes the same store,
+        // and this ViewModel outlives tab switches. Follow the store instead
+        // of the construction-time snapshot, or a range picked on Statistics
+        // never reaches the Home picker and map.
+        viewModelScope.launch {
+            rangeStore.range.collect { range ->
+                if (range != _selectedRange.value) {
+                    _selectedRange.value = range
+                    loadWindow()
+                }
+            }
+        }
         // Reload when the session is (re)established — e.g. the OAuth return
         // after a cold start restored a dead token: the first load() failed,
         // and without this the dashboard would stay empty until a process
@@ -133,10 +146,8 @@ class HomeViewModel @Inject constructor(
     }
 
     fun setRange(range: DateRange) {
-        if (_selectedRange.value == range) return
-        _selectedRange.value = range
+        // The store collector applies the change (and no-ops when equal).
         rangeStore.set(range)
-        loadWindow()
     }
 
     /** In-flight initial load, so retries/auth-event reloads can't overlap it. */
@@ -180,6 +191,11 @@ class HomeViewModel @Inject constructor(
         val keepContent = silent && _uiState.value is HomeUiState.Success
         loadJob = viewModelScope.launch(Dispatchers.IO) {
             if (keepContent) _refreshing.value = true else _uiState.value = HomeUiState.Loading
+            // A cold start restores an access token that is usually already
+            // expired; firing the reads before the refresh lands burns a
+            // burst of 401s (and a 403 on the token self-heal) on every
+            // open. Refresh first — a no-op while the token is still fresh.
+            runCatching { sessionRefresher.refreshIfDue() }
             try {
             // Parallel fetches — the dashboard's first paint waits on the
             // slowest call, not the sum of all of them.
@@ -298,12 +314,21 @@ class HomeViewModel @Inject constructor(
                 val pointRows = pointsResult.getOrNull().orEmpty()
 
                 if (dailyResult.isFailure && pointsResult.isFailure && countriesResult.isFailure) {
+                    // A 401-shaped failure must be adjudicated before it is
+                    // treated as a transient blip — the same rule as load().
+                    if (adjudicateWindowAuth(listOf(dailyResult, pointsResult, countriesResult))) {
+                        return@launch
+                    }
                     // Keep the previous numbers on screen — zeroing them out
                     // on a flaky connection would look like lost data.
                     _windowError.value = true
                     return@launch
                 }
-                _windowError.value = false
+                // The journeys track comes only from the points fetch — when
+                // just that fails (stats and countries have their own
+                // sources), say so instead of silently keeping the previous
+                // range's map.
+                _windowError.value = pointsResult.isFailure
 
                 val totals = if (daily.isNotEmpty()) {
                     StatsAggregator.totalsFromDailyActivity(daily)
@@ -337,6 +362,55 @@ class HomeViewModel @Inject constructor(
                 _windowLoading.value = false
             }
         }
+    }
+
+    /**
+     * Adjudicates a session-dead-shaped stats-window failure — the same rule
+     * as [load]: only a double-confirmed refresh rejection (DEAD) ends the
+     * session (the arbiter fires the expiry bus, which routes to sign-in).
+     * Returns true when the verdict was handled (DEAD surfaced, RECOVERED
+     * reloaded the window); false for TRANSIENT, where the caller keeps the
+     * previous numbers with the connectivity-style banner.
+     */
+    private suspend fun adjudicateWindowAuth(failures: List<kotlin.Result<*>>): Boolean {
+        val deadCandidate = failures.firstNotNullOfOrNull { it.exceptionOrNull() }
+            ?.takeIf { io.github.nimbleflux.wayli.session.isSessionDeadError(it) } ?: return false
+        return when (sessionArbiter.adjudicate("home:window", deadCandidate)) {
+            io.github.nimbleflux.wayli.session.SessionArbiter.Verdict.DEAD -> {
+                sessionDead = true
+                _uiState.value = HomeUiState.Error("Session expired — please sign in again")
+                true
+            }
+            io.github.nimbleflux.wayli.session.SessionArbiter.Verdict.RECOVERED -> {
+                // The refresh just rotated the token — retry the window
+                // with the working session.
+                loadWindow()
+                true
+            }
+            // Transient (network/5xx): connectivity-style failure, not a
+            // dead session — the banner is the honest message.
+            io.github.nimbleflux.wayli.session.SessionArbiter.Verdict.TRANSIENT -> false
+        }
+    }
+
+    /**
+     * Re-list notifications into the current Success state — called on every
+     * ON_RESUME so the bell badge reflects marks made in the tray (the list
+     * is cache-backed, so this is instant and reflects mark-read mirrors).
+     */
+    fun refreshActivity() {
+        if (demoManager.isDemoMode || sessionDead) return
+        val userId = fluxbaseClient.auth?.currentSession?.user?.id ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val notifications = notificationRepo.list(userId, limit = 20).getOrDefault(emptyList())
+            val current = _uiState.value as? HomeUiState.Success ?: return@launch
+            _uiState.value = current.copy(data = current.data.copy(activity = notifications))
+        }
+    }
+
+    /** Retry the stats window after the "Couldn't refresh" banner appeared. */
+    fun retryWindow() {
+        if (_windowError.value && !sessionDead) loadWindow()
     }
 
     private fun initials(profile: UserProfile?): String {

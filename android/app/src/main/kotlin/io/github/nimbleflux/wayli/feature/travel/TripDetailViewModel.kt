@@ -109,7 +109,19 @@ class TripDetailViewModel @Inject constructor(
             return
         }
         viewModelScope.launch(Dispatchers.IO) {
-            _state.value = TripDetailUiState.Loading
+            // Stale-while-revalidate: paint the Room-cached trip/entries/track
+            // immediately (re-opening a trip must not re-wait on the network —
+            // every fetch used to be network-first), then refresh in place.
+            val staleTrip = tripRepo.getTripCached(tripId)
+            if (staleTrip != null) {
+                _state.value = TripDetailUiState.Success(TripDetailData(staleTrip))
+                _entries.value = tripRepo.listEntriesCached(tripId)
+                // Track starts right here from the stale dates — it no longer
+                // serializes behind the network trip fetch.
+                loadTrackFor(staleTrip)
+            } else {
+                _state.value = TripDetailUiState.Loading
+            }
             // Trip, entries, and media don't depend on each other — fetch them
             // concurrently so the screen isn't a serial chain of round trips.
             coroutineScope {
@@ -121,10 +133,23 @@ class TripDetailViewModel @Inject constructor(
                     .onSuccess { trip ->
                         _state.value = TripDetailUiState.Success(TripDetailData(trip))
                         _entries.value = entriesDeferred.await().getOrDefault(emptyList())
-                        loadTrack(trip)
+                        loadTrackFor(trip)
                     }
                     .onFailure {
-                        _state.value = TripDetailUiState.Error(it.message ?: "Failed to load trip")
+                        // A stale paint stays on screen when the refresh fails
+                        // (serve-stale beats an error screen). The first-ever
+                        // open has nothing cached: a dead session shows its own
+                        // message — the expiry bus (fired by the arbiter in
+                        // withCache) performs the sign-in routing meanwhile.
+                        if (_state.value !is TripDetailUiState.Success) {
+                            _state.value = TripDetailUiState.Error(
+                                if (io.github.nimbleflux.wayli.session.isSessionDeadError(it)) {
+                                    "Session expired — please sign in again"
+                                } else {
+                                    it.message ?: "Failed to load trip"
+                                },
+                            )
+                        }
                     }
                 mediaDeferred.await()
             }
@@ -145,11 +170,23 @@ class TripDetailViewModel @Inject constructor(
         _mediaUrls.value = urls
     }
 
-    /** Fetch the track polyline for the trip's date range. */
-    private suspend fun loadTrack(trip: Trip) {
+    /** Date range the track was last painted/refreshed for — skips a duplicate fetch. */
+    private var loadedTrackDates: Pair<String, String>? = null
+
+    /**
+     * Paint the cached polyline immediately, then refresh it from the network
+     * in place. Called first from the stale paint (cached trip dates) and
+     * again when the fresh trip arrives — the [loadedTrackDates] guard makes
+     * the second call a no-op unless the trip's dates changed.
+     */
+    private suspend fun loadTrackFor(trip: Trip) {
         val userId = client.auth.currentSession?.user?.id ?: return
         val end = trip.endDate ?: java.time.LocalDate.now().toString()
-        _track.value = statsRepo.fetchTrack(userId, trip.startDate, end).getOrDefault(emptyList())
+        val dates = trip.startDate to end
+        if (loadedTrackDates == dates) return
+        loadedTrackDates = dates
+        statsRepo.fetchTrackCached(userId, trip.startDate, end)?.let { _track.value = it }
+        _track.value = statsRepo.fetchTrack(userId, trip.startDate, end).getOrDefault(_track.value)
     }
 
     // ---- Editor integration ----

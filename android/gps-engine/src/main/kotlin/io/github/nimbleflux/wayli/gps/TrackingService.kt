@@ -40,12 +40,13 @@ class TrackingService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        running = true
         configStore = TrackingConfigStore(this)
-        createNotificationChannel()
+        ensureChannel(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val notification = buildNotification("Wayli tracking active")
+        val notification = buildStatusNotification(this, currentNotificationText(this))
         // A START_STICKY restart can land while the app is backgrounded, where
         // Android 12+/15 denies the foreground promotion (while-in-use rules).
         // Crashing there loop-kills the app — stop gracefully instead; the
@@ -72,14 +73,79 @@ class TrackingService : Service() {
     override fun onDestroy() {
         controller.onServiceStopped()
         configStore.isTracking = false
+        running = false
         scope.cancel()
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    companion object {
+        private const val CHANNEL_ID = "wayli-tracking"
+        private const val NOTIFICATION_ID = 1
+
+        /**
+         * Process-liveness of the foreground service. Deliberately not
+         * persisted: [TrackingConfigStore.isTracking] can go stale (a crash
+         * skips onDestroy), while this dies with the process and tells the
+         * app-open auto-restart whether the service genuinely isn't running.
+         */
+        var running: Boolean = false
+            private set
+
+        /**
+         * OwnTracks parity: show the current place as the tracking
+         * notification's text. Called by the upload worker after a batch
+         * whose newest fix reverse-geocoded to [address] (server-side
+         * Pelias, already paid for during ingestion).
+         *
+         * No-ops unless the service is running (the FGS notification only
+         * exists then), when the address is unchanged, or when the user
+         * turned the feature off — an address is lock-screen visible.
+         */
+        fun notifyAddress(context: Context, address: String?) {
+            if (address.isNullOrEmpty() || !running) return
+            val store = TrackingConfigStore(context)
+            if (!store.showPlaceInNotification) return
+            if (address == store.lastNotificationAddress) return
+            store.lastNotificationAddress = address
+            context.getSystemService(NotificationManager::class.java)
+                ?.notify(NOTIFICATION_ID, buildStatusNotification(context, address))
+        }
+
+        /** Address text for a fresh service start — restores the last known place. */
+        private fun currentNotificationText(context: Context): String {
+            val store = TrackingConfigStore(context)
+            return if (store.showPlaceInNotification) store.lastNotificationAddress ?: "Wayli tracking active"
+            else "Wayli tracking active"
+        }
+
+        fun buildStatusNotification(context: Context, text: String): Notification {
+            val store = TrackingConfigStore(context)
+            ensureChannel(context)
+            val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+            val contentIntent = launchIntent?.let {
+                PendingIntent.getActivity(
+                    context,
+                    0,
+                    it,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+            }
+            return NotificationCompat.Builder(context, CHANNEL_ID)
+                .setContentTitle("Wayli")
+                .setContentText(text)
+                .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setContentIntent(contentIntent)
+                // Quick toggles straight from the notification drawer.
+                .addAction(0, "Pause", TrackingActionReceiver.pendingIntent(context, TrackingActionReceiver.ACTION_PAUSE))
+                .addAction(0, "Stop", TrackingActionReceiver.pendingIntent(context, TrackingActionReceiver.ACTION_STOP))
+                .build()
+        }
+
+        private fun ensureChannel(context: Context) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Wayli Tracking",
@@ -88,32 +154,9 @@ class TrackingService : Service() {
                 description = "Location tracking is active"
                 setShowBadge(false)
             }
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
+            val manager = context.getSystemService(NotificationManager::class.java)
+            manager?.createNotificationChannel(channel)
         }
-    }
-
-    private fun buildNotification(text: String): Notification {
-        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
-        val contentIntent = launchIntent?.let {
-            PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        }
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Wayli")
-            .setContentText(text)
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-            .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setContentIntent(contentIntent)
-            // Quick toggles straight from the notification drawer.
-            .addAction(0, "Pause", TrackingActionReceiver.pendingIntent(this, TrackingActionReceiver.ACTION_PAUSE))
-            .addAction(0, "Stop", TrackingActionReceiver.pendingIntent(this, TrackingActionReceiver.ACTION_STOP))
-            .build()
-    }
-
-    companion object {
-        private const val CHANNEL_ID = "wayli-tracking"
-        private const val NOTIFICATION_ID = 1
 
         fun start(context: Context) {
             val intent = Intent(context, TrackingService::class.java)

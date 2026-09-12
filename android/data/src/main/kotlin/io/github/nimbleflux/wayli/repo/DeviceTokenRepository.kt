@@ -65,8 +65,16 @@ class DeviceTokenRepository @Inject constructor(
             RpcInvokeOptions(namespace = NAMESPACE),
         )
         res.error?.let { error(it.message ?: "create-device-token failed") }
-        val row = parseRows(res.data?.result).firstOrNull()
-            ?: error("create-device-token returned no row")
+        val rows = parseRows(res.data?.result)
+        if (rows.isEmpty()) {
+            // Redacted failure diagnostic — logs only the result's JSON shape
+            // (null / JsonArray / …), never row contents or token material.
+            android.util.Log.w(
+                "WayliTokens",
+                "create-device-token returned no parsable row (result=${res.data?.result?.let { it::class.simpleName }})",
+            )
+        }
+        val row = rows.firstOrNull() ?: error("create-device-token returned no row")
         store.save(token = token, id = row.id, label = row.label)
         token
     } }
@@ -85,6 +93,46 @@ class DeviceTokenRepository @Inject constructor(
     /** True when this device holds an active token (ready to submit points). */
     fun hasActiveToken(): Boolean = store.isActive
 
+    /** Outcome of [repairIfOrphaned]. */
+    enum class TokenRepair { OK, REPAIRED, OFFLINE }
+
+    data class TokenRepairResult(val status: TokenRepair, val error: String? = null) {
+        val repaired: Boolean get() = status == TokenRepair.REPAIRED
+    }
+
+    /**
+     * Ensures the locally stored upload credential is still known to the
+     * server, and self-heals when it isn't. A server-side DB restore wipes
+     * `device_tokens` while the phone keeps its (now orphaned) copy —
+     * `isActive` stays true, `ensureTrackingToken` never re-provisions, and
+     * every ingest attempt 401s forever with points stuck in the queue.
+     *
+     * - No local token → provision one (REPAIRED).
+     * - Local token present → verify against the server list; unknown or
+     * revoked → clear + provision (REPAIRED).
+     * - The verification RPC fails (offline/expired session) → OFFLINE, no
+     * action taken. [TokenRepairResult.error] carries the failure message.
+     */
+    suspend fun repairIfOrphaned(label: String): TokenRepairResult {
+        if (!store.isActive) {
+            return create(label).fold(
+                onSuccess = { TokenRepairResult(TokenRepair.REPAIRED) },
+                onFailure = { TokenRepairResult(TokenRepair.OFFLINE, it.message) },
+            )
+        }
+        val listResult = list()
+        val rows = listResult.getOrNull()
+            ?: return TokenRepairResult(TokenRepair.OFFLINE, listResult.exceptionOrNull()?.message)
+        val tokenId = store.tokenId
+        val known = tokenId != null && rows.any { it.id == tokenId && !it.isRevoked }
+        if (known) return TokenRepairResult(TokenRepair.OK)
+        store.clear()
+        return create(label).fold(
+            onSuccess = { TokenRepairResult(TokenRepair.REPAIRED) },
+            onFailure = { TokenRepairResult(TokenRepair.OFFLINE, it.message) },
+        )
+    }
+
     /**
      * RPC results arrive as a JsonElement that may be an array of rows, a
      * JSON-encoded string, or nested — unwrap defensively (the web app does
@@ -102,8 +150,26 @@ class DeviceTokenRepository @Inject constructor(
             else -> return emptyList()
         }
         return array.mapNotNull { row ->
-            runCatching { Json.decodeFromJsonElement(DeviceToken.serializer(), row) }.getOrNull()
+            runCatching { Json.decodeFromJsonElement(DeviceToken.serializer(), normalizeUuids(row)) }.getOrNull()
         }
+    }
+
+    /**
+     * The Go RPC executor serializes native uuid columns (pgx [16]byte) as a
+     * 16-number JSON array, which [DeviceToken.id] (String) can't decode —
+     * every row would be silently dropped. Normalize to the canonical
+     * hyphenated uuid string. (Older deployed servers still do this; fixed
+     * in fluxbase's convertValue.)
+     */
+    private fun normalizeUuids(row: JsonElement): JsonElement {
+        val obj = row as? JsonObject ?: return row
+        val id = obj["id"] as? JsonArray ?: return row
+        if (id.size != 16) return row
+        val bytes = id.map { (it as? JsonPrimitive)?.content?.toIntOrNull()?.coerceIn(0, 255)?.toByte() ?: 0 }
+        val hex = bytes.joinToString("") { "%02x".format(it) }
+        val uuid = hex.substring(0, 8) + "-" + hex.substring(8, 12) + "-" + hex.substring(12, 16) +
+            "-" + hex.substring(16, 20) + "-" + hex.substring(20, 32)
+        return JsonObject(obj.toMutableMap().apply { put("id", JsonPrimitive(uuid)) })
     }
 
     companion object {

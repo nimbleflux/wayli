@@ -35,7 +35,7 @@ class RpcAuthRetryTest {
     @BeforeTest
     fun setUp() {
         client = mockk(relaxed = true)
-        arbiter = SessionArbiter(client)
+        arbiter = SessionArbiter(client, io.github.nimbleflux.wayli.session.RefreshGate())
         SessionExpiryBus.consume()
     }
 

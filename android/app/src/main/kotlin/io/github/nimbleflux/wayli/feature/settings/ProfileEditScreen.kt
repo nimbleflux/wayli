@@ -10,10 +10,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -158,6 +162,10 @@ fun ProfileEditScreen(onBack: () -> Unit) {
     }
 
     Scaffold(
+        // Viewport reaches the screen bottom; content scrolls beneath the dock.
+        contentWindowInsets = WindowInsets.systemBars.only(
+            WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+        ),
         topBar = {
             TopAppBar(
                 title = { Text("Edit profile") },
@@ -168,7 +176,13 @@ fun ProfileEditScreen(onBack: () -> Unit) {
                 },
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHost) },
+        snackbarHost = {
+            SnackbarHost(
+                snackbarHost,
+                // stay above the floating dock
+                Modifier.padding(bottom = io.github.nimbleflux.wayli.designsystem.rememberDockClearance()),
+            )
+        },
     ) { padding ->
         when (val s = state) {
             is ProfileUiState.Loading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
@@ -236,6 +250,7 @@ fun ProfileEditScreen(onBack: () -> Unit) {
                     if (viewModel.isDemoMode) {
                         Text("Profile editing isn't available in demo mode.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                    Spacer(Modifier.height(io.github.nimbleflux.wayli.designsystem.rememberDockClearance()))
                 }
             }
         }

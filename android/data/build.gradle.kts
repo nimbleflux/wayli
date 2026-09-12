@@ -11,7 +11,7 @@ android {
     testOptions { unitTests { isReturnDefaultValues = true } }
 
     namespace = "io.github.nimbleflux.wayli.data"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 26

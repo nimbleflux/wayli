@@ -37,8 +37,8 @@ class SessionRefresherTest {
         client = mockk(relaxed = true)
         demoManager = mockk(relaxed = true)
         every { demoManager.isDemoMode } returns false
-        arbiter = SessionArbiter(client)
-        refresher = SessionRefresher(client, demoManager, arbiter)
+        arbiter = SessionArbiter(client, io.github.nimbleflux.wayli.session.RefreshGate())
+        refresher = SessionRefresher(client, demoManager, arbiter, io.github.nimbleflux.wayli.session.RefreshGate())
         SessionExpiryBus.consume()
     }
 

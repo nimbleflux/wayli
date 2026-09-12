@@ -11,14 +11,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -193,8 +197,18 @@ fun TripsListScreen(
 
     val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.enterAlwaysScrollBehavior()
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = {
+            SnackbarHost(
+                snackbar,
+                // stay above the floating dock
+                Modifier.padding(bottom = io.github.nimbleflux.wayli.designsystem.rememberDockClearance()),
+            )
+        },
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        // Viewport reaches the screen bottom; content scrolls beneath the dock.
+        contentWindowInsets = WindowInsets.systemBars.only(
+            WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+        ),
         topBar = {
             TopAppBar(
                 scrollBehavior = scrollBehavior,
@@ -225,7 +239,9 @@ fun TripsListScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { showCreateDialog = true },
-                modifier = Modifier.padding(bottom = 12.dp), // content area already sits above the dock
+                modifier = Modifier.padding(
+                    bottom = io.github.nimbleflux.wayli.designsystem.rememberDockClearance(),
+                ), // float above the dock
                 icon = { Icon(Icons.Filled.Add, contentDescription = null) },
                 text = { Text("New Trip") },
                 containerColor = MaterialTheme.colorScheme.primary,
@@ -250,6 +266,9 @@ fun TripsListScreen(
                     LazyColumn(
                         // The outer Column already applies the scaffold padding.
                         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            bottom = io.github.nimbleflux.wayli.designsystem.rememberDockClearance(),
+                        ),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         item { Spacer(Modifier.height(8.dp)) }
@@ -309,6 +328,9 @@ fun TripsListScreen(
                                 // The outer Column already applies the scaffold padding —
                                 // applying it again pushed the filters off the header.
                                 modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                    bottom = io.github.nimbleflux.wayli.designsystem.rememberDockClearance(),
+                                ),
                                 verticalArrangement = Arrangement.spacedBy(16.dp),
                             ) {
                                 if (!viewModel.isDemoMode && pendingSuggestions.isNotEmpty()) {
@@ -450,6 +472,9 @@ private fun CommunityStoriesList(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    bottom = io.github.nimbleflux.wayli.designsystem.rememberDockClearance(),
+                ),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 if (state.stories.isEmpty()) {
@@ -847,7 +872,17 @@ fun TripDetailScreen(
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = {
+            SnackbarHost(
+                snackbar,
+                // stay above the floating dock
+                Modifier.padding(bottom = io.github.nimbleflux.wayli.designsystem.rememberDockClearance()),
+            )
+        },
+        // Viewport reaches the screen bottom; content scrolls beneath the dock.
+        contentWindowInsets = WindowInsets.systemBars.only(
+            WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+        ),
         topBar = {
             if (!isSuccess) {
                 TopAppBar(
@@ -863,6 +898,9 @@ fun TripDetailScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onNewEntry,
+                modifier = Modifier.padding(
+                    bottom = io.github.nimbleflux.wayli.designsystem.rememberDockClearance(),
+                ), // float above the dock
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
             ) {
@@ -877,6 +915,9 @@ fun TripDetailScreen(
                 val data = s.data
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(padding),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        bottom = io.github.nimbleflux.wayli.designsystem.rememberDockClearance(),
+                    ),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     item(key = "hero") {

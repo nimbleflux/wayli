@@ -100,6 +100,7 @@ object Routes {
     const val STATS = "stats"
     const val SUGGESTIONS = "suggestions"
     const val TRACKING_SETTINGS = "tracking_settings"
+    const val TRACKING_DIAGNOSTICS = "tracking_diagnostics"
     const val PROFILE = "profile"
     const val SECURITY = "security"
     const val PREFERENCES = "preferences"
@@ -145,6 +146,7 @@ private fun parentTabOf(route: String?): String? = when {
         Routes.PROFILE,
         Routes.SECURITY,
         Routes.TRACKING_SETTINGS,
+        Routes.TRACKING_DIAGNOSTICS,
         Routes.CONNECTIONS,
         Routes.DATA_SAMPLING,
         Routes.TRIP_EXCLUSIONS,
@@ -169,6 +171,7 @@ class NavViewModel @Inject constructor(
     private val tripRepo: io.github.nimbleflux.wayli.repo.TripRepository,
     private val draftRepo: io.github.nimbleflux.wayli.repo.DraftRepository,
     private val preferencesRepository: io.github.nimbleflux.wayli.repo.PreferencesRepository,
+    private val trackingController: io.github.nimbleflux.wayli.gps.TrackingController,
     val sessionRefresher: io.github.nimbleflux.wayli.session.SessionRefresher,
 ) : ViewModel() {
 
@@ -268,14 +271,25 @@ class NavViewModel @Inject constructor(
     }
 
     /**
-     * Auto-provision the tracking upload credential: a device token created
-     * via the authenticated RPC (the user is signed in — nothing to configure
-     * by hand). Guarded by isActive so re-sign-ins don't spawn extra tokens.
+     * Auto-provision / self-heal the tracking upload credential. The local
+     * store can hold a token the server no longer knows (e.g. orphaned by a
+     * DB restore) — [io.github.nimbleflux.wayli.repo.DeviceTokenRepository.repairIfOrphaned]
+     * detects that and provisions a replacement. Drains the queue after a
+     * repair so stuck points upload immediately.
      */
     fun ensureTrackingToken() {
-        if (deviceTokenStore.isActive || demoManager.isDemoMode) return
+        if (demoManager.isDemoMode) return
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching { deviceTokenRepo.create(label = android.os.Build.MODEL) }
+            // The orphan check talks to the server — with the stale token a
+            // cold start restores, that RPC is a guaranteed 403. Refresh
+            // first; a no-op while the token is still fresh.
+            runCatching { sessionRefresher.refreshIfDue() }
+            val repair = deviceTokenRepo.repairIfOrphaned(label = android.os.Build.MODEL)
+            if (repair.status == io.github.nimbleflux.wayli.repo.DeviceTokenRepository.TokenRepair.REPAIRED) {
+                trackingController.syncNow()
+            } else if (repair.status == io.github.nimbleflux.wayli.repo.DeviceTokenRepository.TokenRepair.OFFLINE) {
+                android.util.Log.e(TAG, "device token provision failed: ${repair.error}")
+            }
         }
     }
 
@@ -303,6 +317,7 @@ class NavViewModel @Inject constructor(
     companion object {
         /** Storage key the SDK persists its session under. */
         private const val SESSION_STORAGE_KEY = "fluxbase.auth.session"
+        private const val TAG = "WayliTokens"
     }
 }
 
@@ -419,10 +434,8 @@ fun WayliNavHost() {
         }
     }
 
-    // The strip below the floating dock (nav-bar inset + margin) is painted by
-    // the window background, which follows the SYSTEM dark mode — a dark bar
-    // under a light theme. Paint the root with the Compose theme background so
-    // it always matches the in-app theme.
+    // The root paints the in-app theme background (the window background
+    // would follow SYSTEM dark mode instead of the in-app theme).
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -431,18 +444,10 @@ fun WayliNavHost() {
         NavHost(
             navController = navController,
             startDestination = viewModel.startRoute,
-            modifier = Modifier
-                .fillMaxSize()
-                // clear the persistent floating dock (absent on auth screens):
-                // dock surface + float margin (~96dp) plus the navigation-bar
-                // inset the dock also occupies.
-                .padding(
-                    bottom = if (isAuthRoute) {
-                        0.dp
-                    } else {
-                        WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 96.dp
-                    },
-                ),
+            modifier = Modifier.fillMaxSize(),
+            // Content is full-height: screens scroll beneath the floating
+            // dock and clear it via bottom content padding (dock clearance),
+            // not via a reserved viewport margin.
 
             enterTransition = { fadeIn(animationSpec = tween(220)) },
             exitTransition = { fadeOut(animationSpec = tween(160)) },
@@ -511,7 +516,10 @@ fun WayliNavHost() {
                     onStatsClick = { navController.navigate(Routes.STATS) },
                     onTripClick = { trip: Trip -> navController.navigate("trip_detail/${trip.id}") },
                     onWishlistClick = { switchTab(Routes.WISHLIST) },
-                    onOpenMap = { navController.navigate(Routes.FULL_MAP) },
+                    // Base route only — the pattern contains the {tripId}
+                    // placeholder, and navigating it verbatim leaks the
+                    // literal into the trip query (seen in server SQL logs).
+                    onOpenMap = { navController.navigate("full_map") },
                     autoStartRecording = autoRecord,
                     onAutoActionConsumed = { autoRecord = false },
                 )
@@ -685,7 +693,15 @@ fun WayliNavHost() {
                 )
             }
             composable(Routes.TRACKING_SETTINGS) {
-                TrackingSettingsScreen(onBack = { navController.popBackStack() })
+                TrackingSettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenDiagnostics = { navController.navigate(Routes.TRACKING_DIAGNOSTICS) },
+                )
+            }
+            composable(Routes.TRACKING_DIAGNOSTICS) {
+                io.github.nimbleflux.wayli.feature.tracking.TrackingDiagnosticsScreen(
+                    onBack = { navController.popBackStack() },
+                )
             }
             composable(Routes.PROFILE) {
                 ProfileEditScreen(onBack = { navController.popBackStack() })

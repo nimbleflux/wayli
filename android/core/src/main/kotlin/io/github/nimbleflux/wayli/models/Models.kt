@@ -121,7 +121,8 @@ data class UserProfile(
  */
 @Serializable
 data class UserPreferences(
-    @SerialName("user_id") val userId: String? = null,
+    /** The row's PK — the user's uuid (the table has no user_id column). */
+    val id: String? = null,
     val language: String? = null,
     val timezone: String? = null,
     @SerialName("notifications_enabled") val notificationsEnabled: Boolean? = null,

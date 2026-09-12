@@ -30,6 +30,7 @@ import io.github.nimbleflux.wayli.gps.TrackingConfig
 import io.github.nimbleflux.wayli.gps.TrackingMode
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.resume
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -170,8 +171,61 @@ class FusedLocationProvider @Inject constructor(
         callback = null
     }
 
+    /** One-shot fix via getCurrentLocation — independent of [startUpdates]. */
+    @SuppressLint("MissingPermission") // caller checks permission before starting
+    override suspend fun getCurrentPoint(config: TrackingConfig): CapturedPoint? {
+        // getCurrentLocation can hang indefinitely when no fix is obtainable
+        // (emulator without an injected location, radios off) — bound it and
+        // fall back to the best last-known position.
+        val fresh = kotlinx.coroutines.withTimeoutOrNull(FIX_TIMEOUT_MS) {
+            kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+                val cts = CancellationTokenSource()
+                continuation.invokeOnCancellation { cts.cancel() }
+                client.getCurrentLocation(priorityOf(config), cts.token)
+                    .addOnSuccessListener { location ->
+                        if (continuation.isActive) {
+                            continuation.resume(location?.toCapturedPoint(config))
+                        }
+                    }
+                    .addOnFailureListener {
+                        if (continuation.isActive) continuation.resume(null)
+                    }
+            }
+        }
+        if (fresh != null) return fresh
+        return lastKnownPoint(config)
+    }
+
+    private fun lastKnownPoint(config: TrackingConfig): CapturedPoint? {
+        // Synchronous last-known read across providers (framework API — no
+        // Play task involved, never hangs).
+        val location = try {
+            val lm = context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
+            listOf(
+                android.location.LocationManager.GPS_PROVIDER,
+                android.location.LocationManager.NETWORK_PROVIDER,
+                android.location.LocationManager.PASSIVE_PROVIDER,
+            )
+                .filter { lm.allProviders.contains(it) }
+                .mapNotNull { runCatching { lm.getLastKnownLocation(it) }.getOrNull() }
+                .maxByOrNull { it.time }
+        } catch (_: Exception) {
+            null
+        }
+        return location?.toCapturedPoint(config)
+    }
+
+    private fun priorityOf(config: TrackingConfig): Int = when (config.accuracy) {
+        AccuracyProfile.HIGH -> Priority.PRIORITY_HIGH_ACCURACY
+        AccuracyProfile.BALANCED -> Priority.PRIORITY_BALANCED_POWER_ACCURACY
+        AccuracyProfile.LOW -> Priority.PRIORITY_LOW_POWER
+        // Passive delivers nothing on demand — a manual fix wants real GPS.
+        AccuracyProfile.POWER -> Priority.PRIORITY_BALANCED_POWER_ACCURACY
+    }
+
     companion object {
         private const val TRANSITION_ACTION = "io.github.nimbleflux.wayli.ACTIVITY_TRANSITION"
         private const val TRANSITION_REQUEST_CODE = 4203
+        private const val FIX_TIMEOUT_MS = 10_000L
     }
 }

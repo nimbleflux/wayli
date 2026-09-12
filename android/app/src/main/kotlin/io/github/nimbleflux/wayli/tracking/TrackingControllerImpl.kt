@@ -6,9 +6,11 @@ import android.content.IntentFilter
 import android.os.BatteryManager
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.nimbleflux.wayli.db.PendingPointDao
@@ -49,6 +51,7 @@ class TrackingControllerImpl @Inject constructor(
     private val configStore: TrackingConfigStore,
     private val activityDriver: ActivityRecognitionDriver,
     private val resumeTrigger: StationaryResumeTrigger,
+    private val diagnostics: io.github.nimbleflux.wayli.repo.TrackingDiagnosticsRepository,
 ) : TrackingController {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -64,12 +67,33 @@ class TrackingControllerImpl @Inject constructor(
             provider.startUpdates(config).collect { point ->
                 if (passesBatteryRules(config)) {
                     dao.insert(point.toEntity(config))
-                    scheduleUpload()
+                    diagnostics.onPointsCaptured(1)
+                    scheduleUpload(GpsUploadWorker.TRIGGER_CAPTURE)
                     maybePauseWhenStationary(point, config)
                 }
             }
         }
     }
+
+    override fun syncNow() {
+        scheduleUpload(GpsUploadWorker.TRIGGER_MANUAL)
+    }
+
+    override suspend fun submitManualLocation(): Result<CapturedPoint> =
+        kotlinx.coroutines.withContext(Dispatchers.IO) {
+            runCatching {
+                val config = configStore.get()
+                // A manual submission is explicit — battery gating does not
+                // apply; payload toggles still shape the stored point.
+                val point = kotlinx.coroutines.withTimeout(MANUAL_FIX_TIMEOUT_MS) {
+                    provider.getCurrentPoint(config)
+                } ?: error("No GPS fix available — try again outside with a clear sky view")
+                dao.insert(point.toEntity(config))
+                diagnostics.onPointsCaptured(1)
+                scheduleUpload(GpsUploadWorker.TRIGGER_MANUAL)
+                point
+            }
+        }
 
     override fun onServiceStopped() {
         job?.cancel()
@@ -86,11 +110,18 @@ class TrackingControllerImpl @Inject constructor(
     private fun maybePauseWhenStationary(point: CapturedPoint, config: TrackingConfig) {
         val decision = stationaryTracker.onPoint(point, config)
         if (decision == StationaryTracker.Decision.PAUSE) {
+            scope.launch {
+                diagnostics.logEvent(
+                    "stationary_pause",
+                    "paused after ${config.stationaryPauseMin} min within ${config.stationaryResumeRadiusM.toInt()} m",
+                )
+            }
             job?.cancel()
             job = null
             provider.stopUpdates()
             resumeTrigger.arm(point, config.stationaryResumeRadiusM) {
                 // Movement detected — resume the full pipeline.
+                scope.launch { diagnostics.logEvent("stationary_resume", "movement detected — tracking resumed") }
                 onServiceStarted()
             }
         }
@@ -135,7 +166,23 @@ class TrackingControllerImpl @Inject constructor(
         null to true // unavailable → don't block recording
     }
 
-    private fun scheduleUpload() {
+    private fun scheduleUpload(trigger: String) {
+        // The periodic schedule is the safety net for stranded batches: the
+        // one-shot's retry cycle gives up after ~30 minutes, which an outage
+        // (phone-side network loss overnight) outlives. KEEP policy makes
+        // re-enqueueing free; an empty queue makes each run a no-op.
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            GpsUploadWorker.PERIODIC_UNIQUE_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            PeriodicWorkRequestBuilder<GpsUploadWorker>(15, TimeUnit.MINUTES)
+                .setConstraints(
+                    Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .build(),
+                )
+                .setInputData(androidx.work.workDataOf(GpsUploadWorker.KEY_TRIGGER to GpsUploadWorker.TRIGGER_PERIODIC))
+                .build(),
+        )
         val request = OneTimeWorkRequestBuilder<GpsUploadWorker>()
             .setConstraints(
                 Constraints.Builder()
@@ -143,11 +190,16 @@ class TrackingControllerImpl @Inject constructor(
                     .build(),
             )
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .setInputData(androidx.work.workDataOf(GpsUploadWorker.KEY_TRIGGER to trigger))
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(
             GpsUploadWorker.UNIQUE_NAME,
             ExistingWorkPolicy.REPLACE,
             request,
         )
+    }
+
+    private companion object {
+        const val MANUAL_FIX_TIMEOUT_MS = 30_000L
     }
 }

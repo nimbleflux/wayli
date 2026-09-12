@@ -1,5 +1,5 @@
 [versions]
-agp = "8.7.3"
+agp = "8.10.1"
 kotlin = "2.1.0"
 ksp = "2.1.0-1.0.29"
 compose-bom = "2024.12.01"
@@ -8,14 +8,20 @@ hilt-navigation = "1.2.0"
 navigation = "2.8.5"
 room = "2.6.1"
 workmanager = "2.10.0"
-fluxbase-kotlin = "2026.8.14"
+# NOTE (verified by bytecode-diffing the published jars): 2026.9.1 was the
+# first release-CI artifact with all Android-compat fixes; 2026.9.2 adds the
+# case-insensitive Content-Range count parse (fluxbase#349). The 2026.9.5/
+# 2026.9.6 coordinates were partial MANUAL publishes from an incomplete chain
+# (missing the transport passthrough) — never pin those. Prefer release-CI
+# artifacts only.
+fluxbase-kotlin = "2026.9.2"
 detekt = "1.23.7"
 maplibre = "11.8.0"
 kotlinx-serialization = "1.7.3"
 kotlinx-coroutines = "1.9.0"
 kotlinx-datetime = "0.6.1"
 ktor = "3.0.3"
-robolectric = "4.14.1"
+robolectric = "4.16.1"
 commonmark = "0.24.0"
 
 [libraries]

@@ -18,6 +18,9 @@ import kotlinx.serialization.json.jsonObject
  * Reads/writes the `user_preferences` row. `language`, `timezone`, and
  * `notifications_enabled` are columns; `units` lives inside the `preferences`
  * JSONB and is merged (not overwritten) to preserve any other keys.
+ *
+ * The table has NO `user_id` column — its primary key `id` IS the user's
+ * uuid (RLS compares `auth.uid() = id`), so every filter/insert keys on `id`.
  */
 @Singleton
 class PreferencesRepository @Inject constructor(
@@ -30,9 +33,9 @@ class PreferencesRepository @Inject constructor(
     suspend fun getPreferences(userId: String): Result<UserPreferences> = runCatching {
         val result = client.from<UserPreferences>("user_preferences")
             .select()
-            .eq("user_id", userId)
+            .eq("id", userId)
             .maybeSingle()
-        result.data ?: UserPreferences(userId = userId)
+        result.data ?: UserPreferences(id = userId)
     }
 
     suspend fun updatePreferences(
@@ -52,7 +55,7 @@ class PreferencesRepository @Inject constructor(
             fields["preferences"] = JsonObject(current.toMutableMap().apply { put("units", JsonPrimitive(units)) })
         }
         if (fields.isNotEmpty()) {
-            client.from<UserPreferences>("user_preferences").eq("user_id", userId).update(fields)
+            client.from<UserPreferences>("user_preferences").eq("id", userId).update(fields)
         }
     }
 
@@ -81,15 +84,15 @@ class PreferencesRepository @Inject constructor(
                 )
             },
         )
-        if (current?.userId != null) {
+        if (current?.id != null) {
             client.from<UserPreferences>("user_preferences")
-                .eq("user_id", userId)
+                .eq("id", userId)
                 .update(mapOf("preferences" to merged))
         } else {
             // No preferences row yet — an UPDATE alone would affect 0 rows and
             // silently lose the toggle (the web inserts for the same reason).
             client.from<UserPreferences>("user_preferences")
-                .insert(mapOf("user_id" to userId, "preferences" to merged))
+                .insert(mapOf("id" to userId, "preferences" to merged))
         }
         Unit
     }
@@ -114,13 +117,13 @@ class PreferencesRepository @Inject constructor(
                 put("fitness_sharing", JsonObject(sharing))
             },
         )
-        if (current?.userId != null) {
+        if (current?.id != null) {
             client.from<UserPreferences>("user_preferences")
-                .eq("user_id", userId)
+                .eq("id", userId)
                 .update(mapOf("preferences" to merged))
         } else {
             client.from<UserPreferences>("user_preferences")
-                .insert(mapOf("user_id" to userId, "preferences" to merged))
+                .insert(mapOf("id" to userId, "preferences" to merged))
         }
         Unit
     }
@@ -147,7 +150,7 @@ class PreferencesRepository @Inject constructor(
         runCatching {
             val array = Json.encodeToJsonElement(exclusionsSerializer, exclusions) as JsonArray
             client.from<UserPreferences>("user_preferences")
-                .eq("user_id", userId)
+                .eq("id", userId)
                 .update(mapOf("trip_exclusions" to array))
             Unit
         }

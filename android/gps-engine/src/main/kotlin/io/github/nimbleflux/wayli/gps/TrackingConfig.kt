@@ -102,10 +102,35 @@ class TrackingConfigStore(context: Context) {
         get() = prefs.getBoolean(KEY_IS_TRACKING, true)
         set(value) = prefs.edit { putBoolean(KEY_IS_TRACKING, value) }
 
+    /**
+     * The user's tracking on/off *intent*, as opposed to [isTracking]'s
+     * service-liveness. The service flips isTracking off when it dies —
+     * battery-optimizer kill, crash, reboot, app update — which used to
+     * permanently end tracking until the user noticed and restarted it by
+     * hand. The intent survives those deaths so the app can auto-restart
+     * tracking on the next open; only explicit Pause/Stop clear it.
+     */
+    var trackingDesired: Boolean
+        get() = prefs.getBoolean(KEY_TRACKING_DESIRED, true)
+        set(value) = prefs.edit { putBoolean(KEY_TRACKING_DESIRED, value) }
+
     /** Whether the persistent "tracking off" status notification stays posted. */
     var statusNotificationEnabled: Boolean
         get() = prefs.getBoolean(KEY_STATUS_NOTIFICATION, true)
         set(value) = prefs.edit { putBoolean(KEY_STATUS_NOTIFICATION, value) }
+
+    /**
+     * OwnTracks parity: show the current place in the tracking notification.
+     * Off by the user if they don't want an address visible on the lock screen.
+     */
+    var showPlaceInNotification: Boolean
+        get() = prefs.getBoolean(KEY_SHOW_PLACE, true)
+        set(value) = prefs.edit { putBoolean(KEY_SHOW_PLACE, value) }
+
+    /** Last address shown in the tracking notification — restored on service restart. */
+    var lastNotificationAddress: String?
+        get() = prefs.getString(KEY_LAST_ADDRESS, null)
+        set(value) = prefs.edit { putString(KEY_LAST_ADDRESS, value) }
 
     companion object {
         private const val KEY_MODE = "mode"
@@ -126,6 +151,9 @@ class TrackingConfigStore(context: Context) {
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_START_ON_BOOT = "start_on_boot"
         private const val KEY_IS_TRACKING = "is_tracking"
+        private const val KEY_TRACKING_DESIRED = "tracking_desired"
         private const val KEY_STATUS_NOTIFICATION = "status_notification"
+        private const val KEY_SHOW_PLACE = "show_place_in_notification"
+        private const val KEY_LAST_ADDRESS = "last_notification_address"
     }
 }

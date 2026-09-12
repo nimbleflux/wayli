@@ -30,6 +30,7 @@ abstract class WayliDatabase : RoomDatabase() {
     abstract fun pendingPointDao(): PendingPointDao
     abstract fun draftEntryDao(): DraftEntryDao
     abstract fun cacheDao(): CacheDao
+    abstract fun metadataDao(): MetadataDao
 }
 
 class WayliConverters {

@@ -1,6 +1,6 @@
 {
   "imports": {
-    "@streamparser/json": "npm:@streamparser/json@^0.0.22",
+    "@streamparser/json": "npm:@streamparser/json@^0.0.26",
     "geojson": "npm:@types/geojson",
     "jszip": "npm:jszip",
     "_shared/": "./_shared/"

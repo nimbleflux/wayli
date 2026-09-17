@@ -21,6 +21,16 @@ interface TrackingController {
     fun syncNow()
 
     /**
+     * Re-read [TrackingConfigStore] and rebuild the location pipeline when
+     * collecting. Settings persist immediately, but the capture pipeline
+     * snapshots the config at start — without this, accuracy/battery/locator
+     * changes while tracking would silently do nothing until the service
+     * happened to restart. No-op when not collecting (a stationary-pause
+     * resume re-reads the config anyway).
+     */
+    fun onConfigChanged()
+
+    /**
      * Capture one fresh GPS fix and queue it for upload (bypasses battery
      * gating — the request is explicit). Fails when no fix could be obtained.
      */

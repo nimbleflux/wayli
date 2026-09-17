@@ -614,7 +614,16 @@ class TrackingSettingsViewModel @Inject constructor(
     fun update(newConfig: TrackingConfig) {
         config = newConfig
         store.set(newConfig)
+        // Apply live, debounced: sliders emit continuously while dragging and
+        // each apply rebuilds the GPS request, so wait for the drag to settle.
+        configApplyJob?.cancel()
+        configApplyJob = viewModelScope.launch {
+            delay(750)
+            controller.onConfigChanged()
+        }
     }
+
+    private var configApplyJob: kotlinx.coroutines.Job? = null
 
     fun updateStatusNotification(enabled: Boolean) {
         statusNotification = enabled

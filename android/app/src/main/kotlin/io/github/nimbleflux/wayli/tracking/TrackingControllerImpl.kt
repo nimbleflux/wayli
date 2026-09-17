@@ -61,11 +61,27 @@ class TrackingControllerImpl @Inject constructor(
     override fun onServiceStarted() {
         activityDriver.start()
         if (job?.isActive == true) return // already collecting (service restart)
+        startCollection()
+    }
+
+    /**
+     * Settings persist instantly, but the pipeline snapshots the config at
+     * start — apply a changed config by rebuilding the collection (fresh GPS
+     * request: accuracy profile, battery rules, stationary thresholds).
+     */
+    override fun onConfigChanged() {
+        if (job?.isActive != true) return // not collecting (paused) — resume re-reads config
+        job?.cancel()
+        provider.stopUpdates()
+        startCollection()
+    }
+
+    private fun startCollection() {
         stationaryTracker.reset()
         val config = configStore.get()
         job = scope.launch {
             provider.startUpdates(config).collect { point ->
-                if (passesBatteryRules(config)) {
+                if (passesBatteryRules(config) && !ignoresAccuracy(config, point)) {
                     dao.insert(point.toEntity(config))
                     diagnostics.onPointsCaptured(1)
                     scheduleUpload(GpsUploadWorker.TRIGGER_CAPTURE)
@@ -74,6 +90,14 @@ class TrackingControllerImpl @Inject constructor(
             }
         }
     }
+
+    /**
+     * The "Ignore inaccurate readings (>100 m)" setting: coarse fixes are
+     * dropped entirely — not stored, not uploaded, and not fed to stationary
+     * detection (a 500 m fix would both fake movement and mask stillness).
+     */
+    private fun ignoresAccuracy(config: TrackingConfig, point: CapturedPoint): Boolean =
+        config.ignoreInaccurate && (point.accuracy ?: 0f) > IGNORE_INACCURATE_M
 
     override fun syncNow() {
         scheduleUpload(GpsUploadWorker.TRIGGER_MANUAL)
@@ -201,5 +225,6 @@ class TrackingControllerImpl @Inject constructor(
 
     private companion object {
         const val MANUAL_FIX_TIMEOUT_MS = 30_000L
+        const val IGNORE_INACCURATE_M = 100f
     }
 }

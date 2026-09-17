@@ -42,8 +42,8 @@ import kotlinx.coroutines.launch
  * Beyond plain interval/distance polling:
  * - Points carry the activity-recognition hint from [ActivityStateHolder]
  *   (`act` field → tracker_data.activity_type server-side).
- * - Adaptive intervals: when the holder reports STILL, the request drops to
- *   passive priority at 4× the interval; movement restores the config.
+ * - Adaptive intervals: when the holder reports STILL, the interval widens
+ *   4× (priority unchanged — see AdaptiveTrackingPolicy); movement restores it.
  * - SIGNIFICANT mode ("Places"): no periodic polling — an
  *   [ActivityTransitionRequest] wakes us on still→motion transitions and a
  *   one-shot fix is captured then.
@@ -82,9 +82,11 @@ class FusedLocationProvider @Inject constructor(
             )
             val br = object : BroadcastReceiver() {
                 override fun onReceive(ctx: Context, received: Intent) {
-                    // Motion started — grab a one-shot fix immediately.
+                    // Motion started — grab a one-shot fix immediately, at the
+                    // configured accuracy profile (hardcoding balanced here made
+                    // every still→motion fix city-block quality even on High).
                     val cts = CancellationTokenSource()
-                    client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cts.token)
+                    client.getCurrentLocation(priorityOf(config), cts.token)
                         .addOnSuccessListener { location ->
                             if (location != null) trySend(location.toCapturedPoint(config))
                         }

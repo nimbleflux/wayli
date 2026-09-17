@@ -59,17 +59,17 @@ class TrackingDiagnosticsRepositoryTest {
 
     @Test
     fun `upload log keeps only the newest entries in order`() = runTest {
-        repeat(25) { i ->
+        repeat(60) { i ->
             repo.logUpload(
                 UploadLogEntry(atMs = i * 1000L, batch = i, outcome = "ok", httpCode = 200),
             )
         }
 
         val log = repo.uploadLog()
-        assertEquals(20, log.size)
+        assertEquals(50, log.size)
         // Oldest entries were evicted; newest is last.
-        assertEquals(5, log.first().batch)
-        assertEquals(24, log.last().batch)
+        assertEquals(10, log.first().batch)
+        assertEquals(59, log.last().batch)
     }
 
     @Test

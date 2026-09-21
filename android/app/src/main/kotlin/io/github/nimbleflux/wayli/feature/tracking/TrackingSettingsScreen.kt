@@ -51,6 +51,7 @@ import io.github.nimbleflux.fluxbase.FluxbaseClient
 import io.github.nimbleflux.wayli.designsystem.SliderRow
 import io.github.nimbleflux.wayli.designsystem.SwitchRow
 import io.github.nimbleflux.wayli.designsystem.WayliSectionCard
+import io.github.nimbleflux.wayli.designsystem.rememberLocationDisclosureGate
 import io.github.nimbleflux.wayli.gps.AccuracyProfile
 import io.github.nimbleflux.wayli.gps.TrackingConfig
 import io.github.nimbleflux.wayli.gps.TrackingConfigStore
@@ -348,6 +349,8 @@ private fun ManualSubmitButton(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var requestPermission by remember { mutableStateOf(false) }
+    // Play policy: prominent disclosure immediately before the location request.
+    val withLocationConsent = rememberLocationDisclosureGate()
     val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
     ) { granted ->
@@ -376,7 +379,9 @@ private fun ManualSubmitButton(
 
     androidx.compose.runtime.LaunchedEffect(requestPermission) {
         if (requestPermission) {
-            permissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+            withLocationConsent {
+                permissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+            }
             requestPermission = false
         }
     }

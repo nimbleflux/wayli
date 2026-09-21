@@ -63,6 +63,7 @@ import io.github.nimbleflux.wayli.designsystem.SectionHeader
 import io.github.nimbleflux.wayli.designsystem.WayliAsyncImage
 import io.github.nimbleflux.wayli.designsystem.WayliLogo
 import io.github.nimbleflux.wayli.designsystem.displayLabel
+import io.github.nimbleflux.wayli.designsystem.rememberLocationDisclosureGate
 import io.github.nimbleflux.wayli.designsystem.map.MapPoint
 import io.github.nimbleflux.wayli.designsystem.map.MapTrack
 import io.github.nimbleflux.wayli.designsystem.map.WayliMap
@@ -191,6 +192,10 @@ private fun HomeContent(
     val isRecording by recordingVm.isRecording.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
 
+    // Google Play prominent disclosure: every location runtime request must be
+    // immediately preceded by an accepted disclosure (accepted once, app-wide).
+    val withLocationConsent = rememberLocationDisclosureGate()
+
     // Location permission gate — the foreground service can't run without it.
     // On the gplay flavor we then also request activity recognition (adaptive
     // tracking); denial is non-fatal — tracking falls back to fixed intervals.
@@ -264,7 +269,9 @@ private fun HomeContent(
                 }
             }
         } else {
-            permissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+            withLocationConsent {
+                permissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+            }
         }
     }
 
@@ -353,7 +360,11 @@ private fun HomeContent(
                             )
                         }
                         Spacer(Modifier.width(12.dp))
-                        androidx.compose.material3.Button(onClick = { primeLauncher.launch(missingPermissions.toTypedArray()) }) {
+                        androidx.compose.material3.Button(onClick = {
+                            withLocationConsent {
+                                primeLauncher.launch(missingPermissions.toTypedArray())
+                            }
+                        }) {
                             Text("Allow")
                         }
                         androidx.compose.material3.TextButton(onClick = { markPrimed() }) {

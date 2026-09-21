@@ -69,6 +69,7 @@ import io.github.nimbleflux.wayli.designsystem.SettingRow
 import io.github.nimbleflux.wayli.designsystem.ThemeManager
 import io.github.nimbleflux.wayli.designsystem.ThemeMode
 import io.github.nimbleflux.wayli.designsystem.WayliSectionCard
+import io.github.nimbleflux.wayli.designsystem.rememberLocationDisclosureGate
 import javax.inject.Inject
 
 /**
@@ -302,6 +303,11 @@ private fun PermissionCard() {
     val context = androidx.compose.ui.platform.LocalContext.current
     var refreshKey by remember { mutableStateOf(0) }
 
+    // Play policy: the prominent disclosure must immediately precede every
+    // location runtime request — including the settings deep-link where
+    // "Allow all the time" (background) is granted.
+    val withLocationConsent = rememberLocationDisclosureGate()
+
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -347,7 +353,9 @@ private fun PermissionCard() {
                 if (granted(android.Manifest.permission.ACCESS_FINE_LOCATION)) {
                     openAppSettings()
                 } else {
-                    launcher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                    withLocationConsent {
+                        launcher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                    }
                 }
             },
         )
@@ -383,7 +391,7 @@ private fun PermissionCard() {
             icon = Icons.Filled.Map,
             label = "Background location",
             granted = granted(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION),
-            onClick = { openAppSettings() }, // special toggle lives in system settings only
+            onClick = { withLocationConsent { openAppSettings() } }, // special toggle lives in system settings only
         )
         if (anyDenied) {
             Text(

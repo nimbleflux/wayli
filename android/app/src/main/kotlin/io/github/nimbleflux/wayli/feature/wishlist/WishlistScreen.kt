@@ -60,6 +60,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.nimbleflux.wayli.designsystem.EmptyState
 import io.github.nimbleflux.wayli.designsystem.WayliAsyncImage
+import io.github.nimbleflux.wayli.designsystem.rememberLocationDisclosureGate
 import io.github.nimbleflux.wayli.models.WantToVisit
 
 /**
@@ -244,6 +245,9 @@ private fun AddPlaceSheet(
         }
     }
 
+    // Play policy: prominent disclosure immediately before the location request.
+    val withLocationConsent = rememberLocationDisclosureGate()
+
     val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
     ) { granted ->
@@ -261,7 +265,9 @@ private fun AddPlaceSheet(
         ) {
             useCurrentLocation()
         } else {
-            permissionLauncher.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+            withLocationConsent {
+                permissionLauncher.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+            }
         }
     }
 

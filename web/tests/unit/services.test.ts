@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-import { queryOptimizer } from '$lib/services/database/query-optimizer.service';
 import { errorHandler, ErrorCode } from '$lib/services/error-handler.service';
 import { loggingService, LogLevel } from '$lib/services/logging.service';
 
@@ -211,24 +210,6 @@ describe('Logging Service', () => {
 			expect(console.log).not.toHaveBeenCalledWith(expect.stringContaining('Test debug message'));
 
 			process.env.NODE_ENV = originalEnv;
-		});
-	});
-});
-
-describe('Query Optimizer Service', () => {
-	describe('getIndexingRecommendations', () => {
-		it('should return indexing recommendations', () => {
-			const recommendations = queryOptimizer.getIndexingRecommendations();
-			expect(Array.isArray(recommendations)).toBe(true);
-		});
-	});
-
-	describe('getCacheStats', () => {
-		it('should return cache statistics', () => {
-			const stats = queryOptimizer.getCacheStats();
-			expect(stats).toHaveProperty('size');
-			expect(stats).toHaveProperty('keys');
-			expect(Array.isArray(stats.keys)).toBe(true);
 		});
 	});
 });

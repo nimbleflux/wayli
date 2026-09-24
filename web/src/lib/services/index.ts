@@ -14,9 +14,7 @@ export * from './external';
 // Utility services
 export * from './logging.service';
 export * from './error-handler.service';
-export * from './rate-limit.service';
 export * from './job-creation.service';
-export * from './location-cache.service';
 
 // Feature services
 // Note: trip-image-suggestion.service removed - now running as Fluxbase edge function (trips-suggest-image)

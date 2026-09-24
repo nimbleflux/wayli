@@ -10,7 +10,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockUser = { id: 'user-123', first_name: 'Ada', last_name: 'Lovelace' };
 
-const { fluxbase } = vi.hoisted(() => ({ fluxbase: { rpc: vi.fn(), from: vi.fn(), auth: {} as any } }));
+const { fluxbase } = vi.hoisted(() => ({
+	fluxbase: { rpc: vi.fn(), from: vi.fn(), auth: {} as any }
+}));
 vi.mock('$lib/fluxbase', () => ({ fluxbase }));
 
 import { ensureUserProfile } from '$lib/services/session/user-profile-bootstrap';
@@ -35,7 +37,11 @@ describe('ensureUserProfile', () => {
 
 		expect(fluxbase.rpc).toHaveBeenCalledWith(
 			'ensure_user_profile',
-			expect.objectContaining({ p_first_name: 'Ada', p_last_name: 'Lovelace', p_full_name: 'Ada Lovelace' })
+			expect.objectContaining({
+				p_first_name: 'Ada',
+				p_last_name: 'Lovelace',
+				p_full_name: 'Ada Lovelace'
+			})
 		);
 		expect(result).toMatchObject({ id: mockUser.id, role: 'user', onboarding_completed: false });
 	});
@@ -64,7 +70,12 @@ describe('ensureUserProfile', () => {
 	});
 
 	it('returns the existing profile untouched when the RPC reports one', async () => {
-		const existing = { id: mockUser.id, role: 'user', onboarding_completed: true, first_login_at: '2026-01-01' };
+		const existing = {
+			id: mockUser.id,
+			role: 'user',
+			onboarding_completed: true,
+			first_login_at: '2026-01-01'
+		};
 		fluxbase.rpc.mockResolvedValue({ data: existing, error: null });
 
 		const result = await ensureUserProfile({ userId: mockUser.id });
@@ -74,7 +85,10 @@ describe('ensureUserProfile', () => {
 	});
 
 	it('returns null on an RPC error', async () => {
-		fluxbase.rpc.mockResolvedValue({ data: null, error: { message: 'function not found (PGRST 404)' } });
+		fluxbase.rpc.mockResolvedValue({
+			data: null,
+			error: { message: 'function not found (PGRST 404)' }
+		});
 
 		const result = await ensureUserProfile({ userId: mockUser.id });
 

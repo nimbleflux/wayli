@@ -12,10 +12,10 @@ It started as vibes but somehow ended up with... actual architecture? 🤷‍♂
 - **📊 Statistics & Analytics**: Visualize your travel patterns and insights
 - **🌍 Geocoding**: Automatic location detection and reverse geocoding
 - **📱 Responsive Design**: Works seamlessly on desktop and mobile
-- **♿ Accessibility**: WCAG 2.1 AA compliant with full keyboard navigation
+- **♿ Accessibility**: Built toward WCAG 2.1 AA goals with full keyboard navigation
 - **🌙 Dark Mode**: Beautiful light and dark themes
 - **🔐 Two-Factor Authentication**: Enhanced security for your account
-- **📤 Data Export**: Export your data in multiple formats (JSON, GeoJSON, CSV)
+- **📤 Data Export**: Export your data in multiple formats (JSON, GeoJSON)
 
 ## 🏗️ Architecture
 
@@ -30,33 +30,15 @@ graph TB
         Stores[Svelte Stores]
     end
 
-    %% API Layer
-    subgraph "API Layer"
-        BH[Base API Handler]
-        RU[Response Utilities]
-        VS[Validation Schemas]
-    end
-
     %% Service Layer
     subgraph "Service Layer"
-        subgraph "Client-Safe Services"
-            CSA[Service Layer Adapter]
-            US[User Profile Service]
-            TS[Trips Service]
-            SS[Statistics Service]
-            LCS[Location Cache Service]
-            TOTP[TOTP Service]
-            WTVS[Want to Visit Service]
-            TLS[Trip Locations Service]
-        end
-
-        subgraph "Server-Only Services"
-            SSA[Server Service Adapter]
-            ALS[Audit Logger Service]
-            TISS[Trip Image Suggestion Service]
-            EPDS[Enhanced POI Detection Service]
-            ETDS[Enhanced Trip Detection Service]
-        end
+        CSA[Service Layer Adapter]
+        US[User Profile Service]
+        TS[Trips Service]
+        SS[Statistics Service]
+        LCS[Location Cache Service]
+        WTVS[Want to Visit Service]
+        TLS[Trip Locations Service]
     end
 
     %% Core Layer
@@ -71,21 +53,16 @@ graph TB
     subgraph "Infrastructure Layer"
         subgraph "Fluxbase Clients"
             BC[Browser Client]
-            SC2[Server Client]
-            WC[Worker Client]
         end
 
         subgraph "Environment Config"
             CEC[Client Environment]
-            SEC[Server Environment]
-            WEC[Worker Environment]
         end
 
         subgraph "External Services"
             NS[Pelias Service]
-            CRGS[Country Reverse Geocoding]
             IUS[Image Upload Service]
-            PS[Pexels Service]
+            VS2[Valhalla Service]
         end
     end
 
@@ -97,33 +74,33 @@ graph TB
     end
 
     %% Connections
-    UI --> BH
-    Pages --> BH
-    Stores --> BH
-
-    BH --> RU
-    BH --> VS
-    BH --> CSA
+    UI --> CSA
+    Pages --> CSA
+    Stores --> CSA
 
     CSA --> US
     CSA --> TS
     CSA --> SS
     CSA --> LCS
-    CSA --> TOTP
     CSA --> WTVS
     CSA --> TLS
 
-    SSA --> ALS
-    SSA --> TISS
-    SSA --> EPDS
-    SSA --> ETDS
-
     CSA --> SM
-    SSA --> SM
     SM --> SC
     SC --> ES
     SC --> ELS
+
+    US --> BC
+    TS --> BC
+    SS --> BC
+    BC --> DB
+    BC --> RLS
+    BC --> RT
+    NS --> VS2
 ```
+
+All server-side work (authentication, queries, background jobs, edge functions) is handled by
+[Fluxbase](https://fluxbase.eu). There is no Node.js server or worker inside the web app itself.
 
 ## 🚀 Quick Start
 
@@ -178,7 +155,7 @@ graph TB
    # ...or, if the schema is already applied: bun run dev
    ```
 
-   `dev:all` runs `sync:all` (RPC, functions, jobs, schema, chatbots, MCP, KB) against
+   `dev:all` runs `sync:all` (RPC, functions, jobs, chatbots, schema, KB) against
    the running Fluxbase, then starts Vite. The schema is declarative — there is no
    `fluxbase db reset` / imperative migration directory; it lives in
    `fluxbase/schema/public.sql` and is reconciled by `fluxbase schema sync`.
@@ -213,6 +190,9 @@ bun run verify:setup
 
 ### Test Coverage Goals
 
+These thresholds are goals, not enforced gates — CI generates coverage reports
+without failing the build on thresholds.
+
 - **Total Coverage**: 85%+
 - **Business Logic**: 90%+
 - **API Layer**: 85%+
@@ -231,7 +211,7 @@ web/
 │   │   ├── architecture/        # Architecture documentation
 │   │   ├── components/          # Reusable UI components
 │   │   ├── core/
-│   │   │   └── config/          # Server/worker environment configuration
+│   │   │   └── config/          # Environment configuration docs
 │   │   ├── i18n/               # Internationalization
 │   │   ├── rules/              # Trip/transport detection rules
 │   │   ├── schemas/            # Zod validation schemas
@@ -242,18 +222,20 @@ web/
 │   │   │   ├── api/            # API utilities and patterns
 │   │   │   └── ...             # Other utilities
 │   │   ├── config.ts           # Client-side runtime configuration
+│   │   ├── environment.ts      # Client-side environment configuration
 │   │   └── fluxbase.ts         # Client-side Fluxbase database client
+│   ├── shared/                  # Shared config, environment, and types
 │   ├── routes/
 │   │   ├── (user)/             # Protected user routes
-│   │   ├── api/                # API endpoints
-│   │   └── setup/              # Initial setup flow
+│   │   ├── api/                # API endpoints (link-preview only; not served in production)
+│   │   └── auth/               # Auth routes
 │   └── static/                 # Static assets
 └── tests/                      # Test suite
     ├── unit/                   # Unit tests
     ├── components/             # Component tests
     ├── integration/            # Integration tests
-    ├── accessibility/          # Accessibility tests
     ├── e2e/                    # End-to-end tests
+    ├── helpers/                # Test helpers
     ├── mocks/                  # Test mocks
     └── utils/                  # Test utilities
 ```
@@ -264,7 +246,7 @@ web/
 - **Backend**: Fluxbase (PostgreSQL, Auth, Storage)
 - **Testing**: Vitest, Testing Library
 - **Validation**: Zod
-- **Deployment**: Vercel
+- **Deployment**: Docker (nginx + adapter-static) via Docker Compose or Helm
 
 ### Development Guidelines
 
@@ -295,7 +277,7 @@ web/
 
 Wayli is built with accessibility as a core principle:
 
-- **WCAG 2.1 AA Compliant**: Meets international accessibility standards
+- **WCAG 2.1 AA**: Accessibility target the project builds toward
 - **Keyboard Navigation**: Full keyboard support for all features
 - **Screen Reader Support**: Semantic HTML and ARIA attributes
 - **High Contrast**: Support for high contrast mode
@@ -345,65 +327,63 @@ export default defineConfig({
 
 **Note**: The `allowedHosts` check prevents host header attacks during development/preview. Since you're using HTTPS in production, this provides minimal additional security benefit.
 
-**Production Deployment**: The Docker container uses nginx to serve static files instead of running a Node.js server, which is much more efficient and production-ready.
+**Production Deployment**: The Docker container uses nginx to serve the static
+SvelteKit build (adapter-static) instead of running a Node.js server, which is
+much more efficient and production-ready.
 
-**Docker Architecture**: Multi-stage build with nginx for web serving and Node.js for background workers.
+**Docker Architecture**: Multi-stage build (root `Dockerfile`) with nginx for
+static serving — there is no worker stage.
 
 ## 🐳 Docker
 
 ### Container Architecture
 
-The Dockerfile uses a multi-stage build approach:
+The root `Dockerfile` uses a multi-stage build approach:
 
-- **`web` stage**: nginx serving static files (port 80)
-- **`worker` stage**: Node.js for background processing
-- **`builder` stage**: Builds the SvelteKit application
+- **`deno-bin` stage**: provides the Deno binary for Fluxbase edge functions
+- **`builder` stage**: Bun installs dependencies and builds the SvelteKit app
+- **`production` stage**: debian-slim with nginx serving the static build (port configurable via `PORT`, default 80)
 
-### Container Modes
+At startup, `startup.sh` templates runtime environment variables into the built
+HTML and syncs Fluxbase resources (RPC, functions, jobs, chatbots, schema) via
+the Fluxbase CLI. There is no `APP_MODE` switch — every container serves the web
+app; background processing runs as Fluxbase jobs on the platform.
 
-The Docker container supports multiple modes via the `APP_MODE` environment variable:
+### Runtime Environment Variables
 
-- **`APP_MODE=web`**: Use the nginx stage (static file serving)
-- **`APP_MODE=worker`**: Run a background worker process
-- **`APP_MODE=workers`**: Run the worker manager
+| Variable                                            | Purpose                                                                                     |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `FLUXBASE_BASE_URL`                                 | Fluxbase instance URL, used by the CLI to sync resources (required unless `SKIP_SYNC=true`) |
+| `FLUXBASE_SERVICE_ROLE_KEY`                         | Service role key for the sync CLI (required unless `SKIP_SYNC=true`)                        |
+| `FLUXBASE_PUBLIC_BASE_URL`                          | Browser-facing Fluxbase URL injected into the built HTML                                    |
+| `FLUXBASE_ANON_KEY` (or `PUBLIC_FLUXBASE_ANON_KEY`) | Anon key injected into the built HTML and `wayli-app.json`                                  |
+| `PORT`                                              | Port nginx listens on (default 80)                                                          |
+| `SKIP_SYNC`                                         | Set to `true` to skip resource sync (e.g. Kubernetes init container handles it)             |
 
 ### Building and Running
 
 ```bash
-# Build the container
+# Build the container from the repo root
 docker build -t wayli-web .
 
-# Run web stage (nginx) - serves static files on port 80
-docker run -p 80:80 wayli-web
-
-# Run worker stage - background processing
-docker run -e APP_MODE=worker wayli
-
-# Run worker manager stage
-docker run -e APP_MODE=workers wayli
+# Run (nginx serving static files)
+docker run -p 8080:80 \
+  -e FLUXBASE_BASE_URL=http://localhost:8080 \
+  -e FLUXBASE_SERVICE_ROLE_KEY=... \
+  -e FLUXBASE_PUBLIC_BASE_URL=http://localhost:8080 \
+  -e FLUXBASE_ANON_KEY=... \
+  wayli-web
 ```
 
-### Testing
+For a full self-hosted stack, prefer the Docker Compose setup in
+[`deploy/docker-compose`](../deploy/docker-compose/README.md) or the Helm chart
+in [`charts/wayli`](../charts/wayli/README.md).
 
-Use the provided test script to verify the container works:
+### Setup-Verification Smoke
 
-```bash
-./test-container.sh
-```
-
-### Production Deployment
-
-When deploying to production, you may need to set the `VITE_ALLOWED_HOSTS` environment variable:
-
-```bash
-# For Vercel, add to your environment variables:
-VITE_ALLOWED_HOSTS=wayli.app,staging.wayli.app
-
-# For other platforms, add to your .env file:
-VITE_ALLOWED_HOSTS=wayli.app,staging.wayli.app,dev.wayli.app
-```
-
-This prevents the "Blocked request. This host is not allowed" error when accessing your app from production domains.
+`bun run verify:setup` builds the production image, brings up an isolated
+stack, verifies the documented happy path, and tears everything down. Run it
+before tagging a release.
 
 ## 📚 Documentation
 

@@ -160,7 +160,7 @@ export const tripGenerationSchema = z.object({
 
 // Export schemas
 export const exportOptionsSchema = z.object({
-	format: z.enum(['json', 'csv', 'gpx']),
+	format: z.enum(['json', 'gpx']),
 	includeLocationData: z.boolean().default(true),
 	includeWantToVisit: z.boolean().default(true),
 	includeTrips: z.boolean().default(true),

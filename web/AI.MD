@@ -24,9 +24,9 @@ Wayli is a privacy-first, open-source location tracking and trip management appl
 
 ### Environment Configuration
 
-- **Server-only**: `src/lib/core/config/server-environment.ts` (private variables)
-- **Worker**: `src/lib/core/config/worker-environment.ts` (process.env)
-- **Pattern**: Clear separation between server and worker environments
+- **Client**: `src/lib/environment.ts` (browser, injected at runtime)
+- **Shared**: `src/shared/environment.ts` and `src/shared/config/environment.ts` (shared client config)
+- **Note**: Wayli is a client-side SvelteKit app — all server-side work (auth, queries, jobs, edge functions) is handled by Fluxbase
 - **Benefits**: Security, type safety, clear dependency boundaries
 
 ### Error Handling
@@ -38,7 +38,7 @@ Wayli is a privacy-first, open-source location tracking and trip management appl
 
 ### Validation
 
-- **Location**: `src/lib/validation/schemas.ts` and `src/lib/utils/api/schemas.ts`
+- **Location**: `src/lib/schemas/` and `src/lib/utils/api/schemas.ts`
 - **Pattern**: Zod schemas for all data validation
 - **Usage**: Use `validateWithSchema()` for API input validation
 - **Benefits**: Type safety, clear error messages, API documentation
@@ -63,30 +63,27 @@ src/
 │   ├── accessibility/       # Accessibility utilities and actions
 │   ├── components/          # Reusable UI components
 │   ├── core/
-│   │   ├── config/          # Environment configuration
-│   │   └── fluxbase/        # Fluxbase clients
-│   ├── services/           # Business logic services
-│   ├── stores/             # Svelte stores
-│   ├── types/              # TypeScript type definitions
-│   ├── utils/
-│   │   ├── api/            # API utilities and patterns
-│   │   └── ...             # Other utilities
-│   ├── validation/         # Zod validation schemas
-│   ├── middleware/         # Request middleware
-│   └── ...                 # Other modules
+│   │   └── config/          # Environment configuration docs (README.md)
+│   ├── rules/               # Trip/transport detection rules
+│   ├── schemas/             # Zod validation schemas
+│   ├── services/            # Business logic services (kebab-case, e.g. trips.service.ts)
+│   ├── stores/              # Svelte stores
+│   ├── types/               # TypeScript type definitions
+│   └── utils/
+│       └── api/             # API utilities and patterns
+├── shared/                  # Shared config, environment, and types
 ├── routes/
-│   ├── (user)/             # Protected user routes
-│   ├── api/                # API endpoints
-│   └── setup/              # Initial setup flow
-├── tests/                  # Test suite
-│   ├── unit/               # Unit tests
-│   ├── components/         # Component tests
-│   ├── integration/        # Integration tests
-│   └── accessibility/      # Accessibility tests
-├── static/                 # Static assets
-├── docker-entrypoint.sh    # Docker container entrypoint script
-├── nginx.conf             # Nginx configuration for production
-└── test-container.sh       # Docker container testing script
+│   ├── (user)/              # Protected user routes
+│   ├── api/                 # API endpoints (link-preview only; not served in production)
+│   └── auth/                # Auth routes (signin, signup, 2FA)
+├── tests/                   # Test suite
+│   ├── unit/                # Unit tests (incl. accessibility-aria-button.test.ts)
+│   ├── components/          # Component tests
+│   ├── integration/         # Integration tests
+│   └── e2e/                 # End-to-end tests (Playwright)
+├── static/                  # Static assets
+├── docker-entrypoint.sh    # Container entrypoint (runs startup.sh)
+└── nginx.conf              # Nginx configuration for production
 ```
 
 ### Naming Conventions
@@ -116,7 +113,7 @@ src/
 - Use RLS policies for database access control
 - Implement proper session management
 - Use environment variables for sensitive configuration
-- Use the new API base handler for consistent auth patterns
+- Remember role assignment is server-side (ensure_user_profile RPC) — never trust client-sent roles
 
 ### Input Validation
 
@@ -168,10 +165,12 @@ src/
 
 ### Test Categories
 
-- **Unit Tests**: Business logic, utilities, services (90%+ coverage)
-- **Component Tests**: UI components, user interactions (80%+ coverage)
-- **Accessibility Tests**: ARIA attributes, keyboard navigation (100% coverage)
-- **Integration Tests**: API endpoints, service integration (85%+ coverage)
+Coverage thresholds are advisory goals — CI runs coverage report-only and does not fail on them.
+
+- **Unit Tests**: Business logic, utilities, services (goal: 85%+)
+- **Component Tests**: UI components, user interactions
+- **Accessibility Tests**: ARIA attributes, keyboard navigation (see `tests/unit/accessibility-aria-button.test.ts`)
+- **Integration Tests**: API endpoints, service integration
 
 ### Testing Patterns
 
@@ -191,52 +190,28 @@ src/
 
 ## 🔄 API Development Patterns
 
-### Creating New API Endpoints
+Wayli is client-side first: data access goes through the Fluxbase client SDK with RLS, not custom API routes. The only SvelteKit endpoint is `src/routes/api/link-preview/`, and it is NOT served in production (adapter-static build + nginx `try_files`).
 
-1. **Use the base handler pattern**:
+### Conventions for API routes
 
-```typescript
-export const GET: RequestHandler = createGetHandler(
-	async (context) => {
-		// Business logic here
-		return { data: result };
-	},
-	{
-		requireAuthentication: true,
-		validateQuery: paginationSchema
-	}
-);
-```
-
-2. **Use validation schemas**:
-
-```typescript
-import { createTripSchema } from '$lib/utils/api/schemas';
-
-export const POST: RequestHandler = createPostHandler(
-	async (context) => {
-		const { body } = context;
-		// body is already validated
-		return { trip: result };
-	},
-	{
-		validateBody: createTripSchema
-	}
-);
-```
-
-3. **Use response utilities**:
+1. **Use response utilities** (`$lib/utils/api/response`):
 
 ```typescript
 import { successResponse, errorResponse } from '$lib/utils/api/response';
 
-// Success
-return successResponse(data, 201);
-
-// Error
-throw new Error('Resource not found');
-// Base handler will convert to appropriate response
+return successResponse(data, 200);
+return errorResponse(error, 500);
 ```
+
+2. **Use validation schemas** (`$lib/utils/api/schemas`):
+
+```typescript
+import { paginationSchema } from '$lib/utils/api/schemas';
+// Zod schemas for query/body validation
+```
+
+3. **Extract business logic to the service layer** (`src/lib/services/*.service.ts`)
+4. **Write tests** in `tests/unit/` or `tests/integration/`
 
 ### API Response Format
 
@@ -290,24 +265,19 @@ All API responses follow this structure:
 
 ## 🌍 Environment Configuration
 
-### Server-Side Configuration
+### Client Configuration
 
 ```typescript
-// src/lib/core/config/server-environment.ts
-// Server-only variables from $env/static/private
-export function validateServerEnvironment() {
-	// Validate required environment variables
-}
+// src/lib/environment.ts
+// Browser-side runtime configuration (values injected into the HTML at
+// container startup: FLUXBASE_PUBLIC_BASE_URL, FLUXBASE_ANON_KEY)
 ```
 
-### Worker Configuration
+### Shared Configuration
 
 ```typescript
-// src/lib/core/config/worker-environment.ts
-// Worker-specific variables using process.env
-export function validateWorkerEnvironment() {
-	// Validate worker environment
-}
+// src/shared/environment.ts, src/shared/config/environment.ts
+// Configuration shared across client modules
 ```
 
 ### Vite Configuration
@@ -337,36 +307,29 @@ export default defineConfig({
 
 **Note**: The `allowedHosts` check prevents host header attacks during development/preview. Since you're using HTTPS in production, this provides minimal additional security benefit.
 
-**Production Deployment**: The Docker container uses nginx to serve static files instead of running a Node.js server, which is much more efficient and production-ready.
+**Production Deployment**: The Docker container uses nginx to serve the static SvelteKit build (adapter-static), with `startup.sh` templating runtime env vars into the HTML and syncing Fluxbase resources.
 
-**Docker Architecture**: Multi-stage build with nginx for web serving and Node.js for background workers.
+**Docker Architecture**: Multi-stage build (`deno-bin`, `builder`, `production`) at the repo root — nginx serves static files; there is no separate worker stage.
 
 ### Docker Configuration
 
-**Multi-Stage Architecture**:
+**Multi-Stage Architecture** (root `Dockerfile`):
 
-- **`web` stage**: nginx serving static files (port 80)
-- **`worker` stage**: Node.js for background processing
-- **`builder` stage**: Builds the SvelteKit application
+- **`deno-bin` stage**: provides the Deno binary used by Fluxbase edge functions
+- **`builder` stage**: Bun installs dependencies and builds the SvelteKit application
+- **`production` stage**: debian-slim with nginx, serving the static build on port 80 (configurable via `PORT`)
 
-**Entrypoint Script**: `docker-entrypoint.sh`
+**Entrypoint Script**: `docker-entrypoint.sh` simply executes `startup.sh`, which:
 
-- Handles worker modes (worker, workers)
-- Provides comprehensive debugging and error handling
-- Validates APP_MODE environment variable
-- Note: Web mode uses nginx directly
-
-**Container Modes**:
-
-- `APP_MODE=web`: Use nginx stage (static file serving)
-- `APP_MODE=worker`: Background worker process
-- `APP_MODE=workers`: Worker manager process
+- Configures nginx at runtime (CSP domain, port, health endpoint)
+- Injects environment variables into the built HTML (`FLUXBASE_PUBLIC_BASE_URL`, `FLUXBASE_ANON_KEY`/`PUBLIC_FLUXBASE_ANON_KEY`)
+- Syncs Fluxbase resources (rpc, functions, jobs, chatbots, schema) unless `SKIP_SYNC=true`
+- Requires `FLUXBASE_BASE_URL` and `FLUXBASE_SERVICE_ROLE_KEY` when sync is enabled
 
 **Best Practices**:
 
 - Use nginx for static file serving (much more efficient than Node.js)
-- Separate concerns: web serving vs background processing
-- Validate environment variables in entrypoint scripts
+- Validate environment variables in startup scripts
 - Provide clear error messages and debugging information
 - Use non-root users for security
 
@@ -408,14 +371,13 @@ export default defineConfig({
 
 ### API Endpoint Migration
 
-When migrating existing API endpoints to the new patterns:
+When touching SvelteKit API endpoints (only `api/link-preview` exists today — prefer Fluxbase RPCs and edge functions for new server logic):
 
-1. Replace manual authentication with base handler
+1. Use the response utilities for consistent responses
 2. Add Zod validation schemas
-3. Use response utility functions
-4. Extract business logic to service layer
-5. Update error handling
-6. Add comprehensive tests
+3. Extract business logic to service layer
+4. Update error handling
+5. Add comprehensive tests
 
 ### Component Migration
 

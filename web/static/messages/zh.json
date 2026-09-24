@@ -1083,7 +1083,17 @@
 		"fitnessBetaName": "健身",
 		"fitnessBetaDescription": "导入 .fit 训练文件并分析您的训练（心率、功率、踏频）。",
 		"valhallaRoutesBetaName": "道路贴合路线",
-		"valhallaRoutesBetaDescription": "通过路由服务器（Valhalla）将你的轨迹贴合到道路：更平滑的旅行路线，以及位置数据页上的“吸附到道路”视图。你的移动段会被发送到路由服务器。"
+		"valhallaRoutesBetaDescription": "通过路由服务器（Valhalla）将你的轨迹贴合到道路：更平滑的旅行路线，以及位置数据页上的“吸附到道路”视图。你的移动段会被发送到路由服务器。",
+		"dangerZoneTitle": "Danger Zone",
+		"dangerZoneDescription": "Permanently delete your account and all associated data — location history, trips, journal entries, photos, and statistics. This cannot be undone.",
+		"deleteAccountButton": "Delete my account",
+		"deleteTypeToConfirm": "Type DELETE in the box below to confirm. This removes your data from the server immediately.",
+		"deleteConfirmWord": "DELETE",
+		"deleteAccountConfirm": "Permanently delete everything",
+		"deleteAccountPending": "Deleting…",
+		"deleteAccountCancel": "Cancel",
+		"deleteAccountSuccess": "Your account has been deleted.",
+		"deleteAccountError": "Account deletion failed — try again or contact your server administrator."
 	},
 	"serverAdmin": {
 		"title": "服务器管理设置",

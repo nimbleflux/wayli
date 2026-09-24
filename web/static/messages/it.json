@@ -1079,7 +1079,17 @@
 		"fitnessBetaName": "Fitness",
 		"fitnessBetaDescription": "Importa file di allenamento .fit e analizza le tue sessioni (frequenza cardiaca, potenza, cadenza).",
 		"valhallaRoutesBetaName": "Percorsi allineati alle strade",
-		"valhallaRoutesBetaDescription": "Allinea i tuoi tracciati alle strade tramite il server di routing (Valhalla): percorsi di viaggio più fluidi e una vista 'Allinea alle strade' nella pagina Dati di localizzazione. I tuoi segmenti di movimento vengono inviati al server di routing."
+		"valhallaRoutesBetaDescription": "Allinea i tuoi tracciati alle strade tramite il server di routing (Valhalla): percorsi di viaggio più fluidi e una vista 'Allinea alle strade' nella pagina Dati di localizzazione. I tuoi segmenti di movimento vengono inviati al server di routing.",
+		"dangerZoneTitle": "Danger Zone",
+		"dangerZoneDescription": "Permanently delete your account and all associated data — location history, trips, journal entries, photos, and statistics. This cannot be undone.",
+		"deleteAccountButton": "Delete my account",
+		"deleteTypeToConfirm": "Type DELETE in the box below to confirm. This removes your data from the server immediately.",
+		"deleteConfirmWord": "DELETE",
+		"deleteAccountConfirm": "Permanently delete everything",
+		"deleteAccountPending": "Deleting…",
+		"deleteAccountCancel": "Cancel",
+		"deleteAccountSuccess": "Your account has been deleted.",
+		"deleteAccountError": "Account deletion failed — try again or contact your server administrator."
 	},
 	"serverAdmin": {
 		"title": "Impostazioni di amministrazione del server",

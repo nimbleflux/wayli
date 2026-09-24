@@ -1058,7 +1058,17 @@
 		"samplingLastRun": "Last run: {date} · deleted {deleted} points",
 		"samplingSaved": "Sampling config saved",
 		"samplingSaveFailed": "Failed to save sampling config",
-		"maxTripExclusionsReached": "Maximum of 10 excluded zones reached. Remove one to add another."
+		"maxTripExclusionsReached": "Maximum of 10 excluded zones reached. Remove one to add another.",
+		"dangerZoneTitle": "Danger Zone",
+		"dangerZoneDescription": "Permanently delete your account and all associated data — location history, trips, journal entries, photos, and statistics. This cannot be undone.",
+		"deleteAccountButton": "Delete my account",
+		"deleteTypeToConfirm": "Type DELETE in the box below to confirm. This removes your data from the server immediately.",
+		"deleteConfirmWord": "DELETE",
+		"deleteAccountConfirm": "Permanently delete everything",
+		"deleteAccountPending": "Deleting…",
+		"deleteAccountCancel": "Cancel",
+		"deleteAccountSuccess": "Your account has been deleted.",
+		"deleteAccountError": "Account deletion failed — try again or contact your server administrator."
 	},
 	"serverAdmin": {
 		"title": "Server admin settings",

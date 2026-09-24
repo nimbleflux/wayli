@@ -1083,7 +1083,17 @@
 		"fitnessBetaName": "피트니스",
 		"fitnessBetaDescription": ".fit 운동 파일을 가져와 세션(심박수, 파워, 케이던스)을 분석합니다.",
 		"valhallaRoutesBetaName": "도로 따라 가는 경로",
-		"valhallaRoutesBetaDescription": "라우팅 서버(Valhalla)를 통해 트랙을 도로에 맞춥니다. 더 부드러운 여행 경로와 위치 데이터 페이지의 '도로에 맞추기' 보기. 이동 구간은 라우팅 서버로 전송됩니다."
+		"valhallaRoutesBetaDescription": "라우팅 서버(Valhalla)를 통해 트랙을 도로에 맞춥니다. 더 부드러운 여행 경로와 위치 데이터 페이지의 '도로에 맞추기' 보기. 이동 구간은 라우팅 서버로 전송됩니다.",
+		"dangerZoneTitle": "Danger Zone",
+		"dangerZoneDescription": "Permanently delete your account and all associated data — location history, trips, journal entries, photos, and statistics. This cannot be undone.",
+		"deleteAccountButton": "Delete my account",
+		"deleteTypeToConfirm": "Type DELETE in the box below to confirm. This removes your data from the server immediately.",
+		"deleteConfirmWord": "DELETE",
+		"deleteAccountConfirm": "Permanently delete everything",
+		"deleteAccountPending": "Deleting…",
+		"deleteAccountCancel": "Cancel",
+		"deleteAccountSuccess": "Your account has been deleted.",
+		"deleteAccountError": "Account deletion failed — try again or contact your server administrator."
 	},
 	"serverAdmin": {
 		"title": "서버 관리자 설정",

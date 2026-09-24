@@ -341,6 +341,37 @@
 
 	// Trip exclusions state
 	let tripExclusions: any[] = $state([]);
+
+	// Account deletion (Danger Zone) — invokes the delete-account edge function,
+	// which removes storage objects, KB docs, residual cross-user rows, then the
+	// auth user (FK cascades remove the rest). Play Data Safety requirement.
+	let showDeleteConfirm = $state(false);
+	let deleteConfirmText = $state('');
+	let isDeletingAccount = $state(false);
+
+	async function handleDeleteAccount() {
+		if (deleteConfirmText !== 'DELETE' || isDeletingAccount) return;
+		isDeletingAccount = true;
+		try {
+			const { data, error } = await fluxbase.functions.invoke('delete-account', {
+				body: { confirm: true }
+			});
+			if (error) throw new Error(error.message);
+			if ((data as any)?.deleted !== true) {
+				throw new Error(
+					((data as any)?.errors as string[] | undefined)?.join('; ') ||
+						t('accountSettings.deleteAccountError')
+				);
+			}
+			toast.success(t('accountSettings.deleteAccountSuccess'));
+			await sessionManager.signOut();
+			await goto('/auth/signin');
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : String(err));
+		} finally {
+			isDeletingAccount = false;
+		}
+	}
 	let showAddExclusionModal = $state(false);
 	let showEditExclusionModal = $state(false);
 	let newExclusion = $state({
@@ -2619,7 +2650,54 @@
 		</div>
 	{/if}
 
-	<!-- Danger Zone hidden: account deletion not yet implemented -->
+	<!-- Danger Zone: self-service account deletion (Play Data Safety) -->
+	<div class="mt-10 rounded-lg border border-red-200 p-6 dark:border-red-900/50">
+		<h3 class="text-lg font-semibold text-red-600 dark:text-red-400">
+			{t('accountSettings.dangerZoneTitle')}
+		</h3>
+		<p class="text-muted-foreground mt-1 text-sm">
+			{t('accountSettings.dangerZoneDescription')}
+		</p>
+		{#if showDeleteConfirm}
+			<p class="mt-4 text-sm">
+				{t('accountSettings.deleteTypeToConfirm')}
+			</p>
+			<Input
+				class="mt-2 max-w-xs"
+				bind:value={deleteConfirmText}
+				placeholder={t('accountSettings.deleteConfirmWord')}
+				autocomplete="off"
+			/>
+			<div class="mt-3 flex gap-2">
+				<button
+					class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+					disabled={deleteConfirmText !== 'DELETE' || isDeletingAccount}
+					onclick={handleDeleteAccount}
+				>
+					{isDeletingAccount
+						? t('accountSettings.deleteAccountPending')
+						: t('accountSettings.deleteAccountConfirm')}
+				</button>
+				<button
+					class="hover:bg-muted cursor-pointer rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50"
+					disabled={isDeletingAccount}
+					onclick={() => {
+						showDeleteConfirm = false;
+						deleteConfirmText = '';
+					}}
+				>
+					{t('accountSettings.deleteAccountCancel')}
+				</button>
+			</div>
+		{:else}
+			<button
+				class="mt-4 rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/20"
+				onclick={() => (showDeleteConfirm = true)}
+			>
+				{t('accountSettings.deleteAccountButton')}
+			</button>
+		{/if}
+	</div>
 </div>
 
 <!-- Add Trip Exclusion Modal -->

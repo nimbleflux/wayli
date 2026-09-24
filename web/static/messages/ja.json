@@ -1083,7 +1083,17 @@
 		"fitnessBetaName": "フィットネス",
 		"fitnessBetaDescription": ".fitワークアウトファイルをインポートして、セッション（心拍数、パワー、ケイデンス）を分析します。",
 		"valhallaRoutesBetaName": "道路に沿ったルート",
-		"valhallaRoutesBetaDescription": "ルーティングサーバー（Valhalla）でトラックを道路に合わせます。より滑らかな旅行ルートと、位置データページの「道路にスナップ」表示。移動セグメントはルーティングサーバーに送信されます。"
+		"valhallaRoutesBetaDescription": "ルーティングサーバー（Valhalla）でトラックを道路に合わせます。より滑らかな旅行ルートと、位置データページの「道路にスナップ」表示。移動セグメントはルーティングサーバーに送信されます。",
+		"dangerZoneTitle": "Danger Zone",
+		"dangerZoneDescription": "Permanently delete your account and all associated data — location history, trips, journal entries, photos, and statistics. This cannot be undone.",
+		"deleteAccountButton": "Delete my account",
+		"deleteTypeToConfirm": "Type DELETE in the box below to confirm. This removes your data from the server immediately.",
+		"deleteConfirmWord": "DELETE",
+		"deleteAccountConfirm": "Permanently delete everything",
+		"deleteAccountPending": "Deleting…",
+		"deleteAccountCancel": "Cancel",
+		"deleteAccountSuccess": "Your account has been deleted.",
+		"deleteAccountError": "Account deletion failed — try again or contact your server administrator."
 	},
 	"serverAdmin": {
 		"title": "サーバー管理設定",

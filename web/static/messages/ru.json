@@ -1083,7 +1083,17 @@
 		"fitnessBetaName": "Фитнес",
 		"fitnessBetaDescription": "Импортируйте файлы тренировок .fit и анализируйте занятия (пульс, мощность, каденс).",
 		"valhallaRoutesBetaName": "Маршруты по дорогам",
-		"valhallaRoutesBetaDescription": "Привязка ваших треков к дорогам через сервер маршрутизации (Valhalla): более плавные маршруты поездок и режим «Привязать к дорогам» на странице Данные о местоположении. Ваши сегменты перемещения отправляются на сервер маршрутизации."
+		"valhallaRoutesBetaDescription": "Привязка ваших треков к дорогам через сервер маршрутизации (Valhalla): более плавные маршруты поездок и режим «Привязать к дорогам» на странице Данные о местоположении. Ваши сегменты перемещения отправляются на сервер маршрутизации.",
+		"dangerZoneTitle": "Danger Zone",
+		"dangerZoneDescription": "Permanently delete your account and all associated data — location history, trips, journal entries, photos, and statistics. This cannot be undone.",
+		"deleteAccountButton": "Delete my account",
+		"deleteTypeToConfirm": "Type DELETE in the box below to confirm. This removes your data from the server immediately.",
+		"deleteConfirmWord": "DELETE",
+		"deleteAccountConfirm": "Permanently delete everything",
+		"deleteAccountPending": "Deleting…",
+		"deleteAccountCancel": "Cancel",
+		"deleteAccountSuccess": "Your account has been deleted.",
+		"deleteAccountError": "Account deletion failed — try again or contact your server administrator."
 	},
 	"serverAdmin": {
 		"title": "Настройки администратора сервера",

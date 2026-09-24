@@ -7361,3 +7361,12 @@ REVOKE SELECT ON trip_gps_tracks FROM anon, authenticated;
 -- to anyone who can see the trip row (per trips_select), regardless of
 -- costs_visible_to — only per-item costs in visible_plan_items are masked.
 COMMENT ON COLUMN trips.budget_total IS 'Visible to everyone who can see the trip row (trips_select); costs_visible_to masks only per-item plan costs.';
+
+-- Idempotent trip creation: prevents auto-ongoing/scheduled generators from
+-- duplicating the same trip (application-level date matching alone raced).
+-- Columns verified against the trips CREATE TABLE above: start_date/end_date
+-- are NOT NULL date columns; the status values below are all members of the
+-- trips_status_check constraint.
+CREATE UNIQUE INDEX IF NOT EXISTS trips_user_dates_active_unique
+    ON trips (user_id, start_date, end_date)
+    WHERE status IN ('pending', 'completed', 'active');

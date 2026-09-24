@@ -133,13 +133,30 @@ export class TripDetectionService {
 		}
 	}
 
-	async getExcludedDateRanges(userId: string): Promise<ExcludedDateRange[]> {
+	/**
+	 * Date ranges of existing trips whose points must not be re-detected.
+	 *
+	 * 'active' trips are excluded too (default) so a re-detection run doesn't
+	 * suggest a pending duplicate of the user's ongoing trip. The scheduled
+	 * generator passes excludeActiveTrips:false because it owns the ongoing
+	 * trip lifecycle itself (rolling it forward, closing it on return) and
+	 * needs the away data inside the active trip's range to do that; the
+	 * unique index on trips (user_id, start_date, end_date) guards the overlap.
+	 */
+	async getExcludedDateRanges(
+		userId: string,
+		options?: { excludeActiveTrips?: boolean }
+	): Promise<ExcludedDateRange[]> {
+		const excludeActive = options?.excludeActiveTrips !== false;
 		try {
+			const statuses = excludeActive
+				? ['completed', 'rejected', 'pending', 'active']
+				: ['completed', 'rejected', 'pending'];
 			const { data: trips, error } = await this.fluxbase
 				.from('trips')
 				.select('start_date, end_date, status')
 				.eq('user_id', userId)
-				.in('status', ['completed', 'rejected', 'pending']);
+				.in('status', statuses);
 
 			if (error) {
 				console.error('❌ Error fetching trips:', error);
@@ -149,7 +166,12 @@ export class TripDetectionService {
 			const excludedRanges: ExcludedDateRange[] = trips.map((trip: { start_date: string; end_date: string; status: string }) => ({
 				startDate: trip.start_date,
 				endDate: trip.end_date,
-				reason: trip.status === 'completed' ? 'approved_trip' : 'rejected_trip'
+				reason:
+					trip.status === 'completed'
+						? 'approved_trip'
+						: trip.status === 'active'
+							? 'active_trip'
+							: 'rejected_trip'
 			}));
 
 			return excludedRanges;
@@ -234,7 +256,12 @@ export class TripDetectionService {
 		this.customHomeAddress = null;
 	}
 
-	async detectTrips(userId: string, startDate?: string, endDate?: string): Promise<DetectedTrip[]> {
+	async detectTrips(
+		userId: string,
+		startDate?: string,
+		endDate?: string,
+		options?: { excludeActiveTrips?: boolean }
+	): Promise<DetectedTrip[]> {
 		try {
 			this.updateProgress({
 				phase: 'initializing',
@@ -252,7 +279,7 @@ export class TripDetectionService {
 				details: {}
 			});
 
-			const excludedRanges = await this.getExcludedDateRanges(userId);
+			const excludedRanges = await this.getExcludedDateRanges(userId, options);
 			const { locations: homeLocations, language } = await this.getUserHomeLocations(userId);
 			this.lastLanguage = language;
 
@@ -274,24 +301,51 @@ export class TripDetectionService {
 				details: {}
 			});
 
-			let countQuery = this.fluxbase
+			// Fluxbase's REST grammar has no reliable NOT-BETWEEN. The
+			// `not.between` filter operator is not part of the server-side
+			// filter grammar (it degrades to a nonsense equality that matches
+			// ALL rows — verified in Fluxbase source,
+			// internal/api/query_parser_filter.go), and nested
+			// `or=(and(...),and(...))` groups lose their OR semantics there
+			// (each nested and() is parsed with IsOr=false, so all leaves are
+			// ANDed together). So exclusion of already-tripped date ranges is
+			// computed arithmetically: count ALL points in the window once,
+			// count the points INSIDE each excluded range with plain gte/lte
+			// filters (ranges pre-merged below so overlapping trips don't
+			// double-count), and subtract. The batch query further down skips
+			// in-range points client-side for the same reason.
+			const { count: windowPointCount, error: countError } = await this.fluxbase
 				.from('tracker_data')
 				.select('recorded_at', { count: 'exact', head: true })
 				.eq('user_id', userId)
 				.gte('recorded_at', effectiveStartDate)
 				.lte('recorded_at', effectiveEndDate);
 
-			for (const range of excludedRanges) {
-				countQuery = countQuery.filter('recorded_at', 'not.between', [range.startDate, range.endDate]);
-			}
-
-			const { count: totalPoints, error: countError } = await countQuery;
-
 			if (countError) {
 				console.error(`❌ Error counting data points:`, countError);
 			}
 
-			if (!totalPoints || totalPoints === 0) {
+			const excludedMergedRanges = this.mergeDateRanges(excludedRanges);
+			let excludedCount = 0;
+			for (const range of excludedMergedRanges) {
+				const { count, error } = await this.fluxbase
+					.from('tracker_data')
+					.select('recorded_at', { count: 'exact', head: true })
+					.eq('user_id', userId)
+					.gte('recorded_at', effectiveStartDate)
+					.lte('recorded_at', effectiveEndDate)
+					.gte('recorded_at', range.start)
+					.lte('recorded_at', range.end);
+				if (error) {
+					console.warn(`⚠️ Error counting excluded range ${range.start}..${range.end}:`, error);
+					continue;
+				}
+				excludedCount += count || 0;
+			}
+
+			const totalPoints = Math.max(0, (windowPointCount || 0) - excludedCount);
+
+			if (totalPoints === 0) {
 				this.updateProgress({
 					phase: 'completed',
 					progress: 100,
@@ -327,10 +381,6 @@ export class TripDetectionService {
 					.gte('recorded_at', effectiveStartDate)
 					.lte('recorded_at', effectiveEndDate);
 
-				for (const range of excludedRanges) {
-					query = query.filter('recorded_at', 'not.between', [range.startDate, range.endDate]);
-				}
-
 				if (lastRecordedAt) {
 					query = query.gt('recorded_at', lastRecordedAt);
 				}
@@ -351,7 +401,17 @@ export class TripDetectionService {
 
 				console.log(`📦 Batch ${batchNumber}: ${batch.length} records fetched, current state: ${this.userState?.currentState}, nextState: ${this.userState?.nextState || 'none'}, nextStateDataPoints: ${this.userState?.nextStateDataPoints || 0}`);
 
-				const pointsWithCity = batch.filter((point: { recorded_at: string; geocode?: { properties?: { city?: string; address?: { city?: string }; addendum?: { osm?: { 'addr:city'?: string } } } } }) => {
+				// Skip points inside an existing trip's date range client-side
+				// (query-level exclusion isn't possible — see the counting
+				// comment above for the grammar limitation).
+				const outsideBatch = excludedMergedRanges.length
+					? batch.filter(
+							(point: { recorded_at: string }) =>
+								!this.isRecordedInExcludedRanges(point.recorded_at, excludedMergedRanges)
+						)
+					: batch;
+
+				const pointsWithCity = outsideBatch.filter((point: { recorded_at: string; geocode?: { properties?: { city?: string; address?: { city?: string }; addendum?: { osm?: { 'addr:city'?: string } } } } }) => {
 					const city = point.geocode?.properties?.addendum?.osm?.['addr:city'] ||
 						point.geocode?.properties?.city ||
 						point.geocode?.properties?.address?.city;
@@ -382,7 +442,7 @@ export class TripDetectionService {
 					}
 				}
 
-				processedPoints += batch.length;
+				processedPoints += outsideBatch.length;
 
 				const progress = Math.round((processedPoints / totalPoints) * 100);
 				this.updateProgress({
@@ -419,6 +479,35 @@ export class TripDetectionService {
 		const tomorrow = new Date();
 		tomorrow.setDate(tomorrow.getDate() + 1);
 		return tomorrow.toISOString().split('T')[0];
+	}
+
+	/**
+	 * Merge overlapping/adjacent excluded date ranges so per-range counts and
+	 * client-side skipping never double-count a shared day. ISO dates compare
+	 * correctly as strings ('YYYY-MM-DD' vs timestamps).
+	 */
+	private mergeDateRanges(ranges: ExcludedDateRange[]): Array<{ start: string; end: string }> {
+		if (ranges.length === 0) return [];
+		const sorted = ranges
+			.map((r) => ({ start: r.startDate, end: r.endDate }))
+			.sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
+		const merged: Array<{ start: string; end: string }> = [{ ...sorted[0]! }];
+		for (const range of sorted.slice(1)) {
+			const last = merged[merged.length - 1]!;
+			if (range.start <= last.end) {
+				if (range.end > last.end) last.end = range.end;
+			} else {
+				merged.push({ ...range });
+			}
+		}
+		return merged;
+	}
+
+	private isRecordedInExcludedRanges(
+		recordedAt: string,
+		ranges: Array<{ start: string; end: string }>
+	): boolean {
+		return ranges.some((range) => recordedAt >= range.start && recordedAt <= range.end);
 	}
 
 	private async getUserFirstDataPoint(userId: string): Promise<string> {
@@ -573,6 +662,19 @@ export class TripDetectionService {
 	 */
 	isCurrentlyAway(): boolean {
 		return this.userState?.currentState === 'away';
+	}
+
+	/**
+	 * Timestamp at which the user (re)entered the current 'home' state during
+	 * the last detectTrips() run — i.e. the return-home time that closed the
+	 * last away span. Null while the user is currently away or before any
+	 * detection has run.
+	 */
+	getHomeReturnTime(): string | null {
+		if (!this.userState || this.userState.currentState !== 'home') {
+			return null;
+		}
+		return this.userState.stateStartTime;
 	}
 
 	private async createTripFromAwayState(

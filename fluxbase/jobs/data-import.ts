@@ -169,6 +169,38 @@ export async function handler(
 }
 
 /**
+ * Reset the per-user incremental-processing watermarks after an import.
+ *
+ * place-visit detection and transport-mode labeling each keep a
+ * last-processed timestamp per user; an import typically backfills points
+ * OLDER than that watermark, so without a reset those points would never be
+ * picked up by the incremental jobs. Deleting the state rows (service role —
+ * RLS allows only service/admin) forces the next incremental run to rebuild
+ * that user from scratch. Best-effort: a failed reset must not fail the
+ * import.
+ */
+async function resetIncrementalWatermarks(
+  fluxbaseService: FluxbaseClient,
+  userId: string
+): Promise<void> {
+  for (const table of ['place_visits_state', 'transport_mode_state']) {
+    try {
+      const { error: resetError } = await fluxbaseService
+        .from(table)
+        .delete()
+        .eq('user_id', userId);
+      if (resetError) {
+        console.warn(`Failed to reset ${table} watermark for user ${userId}:`, resetError);
+      } else {
+        console.log(`Reset ${table} watermark for user ${userId}`);
+      }
+    } catch (resetErr) {
+      console.warn(`Error resetting ${table} watermark:`, resetErr);
+    }
+  }
+}
+
+/**
  * Run post-import tasks: distance calculation and reverse geocoding
  */
 async function runPostImportTasks(
@@ -178,6 +210,9 @@ async function runPostImportTasks(
   context: any,
   userId: string
 ): Promise<void> {
+  // Late-arriving/imported points must be seen by the incremental jobs.
+  resetIncrementalWatermarks(fluxbaseService, userId);
+
   // Trigger distance calculation RPC
   console.log(`Triggering distance calculation RPC for user ${userId}...`);
   try {

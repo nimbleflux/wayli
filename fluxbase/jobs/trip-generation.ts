@@ -153,7 +153,9 @@ export async function handler(
 				},
 				address: {
 					city: homeAddress.address?.city || homeAddress.address?.town || homeAddress.address?.village,
-					country_code: homeAddress.address?.country
+					// ISO code, not the country name — isHomeCountryTrip
+					// compares this against point geocode country codes.
+					country_code: homeAddress.address?.country_code?.toUpperCase()
 				}
 			};
 			tripDetectionService.setCustomHomeAddress(customHomeLocation);

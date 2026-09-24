@@ -137,15 +137,17 @@ export interface ValhallaTraceResult {
 
 // ─── API client ─────────────────────────────────────────────────────────────
 
-/** Attributes we want from trace_attributes — the minimum for mode detection. */
+/** Attributes we want from trace_attributes — the minimum for mode detection.
+ *  edge.rail and edge.duration are intentionally NOT requested: Valhalla 3.8+
+ *  no longer recognizes them (it logs an ERROR per attribute per request).
+ *  Rail evidence comes from "RAILWAY | " clone path names instead, and edge
+ *  durations were never consumed. */
 const EDGE_ATTRIBUTES = [
 	'edge.names',
 	'edge.speed',
 	'edge.road_class',
 	'edge.use',
-	'edge.rail',
 	'edge.length',
-	'edge.duration',
 	'edge.begin_shape_index',
 	'edge.end_shape_index'
 ];

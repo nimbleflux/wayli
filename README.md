@@ -21,7 +21,7 @@ Privacy-first location tracking and trip analysis. Self-hosted, no third-party d
 
 - **Trip Detection** - Automatically detects trips from GPS data with transport mode classification
 - **Statistics** - Distance traveled, transport modes, and interactive visualizations
-- **Data Export** - Export everything in JSON, GeoJSON, or CSV
+- **Data Export** - Export everything in JSON or GeoJSON, and delete your account and data anytime from Account Settings
 - **Privacy-First Geocoding** - Uses [Pelias](https://pelias.io), an open-source geocoder, keeping location lookups off commercial services
 - **OwnTracks Integration** - Import location data from OwnTracks
 

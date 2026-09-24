@@ -19,8 +19,13 @@ RUN apk add --no-cache python3 make g++ linux-headers
 
 WORKDIR /app/web
 
-# Copy package files first (for better caching)
-COPY web/package.json web/bun.lockb* ./
+# Copy package files first (for better caching).
+# bun.lock (text lockfile) MUST be copied: without it, `bun install
+# --frozen-lockfile` has nothing to freeze against and every image build
+# resolves dependency ranges fresh from the registry (non-reproducible
+# images). The old `bun.lockb*` glob matched nothing — bun.lockb doesn't
+# exist in this repo — and was silently skipped.
+COPY web/package.json web/bun.lock ./
 
 # Install ALL dependencies (including devDependencies for build)
 RUN bun install --frozen-lockfile
@@ -44,11 +49,36 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rm -rf /var/lib/apt/lists/* && \
     mkdir -p /run/nginx
 
-# Install Fluxbase CLI for resource synchronization
+# Install Fluxbase CLI for resource synchronization, pinned to
+# FLUXBASE_CLI_VERSION and verified against the SHA-256 sidecar the release
+# publishes. This replaces the old `curl install-cli.sh | bash` from the
+# mutable main branch (no checksum, arbitrary code in every image build).
 # Set FLUXBASE_CLI_VERSION to 'local' to use a pre-built CLI from ./bin/fluxbase
-# Otherwise, installs from GitHub release (e.g., 'latest' or 'v0.0.1-rc.112')
 ARG FLUXBASE_CLI_VERSION=v2026.9.2
-RUN curl -fsSL https://raw.githubusercontent.com/nimbleflux/fluxbase/main/install-cli.sh | bash -s -- ${FLUXBASE_CLI_VERSION}
+RUN if [ "${FLUXBASE_CLI_VERSION}" = "local" ]; then \
+        cp bin/fluxbase /usr/local/bin/fluxbase; \
+    else \
+        ARCH="$(uname -m)" && \
+        case "$ARCH" in \
+            x86_64) GOARCH=amd64 ;; \
+            aarch64 | arm64) GOARCH=arm64 ;; \
+            *) echo "unsupported architecture: $ARCH" >&2; exit 1 ;; \
+        esac && \
+        BASE_URL="https://github.com/nimbleflux/fluxbase/releases/download/${FLUXBASE_CLI_VERSION}" && \
+        TARBALL="fluxbase-linux-${GOARCH}.tar.gz" && \
+        curl -fsSLo /tmp/fluxbase.tar.gz "${BASE_URL}/${TARBALL}" && \
+        curl -fsSLo /tmp/fluxbase.tar.gz.sha256 "${BASE_URL}/${TARBALL}.sha256" && \
+        EXPECTED_SHA="$(grep -oE '^[a-f0-9]{64}' /tmp/fluxbase.tar.gz.sha256 | head -1)" && \
+        ACTUAL_SHA="$(sha256sum /tmp/fluxbase.tar.gz | cut -d' ' -f1)" && \
+        if [ -z "$EXPECTED_SHA" ] || [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then \
+            echo "Fluxbase CLI checksum mismatch: expected=${EXPECTED_SHA} actual=${ACTUAL_SHA}" >&2; \
+            exit 1; \
+        fi && \
+        tar -xzf /tmp/fluxbase.tar.gz -C /tmp "fluxbase-linux-${GOARCH}" && \
+        install -m 0755 "/tmp/fluxbase-linux-${GOARCH}" /usr/local/bin/fluxbase && \
+        rm -f /tmp/fluxbase.tar.gz /tmp/fluxbase.tar.gz.sha256 "/tmp/fluxbase-linux-${GOARCH}"; \
+    fi && \
+    fluxbase version
 
 WORKDIR /app
 

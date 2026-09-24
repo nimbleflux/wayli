@@ -67,7 +67,9 @@ web:
   env:
     nodeEnv: production
     host: "0.0.0.0"
-    port: "80"
+    ## nginx inside the container listens on $PORT; must match
+    ## web.service.targetPort below
+    port: "8080"
     ## Site URL for CORS and trusted origins
     siteUrl: "https://wayli.app"
 
@@ -84,8 +86,8 @@ web:
   ## Service configuration
   service:
     type: ClusterIP
-    port: 80
-    targetPort: 80
+    port: 8080
+    targetPort: 8080
     ## Additional service ports
     extraPorts: []
     ## Service annotations
@@ -272,6 +274,8 @@ podSecurityContext:
   runAsNonRoot: true
   runAsUser: 1000
   fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
 
 ## Container Security Context
 containerSecurityContext:
@@ -282,6 +286,8 @@ containerSecurityContext:
   capabilities:
     drop:
       - ALL
+  seccompProfile:
+    type: RuntimeDefault
 
 ## Service Account
 serviceAccount:
@@ -290,8 +296,15 @@ serviceAccount:
   name: ""
   ## Annotations
   annotations: {}
-  ## Auto-mount service account token
-  automountServiceAccountToken: true
+  ## Auto-mount service account token (web pod does not use the Kubernetes API)
+  automountServiceAccountToken: false
+
+## NetworkPolicy for the web pods (off by default)
+networkPolicy:
+  enabled: false
+  ## Namespace labels whose ingress controllers may reach web:8080
+  ingressNamespaceLabels:
+    kubernetes.io/metadata.name: ingress-nginx
 
 ## Fluxbase dependency configuration
 ## See: https://github.com/nimbleflux/fluxbase for full configuration options
@@ -337,20 +350,33 @@ fluxbase:
         - uploads
         - public
 
+    ## Auth configuration. Leave jwt_secret empty (default) and provide it via
+    ## fluxbase.existingSecret in production; when existingSecret is empty the
+    ## chart creates a secret from this value (fine for local evaluation).
+    auth:
+      jwt_secret: ""
+
+  ## Service configuration (port the Fluxbase subchart service listens on)
+  service:
+    ports:
+      http: 8080
+
   # ## Existing secret for sensitive configuration
   # ## Should contain keys: jwt-secret, setup-token, db-password, smtp-password, etc.
   existingSecret: ""
 
-  # ## Custom key names for existingSecret
-  # existingSecretKeyRef:
-  #   jwtSecret: "jwt-secret"
-  #   anonKey: "anon-key"
-  #   serviceRoleKey: "service-role-key"
-  #   setupToken: "setup-token"
-  #   databasePassword: "db-password"
+  # ## Key names within the secret. Defaults match the keys of the secret the
+  # ## chart creates itself (templates/secret-fluxbase.yaml) when
+  # ## fluxbase.existingSecret is empty. Override when bringing your own secret.
+  existingSecretKeyRef:
+    serviceRoleKey: "serviceRoleKey"
+    anonKey: "anonKey"
+    jwtSecret: "jwtSecret"
+    setupToken: "setupToken"
+    databasePassword: "databasePassword"
+    smtpPassword: "smtpPassword"
   #   s3AccessKey: "s3-access-key"
   #   s3SecretKey: "s3-secret-key"
-  #   smtpPassword: "smtp-password"
   #   sendgridApiKey: "sendgrid-api-key"
   #   mailgunApiKey: "mailgun-api-key"
   #   sesAccessKey: "ses-access-key"
@@ -690,7 +716,7 @@ fluxbase:
     auth:
       database: ~
       username: ~
-      password: ~  # Use existingSecret in production
+      password: ""  # Empty by default; use existingSecret in production
       existingSecret: ""
     image:
       registry: ghcr.io

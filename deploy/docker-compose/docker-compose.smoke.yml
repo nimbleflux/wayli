@@ -10,7 +10,8 @@
 #      published ghcr image — so the test exercises the PR's own code, not a stale
 #      release. The CI job and scripts/verify-setup.ts build this tag before up.
 #   3. Pins deterministic host ports so Playwright's baseURL and the Fluxbase URL
-#      are stable across runs.
+#      are stable across runs. Postgres is NOT published — nothing in CI (or the
+#      app) connects to it from the host; all access is via the Fluxbase API.
 #   4. Leaves SKIP_SYNC unset (default false) so the prod image's startup.sh runs
 #      sync:all — THIS IS THE CORE THING UNDER TEST: that a fresh stack gets the
 #      declarative schema + RPC + RLS applied automatically on container boot.
@@ -34,7 +35,3 @@ services:
   fluxbase:
     ports:
       - '8080:8080'
-
-  postgres:
-    ports:
-      - '5432:5432'

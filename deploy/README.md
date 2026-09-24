@@ -11,9 +11,8 @@ Docker Compose provides a simple way to run Wayli with all its dependencies (inc
 **Quick Start:**
 ```bash
 cd docker-compose
-cp .env.example .env
-# Edit .env with your configuration
-docker-compose up -d
+./generate-keys.sh   # generates .env with keys/secrets
+docker compose up -d
 ```
 
 See [docker-compose/README.md](docker-compose/README.md) for detailed instructions.
@@ -54,8 +53,8 @@ To update to the latest version:
 
 **Docker Compose:**
 ```bash
-docker-compose pull
-docker-compose up -d
+docker compose pull
+docker compose up -d
 ```
 
 **Kubernetes:**

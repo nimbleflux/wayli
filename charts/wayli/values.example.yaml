@@ -1,29 +1,17 @@
 # Wayli Helm Chart - Example Values
 #
 # Secret Generation:
-#   Run ./generate-secrets.sh to generate Kubernetes secrets for Fluxbase
+#   Run ./generate-keys.sh to generate Kubernetes secrets for Fluxbase
 #
 # Documentation:
 #   See charts/wayli/README.md for full configuration options
 
-global:
-  ## Shared secret name anchor for Fluxbase
-  fluxbaseSecretName: fluxbase-secret
-
 ## Web deployment
 web:
-  ## Environ1ment variables
+  ## Environment variables
   env:
     ## Site URL for CORS and trusted origins (you MUST set this)
     siteUrl: 'https://wayli.int.example.com'
-
-## Worker deployment (StatefulSet)
-worker:
-  ## Environment variables
-  env:
-    ## External service endpoints
-    pelias:
-      endpoint: 'https://pelias.wayli.app'
 
 # Gateway API configuration for Wayli web interface
 httpRoute:

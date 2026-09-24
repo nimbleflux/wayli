@@ -1,0 +1,53 @@
+{{- /* NetworkPolicy for the web pods — opt-in via .Values.networkPolicy.enabled */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "wayli.fullname" . }}-web
+  labels:
+    {{- include "wayli.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+  {{- with .Values.global.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "wayli.selectorLabels.web" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Ingress controller namespaces (see networkPolicy.ingressNamespaceLabels)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.ingressNamespaceLabels | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.web.service.targetPort }}
+    # Same-namespace pods (e.g. metrics scraping, init-style checks)
+    - from:
+        - podSelector: {}
+  egress:
+    # DNS resolution
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Fluxbase API (and PostgreSQL via Fluxbase) within the release namespace
+    - to:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: {{ include "wayli.fluxbase.servicePort" . }}
+    # External HTTPS APIs (geocoding, map tiles, AI providers)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+{{- end }}

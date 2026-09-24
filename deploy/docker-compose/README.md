@@ -53,11 +53,11 @@ Data is stored in Docker named volumes:
 ### Backup
 
 ```bash
-# Database
-docker compose exec db pg_dump -U postgres postgres > backup.sql
+# Database (service: postgres, default user/db: fluxbase)
+docker compose exec postgres pg_dump -U fluxbase fluxbase > backup.sql
 
 # Restore
-docker compose exec -T db psql -U postgres postgres < backup.sql
+docker compose exec -T postgres psql -U fluxbase fluxbase < backup.sql
 ```
 
 ## Troubleshooting

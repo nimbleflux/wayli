@@ -347,6 +347,8 @@ Init container for syncing Fluxbase resources using CLI
         {{- range .Values.containerSecurityContext.capabilities.drop }}
         - {{ . }}
         {{- end }}
+    seccompProfile:
+      type: {{ .Values.containerSecurityContext.seccompProfile.type }}
   {{- end }}
   # `fluxbase functions sync` bundles edge functions with deno, which downloads
   # the esbuild npm binary into DENO_DIR (default /tmp/deno) at runtime. Without

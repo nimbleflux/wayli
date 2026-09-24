@@ -1,7 +1,7 @@
 # Wayli with Fluxbase - Simplified Backend
 #
 # Secret Generation:
-#   Run ./generate-secrets.sh to generate required secrets (.env file)
+#   Run ./generate-keys.sh to generate required secrets (.env file)
 #
 # Usage:
 #   Start:    docker compose up
@@ -16,6 +16,16 @@ services:
     container_name: wayli-web
     image: ghcr.io/nimbleflux/wayli:${WAYLI_VERSION:-latest}
     restart: unless-stopped
+    # nginx (non-root) inside the container; no capabilities needed.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
     ports:
       - '${PORT:-4000}:80'
     environment:
@@ -26,9 +36,9 @@ services:
       # Fluxbase connection
       FLUXBASE_PUBLIC_BASE_URL: ${FLUXBASE_PUBLIC_BASE_URL:-http://localhost:8080}
       FLUXBASE_BASE_URL: http://fluxbase:8080
-      FLUXBASE_ANON_KEY: ${FLUXBASE_ANON_KEY}
-      FLUXBASE_SERVICE_ROLE_KEY: ${FLUXBASE_SERVICE_ROLE_KEY}
-      FLUXBASE_ENCRYPTION_KEY: ${FLUXBASE_ENCRYPTION_KEY}
+      FLUXBASE_ANON_KEY: ${FLUXBASE_ANON_KEY:?FLUXBASE_ANON_KEY is required (generate with ./generate-keys.sh)}
+      FLUXBASE_SERVICE_ROLE_KEY: ${FLUXBASE_SERVICE_ROLE_KEY:?FLUXBASE_SERVICE_ROLE_KEY is required (generate with ./generate-keys.sh)}
+      FLUXBASE_ENCRYPTION_KEY: ${FLUXBASE_ENCRYPTION_KEY:?FLUXBASE_ENCRYPTION_KEY is required (generate with ./generate-keys.sh)}
 
     depends_on:
       fluxbase:
@@ -45,9 +55,24 @@ services:
   postgres:
     image: ghcr.io/nimbleflux/fluxbase-postgres:18
     container_name: fluxbase-postgres
+    restart: unless-stopped
+    # Postgres entrypoint needs these caps for chown/step-down to the postgres user.
+    cap_add:
+      - CHOWN
+      - DAC_READ_SEARCH
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: '2.0'
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-fluxbase}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fluxbase}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (generate with ./generate-keys.sh)}
       POSTGRES_DB: ${POSTGRES_DB:-fluxbase}
     volumes:
       - postgres_data:/var/lib/postgresql
@@ -57,12 +82,27 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - wayli-network
+      - db
 
   # Fluxbase API
   fluxbase:
     image: ghcr.io/nimbleflux/fluxbase:2026.9.2
     container_name: fluxbase
+    restart: unless-stopped
+    # Fluxbase runs as a non-root user; drop all caps (unverified upstream —
+    # if startup fails with a permission error, add the missing cap here).
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: '2.0'
+    # Published so browser clients and the Android app can reach the API
+    # directly (FLUXBASE_PUBLIC_BASE_URL). The web container itself talks to
+    # Fluxbase over the docker network (FLUXBASE_BASE_URL below).
     ports:
       - '8080:8080'
     environment:
@@ -70,17 +110,17 @@ services:
       FLUXBASE_DATABASE_PORT: 5432
       FLUXBASE_DATABASE_DATABASE: ${POSTGRES_DB:-fluxbase}
       FLUXBASE_DATABASE_USER: ${POSTGRES_USER:-fluxbase}
-      FLUXBASE_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-fluxbase}
+      FLUXBASE_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (generate with ./generate-keys.sh)}
       FLUXBASE_DATABASE_SSL_MODE: disable
 
       # Declarative app schema: apply Wayli's public.sql on startup (opt-in Fluxbase feature)
       FLUXBASE_DATABASE_DECLARATIVE_APP_SCHEMA_ENABLED: 'true'
       FLUXBASE_DATABASE_DECLARATIVE_APP_SCHEMA_NAMESPACES: '[wayli]'
 
-      # Required secrets (generate with: ./scripts/quick-start.sh)
-      FLUXBASE_AUTH_JWT_SECRET: ${FLUXBASE_AUTH_JWT_SECRET}
-      FLUXBASE_ENCRYPTION_KEY: ${FLUXBASE_ENCRYPTION_KEY}
-      FLUXBASE_SECURITY_SETUP_TOKEN: ${FLUXBASE_SECURITY_SETUP_TOKEN}
+      # Required secrets (generate with: ./generate-keys.sh)
+      FLUXBASE_AUTH_JWT_SECRET: ${FLUXBASE_AUTH_JWT_SECRET:?FLUXBASE_AUTH_JWT_SECRET is required (generate with ./generate-keys.sh)}
+      FLUXBASE_ENCRYPTION_KEY: ${FLUXBASE_ENCRYPTION_KEY:?FLUXBASE_ENCRYPTION_KEY is required (generate with ./generate-keys.sh)}
+      FLUXBASE_SECURITY_SETUP_TOKEN: ${FLUXBASE_SECURITY_SETUP_TOKEN:?FLUXBASE_SECURITY_SETUP_TOKEN is required (generate with ./generate-keys.sh)}
 
       # Storage
       FLUXBASE_STORAGE_PROVIDER: local
@@ -89,7 +129,7 @@ services:
 
       # Enable features
       FLUXBASE_ADMIN_ENABLED: ${FLUXBASE_ADMIN_ENABLED-false}
-      FLUXBASE_CORS_ALLOWED_ORIGINS: ${SITE_URL}
+      FLUXBASE_CORS_ALLOWED_ORIGINS: ${SITE_URL:?SITE_URL is required (e.g. http://localhost:4000)}
 
       # Tavily web search (env-config path — bypasses DB integration storage
       # to avoid tenant-context propagation issues in supervisor mode).
@@ -102,9 +142,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      # Uncomment if using MinIO:
-      # minio:
-      #   condition: service_healthy
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://0.0.0.0:8080/health']
       interval: 30s
@@ -112,8 +149,8 @@ services:
       retries: 3
       start_period: 40s
     networks:
+      - db
       - wayli-network
-    restart: unless-stopped
 
 volumes:
   postgres_data:
@@ -122,5 +159,9 @@ volumes:
     driver: local
 
 networks:
+  # App network: web <-> fluxbase only. Postgres is NOT on this network.
   wayli-network:
+    driver: bridge
+  # Database network: fluxbase <-> postgres only. Web has no route to it.
+  db:
     driver: bridge

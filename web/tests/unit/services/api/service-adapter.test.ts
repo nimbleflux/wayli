@@ -912,6 +912,8 @@ describe('ServiceAdapter', () => {
 				expect(result[0].display_name).toBe('Paris, France');
 				expect(result[0].lat).toBe(48.8566);
 				expect(result[0].lon).toBe(2.3522);
+				// Consumers (account settings, trip generation) read `coordinates`
+				expect(result[0].coordinates).toEqual({ lat: 48.8566, lng: 2.3522 });
 			});
 
 			it('should throw error when geocoding fails', async () => {
@@ -932,6 +934,45 @@ describe('ServiceAdapter', () => {
 				const result = await adapter.searchGeocode('Nonexistent');
 
 				expect(result).toEqual([]);
+				// Both the autocomplete attempt and the search fallback ran
+				expect(global.fetch).toHaveBeenCalledTimes(2);
+			});
+
+			it('should fall back to the search endpoint when autocomplete returns nothing', async () => {
+				// Complete "street, city, region" phrases get zero hits from
+				// autocomplete (#205) but resolve via the full search endpoint
+				const peliasResponse = {
+					features: [
+						{
+							geometry: { coordinates: [150.6739, -35.0347] },
+							properties: {
+								label: '11 Dent Street, Huskisson, NSW, Australia',
+								name: '11 Dent Street',
+								layer: 'address',
+								locality: 'Huskisson',
+								country: 'Australia'
+							}
+						}
+					]
+				};
+
+				(global.fetch as any)
+					.mockResolvedValueOnce({
+						ok: true,
+						json: () => Promise.resolve({ features: [] })
+					})
+					.mockResolvedValueOnce({
+						ok: true,
+						json: () => Promise.resolve(peliasResponse)
+					});
+
+				const result = await adapter.searchGeocode('11 Beecroft Street, Huskisson, NSW');
+
+				expect(result).toHaveLength(1);
+				expect(result[0].display_name).toBe('11 Dent Street, Huskisson, NSW, Australia');
+				const urls = (global.fetch as any).mock.calls.map((call: any[]) => call[0] as string);
+				expect(urls[0]).toContain('/v1/autocomplete');
+				expect(urls[1]).toContain('/v1/search');
 			});
 		});
 	});

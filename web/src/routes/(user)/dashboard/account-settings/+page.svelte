@@ -325,6 +325,10 @@
 	let selectedHomeAddressIndex = $state(-1);
 	let homeAddressSearchTimeout: ReturnType<typeof setTimeout> | null = null;
 	let homeAddressSearchError = $state<string | null>(null);
+	// Manual coordinates fallback for addresses the geocoder can't find (#205)
+	let useHomeCoordinates = $state(false);
+	let homeLatitudeInput = $state('');
+	let homeLongitudeInput = $state('');
 
 	// Onboarding state
 	let showOnboardingModal = $state(false);
@@ -907,6 +911,11 @@
 			}
 		}
 
+		if (useHomeCoordinates && !manualHomeCoordinates) {
+			toast.error(t('accountSettings.invalidCoordinates'));
+			return;
+		}
+
 		isUpdatingProfile = true;
 		error = null;
 
@@ -925,7 +934,8 @@
 			(profile as any).avatar_url = profileAvatarUrl || null;
 			(profile as any).cover_photo_url = profileCoverUrl || null;
 			(profile as any).discoverable = discoverableInput;
-			profile.home_address = selectedHomeAddress || homeAddressInput.trim() || null;
+			profile.home_address =
+				manualHomeCoordinates ?? selectedHomeAddress ?? (homeAddressInput.trim() || null);
 
 			// Update profile using service adapter
 			await serviceAdapter.updateProfile({
@@ -1210,6 +1220,18 @@
 				break;
 		}
 	}
+
+	function parseManualHomeCoordinates() {
+		if (!useHomeCoordinates) return null;
+		// Accept both decimal separators; reject out-of-range values and Null Island
+		const lat = Number.parseFloat(homeLatitudeInput.trim().replace(',', '.'));
+		const lng = Number.parseFloat(homeLongitudeInput.trim().replace(',', '.'));
+		if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+		if (Math.abs(lat) > 90 || Math.abs(lng) > 180 || (lat === 0 && lng === 0)) return null;
+		return { display_name: `${lat}, ${lng}`, coordinates: { lat, lng } };
+	}
+
+	const manualHomeCoordinates = $derived(parseManualHomeCoordinates());
 
 	async function searchHomeAddress() {
 		if (!homeAddressInput.trim()) {
@@ -1719,6 +1741,67 @@
 								{selectedHomeAddress.display_name}
 							</div>
 						</div>
+					{/if}
+
+					<!-- Manual coordinates fallback for addresses the geocoder can't find (#205) -->
+					<button
+						type="button"
+						class="text-muted-foreground hover:text-muted-foreground mt-2 text-sm"
+						onclick={() => (useHomeCoordinates = !useHomeCoordinates)}
+					>
+						{useHomeCoordinates
+							? t('accountSettings.enterAddressInstead')
+							: t('accountSettings.enterCoordinatesInstead')}
+					</button>
+					{#if useHomeCoordinates}
+						<div class="mt-2 grid grid-cols-2 gap-3">
+							<div>
+								<label
+									for="homeLatitude"
+									class="text-muted-foreground mb-1 block text-xs font-medium"
+									>{t('accountSettings.latitude')}</label
+								>
+								<Input
+									id="homeLatitude"
+									type="text"
+									inputmode="decimal"
+									bind:value={homeLatitudeInput}
+									placeholder="-33.8688"
+									autocomplete="off"
+									class="w-full"
+								/>
+							</div>
+							<div>
+								<label
+									for="homeLongitude"
+									class="text-muted-foreground mb-1 block text-xs font-medium"
+									>{t('accountSettings.longitude')}</label
+								>
+								<Input
+									id="homeLongitude"
+									type="text"
+									inputmode="decimal"
+									bind:value={homeLongitudeInput}
+									placeholder="151.2093"
+									autocomplete="off"
+									class="w-full"
+								/>
+							</div>
+						</div>
+						<p class="text-muted-foreground mt-1 text-xs">
+							{t('accountSettings.coordinatesHint')}
+						</p>
+						{#if manualHomeCoordinates}
+							<div
+								class="mt-2 rounded-md border border-green-200 bg-green-50 p-2 dark:border-green-800 dark:bg-green-900/20"
+							>
+								<div class="text-sm text-green-800 dark:text-green-200">
+									📍 Coordinates: {manualHomeCoordinates.coordinates.lat.toFixed(6)}, {manualHomeCoordinates.coordinates.lng.toFixed(
+										6
+									)}
+								</div>
+							</div>
+						{/if}
 					{/if}
 
 					<!-- Skip button if field is empty -->

@@ -2,6 +2,7 @@
 <img src="web/static/logo.svg" alt="Wayli Logo" width="128" height="128">
 
 # Wayli
+
 </div>
 
 [![CI](https://github.com/nimbleflux/wayli/actions/workflows/ci.yml/badge.svg)](https://github.com/nimbleflux/wayli/actions/workflows/ci.yml)
@@ -72,6 +73,7 @@ Screenshots are generated from synthetic data — see [`docs/REGENERATING-SCREEN
 ## Quick Start
 
 **Docker Compose:**
+
 ```bash
 cd deploy/docker-compose
 ./generate-keys.sh          # generates secrets + writes .env (prompts for URLs)
@@ -85,6 +87,7 @@ declarative schema (`fluxbase/schema/public.sql`), RPC, jobs, and RLS policies
 automatically — no separate migration step.
 
 **Kubernetes (Helm):**
+
 ```bash
 helm install wayli oci://ghcr.io/nimbleflux/charts/wayli -n wayli --create-namespace
 ```

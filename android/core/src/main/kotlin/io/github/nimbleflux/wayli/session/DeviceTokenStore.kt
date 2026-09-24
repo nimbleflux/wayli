@@ -10,8 +10,8 @@ import androidx.security.crypto.MasterKey
  *
  * The plaintext `wayli_dt_…` token is generated on-device, registered with
  * the server (which stores only its SHA-256 hash), and kept here so the
- * upload worker can authenticate point submissions with
- * `Authorization: Bearer <token>`. Revoking the token clears this store.
+ * upload worker can authenticate point submissions with the
+ * `X-Device-Token: <token>` header. Revoking the token clears this store.
  */
 class DeviceTokenStore(context: Context) {
     private val prefs: SharedPreferences = run {

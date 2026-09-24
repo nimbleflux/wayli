@@ -93,10 +93,7 @@ on:
         default: true
 
 permissions:
-  packages: write
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 # Serialize manual releases on the same ref so concurrent dispatches don't
 # race on git tags, container pushes, or the gh-pages index update.
@@ -107,13 +104,14 @@ concurrency:
 jobs:
   get-version:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     outputs:
       version: ${{ steps.calc_version.outputs.version }}
       is_rc: ${{ steps.calc_version.outputs.is_rc }}
       prev_tag: ${{ steps.calc_version.outputs.prev_tag }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
@@ -265,15 +263,19 @@ jobs:
   generate-changelog:
     name: Generate Changelog
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: get-version
     if: inputs.dry_run == false
+    permissions:
+      contents: read
+      pull-requests: read
     env:
       PREV_TAG: ${{ needs.get-version.outputs.prev_tag }}
     outputs:
       body: ${{ steps.build_body.outputs.body }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
@@ -459,19 +461,23 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [get-version, generate-changelog]
+    # Creates the release commit, tag, and GitHub release.
+    permissions:
+      contents: write
     env:
       VERSION: ${{ needs.get-version.outputs.version }}
       IS_RC: ${{ needs.get-version.outputs.is_rc }}
       PREV_TAG: ${{ needs.get-version.outputs.prev_tag }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: '1.3.14'
 
@@ -480,7 +486,22 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Install Fluxbase CLI
-        run: curl -fsSL https://raw.githubusercontent.com/nimbleflux/fluxbase/main/install-cli.sh | bash
+        # Pinned, checksum-verified download (replaces curl|bash from the
+        # mutable main branch — same approach as the Dockerfile).
+        env:
+          FLUXBASE_CLI_VERSION: v2026.9.2
+        run: |
+          curl -fsSLo /tmp/fluxbase.tar.gz "https://github.com/nimbleflux/fluxbase/releases/download/${FLUXBASE_CLI_VERSION}/fluxbase-linux-amd64.tar.gz"
+          curl -fsSLo /tmp/fluxbase.tar.gz.sha256 "https://github.com/nimbleflux/fluxbase/releases/download/${FLUXBASE_CLI_VERSION}/fluxbase-linux-amd64.tar.gz.sha256"
+          EXPECTED_SHA="$(grep -oE '^[a-f0-9]{64}' /tmp/fluxbase.tar.gz.sha256 | head -1)"
+          ACTUAL_SHA="$(sha256sum /tmp/fluxbase.tar.gz | cut -d' ' -f1)"
+          if [ -z "$EXPECTED_SHA" ] || [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
+            echo "Fluxbase CLI checksum mismatch: expected=${EXPECTED_SHA} actual=${ACTUAL_SHA}"
+            exit 1
+          fi
+          tar -xzf /tmp/fluxbase.tar.gz -C /tmp fluxbase-linux-amd64
+          sudo install -m 0755 /tmp/fluxbase-linux-amd64 /usr/local/bin/fluxbase
+          fluxbase version
 
       - name: Prepare SvelteKit
         working-directory: web
@@ -559,7 +580,7 @@ jobs:
 
       - name: Create GitHub Release
         if: inputs.dry_run == false
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           tag_name: v${{ env.VERSION }}
           name: v${{ env.VERSION }}
@@ -575,6 +596,7 @@ jobs:
   publish-android:
     name: Build Android APKs
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     needs: [get-version, release]
     if: inputs.dry_run == false && inputs.publish_android
     env:
@@ -584,21 +606,24 @@ jobs:
       packages: read
     steps:
       - name: Checkout release tag
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: v${{ env.VERSION }}
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: '21'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
         with:
           # NDK required by ndk.debugSymbolLevel (pinned in app/build.gradle.kts)
           packages: 'platform-tools platforms;android-37.0 build-tools;36.0.0 ndk;28.2.13676358'
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
 
       # fluxbase-kotlin resolves from GitHub Packages with the workflow token
       # (settings.gradle.kts reads GITHUB_ACTOR/GITHUB_TOKEN).
@@ -639,7 +664,7 @@ jobs:
             echo "asset_suffix=-unsigned" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Diagnose signing config
+      - name: Validate signing config
         if: steps.keystore.outputs.available == 'true'
         env:
           WAYLI_KEYSTORE_PASSWORD: ${{ secrets.WAYLI_KEYSTORE_PASSWORD }}
@@ -648,26 +673,17 @@ jobs:
         run: |
           KS="$RUNNER_TEMP/wayli-release.keystore"
           STOREPASS="${WAYLI_KEYSTORE_PASSWORD:-$WAYLI_KEY_PASSWORD}"
-          echo "decoded keystore: $(stat -c%s "$KS") bytes, sha256 $(sha256sum "$KS" | cut -c1-16)…, magic $(head -c4 "$KS" | xxd -p)"
-          echo "store password length as seen by the runner: ${#STOREPASS} (0 = secret missing; expected+1 = trailing newline)"
-          if keytool -list -keystore "$KS" -storepass "$STOREPASS" > /tmp/ks.out 2>&1; then
-            echo "keystore opens with the configured password"
-            if keytool -list -keystore "$KS" -storepass "$STOREPASS" -alias "${WAYLI_KEY_ALIAS:-wayli}" > /dev/null 2>&1; then
-              echo "alias found"
-            else
-              echo "::error::Keystore opens but the configured alias does not exist in it. Entries:"
-              keytool -list -keystore "$KS" -storepass "$STOREPASS" | sed -n '/^[a-zA-Z]/p' | head -5
-              exit 1
-            fi
-          else
-            echo "::error::The configured password does NOT open this keystore. keytool said:"
-            cat /tmp/ks.out
-            echo ""
-            echo "Likely causes, in order of probability:"
-            echo " 1. The password value in the secret differs from the keytool password (typo, keyboard layout). Re-set it by typing fresh."
-            echo " 2. A trailing newline/whitespace was pasted into the secret (see the length above)."
-            echo " 3. WAYLI_KEYSTORE_BASE64 holds a DIFFERENT keystore file than the one this password opens."
-            echo "    Compare locally: sha256sum wayli-release.keystore  — the first 16 hex chars must match the sha256 above."
+          # Non-sensitive validation only: report the keystore fingerprint and
+          # whether the credentials work. Never print passwords, their
+          # lengths, keytool output, or alias listings.
+          FINGERPRINT="$(sha256sum "$KS" | cut -c1-16)"
+          echo "keystore sha256 (first 16 hex): $FINGERPRINT"
+          if ! keytool -list -keystore "$KS" -storepass "$STOREPASS" > /dev/null 2>&1; then
+            echo "::error::The configured password does not open the decoded keystore (sha256 $FINGERPRINT…). Re-check the WAYLI_KEYSTORE_PASSWORD / WAYLI_KEY_PASSWORD secrets."
+            exit 1
+          fi
+          if ! keytool -list -keystore "$KS" -storepass "$STOREPASS" -alias "${WAYLI_KEY_ALIAS:-wayli}" > /dev/null 2>&1; then
+            echo "::error::Keystore opens but the configured alias was not found in it. Re-check the WAYLI_KEY_ALIAS secret."
             exit 1
           fi
 
@@ -697,7 +713,7 @@ jobs:
           mv bundle/gplayRelease/app-gplay-release.aab "bundle/gplayRelease/wayli-${{ env.VERSION }}${ASSET_SUFFIX}-gplay.aab"
 
       - name: Attach APKs + AAB to GitHub Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           tag_name: v${{ env.VERSION }}
           files: |
@@ -714,13 +730,18 @@ jobs:
   publish-docker-amd64:
     name: Build Docker Image (AMD64)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [get-version, release]
     if: inputs.dry_run == false && inputs.publish_docker
+    # Pushes the image to GHCR.
+    permissions:
+      contents: read
+      packages: write
     env:
       VERSION: ${{ needs.get-version.outputs.version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ github.ref }}
@@ -729,17 +750,17 @@ jobs:
         run: git pull origin ${{ github.ref_name }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push AMD64 image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           push: true
@@ -751,13 +772,18 @@ jobs:
   publish-docker-arm64:
     name: Build Docker Image (ARM64)
     runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
     needs: [get-version, release]
     if: inputs.dry_run == false && inputs.publish_docker
+    # Pushes the image to GHCR.
+    permissions:
+      contents: read
+      packages: write
     env:
       VERSION: ${{ needs.get-version.outputs.version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ github.ref }}
@@ -766,17 +792,17 @@ jobs:
         run: git pull origin ${{ github.ref_name }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push ARM64 image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           push: true
@@ -788,14 +814,18 @@ jobs:
   publish-docker-manifest:
     name: Create Docker Multi-arch Manifest
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [get-version, publish-docker-amd64, publish-docker-arm64]
     if: inputs.dry_run == false && inputs.publish_docker
+    # Pushes manifest tags to GHCR.
+    permissions:
+      packages: write
     env:
       VERSION: ${{ needs.get-version.outputs.version }}
       IS_RC: ${{ needs.get-version.outputs.is_rc }}
     steps:
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -834,14 +864,19 @@ jobs:
   publish-helm-chart:
     name: Publish Helm Chart
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [get-version, release]
     if: inputs.dry_run == false && inputs.publish_helm
+    # Pushes chart commits/tags, updates gh-pages, and pushes the OCI chart.
+    permissions:
+      contents: write
+      packages: write
     env:
       VERSION: ${{ needs.get-version.outputs.version }}
       IS_RC: ${{ needs.get-version.outputs.is_rc }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ github.ref }}
@@ -855,7 +890,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Install Helm
-        uses: azure/setup-helm@v5
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
         with:
           version: v4.2.3
 
@@ -918,7 +953,7 @@ jobs:
           helm package charts/wayli -d .cr-release-packages
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

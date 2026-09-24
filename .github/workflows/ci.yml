@@ -24,15 +24,16 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: web
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: '1.3.14'
           cache: true
@@ -47,15 +48,16 @@ jobs:
   test:
     name: Unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: web
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: '1.3.14'
           cache: true
@@ -75,7 +77,7 @@ jobs:
 
       - name: Upload coverage report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage-report
           path: web/coverage/
@@ -84,15 +86,16 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: web
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: '1.3.14'
           cache: true
@@ -110,15 +113,16 @@ jobs:
   e2e:
     name: E2E tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: web
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: '1.3.14'
           cache: true
@@ -132,7 +136,7 @@ jobs:
 
       - name: Cache Playwright browsers
         id: playwright-cache
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('web/bun.lock') }}
@@ -150,7 +154,7 @@ jobs:
 
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: playwright-report
           path: web/playwright-report/
@@ -165,12 +169,13 @@ jobs:
   e2e-setup:
     name: Setup smoke (docker compose up)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: '1.3.14'
           cache: true
@@ -182,13 +187,13 @@ jobs:
         run: docker build -t wayli-smoke:local -f Dockerfile .
 
       # Generate secrets non-interactively (writes anon + service-role keys).
+      # The keys stay in .smoke.env and are read directly by the steps that
+      # need them; they are deliberately NOT written to step outputs (which
+      # are exposed in run metadata) or echoed.
       - name: Generate stack secrets
-        id: secrets
         run: |
           bash deploy/docker-compose/generate-keys.sh --stdout > deploy/docker-compose/.smoke.env
-          # Surface the keys to subsequent steps so Playwright + helpers agree.
-          echo "anon_key=$(grep '^FLUXBASE_ANON_KEY=' deploy/docker-compose/.smoke.env | cut -d= -f2-)" >> "$GITHUB_OUTPUT"
-          echo "service_key=$(grep '^FLUXBASE_SERVICE_ROLE_KEY=' deploy/docker-compose/.smoke.env | cut -d= -f2-)" >> "$GITHUB_OUTPUT"
+          chmod 600 deploy/docker-compose/.smoke.env
 
       - name: Bring up the stack
         run: |
@@ -208,7 +213,7 @@ jobs:
 
       - name: Cache Playwright browsers
         id: playwright-cache-setup
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('web/bun.lock') }}
@@ -225,10 +230,9 @@ jobs:
 
       - name: Write web/.env for the smoke
         working-directory: web
-        env:
-          ANON_KEY: ${{ steps.secrets.outputs.anon_key }}
-          SERVICE_KEY: ${{ steps.secrets.outputs.service_key }}
         run: |
+          ANON_KEY="$(grep '^FLUXBASE_ANON_KEY=' ../deploy/docker-compose/.smoke.env | cut -d= -f2-)"
+          SERVICE_KEY="$(grep '^FLUXBASE_SERVICE_ROLE_KEY=' ../deploy/docker-compose/.smoke.env | cut -d= -f2-)"
           {
             echo "FLUXBASE_PUBLIC_BASE_URL=http://localhost:8080"
             echo "PUBLIC_FLUXBASE_ANON_KEY=$ANON_KEY"
@@ -242,16 +246,18 @@ jobs:
           WAYLI_SETUP_PROJECT: '1'
           WAYLI_BASE_URL: http://localhost:4000
           FLUXBASE_PUBLIC_BASE_URL: http://localhost:8080
-          # The helpers (confirmEmailIfRequired, wipeUserData) read these from
-          # process.env; .env only serves the app, not the Playwright process.
-          FLUXBASE_ANON_KEY: ${{ steps.secrets.outputs.anon_key }}
-          PUBLIC_FLUXBASE_ANON_KEY: ${{ steps.secrets.outputs.anon_key }}
-          FLUXBASE_SERVICE_ROLE_KEY: ${{ steps.secrets.outputs.service_key }}
-        run: bun run test:setup
+        # The helpers (confirmEmailIfRequired, wipeUserData) read these from
+        # process.env; .env only serves the app, not the Playwright process.
+        # Keys are scoped to this step's shell and never echoed.
+        run: |
+          export FLUXBASE_ANON_KEY="$(grep '^FLUXBASE_ANON_KEY=' ../deploy/docker-compose/.smoke.env | cut -d= -f2-)"
+          export PUBLIC_FLUXBASE_ANON_KEY="$FLUXBASE_ANON_KEY"
+          export FLUXBASE_SERVICE_ROLE_KEY="$(grep '^FLUXBASE_SERVICE_ROLE_KEY=' ../deploy/docker-compose/.smoke.env | cut -d= -f2-)"
+          bun run test:setup
 
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: playwright-setup-report
           path: web/playwright-report/

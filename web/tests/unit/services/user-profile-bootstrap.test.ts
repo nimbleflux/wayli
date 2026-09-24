@@ -38,9 +38,9 @@ describe('ensureUserProfile', () => {
 		expect(fluxbase.rpc).toHaveBeenCalledWith(
 			'ensure_user_profile',
 			expect.objectContaining({
-				p_first_name: 'Ada',
-				p_last_name: 'Lovelace',
-				p_full_name: 'Ada Lovelace'
+				first_name: 'Ada',
+				last_name: 'Lovelace',
+				full_name: 'Ada Lovelace'
 			})
 		);
 		expect(result).toMatchObject({ id: mockUser.id, role: 'user', onboarding_completed: false });
@@ -53,8 +53,8 @@ describe('ensureUserProfile', () => {
 
 		const [, args] = fluxbase.rpc.mock.calls[0];
 		expect(args).not.toHaveProperty('userId');
-		expect(args).not.toHaveProperty('p_id');
-		expect(args).not.toHaveProperty('p_role');
+		expect(args).not.toHaveProperty('id');
+		expect(args).not.toHaveProperty('role');
 		expect(JSON.stringify(args)).not.toContain(mockUser.id);
 	});
 

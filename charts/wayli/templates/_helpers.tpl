@@ -312,8 +312,6 @@ Init container for syncing Fluxbase resources using CLI
       fluxbase jobs sync --dir /app/fluxbase/jobs --namespace wayli
       echo "Syncing chatbots..."
       fluxbase chatbots sync --dir /app/fluxbase/chatbots --namespace wayli
-      echo "Syncing MCP tools..."
-      fluxbase mcp tools sync --dir /app/fluxbase/mcp-tools --namespace wayli
       echo "Ensuring knowledge base exists..."
       # Match the name field with optional whitespace around the colon so the
       # check is robust to both compact and pretty-printed JSON, and only create

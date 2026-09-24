@@ -47,9 +47,9 @@ export async function ensureUserProfile(
 
 	try {
 		const { data, error } = await fluxbase.rpc('ensure_user_profile', {
-			p_first_name: first_name,
-			p_last_name: last_name,
-			p_full_name: resolvedFull
+			first_name,
+			last_name,
+			full_name: resolvedFull
 		});
 
 		if (error) {

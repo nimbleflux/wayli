@@ -163,25 +163,6 @@ export class UserProfileService {
 	}
 
 	/**
-	 * Check if a user is an admin
-	 */
-	static async isUserAdmin(userId: string): Promise<boolean> {
-		try {
-			const { data, error } = await this.fluxbase.rpc('is_user_admin', { user_uuid: userId });
-
-			if (error) {
-				console.error('Error checking admin status:', error);
-				return false;
-			}
-
-			return data || false;
-		} catch (error) {
-			console.error('Error in isUserAdmin:', error);
-			return false;
-		}
-	}
-
-	/**
 	 * Update user role (admin only)
 	 */
 	static async updateUserRole(userId: string, newRole: 'user' | 'admin'): Promise<boolean> {

@@ -176,7 +176,14 @@ export async function traceAttributes(
 	}
 
 	const endpoint = await getValhallaEndpoint(fluxbase);
-	const endpoints = [endpoint, 'https://valhalla.wayli.app'];
+	// A self-hosted endpoint must NOT silently fail over to the hosted one —
+	// that would send raw GPS traces to a third-party server on every outage.
+	// The hosted default is only ever paired with itself.
+	const DEFAULT_VALHALLA_ENDPOINT = 'https://valhalla.wayli.app';
+	const endpoints =
+		!endpoint || endpoint === DEFAULT_VALHALLA_ENDPOINT
+			? [DEFAULT_VALHALLA_ENDPOINT]
+			: [endpoint];
 
 	// Chunk long traces (Valhalla caps at 16k shape points).
 	const chunks: ValhallaTracePoint[][] = [];

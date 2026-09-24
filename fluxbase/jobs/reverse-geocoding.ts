@@ -400,7 +400,10 @@ export async function handler(
 			let retryQuery = db
 				.from('tracker_data')
 				.select('user_id, location, geocode, recorded_at, tracker_type, country_code, tz_diff')
-				.is('geocode->properties->>geocoded_at', null)
+				// Match on the retryable flag alone: error features DO carry a
+				// geocoded_at timestamp (stamped at failure time), so filtering
+				// on its absence here would never match anything. Successful
+				// retries clear the flag, so they can't re-enter this pass.
 				.not('geocode->properties->>retryable', 'is', null);
 			if (!processAllUsers && userId) {
 				retryQuery = retryQuery.eq('user_id', userId);

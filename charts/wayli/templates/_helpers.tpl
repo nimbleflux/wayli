@@ -327,22 +327,6 @@ Init container for syncing Fluxbase resources using CLI
           --description "User POI visits with behavioral context for semantic search" \
           --chunk-size 500 \
           --embedding-model text-embedding-3-small 2>/dev/null || true
-        KB_LIST_JSON=$(fluxbase kb list --namespace wayli -o json 2>/dev/null || true)
-      fi
-      KB_ID=""
-      KB_OBJ=$(printf '%s' "$KB_LIST_JSON" | grep -oE '\{[^{}]*"wayli-pois"[^{}]*\}' | head -1 || true)
-      if [ -n "$KB_OBJ" ]; then
-        KB_ID=$(printf '%s' "$KB_OBJ" | grep -oE '"id"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oE '[0-9a-f-]{36}' | head -1 || true)
-      fi
-      if [ -z "$KB_ID" ]; then
-        KB_ID=$(printf '%s' "$KB_LIST_JSON" | grep -oE '"id"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | head -1 | grep -oE '[0-9a-f-]{36}' || true)
-      fi
-      if [ -n "$KB_ID" ]; then
-        echo "Exporting tables to knowledge base..."
-        fluxbase kb export-table "$KB_ID" --schema public --table place_visits --include-fks --sample-rows 3 2>/dev/null || true
-        fluxbase kb export-table "$KB_ID" --schema public --table user_preferences --include-fks 2>/dev/null || true
-      else
-        echo "Warning: Could not get KB ID, skipping table exports"
       fi
       echo "Sync completed successfully"
   env:

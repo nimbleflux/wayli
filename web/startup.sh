@@ -168,13 +168,11 @@ ensure_knowledge_base() {
         return 0
     fi
 
-    echo "Exporting tables to knowledge base..."
-    if ! fluxbase kb export-table "$KB_ID" --schema public --table place_visits --include-fks --sample-rows 3 2>/dev/null; then
-        echo "  Note: place_visits export skipped (table may not exist yet)"
-    fi
-    if ! fluxbase kb export-table "$KB_ID" --schema public --table user_preferences --include-fks 2>/dev/null; then
-        echo "  Note: user_preferences export skipped (table may not exist yet)"
-    fi
+    # NOTE: no kb export-table here. Boot-time exports of place_visits /
+    # user_preferences wrote real user rows into the instance-global KB with
+    # no user scoping — the chatbot RAG would serve one user's visits to
+    # another. Per-user documents are embedded by the sync-poi-embeddings job,
+    # which stamps metadata.user_id so retrieval filters per caller.
 
     echo "Knowledge base ready"
 }

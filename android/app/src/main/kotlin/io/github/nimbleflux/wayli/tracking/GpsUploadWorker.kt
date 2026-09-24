@@ -7,6 +7,7 @@ import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import io.github.nimbleflux.wayli.db.PendingPointDao
+import io.github.nimbleflux.wayli.db.PendingPointEntity
 import io.github.nimbleflux.wayli.gps.TrackingConfigStore
 import io.github.nimbleflux.wayli.gps.TrackingService
 import io.github.nimbleflux.wayli.session.DeviceTokenStore
@@ -28,13 +29,16 @@ private data class IngestResponse(val accepted: Int? = null, val address: String
  * device token (`X-Device-Token: wayli_dt_…` — never in the URL), and
  * deletes the batch on success.
  *
- * Retries with WorkManager's exponential backoff. Attempts are only counted
- * for failures where the server answered: an outage (no HTTP status at all)
- * must strand points for later, not spend their lives — the periodic schedule
- * ([PERIODIC_UNIQUE_NAME], armed by TrackingControllerImpl) re-drains until
- * connectivity returns. Server-rejected points drop at [MAX_ATTEMPTS] and the
- * queue itself is capped at [MAX_QUEUE] (oldest evicted) so neither poison
- * payloads nor a long offline stretch can grow it unbounded.
+ * Retries with WorkManager's exponential backoff. The per-point drop budget
+ * ([MAX_ATTEMPTS]) is spent only by a definitive server rejection (400/404
+ * — see [ingestDisposition]): an outage (no HTTP status at all), 5xx/429
+ * (server-side trouble) and 401/403 (the token is cleared so a fresh one
+ * provisions) must strand points for later, not spend their lives — the
+ * periodic schedule ([PERIODIC_UNIQUE_NAME], armed by TrackingControllerImpl)
+ * re-drains until connectivity (or the new token) returns. Server-rejected
+ * points drop at [MAX_ATTEMPTS] and the queue itself is capped at
+ * [MAX_QUEUE] (oldest evicted) so neither poison payloads nor a long offline
+ * stretch can grow it unbounded.
  */
 @HiltWorker
 class GpsUploadWorker @AssistedInject constructor(
@@ -77,7 +81,7 @@ class GpsUploadWorker @AssistedInject constructor(
         )
 
         val startedAtMs = System.currentTimeMillis()
-        val outcome = when (val post = postPoints(endpoint, token, payload)) {
+        val outcome: Pair<String, Int?> = when (val post = postPoints(endpoint, token, payload)) {
             is PostResult.Success -> {
                 dao.deleteByIds(batch.map { it.id })
                 // OwnTracks parity: the ingest response carries the newest
@@ -86,25 +90,7 @@ class GpsUploadWorker @AssistedInject constructor(
                 TrackingService.notifyAddress(applicationContext, post.address)
                 "ok" to post.code
             }
-            is PostResult.Retryable -> {
-                // No HTTP status means the request never reached the server
-                // (offline / captive portal) — keep the points' drop budget
-                // intact so an outage can't graduate into data loss.
-                if (post.code != null) dao.bumpAttempts(batch.map { it.id })
-                "retry" to post.code
-            }
-            is PostResult.Fatal -> {
-                // 401/403 on ingest means the device token is unknown to the
-                // server (e.g. orphaned by a DB restore) — every retry would
-                // fail forever. Clear it so the next app start provisions a
-                // fresh one; the durable queue drains on the new token.
-                if (post.code == 401 || post.code == 403) deviceTokenStore.clear()
-                // The server did answer, so this is a real rejection: count
-                // it against the drop budget, otherwise a poison batch would
-                // ride the periodic schedule forever.
-                dao.bumpAttempts(batch.map { it.id })
-                "fatal" to post.code
-            }
+            is PostResult.Retryable, is PostResult.Fatal -> failedBatchOutcome(post.code, batch)
         }
         diagnostics.logUpload(
             io.github.nimbleflux.wayli.repo.UploadLogEntry(
@@ -125,6 +111,52 @@ class GpsUploadWorker @AssistedInject constructor(
             "retry" -> if (runAttemptCount < MAX_RUN_ATTEMPTS) Result.retry() else Result.failure()
             else -> Result.failure()
         }
+    }
+
+    /**
+     * Batch-level handling of a non-2xx ingest answer. The drop budget is
+     * spent ONLY on a definitive server rejection ([IngestDisposition.REJECTED]):
+     * 5xx/429 are the server's trouble, and 401/403 clear the device token so
+     * a fresh one provisions — spending the budget there deleted good points
+     * during proxy outages and token repairs alike. Returns the
+     * (outcome label, code) pair for the upload log; both retry labels make
+     * [drain] return [Result.retry] (bounded by [MAX_RUN_ATTEMPTS], after
+     * which the periodic schedule takes over) so the points survive.
+     */
+    private suspend fun failedBatchOutcome(code: Int?, batch: List<PendingPointEntity>): Pair<String, Int?> {
+        val label: String
+        when (ingestDisposition(code)) {
+            IngestDisposition.ACCEPTED -> {
+                // Unreachable here (Success is handled in [drain]); grouped
+                // as retry so the when stays total over the classifier.
+                label = "retry"
+            }
+            IngestDisposition.RETRY_TRANSIENT -> {
+                // No HTTP status means the request never reached the server
+                // (offline / captive portal); 5xx/429 mean the server (or a
+                // proxy in front of it) is unhealthy. Neither is this
+                // batch's fault — its drop budget stays intact so an outage
+                // can't graduate into data loss.
+                label = "retry"
+            }
+            IngestDisposition.RETRY_AFTER_TOKEN_RESET -> {
+                // 401/403 on ingest means the device token is unknown to the
+                // server (e.g. orphaned by a DB restore) — every retry with
+                // it would fail forever. Clear it so the next start
+                // provisions a fresh one; the batch survives until then and
+                // drains on the new token.
+                deviceTokenStore.clear()
+                label = "retry"
+            }
+            IngestDisposition.REJECTED -> {
+                // The server definitively rejected this batch (400/404): a
+                // real answer, so spend the drop budget — otherwise a poison
+                // batch would ride the periodic schedule forever.
+                dao.bumpAttempts(batch.map { it.id })
+                label = "fatal"
+            }
+        }
+        return label to code
     }
 
     private fun postPoints(endpoint: String, token: String, payload: String): PostResult {
@@ -177,9 +209,13 @@ class GpsUploadWorker @AssistedInject constructor(
     }.getOrNull()
 
     private sealed class PostResult {
-        data class Success(val code: Int, val address: String?) : PostResult()
-        data class Retryable(val code: Int?) : PostResult()
-        data class Fatal(val code: Int) : PostResult()
+        abstract val code: Int?
+
+        data class Success(override val code: Int, val address: String?) : PostResult()
+
+        data class Retryable(override val code: Int?) : PostResult()
+
+        data class Fatal(override val code: Int) : PostResult()
     }
 
     companion object {
@@ -190,10 +226,36 @@ class GpsUploadWorker @AssistedInject constructor(
         const val TRIGGER_PERIODIC = "periodic"
         const val TRIGGER_MANUAL = "manual"
         const val BATCH_SIZE = 100
-        const val MAX_ATTEMPTS = 10 // per-point server-rejection attempts before dropping
+        const val MAX_ATTEMPTS = 10 // per-point definitive-rejection (400/404) attempts before dropping
         const val MAX_RUN_ATTEMPTS = 6 // WorkManager runAttemptCount cap
         const val MAX_QUEUE = 20_000 // oldest points evicted beyond this (~weeks offline)
 
         private val json = Json { ignoreUnknownKeys = true }
     }
+}
+
+/**
+ * What the worker should do with a batch, from the ingest HTTP status alone.
+ * Pure and total (any code maps) so the drop-budget rules stay unit-testable:
+ *
+ * - 2xx → [IngestDisposition.ACCEPTED]: delete the batch.
+ * - No status at all (offline / transport error) or 5xx/429 (server or proxy
+ *   unhealthy) → [IngestDisposition.RETRY_TRANSIENT]: retry WITHOUT spending
+ *   the batch's drop budget, so an outage can't turn into data loss.
+ * - 401/403 → [IngestDisposition.RETRY_AFTER_TOKEN_RESET]: the device token
+ *   is unknown to the server; clear it and keep retrying until a fresh token
+ *   provisions (no budget spend — the points are good).
+ * - 400/404 → [IngestDisposition.REJECTED]: the server definitively rejected
+ *   this batch (poison payload / gone endpoint); spend the budget so it
+ *   terminates at [GpsUploadWorker.MAX_ATTEMPTS] instead of riding the
+ *   periodic schedule forever.
+ */
+internal enum class IngestDisposition { ACCEPTED, RETRY_TRANSIENT, RETRY_AFTER_TOKEN_RESET, REJECTED }
+
+internal fun ingestDisposition(code: Int?): IngestDisposition = when {
+    code == null -> IngestDisposition.RETRY_TRANSIENT
+    code in 200..299 -> IngestDisposition.ACCEPTED
+    code == 400 || code == 404 -> IngestDisposition.REJECTED
+    code == 401 || code == 403 -> IngestDisposition.RETRY_AFTER_TOKEN_RESET
+    else -> IngestDisposition.RETRY_TRANSIENT // 5xx/429 and anything else — not the batch's fault
 }

@@ -98,8 +98,15 @@ class TrackingConfigStore(context: Context) {
         }
     }
 
+    /**
+     * Service-liveness of tracking, as persisted by [TrackingService]
+     * (true in onStartCommand, false in onDestroy) and the notification
+     * toggles. Defaults false: a fresh install is not tracking until a real
+     * start flips it — a stale-true default made the drawer reconcile as if
+     * a session were live.
+     */
     var isTracking: Boolean
-        get() = prefs.getBoolean(KEY_IS_TRACKING, true)
+        get() = prefs.getBoolean(KEY_IS_TRACKING, false)
         set(value) = prefs.edit { putBoolean(KEY_IS_TRACKING, value) }
 
     /**

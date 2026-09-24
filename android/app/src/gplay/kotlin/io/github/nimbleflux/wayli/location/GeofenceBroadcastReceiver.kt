@@ -7,6 +7,7 @@ import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
 import dagger.hilt.android.AndroidEntryPoint
 import io.github.nimbleflux.wayli.gps.TrackingController
+import io.github.nimbleflux.wayli.gps.TrackingService
 import javax.inject.Inject
 
 /**
@@ -15,6 +16,11 @@ import javax.inject.Inject
  * with it, and since the OS kills background apps routinely overnight, the
  * resume would silently never fire and tracking would stay paused until the
  * user noticed and restarted it by hand.
+ *
+ * When the process (and with it the foreground service) died, the controller
+ * is driven through [TrackingService.start] — resuming collection without a
+ * foreground service would run background location unprotected (and crash on
+ * Android 12+). Only a live service resumes directly.
  */
 @AndroidEntryPoint
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
@@ -24,8 +30,11 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val event = GeofencingEvent.fromIntent(intent) ?: return
         if (event.hasError()) return
-        if (event.geofenceTransition == Geofence.GEOFENCE_TRANSITION_EXIT) {
+        if (event.geofenceTransition != Geofence.GEOFENCE_TRANSITION_EXIT) return
+        if (TrackingService.running) {
             controller.onServiceStarted()
+        } else {
+            TrackingService.start(context) // onStartCommand drives the controller
         }
     }
 }

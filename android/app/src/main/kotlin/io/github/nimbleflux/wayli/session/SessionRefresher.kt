@@ -31,6 +31,7 @@ class SessionRefresher @Inject constructor(
     private val arbiter: SessionArbiter,
     private val refreshGate: RefreshGate,
 ) {
+    @Volatile // read on the loop's dispatcher, cleared from any refresh caller
     private var refreshInFlight = false
 
     /**

@@ -27,8 +27,9 @@ class TrackingConfigStoreTest {
     fun `defaults match the config data class`() {
         val config = store.get()
         assertEquals(TrackingConfig(), config)
-        // Recording intent is ON by default (see RecordingViewModel).
-        assertTrue(store.isTracking)
+        // Liveness defaults off on a fresh install — not tracking until a
+        // real start (service onStartCommand / toggle) flips it on.
+        assertFalse(store.isTracking)
         // The durable intent defaults on with the toggle, so a fresh install
         // self-heals a service death instead of silently staying off.
         assertTrue(store.trackingDesired)

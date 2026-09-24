@@ -12,8 +12,13 @@ import com.google.android.gms.location.LocationServices
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.nimbleflux.wayli.gps.CapturedPoint
 import io.github.nimbleflux.wayli.gps.StationaryResumeTrigger
+import io.github.nimbleflux.wayli.repo.TrackingDiagnosticsRepository
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * gplay stationary resume: when tracking pauses after a stationary stretch,
@@ -28,10 +33,12 @@ import javax.inject.Singleton
 @Singleton
 class GmsGeofenceResumeTrigger @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val diagnostics: TrackingDiagnosticsRepository,
 ) : StationaryResumeTrigger {
 
     private val client: GeofencingClient = LocationServices.getGeofencingClient(context)
     private var pendingIntent: PendingIntent? = null
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     @SuppressLint("MissingPermission") // location permission is a precondition of tracking itself
     override fun arm(point: CapturedPoint, radiusM: Float, @Suppress("UNUSED_PARAMETER") onResume: () -> Unit) {
@@ -60,8 +67,13 @@ class GmsGeofenceResumeTrigger @Inject constructor(
         )
         pendingIntent = pi
 
-        client.addGeofences(request, pi).addOnFailureListener {
-            Log.w(TAG, "geofence arm failed: ${it.message?.take(120)}")
+        client.addGeofences(request, pi).addOnFailureListener { e ->
+            Log.w(TAG, "geofence arm failed: ${e.message?.take(120)}")
+            // The geofence is the ONLY wake-up from a stationary pause — a
+            // log-only failure would hide a pause that can never resume.
+            scope.launch {
+                diagnostics.logEvent("geofence_arm_failed", e.message?.take(120))
+            }
         }
     }
 

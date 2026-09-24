@@ -1597,7 +1597,11 @@ CREATE POLICY "User profiles can be deleted" ON user_profiles FOR DELETE TO auth
 -- Name: User profiles can be inserted; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY "User profiles can be inserted" ON user_profiles FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
+-- Clients may only bootstrap themselves as plain users. The first-user→admin
+-- decision is made server-side by request_user_profile() (SECURITY DEFINER,
+-- advisory-locked) via the ensure_user_profile RPC; this clamp is the
+-- defense-in-depth that keeps a direct insert from self-appointing an admin.
+CREATE POLICY "User profiles can be inserted" ON user_profiles FOR INSERT TO authenticated WITH CHECK (auth.uid() = id AND role = 'user');
 
 --
 -- Name: User profiles can be updated; Type: POLICY; Schema: -; Owner: -
@@ -3329,6 +3333,59 @@ $$;
 --
 
 COMMENT ON FUNCTION mark_setup_complete() IS 'Trigger function to set is_setup_complete when first user is created';
+
+--
+-- Name: request_user_profile(text, text, text); Type: FUNCTION; Schema: -; Owner: -
+--
+
+CREATE OR REPLACE FUNCTION request_user_profile(
+    p_first_name text DEFAULT '',
+    p_last_name text DEFAULT '',
+    p_full_name text DEFAULT ''
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_profile user_profiles;
+    v_is_first boolean;
+BEGIN
+    -- Fast path: the profile already exists (every login calls this).
+    SELECT * INTO v_profile FROM user_profiles WHERE id = auth.uid();
+    IF FOUND THEN
+        RETURN to_jsonb(v_profile);
+    END IF;
+
+    -- Serialize first-user bootstrap on fresh installs. SECURITY DEFINER sees
+    -- past RLS (so the EXISTS check counts real rows — the client-side count
+    -- this replaces could not, which made every signup an admin), and the
+    -- advisory lock plus this VOLATILE function's fresh per-statement snapshot
+    -- guarantee the loser of a concurrent-signup race sees the winner's row.
+    PERFORM pg_advisory_xact_lock(703832001148);
+
+    -- Re-check after acquiring the lock.
+    SELECT * INTO v_profile FROM user_profiles WHERE id = auth.uid();
+    IF NOT FOUND THEN
+        SELECT NOT EXISTS (SELECT 1 FROM user_profiles) INTO v_is_first;
+        INSERT INTO user_profiles (id, first_name, last_name, full_name, role, onboarding_completed)
+        VALUES (
+            auth.uid(),
+            NULLIF(btrim(p_first_name), ''),
+            NULLIF(btrim(p_last_name), ''),
+            COALESCE(NULLIF(btrim(p_full_name), ''), NULLIF(btrim(p_first_name || ' ' || p_last_name), '')),
+            CASE WHEN v_is_first THEN 'admin' ELSE 'user' END,
+            false
+        )
+        ON CONFLICT (id) DO UPDATE SET updated_at = now()
+        RETURNING * INTO v_profile;
+    END IF;
+
+    RETURN to_jsonb(v_profile);
+END;
+$$;
 
 --
 -- Name: prevent_role_escalation(); Type: FUNCTION; Schema: -; Owner: -
@@ -5332,7 +5389,10 @@ CREATE POLICY trips_select ON trips FOR SELECT TO PUBLIC USING ((user_id = auth.
 -- Name: user_profiles_select_admin; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY user_profiles_select_admin ON user_profiles FOR SELECT TO PUBLIC USING (is_current_user_admin());
+-- JWT-claim check is primary (only trigger_sync_user_role writes it, and only
+-- from legitimate profile changes since the bootstrap clamp); the table check
+-- remains for service-side callers whose JWTs predate a role change.
+CREATE POLICY user_profiles_select_admin ON user_profiles FOR SELECT TO PUBLIC USING (is_current_user_admin() OR auth.jwt() ->> 'role' = 'admin');
 
 --
 -- Name: tracker_data_distance_trigger; Type: TRIGGER; Schema: -; Owner: -

@@ -12,15 +12,20 @@
  * This is the app-side replacement: call `ensureUserProfile()` from every auth
  * entry point (signup, OAuth callback, email-verification completion). It's
  * idempotent and restart-safe (application code, not DB state Fluxbase can
- * wipe). First-user-admin assignment is handled here too (atomic: if no other
- * profile exists yet, this user becomes admin), mirroring the original
- * `handle_new_user` / `set_first_user_admin` trigger intent.
+ * wipe).
+ *
+ * Security: the first-user→admin decision is made entirely server-side by the
+ * `ensure_user_profile` RPC (SECURITY DEFINER `request_user_profile` in
+ * fluxbase/schema/public.sql — advisory-locked, identity from the JWT). The
+ * client neither sends the user id nor a role; earlier versions counted rows
+ * client-side, which under owner-only RLS always saw zero rows and made every
+ * signup an admin.
  */
 
 import { fluxbase } from '$lib/fluxbase';
 
 export interface EnsureProfileInput {
-	/** The authenticated user's id (auth.users.id). */
+	/** The authenticated user's id (auth.users.id). Client-side only — never sent to the server. */
 	userId: string;
 	/** Optional metadata, typically from auth user_metadata at signup. */
 	first_name?: string;
@@ -29,9 +34,10 @@ export interface EnsureProfileInput {
 }
 
 /**
- * Insert a `user_profiles` row for the user if one doesn't already exist.
- * Returns the existing-or-created profile row, or null on failure. Safe to
- * call repeatedly (idempotent via ON CONFLICT DO NOTHING).
+ * Create the caller's `user_profiles` row if it doesn't already exist, via the
+ * `ensure_user_profile` RPC. Returns the profile row (id, role,
+ * onboarding_completed, first_login_at, …) or null on failure. Safe to call
+ * repeatedly.
  */
 export async function ensureUserProfile(
 	input: EnsureProfileInput
@@ -40,78 +46,22 @@ export async function ensureUserProfile(
 	const resolvedFull = full_name || `${first_name} ${last_name}`.trim() || '';
 
 	try {
-		// First, check whether a profile already exists. This avoids the
-		// first-user-admin race on every call: only insert when missing. Fetch
-		// onboarding_completed and first_login_at too: login entry points gate
-		// the onboarding redirect on these, so they must be present for returning
-		// users (otherwise the modal re-shows on every login).
-		const { data: existing, error: selectError } = await fluxbase
-			.from<Record<string, any>>('user_profiles')
-			.select('id, role, onboarding_completed, first_login_at')
-			.eq('id', userId)
-			.maybeSingle();
+		const { data, error } = await fluxbase.rpc('ensure_user_profile', {
+			p_first_name: first_name,
+			p_last_name: last_name,
+			p_full_name: resolvedFull
+		});
 
-		if (selectError) {
-			console.error('[ensureUserProfile] select failed:', selectError);
-			return null;
-		}
-		if (existing) {
-			// Profile already present — nothing to do.
-			return existing;
-		}
-
-		// Determine if this is the first user (becomes admin). Reading the
-		// count is best-effort; the ON CONFLICT below keeps it idempotent even
-		// if two signups race. The DB's prevent_role_escalation trigger guards
-		// against privilege abuse on subsequent inserts.
-		let role: 'admin' | 'user' = 'user';
-		try {
-			const { count } = await fluxbase
-				.from<Record<string, any>>('user_profiles')
-				.select('id', { count: 'exact', head: true });
-			if (!count || count === 0) {
-				role = 'admin';
-				console.log('[ensureUserProfile] First user — assigning admin role.');
-			}
-		} catch (countErr) {
-			console.warn(
-				'[ensureUserProfile] could not determine user count, defaulting role=user:',
-				countErr
-			);
-		}
-
-		// Insert (idempotent — concurrent signups won't duplicate). Return the
-		// row so callers can branch on onboarding_completed / first_login_at.
-		const { data: created, error: insertError } = await fluxbase
-			.from<Record<string, any>>('user_profiles')
-			.insert({
-				id: userId,
-				first_name,
-				last_name,
-				full_name: resolvedFull,
-				role,
-				onboarding_completed: false
-			})
-			.select('*')
-			.single();
-
-		if (insertError) {
-			// A conflict (PGRST116 / 23505) means another call won the race —
-			// re-fetch rather than treating it as a hard failure.
-			if (/duplicate|conflict|23505/i.test(insertError.message || '')) {
-				const { data: refetched } = await fluxbase
-					.from<Record<string, any>>('user_profiles')
-					.select('*')
-					.eq('id', userId)
-					.maybeSingle();
-				return refetched;
-			}
-			console.error('[ensureUserProfile] insert failed:', insertError);
+		if (error) {
+			console.error('[ensureUserProfile] rpc failed:', error);
 			return null;
 		}
 
-		console.log(`[ensureUserProfile] created profile for ${userId} (role=${role}).`);
-		return created;
+		// The RPC returns a single jsonb object (some client versions wrap
+		// scalar/single-row results in an array — normalize both).
+		const profile = (Array.isArray(data) ? data[0] : data) as Record<string, any> | null;
+		if (!profile) return null;
+		return profile.id ? profile : { ...profile, id: userId };
 	} catch (err) {
 		console.error('[ensureUserProfile] unexpected error:', err);
 		return null;

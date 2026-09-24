@@ -65,3 +65,7 @@ secrets/
 # Local test files (never commit personal activity data)
 /*.fit
 .mimosa/
+
+# Local-only chart secrets & throwaway values (see charts/wayli/.helmignore)
+charts/wayli/fluxbase-secret.yaml
+charts/wayli/values.tmp.yaml

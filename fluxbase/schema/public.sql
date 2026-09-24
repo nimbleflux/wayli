@@ -2129,6 +2129,7 @@ RETURNS boolean
 LANGUAGE sql
 VOLATILE
 SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT EXISTS(SELECT 1 FROM trips WHERE id = trip_uuid AND (
         user_id = auth.uid()
@@ -2156,6 +2157,7 @@ RETURNS boolean
 LANGUAGE sql
 VOLATILE
 SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT EXISTS(SELECT 1 FROM trips WHERE id = trip_uuid AND (
         user_id = auth.uid()
@@ -2183,6 +2185,7 @@ RETURNS boolean
 LANGUAGE sql
 VOLATILE
 SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT EXISTS(SELECT 1 FROM trips WHERE id = trip_uuid AND (
         user_id = auth.uid()
@@ -2210,6 +2213,7 @@ RETURNS boolean
 LANGUAGE sql
 VOLATILE
 SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT EXISTS(SELECT 1 FROM trips WHERE id = trip_uuid AND (
         user_id = auth.uid()
@@ -2237,6 +2241,7 @@ RETURNS boolean
 LANGUAGE sql
 VOLATILE
 SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT auth.uid() IS NOT NULL
     AND EXISTS(
@@ -3261,6 +3266,7 @@ RETURNS boolean
 LANGUAGE sql
 VOLATILE
 SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT EXISTS (
         SELECT 1 FROM user_profiles
@@ -3279,6 +3285,7 @@ RETURNS boolean
 LANGUAGE sql
 VOLATILE
 SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT EXISTS(SELECT 1 FROM trips WHERE id = trip_uuid AND user_id = auth.uid());
 $$;
@@ -5293,7 +5300,7 @@ CREATE POLICY trip_comments_delete_owner ON trip_comments FOR DELETE TO authenti
 -- Name: trip_comments_insert; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_comments_insert ON trip_comments FOR INSERT TO authenticated WITH CHECK ((user_id = auth.uid()) AND (entry_id IS NOT NULL) AND (EXISTS ( SELECT 1 FROM (trip_entries te JOIN trips t ON ((t.id = te.trip_id))) WHERE ((te.id = trip_comments.entry_id) AND (t.visibility = 'public')))));
+CREATE POLICY trip_comments_insert ON trip_comments FOR INSERT TO authenticated WITH CHECK ((user_id = auth.uid()) AND (entry_id IS NOT NULL) AND (EXISTS ( SELECT 1 FROM (trip_entries te JOIN trips t ON ((t.id = te.trip_id))) WHERE ((te.id = trip_comments.entry_id) AND can_comment(t.id)))));
 
 --
 -- Name: trip_comments_owner_read; Type: POLICY; Schema: -; Owner: -
@@ -5768,7 +5775,7 @@ CREATE OR REPLACE VIEW visible_plan_items AS
             ELSE NULL::text
         END AS currency
    FROM trip_plan_items tpi
-  WHERE can_see_trip(trip_id);
+  WHERE can_see_trip(trip_id) AND can_see_plan(trip_id);
 
 --
 -- Name: MAX_PLAUSIBLE_SPEED_KMH(); Type: PRIVILEGE; Schema: privileges; Owner: -
@@ -6014,7 +6021,6 @@ GRANT EXECUTE ON FUNCTION full_country(country text) TO tenant_service;
 -- Name: get_embedding_stats(p_user_id uuid); Type: PRIVILEGE; Schema: privileges; Owner: -
 --
 
-GRANT EXECUTE ON FUNCTION get_embedding_stats(p_user_id uuid) TO authenticated;
 
 --
 -- Name: get_embedding_stats(p_user_id uuid); Type: PRIVILEGE; Schema: privileges; Owner: -
@@ -6398,7 +6404,6 @@ GRANT EXECUTE ON FUNCTION resolve_country_code(input text) TO tenant_service;
 -- Name: sample_tracker_data_if_needed(p_target_user_id uuid, p_start_date timestamp with time zone, p_end_date timestamp with time zone, p_max_points_threshold integer, p_min_distance_meters numeric, p_min_time_minutes numeric, p_max_points_per_hour integer, p_offset integer, p_limit integer); Type: PRIVILEGE; Schema: privileges; Owner: -
 --
 
-GRANT EXECUTE ON FUNCTION sample_tracker_data_if_needed(p_target_user_id uuid, p_start_date timestamp with time zone, p_end_date timestamp with time zone, p_max_points_threshold integer, p_min_distance_meters numeric, p_min_time_minutes numeric, p_max_points_per_hour integer, p_offset integer, p_limit integer) TO authenticated;
 
 --
 -- Name: sample_tracker_data_if_needed(p_target_user_id uuid, p_start_date timestamp with time zone, p_end_date timestamp with time zone, p_max_points_threshold integer, p_min_distance_meters numeric, p_min_time_minutes numeric, p_max_points_per_hour integer, p_offset integer, p_limit integer); Type: PRIVILEGE; Schema: privileges; Owner: -
@@ -6422,7 +6427,6 @@ GRANT EXECUTE ON FUNCTION sample_tracker_data_if_needed(p_target_user_id uuid, p
 -- Name: search_similar_pois(query_embedding public.vector, p_user_id uuid, p_limit integer, p_poi_category text, p_poi_cuisine text, p_city text, p_country_code character varying, p_min_similarity numeric); Type: PRIVILEGE; Schema: privileges; Owner: -
 --
 
-GRANT EXECUTE ON FUNCTION search_similar_pois(query_embedding public.vector, p_user_id uuid, p_limit integer, p_poi_category text, p_poi_cuisine text, p_city text, p_country_code character varying, p_min_similarity numeric) TO authenticated;
 
 --
 -- Name: search_similar_pois(query_embedding public.vector, p_user_id uuid, p_limit integer, p_poi_category text, p_poi_cuisine text, p_city text, p_country_code character varying, p_min_similarity numeric); Type: PRIVILEGE; Schema: privileges; Owner: -
@@ -6446,7 +6450,6 @@ GRANT EXECUTE ON FUNCTION search_similar_pois(query_embedding public.vector, p_u
 -- Name: search_similar_trips(query_embedding public.vector, p_user_id uuid, p_limit integer, p_min_similarity numeric); Type: PRIVILEGE; Schema: privileges; Owner: -
 --
 
-GRANT EXECUTE ON FUNCTION search_similar_trips(query_embedding public.vector, p_user_id uuid, p_limit integer, p_min_similarity numeric) TO authenticated;
 
 --
 -- Name: search_similar_trips(query_embedding public.vector, p_user_id uuid, p_limit integer, p_min_similarity numeric); Type: PRIVILEGE; Schema: privileges; Owner: -
@@ -7311,3 +7314,50 @@ GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE device_tokens TO tenant_migration_role;
 
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE device_tokens TO tenant_service;
+
+--
+-- Function ACL hardening
+--
+-- PostgreSQL grants EXECUTE to PUBLIC by default. The Fluxbase RPC API does
+-- not call schema functions directly (registered procedures run their own
+-- SQL with RLS context), but we revoke PUBLIC and grant explicitly so a
+-- future RPC wrapper or direct DB role cannot reach sensitive helpers by
+-- accident. RLS-policy helpers are granted to every client role because
+-- policies execute them with the calling user's privileges.
+
+-- RLS policy helpers: callable by all client roles (policies invoke them),
+-- no longer by an accidental PUBLIC grant.
+REVOKE EXECUTE ON FUNCTION
+    can_comment(uuid), can_see_costs(uuid), can_see_gps(uuid),
+    can_see_plan(uuid), can_see_trip(uuid), is_trip_owner(uuid),
+    is_current_user_admin()
+FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION
+    can_comment(uuid), can_see_costs(uuid), can_see_gps(uuid),
+    can_see_plan(uuid), can_see_trip(uuid), is_trip_owner(uuid),
+    is_current_user_admin()
+TO anon, authenticated, service_role, tenant_service;
+
+-- Raw home-address zones: only service-side jobs may read them.
+REVOKE EXECUTE ON FUNCTION privacy_zones(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION privacy_zones(uuid) TO service_role, tenant_service;
+
+-- Deprecated cross-user surfaces (superseded by the Fluxbase knowledge
+-- base / per-user scoping; no in-repo callers). sample_tracker_data_if_needed,
+-- search_similar_pois, search_similar_trips and get_embedding_stats lost
+-- their authenticated grants above; they remain service-only until the
+-- destructive-drop pass removes them entirely (needs --allow-destructive).
+
+-- get_shared_trip references the removed trips.share_token column and is
+-- broken; revoke until the destructive-drop pass deletes it.
+REVOKE EXECUTE ON FUNCTION get_shared_trip(uuid) FROM PUBLIC, anon, authenticated;
+
+-- Dead table: nothing writes trip_gps_tracks, and its SELECT policy serves
+-- unclipped raw points to friends (unlike the clipping enforced by
+-- get_public_trip_track). Close the read path until the table is dropped.
+REVOKE SELECT ON trip_gps_tracks FROM anon, authenticated;
+
+-- Documented visibility semantic: the trip-level budget columns are visible
+-- to anyone who can see the trip row (per trips_select), regardless of
+-- costs_visible_to — only per-item costs in visible_plan_items are masked.
+COMMENT ON COLUMN trips.budget_total IS 'Visible to everyone who can see the trip row (trips_select); costs_visible_to masks only per-item plan costs.';

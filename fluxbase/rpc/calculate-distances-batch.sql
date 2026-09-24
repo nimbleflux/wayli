@@ -1,3 +1,5 @@
+-- @fluxbase:description Recompute per-point distance/time_spent/speed for a caller's tracker rows that are missing measurements (runs server-side after bulk imports). Rows are always scoped to $caller_id — callers cannot target other users.
+-- @fluxbase:require-role authenticated
 -- @fluxbase:max-execution-time 1800s
 UPDATE public.tracker_data t
 SET

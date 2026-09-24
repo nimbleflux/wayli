@@ -13,9 +13,21 @@
 -- 8. Cluster radius validation
 -- When user_id is provided: processes only that user's data since their watermark
 -- When user_id is NULL: processes all users, each from their respective watermarks
+-- SECURITY: an explicit user_id is honored only for service/admin callers —
+-- authenticated callers always process themselves (see the caller CTE).
+WITH caller AS (
+    -- Resolve the effective target: authenticated callers are clamped to
+    -- themselves, so a client cannot force an expensive delete+recompute of
+    -- another user's place visits by passing their id.
+    SELECT CASE
+        WHEN auth.jwt() ->> 'role' IN ('service_role', 'admin', 'tenant_service')
+            THEN $user_id::uuid
+        ELSE auth.uid()
+    END AS uid
+),
 
 -- Get all users to process with their watermarks
-WITH config AS (
+config AS (
     -- Configuration CTE - single source of truth for all thresholds
     SELECT
         -- Distance thresholds (meters)
@@ -63,13 +75,13 @@ users_to_process AS (
         SELECT user_id, last_processed_at
         FROM "public"."place_visits_state"
         WHERE user_id IS NOT NULL
-          AND ($user_id::uuid IS NULL OR user_id = $user_id::uuid)
+          AND ((SELECT uid FROM caller) IS NULL OR user_id = (SELECT uid FROM caller))
     ) ps
     FULL OUTER JOIN (
         -- Get distinct users from tracker_data (for users without state yet)
         SELECT DISTINCT user_id
         FROM "public"."tracker_data"
-        WHERE $user_id::uuid IS NULL OR user_id = $user_id::uuid
+        WHERE (SELECT uid FROM caller) IS NULL OR user_id = (SELECT uid FROM caller)
     ) td ON ps.user_id = td.user_id
     WHERE COALESCE(ps.user_id, td.user_id) IS NOT NULL
 ),

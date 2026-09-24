@@ -7350,7 +7350,7 @@ GRANT EXECUTE ON FUNCTION privacy_zones(uuid) TO service_role, tenant_service;
 
 -- get_shared_trip references the removed trips.share_token column and is
 -- broken; revoke until the destructive-drop pass deletes it.
-REVOKE EXECUTE ON FUNCTION get_shared_trip(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION get_shared_trip(text) FROM PUBLIC, anon, authenticated;
 
 -- Dead table: nothing writes trip_gps_tracks, and its SELECT policy serves
 -- unclipped raw points to friends (unlike the clipping enforced by

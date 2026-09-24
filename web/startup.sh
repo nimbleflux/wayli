@@ -101,6 +101,24 @@ sync_all() {
     export FLUXBASE_SERVER="$FLUXBASE_BASE_URL"
     export FLUXBASE_TOKEN="$FLUXBASE_SERVICE_ROLE_KEY"
 
+    # Wait for the Fluxbase server to finish bootstrapping. /health can go
+    # green while the server is still creating its own tables (functions,
+    # shared_modules, …) — syncing against that half-initialized state fails
+    # with "relation ... does not exist". A short settle delay after /health
+    # plus the container-level restart make the race self-healing.
+    echo "Waiting for the Fluxbase server to become ready..."
+    local waits=0
+    until curl -fsS "${FLUXBASE_SERVER%/}/health" > /dev/null 2>&1; do
+        waits=$((waits + 1))
+        if [ "$waits" -ge 60 ]; then
+            echo "Error: Fluxbase server not ready after 120s"
+            exit 1
+        fi
+        sleep 2
+    done
+    sleep 3
+    echo "Fluxbase server is ready"
+
     # Run fluxbase CLI sync for each resource type
     local failed=0
 

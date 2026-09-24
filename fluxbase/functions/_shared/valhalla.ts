@@ -1,4 +1,4 @@
-// fluxbase/functions/_shared/valhalla.service.ts (flat — the sync only registers top-level _shared files)
+// fluxbase/functions/_shared/valhalla.ts (flat — the sync only registers top-level _shared files; dot-free: the platform's valid_module_path constraint rejects dotted filenames)
 // Mirrors jobs/_shared/services/external/valhalla.service.ts (web has a
 // test-only mirror too). Update ALL together. Copied here because functions
 // bundle from their own tree and cannot import from ../jobs at runtime.

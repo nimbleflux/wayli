@@ -48,6 +48,10 @@ services:
       timeout: 5s
       interval: 10s
       retries: 3
+      # First boot runs the full resource sync (RPC, functions, jobs, schema)
+      # before nginx comes up; /health answers 503 until that finishes. The
+      # start period keeps that honest window from being judged unhealthy.
+      start_period: 180s
     networks:
       - wayli-network
 

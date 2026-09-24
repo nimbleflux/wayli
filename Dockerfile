@@ -109,8 +109,10 @@ USER wayli
 # Expose port 80 (nginx default)
 EXPOSE 80
 
-# Health check using nginx
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+# Health check using nginx. /health answers 503 until resource sync finishes
+# (see startup.sh mark_healthy), so the start period must cover a cold,
+# full-first-boot sync on a fresh database.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=300s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-80}/health || exit 1
 
 # Default environment

@@ -47,7 +47,7 @@ import {
 	runKinematics,
 	splitIntoModeRuns
 } from '_shared/trip-route-geometry';
-import { traceAttributes } from '_shared/valhalla.service';
+import { traceAttributes } from '_shared/valhalla';
 import type { FluxbaseClient } from '../jobs/types';
 
 /** Per-user road-snapping beta opt-in (beta_features.valhalla_routes). */

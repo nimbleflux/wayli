@@ -538,7 +538,7 @@
 		"segmentSingular": "구간",
 		"segmentPlural": "구간",
 		"pointsLabel": "지점",
-		"editModeHelp": "Shift-클릭 또는 Shift-드래그로 지도에서 구간을 선택에 추가하세요. Esc를 누르면 선택이 해제됩니다.",
+		"editModeHelp": "Shift 키를 누른 채 지점을 클릭하거나 지도에서 Shift 키를 누른 채 드래그하여 선택 항목에 세그먼트를 추가하세요. Esc를 누르면 지워집니다.",
 		"resetToAuto": "자동",
 		"resetToAutoHint": "자동 감지로 되돌리기",
 		"manualBadge": "수동",

@@ -538,7 +538,7 @@
 		"segmentSingular": "segment",
 		"segmentPlural": "segmenten",
 		"pointsLabel": "punten",
-		"editModeHelp": "Shift-klik op punten of shift-sleep op de kaart om segmenten aan de selectie toe te voegen. Esc wist de selectie.",
+		"editModeHelp": "Houd Shift ingedrukt en klik op punten of houd Shift ingedrukt en sleep op de kaart om segmenten aan de selectie toe te voegen. Esc wist het.",
 		"resetToAuto": "Auto",
 		"resetToAutoHint": "Terugzetten naar automatische detectie",
 		"manualBadge": "Handmatig",

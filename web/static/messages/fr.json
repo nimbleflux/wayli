@@ -538,7 +538,7 @@
 		"segmentSingular": "segment",
 		"segmentPlural": "segments",
 		"pointsLabel": "points",
-		"editModeHelp": "Shift-clic sur des points ou shift-glisser sur la carte pour ajouter des segments à la sélection. Échap l'efface.",
+		"editModeHelp": "Maj-cliquez sur les points ou Maj-glissez sur la carte pour ajouter des segments à la sélection. Esc l'efface.",
 		"resetToAuto": "Auto",
 		"resetToAutoHint": "Rétablir la détection automatique",
 		"manualBadge": "Manuel",

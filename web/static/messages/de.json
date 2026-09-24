@@ -538,7 +538,7 @@
 		"segmentSingular": "Segment",
 		"segmentPlural": "Segmente",
 		"pointsLabel": "Punkte",
-		"editModeHelp": "Shift-Klicke auf Punkte oder Shift-Ziehen auf der Karte fügt Segmente zur Auswahl hinzu. Esc löscht die Auswahl.",
+		"editModeHelp": "Klicken Sie bei gedrückter Umschalttaste auf Punkte oder ziehen Sie bei gedrückter Umschalttaste auf der Karte, um Segmente zur Auswahl hinzuzufügen. Esc löscht es.",
 		"resetToAuto": "Auto",
 		"resetToAutoHint": "Auf automatische Erkennung zurücksetzen",
 		"manualBadge": "Manuell",

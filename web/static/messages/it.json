@@ -538,7 +538,7 @@
 		"segmentSingular": "segmento",
 		"segmentPlural": "segmenti",
 		"pointsLabel": "punti",
-		"editModeHelp": "Shift-clic sui punti o shift-trascina sulla mappa per aggiungere segmenti alla selezione. Esc la cancella.",
+		"editModeHelp": "Fai clic tenendo premuto il tasto Maiusc sui punti o trascina tenendo premuto il tasto Maiusc sulla mappa per aggiungere segmenti alla selezione. Esc lo cancella.",
 		"resetToAuto": "Auto",
 		"resetToAutoHint": "Ripristina rilevamento automatico",
 		"manualBadge": "Manuale",

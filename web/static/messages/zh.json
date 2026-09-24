@@ -538,7 +538,7 @@
 		"segmentSingular": "路段",
 		"segmentPlural": "路段",
 		"pointsLabel": "点",
-		"editModeHelp": "按住 Shift 点击多个点或在地图上 Shift 拖拽，可将更多路段加入选择。按 Esc 取消选择。",
+		"editModeHelp": "按住 Shift 键单击点或按住 Shift 键在地图上拖动以将线段添加到选择中。 Esc 将其清除。",
 		"resetToAuto": "自动",
 		"resetToAutoHint": "重置为自动检测",
 		"manualBadge": "手动",

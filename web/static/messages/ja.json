@@ -538,7 +538,7 @@
 		"segmentSingular": "セグメント",
 		"segmentPlural": "セグメント",
 		"pointsLabel": "ポイント",
-		"editModeHelp": "シフトキーを押しながらポイントをクリック、または地図上をシフトドラッグすると、選択にセグメントを追加できます。Esc で選択を解除します。",
+		"editModeHelp": "Shift キーを押しながらポイントをクリックするか、Shift キーを押しながらマップ上でドラッグして、選択範囲にセグメントを追加します。 Esc でクリアされます。",
 		"resetToAuto": "自動",
 		"resetToAutoHint": "自動検出に戻す",
 		"manualBadge": "手動",

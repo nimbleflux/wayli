@@ -26,6 +26,17 @@ interface FeatureCollection<G = Polygon | MultiPolygon> { type: 'FeatureCollecti
 // which from inside _shared/ doubles up (_shared/_shared/timezones) and fails
 // the bundle — as the sibling valhalla.service.ts warning has long shown.
 import timezonesRaw from './timezones.ts';
+import {
+	MAX_POINTS_PER_REQUEST,
+	POINT_CONCURRENCY,
+	mapWithConcurrency,
+	rawPointTimestampMs,
+	validateRawPoint,
+} from './point-validation.ts';
+
+// OwnTracks devices publish non-location messages (keep-alive, waypoint sets,
+// region transitions, remote commands) to the same endpoint as location posts.
+const ACKED_OWNTRACKS_TYPES = new Set(['beat', 'lwt', 'waypoints', 'waypoint', 'transition', 'cmd']);
 const timezonesGeoJSON = timezonesRaw as unknown as FeatureCollection;
 
 // ===== Utility Functions =====
@@ -479,6 +490,25 @@ export async function ingestPoints(
       return errorResponse(400);
     }
 
+    // Acknowledge non-location OwnTracks messages like OwnTracks' own HTTP
+    // backend so third-party clients don't surface publish errors / retry
+    // forever. Only genuinely unknown types fall through to a 400.
+    const bodyType = typeof bodyRecord._type === 'string' ? bodyRecord._type.toLowerCase() : null;
+    if (bodyType && bodyType !== 'location' && ACKED_OWNTRACKS_TYPES.has(bodyType)) {
+      logInfo(`OwnTracks '${bodyType}' message acknowledged (no points)`, logTag, { userId });
+      return successWithBody({ accepted: 0 });
+    }
+
+    // Bound request size: past the cap the per-point geocode fan-out would
+    // trip the edge timeout and the whole batch would be retried.
+    if (points.length > MAX_POINTS_PER_REQUEST) {
+      logError(`Batch too large: ${points.length} points (max ${MAX_POINTS_PER_REQUEST})`, logTag);
+      return successWithBody(
+        { accepted: 0, error: `batch too large: ${points.length} points (max ${MAX_POINTS_PER_REQUEST})` },
+        413
+      );
+    }
+
     logInfo('Processing points', logTag, {
       userId: user.id,
       pointCount: points.length
@@ -489,8 +519,18 @@ export async function ingestPoints(
 
     // Process points and perform reverse geocoding synchronously
     // This ensures data is complete when inserted (takes longer but better data quality)
-    const processedPoints = await Promise.all(
-      points.map(async (point: any) => {
+    const processedPoints: Record<string, unknown>[] = [];
+    const rejected: { index: number; reason: string }[] = [];
+    const processPoint = async (point: any, index: number): Promise<void> => {
+        try {
+        // Per-point validation: bad coordinates/timestamps reject ONE point
+        // (reported in the response) instead of poisoning distance/country
+        // computations — PostGIS will happily store POINT(999 40).
+        const validationError = validateRawPoint(point);
+        if (validationError) {
+          rejected.push({ index, reason: validationError });
+          return;
+        }
         let geocodeData: any = null;
         let countryCode: string | null = null;
         let tzDiff: number | null = null;
@@ -499,8 +539,7 @@ export async function ingestPoints(
         try {
           logInfo('Fetching reverse geocode from Pelias', 'OWNTRACKS_GEOCODE', {
             userId: user.id,
-            lat: point.lat,
-            lon: point.lon
+            coords: encodeGeohash(point.lat, point.lon)
           });
 
           geocodeData = await reverseGeocodeWithRetry(point.lat, point.lon, peliasEndpoint);
@@ -540,7 +579,7 @@ export async function ingestPoints(
             });
           } else {
             logError(
-              `Geocoding returned null for user ${user.id} at lat=${point.lat}, lon=${point.lon}`,
+              `Geocoding returned null for user ${user.id} at ${encodeGeohash(point.lat, point.lon)}`,
               'OWNTRACKS_GEOCODE'
             );
           }
@@ -549,7 +588,7 @@ export async function ingestPoints(
           const errorMsg = error instanceof Error ? error.message : String(error);
           const errorStack = error instanceof Error ? error.stack : '';
           logError(
-            `Geocoding failed for user ${user.id} at lat=${point.lat}, lon=${point.lon}: ${errorMsg}\n${errorStack}`,
+            `Geocoding failed for user ${user.id} at ${encodeGeohash(point.lat, point.lon)}: ${errorMsg}\n${errorStack}`,
             'OWNTRACKS_GEOCODE'
           );
         }
@@ -558,11 +597,11 @@ export async function ingestPoints(
         tzDiff = getTimezoneOffset(point.lat, point.lon);
 
         // Return processed point with geocode data (if available)
-        return {
+        const row = {
           user_id: user.id,
           tracker_type: 'owntracks',
           device_id: point.tid || 'owntracks',
-          recorded_at: new Date(point.tst * 1000).toISOString(),
+          recorded_at: new Date(rawPointTimestampMs(point)).toISOString(),
           location: `POINT(${point.lon} ${point.lat})`,
           altitude: point.alt != null ? Number(point.alt) : null,
           accuracy: point.acc != null ? Math.abs(Number(point.acc)) : null,
@@ -577,45 +616,84 @@ export async function ingestPoints(
           country_code: countryCode,
           tz_diff: tzDiff
         };
-      })
-    );
+        processedPoints.push(row);
+        } catch (error) {
+          // Per-point isolation: a processing failure rejects ONE point and
+          // is reported in the response — never a batch-wide 500 (the client
+          // would otherwise re-send the same poison payload forever).
+          rejected.push({
+            index,
+            reason: error instanceof Error ? error.message : String(error)
+          });
+        }
+      };
+    // Bounded fan-out: an unbounded Promise.all over a huge batch fired
+    // thousands of concurrent Pelias fetches per request.
+    await mapWithConcurrency(points, POINT_CONCURRENCY, processPoint);
 
     // Insert points with complete geocode data using SDK
     // Use upsert with ignoreDuplicates to handle cases where OwnTracks retries the same point
-    const { data: insertedPoints, error: insertError } = await fluxbaseService
-      .from('tracker_data')
-      .upsert(processedPoints, { ignoreDuplicates: true });
+    let insertedCount = 0;
+    let geocodedCount = 0;
+    if (processedPoints.length > 0) {
+      const { data: insertedPoints, error: insertError } = await fluxbaseService
+        .from('tracker_data')
+        .upsert(processedPoints, { ignoreDuplicates: true });
 
-    if (insertError) {
+      if (insertError) {
+        logError(
+          `Failed to insert ${processedPoints.length} points for user ${user.id}: ${insertError.message}`,
+          logTag
+        );
+        return errorResponse(500);
+      }
+      geocodedCount = processedPoints.filter((p) => (p as any).geocode !== null).length;
+      insertedCount = (insertedPoints as unknown[] | null)?.length || processedPoints.length;
+
+      logSuccess('Points inserted successfully', logTag, {
+        userId: user.id,
+        totalCount: insertedCount,
+        geocodedCount,
+        ungeocodedCount: insertedCount - geocodedCount
+      });
+    }
+
+    if (rejected.length > 0) {
       logError(
-        `Failed to insert ${processedPoints.length} points for user ${user.id}: ${insertError.message}`,
+        `Rejected ${rejected.length} invalid point(s) for user ${user.id}: ${rejected
+          .map((r) => r.reason)
+          .join('; ')
+          .slice(0, 500)}`,
         logTag
       );
-      return errorResponse(500);
     }
-    const geocodedCount = processedPoints.filter((p) => p.geocode !== null).length;
-    const insertedCount = insertedPoints?.length || processedPoints.length;
-
-    logSuccess('Points inserted successfully', logTag, {
-      userId: user.id,
-      totalCount: insertedCount,
-      geocodedCount,
-      ungeocodedCount: insertedCount - geocodedCount
-    });
 
     if (options?.includeAddress) {
-      // The app batches points oldest-first, so the last element is the
-      // newest fix. Its Pelias label is what the tracking notification shows.
-      const newest = processedPoints[processedPoints.length - 1];
+      // The app batches points oldest-first, so the last accepted element is
+      // the newest fix. Its Pelias label is what the tracking notification
+      // shows.
+      const newest = processedPoints[processedPoints.length - 1] as any;
       const props = newest?.geocode?.properties;
       const address =
         typeof props?.display_name === 'string' && props.display_name.length > 0
           ? props.display_name
           : null;
-      return successWithBody({ accepted: insertedCount, address });
+      return successWithBody({
+        accepted: insertedCount,
+        rejected: rejected.length,
+        errors: rejected.slice(0, 10),
+        address
+      });
     }
 
-    return successResponse();
+    // Always 200 with a per-point error list: the client keeps its good
+    // points and can surface/log the rejected ones instead of blind-retrying
+    // the whole batch.
+    return successWithBody({
+      accepted: insertedCount,
+      rejected: rejected.length,
+      errors: rejected.slice(0, 10)
+    });
   } catch (error) {
     logError(error, logTag);
     return errorResponse(500);

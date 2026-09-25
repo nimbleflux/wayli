@@ -3,10 +3,10 @@ agp = "8.12.3"
 kotlin = "2.3.20"
 ksp = "2.3.12"
 compose-bom = "2024.12.01"
-hilt = "2.54"
+hilt = "2.60.1"
 hilt-navigation = "1.2.0"
 navigation = "2.8.5"
-room = "2.6.1"
+room = "2.8.5"
 workmanager = "2.10.0"
 # NOTE (verified by bytecode-diffing the published jars): 2026.9.1 was the
 # first release-CI artifact with all Android-compat fixes; 2026.9.2 adds the
@@ -55,9 +55,9 @@ navigation-compose = { group = "androidx.navigation", name = "navigation-compose
 # Hilt
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hilt-navigation" }
-hilt-work = { group = "androidx.hilt", name = "hilt-work", version = "1.2.0" }
-hilt-androidx-compiler = { group = "androidx.hilt", name = "hilt-compiler", version = "1.2.0" }
+hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version = "1.4.0" }
+hilt-work = { group = "androidx.hilt", name = "hilt-work", version = "1.4.0" }
+hilt-androidx-compiler = { group = "androidx.hilt", name = "hilt-compiler", version = "1.4.0" }
 
 # Room
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }

@@ -7,7 +7,7 @@ A Helm chart for deploying Wayli - a privacy-first location analysis and trip tr
 - Kubernetes 1.19+
 - Helm 3.2.0+
 - PersistentVolume provisioner support in the underlying infrastructure (for Fluxbase)
-- `openssl` and `docker` (for generating secrets)
+- `openssl` (for generating secrets; no Docker or Node.js required)
 
 ## Step 1: Generate Secrets (Required)
 
@@ -21,8 +21,8 @@ cd charts/wayli
 Select option **2) Kubernetes Secret** when prompted to generate a `wayli-secrets.yaml` file.
 
 This interactive script will:
-- Generate secure random values for all secrets (passwords, JWT tokens, encryption keys)
-- Generate JWT tokens automatically using Docker
+
+- Generate secure random values for all secrets (passwords, JWT tokens, encryption keys) using `openssl`
 - Prompt for Fluxbase URLs for your deployment
 - Output a Kubernetes Secret manifest
 
@@ -68,20 +68,30 @@ helm install wayli wayli/wayli -n wayli -f custom-values.yaml
 
 The following table lists the main configurable parameters of the Wayli chart and their default values.
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `image.repository` | Wayli image repository | `ghcr.io/nimbleflux/wayli` |
-| `image.tag` | Wayli image tag (overrides Chart.yaml appVersion) | `""` |
-| `image.pullPolicy` | Image pull policy | `IfNotPresent` |
-| `web.enabled` | Enable web deployment | `true` |
-| `web.replicaCount` | Number of web replicas | `1` |
-| `web.env.siteUrl` | Site URL for CORS and trusted origins | `https://wayli.app` |
-| `web.service.type` | Kubernetes service type | `ClusterIP` |
-| `web.service.port` | Service port | `80` |
-| `ingress.enabled` | Enable ingress controller resource | `true` |
-| `ingress.hostname` | Ingress hostname | `console.wayli.app` |
-| `fluxbase.enabled` | Enable Fluxbase subchart | `true` |
-| `fluxbase.global.fluxbase.publicUrl` | Fluxbase API endpoint URL | `https://flux.domain.com` |
+| Parameter                            | Description                                                                                            | Default                    |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------ | -------------------------- |
+| `image.repository`                   | Wayli image repository                                                                                 | `ghcr.io/nimbleflux/wayli` |
+| `image.tag`                          | Wayli image tag (overrides Chart.yaml appVersion)                                                      | `""`                       |
+| `image.pullPolicy`                   | Image pull policy                                                                                      | `IfNotPresent`             |
+| `web.enabled`                        | Enable web deployment                                                                                  | `true`                     |
+| `web.replicaCount`                   | Number of web replicas                                                                                 | `1`                        |
+| `web.env.siteUrl`                    | Site URL knob — **currently unused**: the `wayli.siteUrl` helper is defined but no template renders it | `https://wayli.app`        |
+| `web.service.type`                   | Kubernetes service type                                                                                | `ClusterIP`                |
+| `web.service.port`                   | Service port                                                                                           | `80`                       |
+| `ingress.enabled`                    | Enable ingress controller resource                                                                     | `true`                     |
+| `ingress.hostname`                   | Ingress hostname (must be set for a host to be rendered)                                               | `""`                       |
+| `fluxbase.enabled`                   | Enable Fluxbase subchart                                                                               | `true`                     |
+| `fluxbase.global.fluxbase.publicUrl` | Fluxbase API endpoint URL                                                                              | `https://flux.domain.com`  |
+
+### Required secrets for the web deployment
+
+The web deployment always reads `FLUXBASE_ANON_KEY` and
+`FLUXBASE_SERVICE_ROLE_KEY` from the Fluxbase secret (see
+`templates/deployment-web.yaml`), using the key names configured in
+`fluxbase.existingSecretKeyRef` (`anonKey`, `serviceRoleKey`, …). When
+`fluxbase.existingSecret` is empty the chart creates that secret itself
+(fine for local evaluation); when you bring your own secret it **must contain
+those keys**, otherwise the web pods will fail to start.
 
 ### Environment Variables
 
@@ -91,14 +101,17 @@ Configure Wayli through the `web.env` section in `values.yaml`:
 web:
   env:
     nodeEnv: production
-    siteUrl: "https://wayli.domain.com"  # Used for CORS and trusted origins
 
 fluxbase:
   global:
     fluxbase:
-      publicUrl: "https://flux.domain.com"  # Fluxbase API endpoint
-      siteUrl: "https://wayli.domain.com"  # For auth redirects
+      publicUrl: 'https://flux.domain.com' # Fluxbase API endpoint
+      siteUrl: 'https://wayli.domain.com' # For auth redirects
 ```
+
+> Note: `web.env.siteUrl` is a dead knob today (no template consumes it). To
+> inject extra environment variables into the web container, use
+> `web.extraEnvVars`.
 
 ### Secrets
 
@@ -136,7 +149,7 @@ fluxbase:
       existingSecret: fluxbase-secret
       auth:
         smtp:
-          existingSecret: smtp-secret  # Optional
+          existingSecret: smtp-secret # Optional
 ```
 
 > **Recommendation**: Use external secret management solutions like [External Secrets Operator](https://external-secrets.io/) or [Sealed Secrets](https://github.com/bitnami-labs/sealed-secrets) for production deployments.
@@ -148,19 +161,17 @@ To enable external access via Ingress:
 ```yaml
 ingress:
   enabled: true
-  className: nginx
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-  hosts:
-    - host: wayli.example.com
-      paths:
-        - path: /
-          pathType: Prefix
+  hostname: wayli.example.com
   tls:
     - secretName: wayli-tls
       hosts:
         - wayli.example.com
 ```
+
+Additional hosts can be added via `ingress.extraHosts`; extra rules/TLS via
+`ingress.extraRules` / `ingress.extraTls`.
 
 ### Resource Limits
 
@@ -195,6 +206,7 @@ web:
 > **Note:** Fluxbase is included as a Helm chart dependency. You can also use a managed Fluxbase instance if preferred.
 
 Options for Fluxbase deployment:
+
 1. **Chart dependency**: Enabled by default (recommended for self-hosted)
 2. **Managed Fluxbase**: Use [Fluxbase Cloud](https://fluxbase.eu) (recommended for production)
 3. **Self-hosted**: Deploy Fluxbase separately using the official Helm chart
@@ -204,6 +216,7 @@ Options for Fluxbase deployment:
 ### Upgrade to a new version
 
 **OCI Registry:**
+
 ```bash
 # Upgrade to latest version
 helm upgrade wayli oci://ghcr.io/nimbleflux/charts/wayli -n wayli
@@ -216,6 +229,7 @@ helm upgrade wayli oci://ghcr.io/nimbleflux/charts/wayli -n wayli -f custom-valu
 ```
 
 **Helm Repository:**
+
 ```bash
 # Update repository
 helm repo update
@@ -258,6 +272,7 @@ This Helm chart is automatically versioned and released via GitHub Actions:
 - **Docker Images**: Tagged with semantic versions (e.g., `v0.0.1`)
 
 Available versions:
+
 - [Helm Chart (OCI)](https://github.com/nimbleflux/wayli/pkgs/container/charts%2Fwayli) - `oci://ghcr.io/nimbleflux/charts/wayli`
 - [Helm Chart Releases](https://github.com/nimbleflux/wayli/releases) - GitHub Pages repository
 - [Docker Images](https://github.com/nimbleflux/wayli/pkgs/container/wayli) - `ghcr.io/nimbleflux/wayli`
@@ -270,15 +285,12 @@ Available versions:
 # minimal-values.yaml
 ingress:
   enabled: true
-  hosts:
-    - host: wayli.local
-      paths:
-        - path: /
-          pathType: Prefix
+  hostname: wayli.local
 
-env:
-  FLUXBASE_PUBLIC_BASE_URL: "https://flux.domain.com"
-  PUBLIC_FLUXBASE_ANON_KEY: "your-anon-key"
+web:
+  extraEnvVars:
+    - name: FLUXBASE_PUBLIC_BASE_URL
+      value: 'https://flux.domain.com'
 ```
 
 ```bash
@@ -305,15 +317,10 @@ web:
 
 ingress:
   enabled: true
-  className: nginx
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-  hosts:
-    - host: wayli.example.com
-      paths:
-        - path: /
-          pathType: Prefix
+    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+  hostname: wayli.example.com
   tls:
     - secretName: wayli-tls
       hosts:
@@ -355,6 +362,7 @@ curl http://wayli-web
 ## Support
 
 For issues and questions:
+
 - [GitHub Issues](https://github.com/nimbleflux/wayli/issues)
 - [Documentation](https://github.com/nimbleflux/wayli)
 - [Helm Chart Repository](https://nimbleflux.github.io/wayli)

@@ -345,7 +345,7 @@ describe('Job Queue Integration', () => {
 			};
 
 			const isValid =
-				['json', 'csv', 'gpx'].includes(validExportData.format) &&
+				['json', 'gpx'].includes(validExportData.format) &&
 				typeof validExportData.include_trips === 'boolean';
 
 			expect(isValid).toBe(true);

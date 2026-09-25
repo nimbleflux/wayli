@@ -325,6 +325,10 @@
 	let selectedHomeAddressIndex = $state(-1);
 	let homeAddressSearchTimeout: ReturnType<typeof setTimeout> | null = null;
 	let homeAddressSearchError = $state<string | null>(null);
+	// Manual coordinates fallback for addresses the geocoder can't find (#205)
+	let useHomeCoordinates = $state(false);
+	let homeLatitudeInput = $state('');
+	let homeLongitudeInput = $state('');
 
 	// Onboarding state
 	let showOnboardingModal = $state(false);
@@ -341,6 +345,37 @@
 
 	// Trip exclusions state
 	let tripExclusions: any[] = $state([]);
+
+	// Account deletion (Danger Zone) — invokes the delete-account edge function,
+	// which removes storage objects, KB docs, residual cross-user rows, then the
+	// auth user (FK cascades remove the rest). Play Data Safety requirement.
+	let showDeleteConfirm = $state(false);
+	let deleteConfirmText = $state('');
+	let isDeletingAccount = $state(false);
+
+	async function handleDeleteAccount() {
+		if (deleteConfirmText !== 'DELETE' || isDeletingAccount) return;
+		isDeletingAccount = true;
+		try {
+			const { data, error } = await fluxbase.functions.invoke('delete-account', {
+				body: { confirm: true }
+			});
+			if (error) throw new Error(error.message);
+			if ((data as any)?.deleted !== true) {
+				throw new Error(
+					((data as any)?.errors as string[] | undefined)?.join('; ') ||
+						t('accountSettings.deleteAccountError')
+				);
+			}
+			toast.success(t('accountSettings.deleteAccountSuccess'));
+			await sessionManager.signOut();
+			await goto('/auth/signin');
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : String(err));
+		} finally {
+			isDeletingAccount = false;
+		}
+	}
 	let showAddExclusionModal = $state(false);
 	let showEditExclusionModal = $state(false);
 	let newExclusion = $state({
@@ -876,6 +911,11 @@
 			}
 		}
 
+		if (useHomeCoordinates && !manualHomeCoordinates) {
+			toast.error(t('accountSettings.invalidCoordinates'));
+			return;
+		}
+
 		isUpdatingProfile = true;
 		error = null;
 
@@ -894,7 +934,8 @@
 			(profile as any).avatar_url = profileAvatarUrl || null;
 			(profile as any).cover_photo_url = profileCoverUrl || null;
 			(profile as any).discoverable = discoverableInput;
-			profile.home_address = selectedHomeAddress || homeAddressInput.trim() || null;
+			profile.home_address =
+				manualHomeCoordinates ?? selectedHomeAddress ?? (homeAddressInput.trim() || null);
 
 			// Update profile using service adapter
 			await serviceAdapter.updateProfile({
@@ -1179,6 +1220,18 @@
 				break;
 		}
 	}
+
+	function parseManualHomeCoordinates() {
+		if (!useHomeCoordinates) return null;
+		// Accept both decimal separators; reject out-of-range values and Null Island
+		const lat = Number.parseFloat(homeLatitudeInput.trim().replace(',', '.'));
+		const lng = Number.parseFloat(homeLongitudeInput.trim().replace(',', '.'));
+		if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+		if (Math.abs(lat) > 90 || Math.abs(lng) > 180 || (lat === 0 && lng === 0)) return null;
+		return { display_name: `${lat}, ${lng}`, coordinates: { lat, lng } };
+	}
+
+	const manualHomeCoordinates = $derived(parseManualHomeCoordinates());
 
 	async function searchHomeAddress() {
 		if (!homeAddressInput.trim()) {
@@ -1688,6 +1741,67 @@
 								{selectedHomeAddress.display_name}
 							</div>
 						</div>
+					{/if}
+
+					<!-- Manual coordinates fallback for addresses the geocoder can't find (#205) -->
+					<button
+						type="button"
+						class="text-muted-foreground hover:text-muted-foreground mt-2 text-sm"
+						onclick={() => (useHomeCoordinates = !useHomeCoordinates)}
+					>
+						{useHomeCoordinates
+							? t('accountSettings.enterAddressInstead')
+							: t('accountSettings.enterCoordinatesInstead')}
+					</button>
+					{#if useHomeCoordinates}
+						<div class="mt-2 grid grid-cols-2 gap-3">
+							<div>
+								<label
+									for="homeLatitude"
+									class="text-muted-foreground mb-1 block text-xs font-medium"
+									>{t('accountSettings.latitude')}</label
+								>
+								<Input
+									id="homeLatitude"
+									type="text"
+									inputmode="decimal"
+									bind:value={homeLatitudeInput}
+									placeholder="-33.8688"
+									autocomplete="off"
+									class="w-full"
+								/>
+							</div>
+							<div>
+								<label
+									for="homeLongitude"
+									class="text-muted-foreground mb-1 block text-xs font-medium"
+									>{t('accountSettings.longitude')}</label
+								>
+								<Input
+									id="homeLongitude"
+									type="text"
+									inputmode="decimal"
+									bind:value={homeLongitudeInput}
+									placeholder="151.2093"
+									autocomplete="off"
+									class="w-full"
+								/>
+							</div>
+						</div>
+						<p class="text-muted-foreground mt-1 text-xs">
+							{t('accountSettings.coordinatesHint')}
+						</p>
+						{#if manualHomeCoordinates}
+							<div
+								class="mt-2 rounded-md border border-green-200 bg-green-50 p-2 dark:border-green-800 dark:bg-green-900/20"
+							>
+								<div class="text-sm text-green-800 dark:text-green-200">
+									📍 Coordinates: {manualHomeCoordinates.coordinates.lat.toFixed(6)}, {manualHomeCoordinates.coordinates.lng.toFixed(
+										6
+									)}
+								</div>
+							</div>
+						{/if}
 					{/if}
 
 					<!-- Skip button if field is empty -->
@@ -2619,7 +2733,54 @@
 		</div>
 	{/if}
 
-	<!-- Danger Zone hidden: account deletion not yet implemented -->
+	<!-- Danger Zone: self-service account deletion (Play Data Safety) -->
+	<div class="mt-10 rounded-lg border border-red-200 p-6 dark:border-red-900/50">
+		<h3 class="text-lg font-semibold text-red-600 dark:text-red-400">
+			{t('accountSettings.dangerZoneTitle')}
+		</h3>
+		<p class="text-muted-foreground mt-1 text-sm">
+			{t('accountSettings.dangerZoneDescription')}
+		</p>
+		{#if showDeleteConfirm}
+			<p class="mt-4 text-sm">
+				{t('accountSettings.deleteTypeToConfirm')}
+			</p>
+			<Input
+				class="mt-2 max-w-xs"
+				bind:value={deleteConfirmText}
+				placeholder={t('accountSettings.deleteConfirmWord')}
+				autocomplete="off"
+			/>
+			<div class="mt-3 flex gap-2">
+				<button
+					class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+					disabled={deleteConfirmText !== 'DELETE' || isDeletingAccount}
+					onclick={handleDeleteAccount}
+				>
+					{isDeletingAccount
+						? t('accountSettings.deleteAccountPending')
+						: t('accountSettings.deleteAccountConfirm')}
+				</button>
+				<button
+					class="hover:bg-muted cursor-pointer rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50"
+					disabled={isDeletingAccount}
+					onclick={() => {
+						showDeleteConfirm = false;
+						deleteConfirmText = '';
+					}}
+				>
+					{t('accountSettings.deleteAccountCancel')}
+				</button>
+			</div>
+		{:else}
+			<button
+				class="mt-4 rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/20"
+				onclick={() => (showDeleteConfirm = true)}
+			>
+				{t('accountSettings.deleteAccountButton')}
+			</button>
+		{/if}
+	</div>
 </div>
 
 <!-- Add Trip Exclusion Modal -->

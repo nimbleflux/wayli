@@ -427,7 +427,6 @@
 							>
 								<option value="JSON">JSON</option>
 								<option value="GeoJSON">GeoJSON</option>
-								<option value="CSV">CSV</option>
 							</select>
 						</div>
 						<div class="min-w-[200px] flex-1">

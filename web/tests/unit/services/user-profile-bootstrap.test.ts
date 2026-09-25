@@ -1,81 +1,33 @@
-// /Users/bart/Dev/wayli/web/tests/unit/services/user-profile-bootstrap.test.ts
-//
 // Unit tests for ensureUserProfile() — the app-side replacement for the
-// auth.users trigger that Fluxbase wipes on restart. Verifies the two
-// behaviors that were previously untested:
-//   1. A user_profiles row is created when missing (signup).
-//   2. The first registered user becomes an admin (role: 'admin').
-// Plus the no-op, race-handling, and error paths.
+// auth.users trigger that Fluxbase wipes on restart.
 //
-// Mocks $lib/fluxbase with a controllable chainable query builder so each
-// Fluxbase call (select/maybeSingle, count, insert) can be driven independently.
+// The role decision lives SERVER-SIDE now (RPC `ensure_user_profile` →
+// SECURITY DEFINER `request_user_profile`): the client must never decide or
+// send a role, and must never send the user id (identity comes from the JWT).
+// These tests pin that contract.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockUser = { id: 'user-123', first_name: 'Ada', last_name: 'Lovelace' };
 
-// The mocked fluxbase client must be created via vi.hoisted so it exists when
-// the hoisted vi.mock factory runs. `from` is a vi.fn whose implementation is
-// swapped per-test to control the query chain (existence check, count, insert).
-const { fluxbase } = vi.hoisted(() => ({ fluxbase: { from: vi.fn(), auth: {} as any } }));
+const { fluxbase } = vi.hoisted(() => ({
+	fluxbase: { rpc: vi.fn(), from: vi.fn(), auth: {} as any }
+}));
 vi.mock('$lib/fluxbase', () => ({ fluxbase }));
 
 import { ensureUserProfile } from '$lib/services/session/user-profile-bootstrap';
 
-// Build a chainable table mock from per-call overrides. The select() branch
-// distinguishes the count query (opts.head + opts.count) from column selects.
-function makeFromImpl(opts: {
-	existing: Record<string, any> | null;
-	count: number;
-	insertData?: Record<string, any> | null;
-	insertError?: { message: string };
-	refetched?: Record<string, any> | null;
-}) {
-	let maybeSingleCall = 0;
-	const insertArgs: any[] = [];
-	const from = () => {
-		const api: any = {
-			select: vi.fn((cols?: string, so?: any) => {
-				if (so && so.head === true && so.count) {
-					// The helper destructures { count } directly from this select result.
-					return { count: opts.count, error: null };
-				}
-				// First maybeSingle = existence check; subsequent = post-conflict re-fetch.
-				const data = maybeSingleCall++ === 0 ? opts.existing : opts.refetched;
-				return {
-					eq: vi.fn().mockReturnThis(),
-					maybeSingle: vi.fn().mockResolvedValue({ data, error: null })
-				};
-			}),
-			insert: vi.fn((payload: any) => {
-				insertArgs.push(payload);
-				return {
-					select: vi.fn(() => ({
-						single: vi.fn().mockResolvedValue({
-							data: opts.insertData ?? null,
-							error: opts.insertError ?? null
-						})
-					}))
-				};
-			})
-		};
-		return api;
-	};
-	return { from, insertArgs };
-}
-
 describe('ensureUserProfile', () => {
 	beforeEach(() => {
+		fluxbase.rpc.mockReset();
 		fluxbase.from.mockReset();
 	});
 
-	it('creates a profile when none exists (signup)', async () => {
-		const impl = makeFromImpl({
-			existing: null,
-			count: 1,
-			insertData: { id: mockUser.id, role: 'user', onboarding_completed: false }
+	it('creates a profile via the ensure_user_profile RPC (signup)', async () => {
+		fluxbase.rpc.mockResolvedValue({
+			data: { id: mockUser.id, role: 'user', onboarding_completed: false },
+			error: null
 		});
-		fluxbase.from.mockImplementation(impl.from);
 
 		const result = await ensureUserProfile({
 			userId: mockUser.id,
@@ -83,78 +35,68 @@ describe('ensureUserProfile', () => {
 			last_name: mockUser.last_name
 		});
 
-		expect(result).not.toBeNull();
-		expect(impl.insertArgs).toHaveLength(1);
-		expect(impl.insertArgs[0]).toMatchObject({
-			id: mockUser.id,
-			first_name: 'Ada',
-			last_name: 'Lovelace',
-			full_name: 'Ada Lovelace',
-			onboarding_completed: false
-		});
+		expect(fluxbase.rpc).toHaveBeenCalledWith(
+			'ensure_user_profile',
+			expect.objectContaining({
+				first_name: 'Ada',
+				last_name: 'Lovelace',
+				full_name: 'Ada Lovelace'
+			})
+		);
+		expect(result).toMatchObject({ id: mockUser.id, role: 'user', onboarding_completed: false });
 	});
 
-	it('does not insert when a profile already exists', async () => {
-		const existing = { id: mockUser.id, role: 'user', onboarding_completed: true };
-		const impl = makeFromImpl({ existing, count: 1 });
-		fluxbase.from.mockImplementation(impl.from);
+	it('never sends the user id or a role to the server', async () => {
+		fluxbase.rpc.mockResolvedValue({ data: { id: mockUser.id, role: 'user' }, error: null });
+
+		await ensureUserProfile({ userId: mockUser.id, first_name: 'Ada', last_name: 'Lovelace' });
+
+		const [, args] = fluxbase.rpc.mock.calls[0];
+		expect(args).not.toHaveProperty('userId');
+		expect(args).not.toHaveProperty('id');
+		expect(args).not.toHaveProperty('role');
+		expect(JSON.stringify(args)).not.toContain(mockUser.id);
+	});
+
+	it('normalizes array-wrapped RPC payloads', async () => {
+		fluxbase.rpc.mockResolvedValue({
+			data: [{ id: mockUser.id, role: 'user', first_login_at: null }],
+			error: null
+		});
+
+		const result = await ensureUserProfile({ userId: mockUser.id });
+
+		expect(result).toMatchObject({ id: mockUser.id, role: 'user', first_login_at: null });
+	});
+
+	it('returns the existing profile untouched when the RPC reports one', async () => {
+		const existing = {
+			id: mockUser.id,
+			role: 'user',
+			onboarding_completed: true,
+			first_login_at: '2026-01-01'
+		};
+		fluxbase.rpc.mockResolvedValue({ data: existing, error: null });
 
 		const result = await ensureUserProfile({ userId: mockUser.id });
 
 		expect(result).toEqual(existing);
-		expect(impl.insertArgs).toHaveLength(0);
+		expect(fluxbase.from).not.toHaveBeenCalled();
 	});
 
-	it('assigns admin role to the first user', async () => {
-		const impl = makeFromImpl({
-			existing: null,
-			count: 0, // ← no profiles yet → first user
-			insertData: { id: mockUser.id, role: 'admin' }
+	it('returns null on an RPC error', async () => {
+		fluxbase.rpc.mockResolvedValue({
+			data: null,
+			error: { message: 'function not found (PGRST 404)' }
 		});
-		fluxbase.from.mockImplementation(impl.from);
 
 		const result = await ensureUserProfile({ userId: mockUser.id });
 
-		expect(result).toMatchObject({ id: mockUser.id, role: 'admin' });
-		expect(impl.insertArgs[0]).toMatchObject({ id: mockUser.id, role: 'admin' });
+		expect(result).toBeNull();
 	});
 
-	it('assigns user role when other profiles already exist', async () => {
-		const impl = makeFromImpl({
-			existing: null,
-			count: 5, // ← other users exist → not first
-			insertData: { id: mockUser.id, role: 'user' }
-		});
-		fluxbase.from.mockImplementation(impl.from);
-
-		const result = await ensureUserProfile({ userId: mockUser.id });
-
-		expect(result).toMatchObject({ id: mockUser.id, role: 'user' });
-		expect(impl.insertArgs[0]).toMatchObject({ role: 'user' });
-	});
-
-	it('refetches on a primary-key conflict (race handling)', async () => {
-		const refetched = { id: mockUser.id, role: 'user', onboarding_completed: true };
-		const impl = makeFromImpl({
-			existing: null,
-			count: 3,
-			insertError: { message: 'duplicate key value violates unique constraint (23505)' },
-			refetched
-		});
-		fluxbase.from.mockImplementation(impl.from);
-
-		const result = await ensureUserProfile({ userId: mockUser.id });
-
-		expect(result).toEqual(refetched);
-	});
-
-	it('returns null on a hard (non-conflict) insert error', async () => {
-		const impl = makeFromImpl({
-			existing: null,
-			count: 2,
-			insertError: { message: 'permission denied for table user_profiles' }
-		});
-		fluxbase.from.mockImplementation(impl.from);
+	it('returns null when the RPC throws', async () => {
+		fluxbase.rpc.mockRejectedValue(new TypeError('network down'));
 
 		const result = await ensureUserProfile({ userId: mockUser.id });
 

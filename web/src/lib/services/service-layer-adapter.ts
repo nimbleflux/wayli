@@ -14,9 +14,7 @@ import { serviceManager } from '$lib/architecture/service-layer';
 import { fluxbase } from '$lib/fluxbase';
 
 import { errorHandler } from './error-handler.service';
-import { LocationCacheService } from './location-cache.service';
 import { logger } from './logging.service';
-import { rateLimitService } from './rate-limit.service';
 // Note: StatisticsService removed - now using ClientStatisticsService
 import { TripsService } from './trips.service';
 import { WantToVisitService } from './want-to-visit.service';
@@ -58,7 +56,6 @@ export class ServiceLayerAdapter {
 	private registerClientSafeServices(): void {
 		// Core services (already managed by service layer)
 		this.services.set('errorHandler', errorHandler);
-		this.services.set('rateLimit', rateLimitService);
 		this.services.set('logger', logger);
 
 		// Client-safe application services
@@ -130,13 +127,6 @@ export function getErrorHandler() {
 }
 
 /**
- * Get the rate limit service
- */
-export function getRateLimitService() {
-	return serviceAdapter.getService('rateLimit');
-}
-
-/**
  * Get the logger service
  */
 export function getLogger() {
@@ -158,13 +148,6 @@ export async function getTripsService() {
 // export function getStatisticsService() {
 // 	return serviceAdapter.getService<StatisticsService>('statistics');
 // }
-
-/**
- * Get the location cache service (static utility)
- */
-export function getLocationCacheService() {
-	return LocationCacheService;
-}
 
 /**
  * Get the want to visit service

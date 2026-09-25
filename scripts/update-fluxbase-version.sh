@@ -66,9 +66,9 @@ else
     echo "  Note: $SDK_REACT_PACKAGE not found in package.json (skipping)"
 fi
 
-# Update web bun.lockb
+# Update web bun.lock
 echo ""
-echo "Updating web/bun.lockb..."
+echo "Updating web/bun.lock..."
 cd "$ROOT_DIR/web"
 bun install
 
@@ -91,5 +91,5 @@ echo "  - charts/wayli/Chart.yaml"
 echo "  - charts/wayli/Chart.lock"
 echo "  - Dockerfile"
 echo "  - web/package.json (@nimbleflux/fluxbase-sdk, @nimbleflux/fluxbase-sdk-react)"
-echo "  - web/bun.lockb"
+echo "  - web/bun.lock"
 echo "  - fluxbase/functions/deno.json (@nimbleflux/fluxbase-sdk)"

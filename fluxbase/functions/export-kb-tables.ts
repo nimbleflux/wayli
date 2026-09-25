@@ -5,7 +5,8 @@
  * Attempts export and handles errors gracefully if embedding provider isn't configured.
  *
  * Triggered:
- * - On init (via startup.sh)
+ * - Manually (retained but unused; the boot-time trigger was removed —
+ *   see fluxbase/functions/ARCHITECTURE.md)
  * - When AI settings are saved
  *
  * @fluxbase:allow-unauthenticated

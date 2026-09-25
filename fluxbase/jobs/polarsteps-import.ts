@@ -592,6 +592,31 @@ async function doImport(fluxbase: FluxbaseClient, fluxbaseService: FluxbaseClien
     }
   }
 
+  // Reset the per-user incremental-processing watermarks after a successful
+  // GPS import: place-visit detection and transport-mode labeling keep a
+  // last-processed timestamp per user, and imported points usually predate
+  // it — without the reset they would never be processed. Deleting the state
+  // rows makes the next incremental run rebuild that user from scratch.
+  // Best-effort (service role: RLS allows only service/admin) — a failed
+  // reset must not fail the import.
+  if (gpsPointsImported > 0) {
+    for (const table of ['place_visits_state', 'transport_mode_state']) {
+      try {
+        const { error: resetError } = await fluxbaseService
+          .from(table)
+          .delete()
+          .eq('user_id', userId);
+        if (resetError) {
+          console.warn(`[polarsteps] Failed to reset ${table} watermark:`, resetError);
+        } else {
+          console.log(`[polarsteps] Reset ${table} watermark for user ${userId}`);
+        }
+      } catch (resetErr) {
+        console.warn(`[polarsteps] Error resetting ${table} watermark:`, resetErr);
+      }
+    }
+  }
+
   console.log(
     `[polarsteps] Import complete: ${tripsImported} new, ${tripsMerged} merged, ${entriesCreated} entries, ${photosUploaded} photos uploaded, ${photosSkipped} photos skipped, ${gpsPointsImported} GPS points`
   );

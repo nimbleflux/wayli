@@ -40,11 +40,12 @@ private fun LocationDisclosureDialog(onAccept: () -> Unit, onDecline: () -> Unit
             Text(
                 buildAnnotatedString {
                     append(
-                        "Wayli collects precise location data to record your location history " +
+                        "Wayli records precise location data to build your location history " +
                             "and detect your trips — including when the app is closed or not in " +
-                            "use — and syncs it to the Wayli server you connect it to. Your " +
-                            "location data stays on your own server and is not shared with " +
-                            "third parties. ",
+                            "use — and syncs it to the Wayli server you connect it to (typically " +
+                            "one you self-host). Place-name lookups are handled by Wayli's hosted " +
+                            "geocoding service by default; a self-hosted server can use its own " +
+                            "geocoder instead. ",
                     )
                     withLink(
                         LinkAnnotation.Url(

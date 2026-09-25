@@ -1,0 +1,7 @@
+# Files ignored by `helm package` — prevents local secrets from ever being
+# tarred into a published chart artifact.
+fluxbase-secret.yaml
+values.tmp.yaml
+*.local.yaml
+*.tgz
+.gitignore

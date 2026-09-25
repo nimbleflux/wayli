@@ -8,10 +8,13 @@ This document outlines the testing strategy, patterns, and guidelines for the Wa
 
 ```
 tests/
-├── accessibility/          # Accessibility-specific tests
 ├── components/            # Component tests
+├── e2e/                   # End-to-end tests (Playwright)
+├── helpers/               # Test helpers
 ├── integration/           # Integration tests
-├── unit/                  # Unit tests
+├── mocks/                 # Test mocks
+├── unit/                  # Unit tests (incl. accessibility-aria-button.test.ts)
+├── utils/                 # Test utilities
 ├── setup.ts              # Test setup and configuration
 └── README.md             # This file
 ```
@@ -83,29 +86,14 @@ describe('AddressSearch Component', () => {
 });
 ```
 
-### 3. Accessibility Tests (`tests/accessibility/`)
+### 3. Accessibility Tests
 
-Accessibility tests ensure the application meets WCAG 2.1 AA standards.
-
-**Coverage Goals:**
-
-- **ARIA Attributes**: 100% coverage
-- **Keyboard Navigation**: 100% coverage
-- **Screen Reader Support**: 100% coverage
-- **Color Contrast**: 100% coverage
-
-**Key Areas:**
-
-- ARIA roles and attributes
-- Keyboard event handling
-- Focus management
-- Semantic HTML structure
-- Color contrast ratios
-
-**Example:**
+Accessibility tests live under `tests/unit/` — today as
+`tests/unit/accessibility-aria-button.test.ts`, which exercises the
+`useAriaButton` action. Run them with `bun run test:accessibility`.
 
 ```typescript
-// tests/accessibility/accessibility.test.ts
+// tests/unit/accessibility-aria-button.test.ts
 describe('Accessibility Tests', () => {
 	it('should have proper ARIA attributes', () => {
 		render(AccessibleButton, { props: { label: 'Test Button' } });
@@ -224,30 +212,25 @@ const userService = new UserService(realDatabase);
 
 ```bash
 # Run all tests
-npm test
+bun run test
 
-# Run tests in watch mode
-npm run test:watch
+# Run unit tests in watch mode
+bun run test:unit
 
 # Run tests with coverage
-npm run test:coverage
+bun run test:coverage
 
-# Run specific test file
-npm test -- tests/unit/api-response.test.ts
-
-# Run tests matching pattern
-npm test -- --grep "API Response"
+# Run a specific test category
+bun run test:accessibility
+bun run test:integration
+bun run test:e2e
 ```
 
 ### CI/CD
 
-```bash
-# Run tests in CI environment
-npm run test:ci
-
-# Generate coverage report
-npm run test:coverage:ci
-```
+CI runs unit tests with coverage report-only
+(`vitest --run --config vitest.ci.config.ts --coverage`) and uploads the
+coverage report; thresholds are advisory and do not fail the build.
 
 ## Test Configuration
 
@@ -418,17 +401,8 @@ it('should not leak memory', () => {
 
 ### GitHub Actions
 
-```yaml
-# .github/workflows/test.yml
-- name: Run Tests
-  run: npm run test:ci
-
-- name: Generate Coverage Report
-  run: npm run test:coverage:ci
-
-- name: Upload Coverage
-  uses: codecov/codecov-action@v3
-```
+CI runs unit tests with coverage (report-only) and uploads the coverage
+report as an artifact.
 
 ### Coverage Thresholds
 

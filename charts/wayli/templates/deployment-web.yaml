@@ -33,11 +33,14 @@ spec:
     spec:
       {{- include "wayli.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "wayli.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- if .Values.podSecurityContext.enabled }}
       securityContext:
         runAsNonRoot: {{ .Values.podSecurityContext.runAsNonRoot }}
         runAsUser: {{ .Values.podSecurityContext.runAsUser }}
         fsGroup: {{ .Values.podSecurityContext.fsGroup }}
+        seccompProfile:
+          type: {{ .Values.podSecurityContext.seccompProfile.type }}
       {{- end }}
       {{- with .Values.web.priorityClassName }}
       priorityClassName: {{ . }}
@@ -70,6 +73,8 @@ spec:
                 {{- range .Values.containerSecurityContext.capabilities.drop }}
                 - {{ . }}
                 {{- end }}
+            seccompProfile:
+              type: {{ .Values.containerSecurityContext.seccompProfile.type }}
           {{- end }}
           ports:
             - containerPort: {{ .Values.web.service.targetPort }}

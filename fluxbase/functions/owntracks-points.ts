@@ -32,39 +32,56 @@ import {
  * and rejects before the function runs. Lookup by hash via index is
  * inherently timing-safe (no plaintext comparison happens at all).
  *
- * Returns the owning user id, or null when the token is unknown, revoked, or
- * expired.
+ * Tokens are scoped (create-device-token.sql grants 'gps:write'); a token
+ * without gps:write is reported via scopeDenied so the caller can answer 403
+ * instead of 401.
+ *
+ * Returns the owning user id (null when the token is unknown, revoked, or
+ * expired) plus whether the request was denied for a missing scope.
  */
 async function authenticateDeviceToken(
   req: Request,
   fluxbaseService: FluxbaseClient | null
-): Promise<string | null> {
+): Promise<{ userId: string | null; scopeDenied: boolean }> {
   const service = requireServiceClient(fluxbaseService, 'OWNTRACKS_POINTS');
-  if (!service) return null;
+  if (!service) return { userId: null, scopeDenied: false };
 
   const authHeader = req.headers.get('x-device-token') ?? req.headers.get('authorization') ?? '';
   const match = /^Bearer\s+(wayli_dt_[0-9a-f]{64})$/i.exec(authHeader.trim()) ??
     /^(wayli_dt_[0-9a-f]{64})$/i.exec(authHeader.trim());
-  if (!match) return null;
+  if (!match) return { userId: null, scopeDenied: false };
 
   const tokenHash = await sha256Hex(match[1].toLowerCase());
   const { data, error } = await service
     .from('device_tokens')
-    .select('id, user_id, expires_at, revoked_at')
+    .select('id, user_id, expires_at, revoked_at, scopes')
     .eq('token_hash', tokenHash)
     .maybeSingle();
 
   if (error || !data) {
     logError('Device token lookup failed', 'OWNTRACKS_POINTS', { error });
-    return null;
+    return { userId: null, scopeDenied: false };
   }
   if (data.revoked_at) {
     logError('Revoked device token used', 'OWNTRACKS_POINTS', { tokenId: data.id });
-    return null;
+    return { userId: null, scopeDenied: false };
   }
   if (data.expires_at && new Date(data.expires_at) <= new Date()) {
     logError('Expired device token used', 'OWNTRACKS_POINTS', { tokenId: data.id });
-    return null;
+    return { userId: null, scopeDenied: false };
+  }
+
+  // Scope enforcement: this endpoint writes GPS points, so the token must
+  // carry 'gps:write' (the only scope ever granted today — forward-proofing
+  // for future read-only or admin-scoped tokens). Must match the check in
+  // wayli-points.ts.
+  const scopes = Array.isArray(data.scopes) ? data.scopes : [];
+  if (!scopes.includes('gps:write')) {
+    logError('Device token lacks gps:write scope', 'OWNTRACKS_POINTS', {
+      tokenId: data.id,
+      scopes,
+    });
+    return { userId: null, scopeDenied: true };
   }
 
   // Fire-and-forget last_used_at bump — a failure here must not fail ingestion.
@@ -78,7 +95,7 @@ async function authenticateDeviceToken(
     tokenId: data.id,
     userId: data.user_id,
   });
-  return data.user_id as string;
+  return { userId: data.user_id as string, scopeDenied: false };
 }
 
 async function handler(
@@ -95,9 +112,12 @@ async function handler(
     let userId: string | null = null;
     let authMethod: 'device_token' | 'api_key' = 'api_key';
 
-    const deviceUserId = await authenticateDeviceToken(req, fluxbaseService);
-    if (deviceUserId) {
-      userId = deviceUserId;
+    const deviceAuth = await authenticateDeviceToken(req, fluxbaseService);
+    if (deviceAuth.scopeDenied) {
+      return errorResponse(403);
+    }
+    if (deviceAuth.userId) {
+      userId = deviceAuth.userId;
       authMethod = 'device_token';
     } else {
       // Legacy api_key auth also needs the service client (secret decryption

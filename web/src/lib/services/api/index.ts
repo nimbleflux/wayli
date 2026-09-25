@@ -2,7 +2,6 @@
 // This file exports all client-side API services
 
 export * from './trips-api.service';
-export * from './auth-api.service';
 export * from './geocoding-api.service';
 export * from './preferences-api.service';
 export * from './service-adapter';

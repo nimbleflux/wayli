@@ -1141,10 +1141,54 @@ export class ServiceAdapter {
 	 * Geocoding Operations - Direct Pelias API Call
 	 */
 	async searchGeocode(query: string) {
-		// Call Pelias API directly from client
-		// Use autocomplete endpoint for faster results
+		// Call Pelias API directly from client. The autocomplete endpoint only
+		// matches token prefixes, so a complete "street, city, region" phrase
+		// can legitimately return zero hits (#205) — retry the same text
+		// against the full search endpoint before reporting no results.
 		const endpoint = import.meta.env.PUBLIC_PELIAS_ENDPOINT || 'https://pelias.wayli.app';
-		const url = `${endpoint}/v1/autocomplete?text=${encodeURIComponent(query)}&size=10`;
+		let data = await this.peliasRequest(endpoint, '/v1/autocomplete', query);
+		if (!data?.features?.length) {
+			data = await this.peliasRequest(endpoint, '/v1/search', query);
+		}
+
+		// Transform Pelias GeoJSON response to a simpler format for compatibility
+		if (data?.features && Array.isArray(data.features)) {
+			return data.features.map((feature: any) => {
+				const lat = feature.geometry?.coordinates?.[1];
+				const lon = feature.geometry?.coordinates?.[0];
+				return {
+					display_name: feature.properties?.label || '',
+					lat,
+					lon,
+					// Read by the account-settings page and trip generation
+					coordinates: { lat, lng: lon },
+					name: feature.properties?.name,
+					layer: feature.properties?.layer,
+					category: feature.properties?.category,
+					confidence: feature.properties?.confidence,
+					// Include addendum for OSM venue data (leisure, amenity, tourism, etc.)
+					addendum: feature.properties?.addendum,
+					address: {
+						city: feature.properties?.locality,
+						state: feature.properties?.region,
+						country: feature.properties?.country,
+						country_code: feature.properties?.country_a,
+						postcode: feature.properties?.postalcode,
+						road: feature.properties?.street,
+						house_number: feature.properties?.housenumber
+					}
+				};
+			});
+		}
+
+		return [];
+	}
+
+	/**
+	 * GET a Pelias autocomplete/search endpoint and return the parsed JSON
+	 */
+	private async peliasRequest(endpoint: string, path: string, query: string) {
+		const url = `${endpoint}${path}?text=${encodeURIComponent(query)}&size=10`;
 
 		const response = await fetch(url, {
 			headers: {
@@ -1157,33 +1201,7 @@ export class ServiceAdapter {
 			throw new Error('Geocoding search failed');
 		}
 
-		const data = await response.json();
-
-		// Transform Pelias GeoJSON response to a simpler format for compatibility
-		if (data.features && Array.isArray(data.features)) {
-			return data.features.map((feature: any) => ({
-				display_name: feature.properties?.label || '',
-				lat: feature.geometry?.coordinates?.[1],
-				lon: feature.geometry?.coordinates?.[0],
-				name: feature.properties?.name,
-				layer: feature.properties?.layer,
-				category: feature.properties?.category,
-				confidence: feature.properties?.confidence,
-				// Include addendum for OSM venue data (leisure, amenity, tourism, etc.)
-				addendum: feature.properties?.addendum,
-				address: {
-					city: feature.properties?.locality,
-					state: feature.properties?.region,
-					country: feature.properties?.country,
-					country_code: feature.properties?.country_a,
-					postcode: feature.properties?.postalcode,
-					road: feature.properties?.street,
-					house_number: feature.properties?.housenumber
-				}
-			}));
-		}
-
-		return [];
+		return response.json();
 	}
 
 	async getExportDownloadUrl(jobId: string) {

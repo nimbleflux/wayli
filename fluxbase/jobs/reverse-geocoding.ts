@@ -387,6 +387,51 @@ export async function handler(
 			`✅ Reverse geocoding completed: ${totalSuccess} successful, ${totalErrors} errors out of ${totalProcessed} total`
 		);
 
+		// Bounded retry pass (default mode only): the default scan excludes
+		// anything with geocode_error set, which included rows flagged
+		// retryable:true by updateGeocodeWithError — those were never re-queued
+		// by anything, so a transient Pelias outage left points ungeocoded
+		// forever. Give up to RETRYABLE_LIMIT of them a second pass per run. A
+		// successful retry clears the error flag (mergeGeocodingWithExisting
+		// rebuilds the properties), a failing one keeps it for the next run.
+		if (!forceMode && !fillCountryCodesOnly) {
+			const RETRYABLE_LIMIT = 200;
+			console.log(`🔁 Re-queuing up to ${RETRYABLE_LIMIT} retryable geocode errors...`);
+			let retryQuery = db
+				.from('tracker_data')
+				.select('user_id, location, geocode, recorded_at, tracker_type, country_code, tz_diff')
+				// Match on the retryable flag alone: error features DO carry a
+				// geocoded_at timestamp (stamped at failure time), so filtering
+				// on its absence here would never match anything. Successful
+				// retries clear the flag, so they can't re-enter this pass.
+				.not('geocode->properties->>retryable', 'is', null);
+			if (!processAllUsers && userId) {
+				retryQuery = retryQuery.eq('user_id', userId);
+			}
+			const { data: retryBatch, error: retryFetchError } = await retryQuery
+				.order('recorded_at', { ascending: false })
+				.limit(RETRYABLE_LIMIT);
+			if (retryFetchError) throw retryFetchError;
+
+			if (retryBatch && retryBatch.length > 0) {
+				const retryResults = await processPointsConcurrently(db, retryBatch);
+				totalScanned += retryBatch.length;
+				totalProcessed += retryResults.processed;
+				totalSuccess += retryResults.success;
+				totalErrors += retryResults.errors;
+				console.log(
+					`🔁 Retry pass: ${retryBatch.length} retryable points re-queued (${retryResults.success} ok, ${retryResults.errors} errors)`
+				);
+				safeReportProgress(
+					job,
+					100,
+					`🌍 Re-queued ${retryBatch.length} retryable geocode errors (${retryResults.success} ok, ${retryResults.errors} errors)`
+				);
+			} else {
+				console.log(`🔁 Retry pass: no retryable geocode errors found`);
+			}
+		}
+
 		// Chain: Run incremental place visit detection after geocoding completes
 		// This directly invokes the RPC which processes new data since last refresh
 		// Pass user_id to only process that user's data (per-user watermarks)

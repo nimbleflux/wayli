@@ -13,6 +13,7 @@
  */
 
 import type { FluxbaseClient, JobUtils } from './types';
+import { dayWindowSince } from './_shared/day-window.ts';
 
 const LOOKBACK_DAYS = 1;
 const USERS_RANGE = 1000;
@@ -126,9 +127,10 @@ async function refreshUser(db: FluxbaseClient, userId: string, now: Date): Promi
 		.select('*', { count: 'exact', head: true })
 		.eq('user_id', userId);
 	const isFullRebuild = !existingCount || existingCount === 0;
-	const since = isFullRebuild || !lastProcessedAt
-		? null
-		: new Date(new Date(lastProcessedAt).getTime() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
+	// The upsert below OVERWRITES day rows, so the window must start at 00:00Z —
+	// a mid-day start would re-aggregate only the post-window slice of the
+	// earlier affected day and wipe the rest of that day's totals.
+	const since = dayWindowSince(lastProcessedAt, isFullRebuild, LOOKBACK_DAYS);
 
 	// Build a FRESH query per batch — reusing the builder across .range() calls
 	// doesn't work reliably in the fluxbase SDK.

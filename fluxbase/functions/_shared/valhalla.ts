@@ -1,4 +1,4 @@
-// fluxbase/functions/_shared/valhalla.service.ts (flat — the sync only registers top-level _shared files)
+// fluxbase/functions/_shared/valhalla.ts (flat — the sync only registers top-level _shared files; dot-free: the platform's valid_module_path constraint rejects dotted filenames)
 // Mirrors jobs/_shared/services/external/valhalla.service.ts (web has a
 // test-only mirror too). Update ALL together. Copied here because functions
 // bundle from their own tree and cannot import from ../jobs at runtime.
@@ -137,15 +137,17 @@ export interface ValhallaTraceResult {
 
 // ─── API client ─────────────────────────────────────────────────────────────
 
-/** Attributes we want from trace_attributes — the minimum for mode detection. */
+/** Attributes we want from trace_attributes — the minimum for mode detection.
+ *  edge.rail and edge.duration are intentionally NOT requested: Valhalla 3.8+
+ *  no longer recognizes them (it logs an ERROR per attribute per request).
+ *  Rail evidence comes from "RAILWAY | " clone path names instead, and edge
+ *  durations were never consumed. */
 const EDGE_ATTRIBUTES = [
 	'edge.names',
 	'edge.speed',
 	'edge.road_class',
 	'edge.use',
-	'edge.rail',
 	'edge.length',
-	'edge.duration',
 	'edge.begin_shape_index',
 	'edge.end_shape_index'
 ];
@@ -174,7 +176,14 @@ export async function traceAttributes(
 	}
 
 	const endpoint = await getValhallaEndpoint(fluxbase);
-	const endpoints = [endpoint, 'https://valhalla.wayli.app'];
+	// A self-hosted endpoint must NOT silently fail over to the hosted one —
+	// that would send raw GPS traces to a third-party server on every outage.
+	// The hosted default is only ever paired with itself.
+	const DEFAULT_VALHALLA_ENDPOINT = 'https://valhalla.wayli.app';
+	const endpoints =
+		!endpoint || endpoint === DEFAULT_VALHALLA_ENDPOINT
+			? [DEFAULT_VALHALLA_ENDPOINT]
+			: [endpoint];
 
 	// Chunk long traces (Valhalla caps at 16k shape points).
 	const chunks: ValhallaTracePoint[][] = [];

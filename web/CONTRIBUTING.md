@@ -6,7 +6,7 @@ Thank you for your interest in contributing to Wayli! This guide will help you g
 
 ### Prerequisites
 
-- **Node.js 18+** - [Download here](https://nodejs.org/)
+- **Bun** - [Install here](https://bun.sh/) (the package manager Wayli standardizes on)
 - **Git** - [Download here](https://git-scm.com/)
 - **Fluxbase** - [Get started here](https://fluxbase.eu/)
 - **Code Editor** - We recommend VS Code with the Svelte extension
@@ -23,7 +23,7 @@ Thank you for your interest in contributing to Wayli! This guide will help you g
 2. **Install Dependencies**
 
    ```bash
-   npm install
+   bun install
    ```
 
 3. **Environment Setup**
@@ -42,19 +42,25 @@ Thank you for your interest in contributing to Wayli! This guide will help you g
 
 4. **Database Setup**
 
+   The schema is declarative — it lives in `fluxbase/schema/public.sql` and is
+   reconciled by `fluxbase schema sync`. There is no `fluxbase db reset`.
+   Start a Fluxbase + Postgres stack (see the
+   [Docker Compose quick start](../README.md#quick-start)), then sync all
+   resources:
+
    ```bash
-   npx fluxbase db reset
+   bun run sync:all
    ```
 
 5. **Start Development Server**
 
    ```bash
-   npm run dev
+   bun run dev
    ```
 
 6. **Run Tests**
    ```bash
-   npm test
+   bun run test
    ```
 
 ## 📋 Development Workflow
@@ -92,7 +98,7 @@ git checkout -b feature/your-feature-name
 
 - **TypeScript**: Use strict mode, avoid `any` types
 - **Formatting**: Use Prettier (configured in project)
-- **Linting**: Follow ESLint rules
+- **Linting**: Follow the flat ESLint config (`web/eslint.config.js`) plus oxlint (`.oxlintrc.json`)
 - **Naming**: Use descriptive names, follow established conventions
 
 #### File Organization
@@ -103,77 +109,56 @@ src/
 │   ├── accessibility/       # Accessibility utilities
 │   ├── components/          # Reusable UI components
 │   ├── core/
-│   │   ├── config/          # Environment configuration
-│   │   └── fluxbase/        # Fluxbase clients
-│   ├── services/           # Business logic services
-│   ├── stores/             # Svelte stores
-│   ├── types/              # TypeScript types
-│   ├── utils/
-│   │   ├── api/            # API utilities and patterns
-│   │   └── ...             # Other utilities
-│   ├── validation/         # Zod validation schemas
-│   └── middleware/         # Request middleware
+│   │   └── config/          # Environment configuration docs (README.md)
+│   ├── rules/               # Trip/transport detection rules
+│   ├── schemas/             # Zod validation schemas
+│   ├── services/            # Business logic services
+│   ├── stores/              # Svelte stores
+│   ├── types/               # TypeScript types
+│   └── utils/
+│       └── api/             # API utilities and patterns
+├── shared/                  # Shared config, environment, and types
 ├── routes/
-│   ├── (user)/             # Protected user routes
-│   ├── api/                # API endpoints
-│   └── setup/              # Initial setup flow
-└── static/                 # Static assets
+│   ├── (user)/              # Protected user routes
+│   ├── api/                 # API endpoints (link-preview only; not served in production)
+│   └── auth/                # Auth routes
+└── static/                  # Static assets
 ```
 
 #### API Development
 
-Use the established API patterns:
+Wayli is client-side first — data access goes through the Fluxbase client SDK
+with RLS. New server logic belongs in Fluxbase RPCs, jobs, or edge functions,
+not SvelteKit API routes. For the routes that do exist, use the shared
+utilities:
 
 ```typescript
-// Use base handlers for consistent API endpoints
-export const GET: RequestHandler = createGetHandler(
-	async (context) => {
-		const { user, query } = context;
-		// Business logic here
-		return { data: result };
-	},
-	{
-		requireAuthentication: true,
-		validateQuery: paginationSchema
-	}
-);
+// Response utilities ($lib/utils/api/response)
+import { successResponse, errorResponse } from '$lib/utils/api/response';
+return successResponse(data, 200);
 
-// Use validation schemas
-export const POST: RequestHandler = createPostHandler(
-	async (context) => {
-		const { body } = context;
-		// body is already validated
-		return { result };
-	},
-	{
-		validateBody: createTripSchema
-	}
-);
+// Validation schemas ($lib/utils/api/schemas)
+import { paginationSchema } from '$lib/utils/api/schemas';
 ```
 
 #### Component Development
 
-Follow accessibility-first development:
+Follow accessibility-first development (Svelte 5 runes):
 
 ```svelte
 <script lang="ts">
-	import { useAriaButton } from '$lib/accessibility/aria-button';
-
-	export let label: string;
-	export let disabled = false;
-
-	let buttonElement: HTMLButtonElement;
-	const { buttonProps } = useAriaButton({ disabled });
+	// Svelte action: makes any element behave like an accessible button
+	let menuOpen = $state(false);
 </script>
 
-<button bind:this={buttonElement} use:buttonProps {disabled} class="btn btn-primary">
-	{label}
-</button>
+<div use:useAriaButton={{ label: 'Open menu' }} onclick={() => (menuOpen = !menuOpen)}>Menu</div>
 ```
 
 ### 4. Testing Requirements
 
 #### Test Coverage Goals
+
+Thresholds are advisory goals — CI runs coverage report-only.
 
 - **Total Coverage**: 85%+
 - **Business Logic**: 90%+
@@ -213,16 +198,16 @@ describe('UserProfileService', () => {
 
 ```bash
 # Run all tests
-npm test
+bun run test
 
 # Run with coverage
-npm run test:coverage
+bun run test:coverage
 
 # Run specific test categories
-npm test -- tests/unit/          # Unit tests
-npm test -- tests/components/    # Component tests
-npm test -- tests/accessibility/ # Accessibility tests
-npm test -- tests/integration/   # Integration tests
+bun run test:unit                            # Unit tests
+bun run test:accessibility                   # Accessibility tests (ARIA button)
+bun run test:integration                     # Integration tests
+bun run test:e2e                             # E2E tests (Playwright)
 ```
 
 ### 5. Accessibility Requirements
@@ -238,36 +223,38 @@ Use the accessibility utilities:
 
 ```typescript
 import { useAriaButton } from '$lib/accessibility/aria-button';
-import { useAriaModal } from '$lib/accessibility/aria-modal';
+import { ariaHelpers } from '$lib/accessibility/accessibility-utils';
 ```
 
 ### 6. Environment Configuration
 
-Follow the environment separation pattern:
+Wayli is a client-side SvelteKit app — all server-side work is handled by
+Fluxbase. Configuration entry points:
 
 ```typescript
-// Note: Pelias configuration is now handled directly in the service
-// Client-side can use PUBLIC_PELIAS_ENDPOINT env var (defaults to https://pelias.wayli.app)
+// Client runtime configuration
+import { config } from '$lib/config';
 
-// Server-only (private variables)
-import { validateServerEnvironment } from '$lib/core/config/server-environment';
-
-// Worker environment
-import { validateWorkerEnvironment } from '$lib/core/config/worker-environment';
+// Environment configuration
+// src/lib/environment.ts, src/shared/environment.ts,
+// src/shared/config/environment.ts
 ```
 
 **⚠️ Security Rule**: Never import `$env/static/private` in client-side code!
+Role assignment is decided server-side (the `user_roles` INSERT clamp plus the
+`ensure_user_profile` RPC bootstrap the first user as admin) — never trust
+client-sent roles.
 
 ## 🔄 Pull Request Process
 
 ### 1. Pre-PR Checklist
 
 - [ ] Code follows style guidelines
-- [ ] Tests pass (`npm test`)
-- [ ] Coverage meets requirements (`npm run test:coverage`)
-- [ ] Accessibility tests pass (`npm test -- tests/accessibility/`)
-- [ ] No TypeScript errors (`npm run check`)
-- [ ] No linting errors (`npm run lint`)
+- [ ] Tests pass (`bun run test`)
+- [ ] Coverage checked (`bun run test:coverage`)
+- [ ] Accessibility tests pass (`bun run test:accessibility`)
+- [ ] No TypeScript errors (`bun run check`)
+- [ ] No linting errors (`bun run lint`)
 - [ ] Documentation updated if needed
 
 ### 2. PR Description Template
@@ -320,7 +307,7 @@ Add screenshots for UI changes
 
 When reporting bugs, include:
 
-1. **Environment**: OS, browser, Node.js version
+1. **Environment**: OS, browser, Bun version
 2. **Steps to Reproduce**: Clear, numbered steps
 3. **Expected Behavior**: What should happen
 4. **Actual Behavior**: What actually happens

@@ -4,13 +4,13 @@ This directory contains job handler functions for Wayli's background job process
 
 ## Overview
 
-Job handlers follow the Fluxbase Jobs pattern, which will eventually run on the Fluxbase platform. Currently, these handlers are executed by Wayli's worker infrastructure via an adapter layer.
+Job handlers follow the Fluxbase Jobs pattern and run on the Fluxbase platform. They are deployed with `bun run sync:jobs` (from `web/`), which runs `fluxbase jobs sync --namespace wayli --dir ../fluxbase/jobs/`.
 
-> **Note**: Type definitions for the `Fluxbase` global API are provided in [types.d.ts](types.d.ts). TypeScript may show errors about `Fluxbase` not being found when type-checking these files, which is expected since the Fluxbase Jobs runtime isn't available yet. These handlers are designed to run on the Fluxbase platform when it's released.
+> **Note**: Type definitions for the injected handler parameters are provided in [types.d.ts](types.d.ts). The platform injects these arguments at runtime; if your editor can't resolve `FluxbaseClient` / `JobUtils` in these files, that is a tooling limitation only.
 
 ## Job Handler Pattern
 
-Each job is a single TypeScript file that exports a `handler` function:
+Each job is a single TypeScript file that exports a `handler` function. The platform injects four parameters (same shape as edge functions):
 
 ```typescript
 /**
@@ -19,20 +19,24 @@ Each job is a single TypeScript file that exports a `handler` function:
  * @fluxbase:require-role authenticated
  * @fluxbase:timeout 600
  * @fluxbase:allow-net true
- * @fluxbase:allow-read true
  */
-export async function handler(request: Request) {
+export async function handler(
+  req: Request, // raw request (payload comes from job context)
+  fluxbase: FluxbaseClient, // caller-scoped client (RLS applies)
+  fluxbaseService: FluxbaseClient, // service-role client for privileged work
+  job: JobUtils // job context, progress, cancellation
+) {
   // Get job context
-  const context = Fluxbase.getJobContext();
+  const context = job.getJobContext();
   const { payload, user } = context;
 
   // Report progress
-  Fluxbase.reportProgress(25, "Processing data...");
+  job.reportProgress(25, 'Processing data...');
 
   // Perform job logic
   const result = await processData(payload);
 
-  Fluxbase.reportProgress(100, "Complete");
+  job.reportProgress(100, 'Complete');
 
   // Return result
   return {
@@ -59,12 +63,14 @@ Restrict job submission to specific user roles:
 Maximum execution time in seconds. Default varies by platform (typically 300s).
 
 Examples:
+
 - `@fluxbase:timeout 600` - 10 minutes
 - `@fluxbase:timeout 1800` - 30 minutes
 
 ### `@fluxbase:allow-net <boolean>`
 
 Allow network access for external API calls. Required for:
+
 - Geocoding APIs (Pelias)
 - External data sources
 - Webhooks
@@ -72,6 +78,7 @@ Allow network access for external API calls. Required for:
 ### `@fluxbase:allow-read <boolean>`
 
 Allow file system read access. Required for:
+
 - Reading uploaded files
 - Processing local data
 - Export generation
@@ -80,38 +87,43 @@ Allow file system read access. Required for:
 
 Allow access to environment variables.
 
-## Fluxbase Global API
+## Job API (injected `job` parameter)
 
-Job handlers have access to the `Fluxbase` global object:
+Every handler receives a `JobUtils` instance as its fourth parameter:
 
-### `Fluxbase.getJobContext()`
+### `job.getJobContext()`
 
 Returns job execution context:
 
 ```typescript
 interface JobContext {
-  job_id: string;        // UUID of the job
-  job_name: string;      // Name of the job function
-  namespace: string;     // Job namespace
-  retry_count: number;   // Current retry attempt
-  payload: any;          // Job input data
-  user?: {              // User context (null for scheduled jobs)
-    id: string;         // User UUID
-    email: string;      // User email
-    role: string;       // User role
+  job_id: string; // UUID of the job
+  job_name: string; // Name of the job (matches filename)
+  namespace: string; // Job namespace
+  retry_count: number; // Current retry attempt
+  payload: any; // Job input data
+  user?: {
+    // User context (null for scheduled jobs)
+    id: string; // User UUID
+    email: string; // User email
+    role: string; // User role
   };
 }
 ```
 
-### `Fluxbase.reportProgress(percent: number, message: string)`
+### `job.reportProgress(percent: number, message: string)`
 
-Report job progress to the platform. Progress updates are sent to the frontend in real-time via WebSocket.
+Report job progress to the platform. Progress updates are sent to the frontend in real-time via Realtime WebSocket connections.
 
 ```typescript
-Fluxbase.reportProgress(0, "Starting import");
-Fluxbase.reportProgress(50, "Processed 5000/10000 points");
-Fluxbase.reportProgress(100, "Import complete");
+job.reportProgress(0, 'Starting import');
+job.reportProgress(50, 'Processed 5000/10000 points');
+job.reportProgress(100, 'Import complete');
 ```
+
+### `job.isCancelled()`
+
+Async check whether the job was cancelled; jobs should poll it during long work and exit gracefully.
 
 ## Submitting Jobs on Behalf of Another User
 
@@ -123,15 +135,19 @@ Jobs submitted with `onBehalfOf` will have their user context set to the specifi
 
 ```typescript
 // Example: Submit a job on behalf of another user
-await fluxbaseService.jobs.submit('reverse-geocoding', {}, {
-  namespace: 'wayli',
-  priority: 3,
-  onBehalfOf: {
-    user_id: 'target-user-uuid',
-    user_email: 'user@example.com',
-    user_role: 'authenticated'
+await fluxbaseService.jobs.submit(
+  'reverse-geocoding',
+  {},
+  {
+    namespace: 'wayli',
+    priority: 3,
+    onBehalfOf: {
+      user_id: 'target-user-uuid',
+      user_email: 'user@example.com',
+      user_role: 'authenticated'
+    }
   }
-});
+);
 ```
 
 ### Use Cases
@@ -151,14 +167,18 @@ export async function handler(req, fluxbase, fluxbaseService, job) {
 
   // Submit follow-up job on behalf of the same user
   if (context.user) {
-    await fluxbaseService.jobs.submit('follow-up-job', {}, {
-      namespace: 'wayli',
-      onBehalfOf: {
-        user_id: context.user.id,
-        user_email: context.user.email,
-        user_role: context.user.role
+    await fluxbaseService.jobs.submit(
+      'follow-up-job',
+      {},
+      {
+        namespace: 'wayli',
+        onBehalfOf: {
+          user_id: context.user.id,
+          user_email: context.user.email,
+          user_role: context.user.role
+        }
       }
-    });
+    );
   }
 }
 ```
@@ -169,13 +189,15 @@ The `target_user_id` payload field is deprecated. Use `onBehalfOf` instead:
 
 ```typescript
 // ❌ Old approach (deprecated)
-await fluxbaseService.jobs.submit('distance-calculation',
+await fluxbaseService.jobs.submit(
+  'distance-calculation',
   { target_user_id: userId },
   { namespace: 'wayli' }
 );
 
 // ✅ New approach (recommended)
-await fluxbaseService.jobs.submit('distance-calculation',
+await fluxbaseService.jobs.submit(
+  'distance-calculation',
   {},
   {
     namespace: 'wayli',
@@ -192,15 +214,16 @@ await fluxbaseService.jobs.submit('distance-calculation',
 
 ### Data Import & Export
 
-| File | Description |
-|------|-------------|
-| [data-import.ts](data-import.ts) | Unified data import supporting GeoJSON, GPX, and OwnTracks JSON formats |
-| [data-export.ts](data-export.ts) | Export user data in GeoJSON, JSON, or CSV format |
+| File                                         | Description                                                                            |
+| -------------------------------------------- | -------------------------------------------------------------------------------------- |
+| [data-import.ts](data-import.ts)             | Unified data import supporting GeoJSON, GPX, KML, OwnTracks, and FIT formats           |
+| [data-export.ts](data-export.ts)             | Export user data in GeoJSON or JSON format (downloadable file in storage)              |
+| [polarsteps-import.ts](polarsteps-import.ts) | Import a Polarsteps export (`user_data.zip`): trips, journal entries, GPS data, photos |
 
 ### Geocoding
 
-| File | Description |
-|------|-------------|
+| File                                         | Description                                        |
+| -------------------------------------------- | -------------------------------------------------- |
 | [reverse-geocoding.ts](reverse-geocoding.ts) | Batch reverse geocode location points using Pelias |
 
 #### Why Pelias?
@@ -215,34 +238,63 @@ For a deeper technical comparison of geocoding options, see [this article](https
 
 ### Trip Processing
 
-| File | Description |
-|------|-------------|
-| [trip-generation.ts](trip-generation.ts) | Detect trips from GPS data using sleep-based algorithm |
-| [trip-detection.ts](trip-detection.ts) | Alternative trip detection method |
+| File                                                                   | Description                                                                                             |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| [trip-generation.ts](trip-generation.ts)                               | Detect trips from GPS data using sleep-based algorithm                                                  |
+| [trip-detection.ts](trip-detection.ts)                                 | Alternative trip detection method with different heuristics                                             |
+| [scheduled-trip-generation.ts](scheduled-trip-generation.ts)           | Daily trip-suggestion generation for all users (also detects in-progress trips)                         |
+| [generate-trip-route.ts](generate-trip-route.ts)                       | Valhalla-snapped route shape for a single trip (privacy-clipped, stored in `trips.metadata.routeShape`) |
+| [scheduled-generate-trip-routes.ts](scheduled-generate-trip-routes.ts) | Backfill + keep-fresh route snapping for opted-in users' trips                                          |
+
+### Transport-Mode Detection
+
+| File                                                                     | Description                                                  |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| [detect-transport-mode.ts](detect-transport-mode.ts)                     | Per-user HMM-based transport-mode decoding of `tracker_data` |
+| [scheduled-detect-transport-mode.ts](scheduled-detect-transport-mode.ts) | Daily incremental transport-mode detection for all users     |
 
 ### Place Visits & POI Detection
 
-| File | Description |
-|------|-------------|
-| [detect-place-visits.ts](detect-place-visits.ts) | Detect POI visits from user location data |
-| [scheduled-detect-place-visits.ts](scheduled-detect-place-visits.ts) | Scheduled job to detect place visits for all users |
-| [clear-and-rebuild-place-visits.ts](clear-and-rebuild-place-visits.ts) | Clear and rebuild place visits data |
+| File                                                                   | Description                                                         |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| [detect-place-visits.ts](detect-place-visits.ts)                       | Detect POI visits from user location data                           |
+| [scheduled-detect-place-visits.ts](scheduled-detect-place-visits.ts)   | Daily incremental place-visit detection for all users (03:00 UTC)   |
+| [clear-and-rebuild-place-visits.ts](clear-and-rebuild-place-visits.ts) | Clear and rebuild place-visit data for all users or a specific user |
+
+### Daily Activity Aggregation
+
+| File                                                                       | Description                                                                                     |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| [refresh-daily-activity.ts](refresh-daily-activity.ts)                     | Per-user refresh of the `tracker_daily_activity` cache via the `refresh-daily-activity-sql` RPC |
+| [scheduled-refresh-daily-activity.ts](scheduled-refresh-daily-activity.ts) | Daily incremental refresh for all users (05:00 UTC), watermark-driven via `dayWindowSince`      |
+
+> Aggregation windows are computed by `_shared/day-window.ts`: `dayWindowSince`
+> floors the lookback start to UTC midnight so every affected day is
+> re-aggregated in full (upserts overwrite whole-day totals; a mid-day start
+> would clobber the earlier part of the day).
+
+### Data Sampling
+
+| File                                             | Description                                                                 |
+| ------------------------------------------------ | --------------------------------------------------------------------------- |
+| [sample-tracker-data.ts](sample-tracker-data.ts) | Nightly opt-in hybrid sampling of tracker data (distance + time thresholds) |
 
 ### Vector Embeddings (Semantic Search)
 
 Embeddings populate the `wayli-pois` knowledge base so the assistant's
 `vector_search` / RAG returns behavioral context (e.g. "where do I usually get
-morning coffee?") and can personalize trip-plan recommendations.
+morning coffee?") and can personalize trip-plan recommendations. KB documents
+are per-user (`metadata.user_id`) — retrieval filters by caller.
 
-| File | Description |
-|------|-------------|
+| File                                             | Description                                                                                                                                                                                                                       |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [sync-poi-embeddings.ts](sync-poi-embeddings.ts) | Aggregate a user's place visits per POI into behavioral docs and upsert them into the `wayli-pois` KB. Idempotent (deletes then re-adds the user's docs). Fails open with a clear message if no embedding provider is configured. |
 
 > **Prerequisite:** an AI provider with `use_for_embeddings = true` must be
 > configured in Fluxbase admin (`ai.providers`). Without it, KB `addDocument`
 > calls fail and the job exits with a clear message instead of corrupting state.
 > The job is triggered after place-visit detection; a scheduled variant for all
-> users is still TODO (see `scheduled-sync-poi-embeddings.ts` below).
+> users is still TODO (see below).
 
 #### TODO (not yet implemented)
 
@@ -251,54 +303,35 @@ morning coffee?") and can personalize trip-plan recommendations.
 - `sync-trip-embeddings.ts` / `scheduled-sync-trip-embeddings.ts` — trip-level
   semantic search. Note: the `wayli-trips` KB referenced in the deprecated
   `trip_embeddings` comment (`schema/public.sql`) does **not** exist yet and
-  must be created (`bun run sync:kb`) before these can run.
+  must be created before these can run.
 
-### User Preferences
+## Testing Jobs
 
-| File | Description |
-|------|-------------|
-| [compute-user-preferences.ts](compute-user-preferences.ts) | Compute and update user preferences based on activity |
-
-## Testing Jobs Locally
-
-Jobs can be tested locally using the worker infrastructure:
+Jobs run on the Fluxbase platform. To pick up handler changes, sync them:
 
 ```bash
-# Start worker in development mode
-npm run dev:worker
+# from web/
+bun run sync:jobs    # fluxbase jobs sync --namespace wayli --dir ../fluxbase/jobs/
 
-# Submit a test job via the API or database
+# Submit a test job via the Fluxbase client (fluxbaseService.jobs.submit) or the dashboard
 ```
-
-## Migration Status
-
-**Current State (Hybrid Mode):**
-- Job handlers in `fluxbase/jobs/` (this directory)
-- Worker infrastructure in `src/worker/` (orchestration)
-- Worker imports and executes handlers via adapter layer
-
-**Future State (Fluxbase-Managed):**
-- Job handlers remain in `fluxbase/jobs/`
-- Worker infrastructure deleted
-- Jobs submitted via `POST /api/v1/jobs/submit`
-- Fluxbase platform handles orchestration, queuing, and execution
 
 ## Development Guidelines
 
 1. **Keep handlers self-contained** - Each job should be independent
 2. **Use progress reporting** - Update progress frequently for long-running jobs
 3. **Handle errors gracefully** - Return `{ success: false, error: "message" }`
-4. **Check cancellation** - Jobs may be cancelled by users
-5. **Test thoroughly** - Ensure handlers work both locally and when deployed
+4. **Check cancellation** - Poll `job.isCancelled()` during long work
+5. **Test thoroughly** - Verify handlers against a running Fluxbase instance
 6. **Document annotations** - Always specify required permissions
 
 ## File Naming Convention
 
-Job files should match the job type name with hyphens:
+The job name must match the filename (kebab-case):
 
-- Job type: `reverse_geocoding_missing` → File: `reverse-geocoding.ts`
-- Job type: `data_import` → Files: `data-import-geojson.ts`, `data-import-gpx.ts`, etc.
-- Job type: `trip_generation` → File: `trip-generation.ts`
+- Job `reverse-geocoding` → File: `reverse-geocoding.ts`
+- Job `data-import` → File: `data-import.ts` (all formats handled by one unified job)
+- Scheduled variants are prefixed `scheduled-` and carry a `@fluxbase:schedule` cron annotation
 
 ## See Also
 

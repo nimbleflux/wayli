@@ -3,7 +3,9 @@ package io.github.nimbleflux.wayli.tracking
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.BatteryManager
+import androidx.core.content.ContextCompat
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -15,6 +17,7 @@ import androidx.work.WorkManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.nimbleflux.wayli.db.PendingPointDao
 import io.github.nimbleflux.wayli.db.PendingPointEntity
+import io.github.nimbleflux.wayli.di.FlavorCapabilities
 import io.github.nimbleflux.wayli.gps.ActivityRecognitionDriver
 import io.github.nimbleflux.wayli.gps.CapturedPoint
 import io.github.nimbleflux.wayli.gps.LocationProvider
@@ -26,6 +29,8 @@ import io.github.nimbleflux.wayli.gps.TrackingController
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -41,7 +46,8 @@ import kotlinx.coroutines.launch
  * hints (stamped onto points, adaptive intervals in the gplay provider);
  * after a stationary stretch the [StationaryTracker] pauses active updates
  * and the [StationaryResumeTrigger] (geofence on gplay) wakes tracking when
- * the user moves again.
+ * the user moves again. On foss there is no wake-up, so stationary pause is
+ * disabled entirely ([FlavorCapabilities.supportsStationaryResume]).
  */
 @Singleton
 class TrackingControllerImpl @Inject constructor(
@@ -54,14 +60,54 @@ class TrackingControllerImpl @Inject constructor(
     private val diagnostics: io.github.nimbleflux.wayli.repo.TrackingDiagnosticsRepository,
 ) : TrackingController {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // An unhandled pipeline error (provider flow dying, Room I/O) used to
+    // kill the process — and START_STICKY would restart straight into the
+    // same crash. Surface the failure and end in a consistent stopped state
+    // instead; the user (or the boot/app-open restart paths) starts again.
+    private val scope = CoroutineScope(
+        SupervisorJob() +
+            Dispatchers.IO +
+            CoroutineExceptionHandler { _, throwable ->
+                job?.cancel()
+                job = null
+                provider.stopUpdates()
+                // One-off scope: the failure path is rare and terminal.
+                CoroutineScope(Dispatchers.IO).launch {
+                    diagnostics.logEvent(
+                        "capture_error",
+                        "pipeline failed — tracking stopped: " +
+                            (throwable.message ?: throwable.javaClass.simpleName).take(200),
+                    )
+                }
+            },
+    )
     private var job: Job? = null
     private val stationaryTracker = StationaryTracker()
 
+    /** Guards the once-per-episode battery-gate event (see [maybeStopForBattery]). */
+    private var batteryGateLogged = false
+
     override fun onServiceStarted() {
-        activityDriver.start()
+        maybeStartActivityDriver()
         if (job?.isActive == true) return // already collecting (service restart)
         startCollection()
+    }
+
+    /**
+     * The activity driver only feeds hints, so without ACTIVITY_RECOGNITION
+     * (runtime-revoked, or never granted) it stays inert with a log line
+     * instead of failing the Play Services request.
+     */
+    private fun maybeStartActivityDriver() {
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.ACTIVITY_RECOGNITION,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            android.util.Log.i(TAG, "ACTIVITY_RECOGNITION not granted — activity hints disabled")
+            return
+        }
+        activityDriver.start()
     }
 
     /**
@@ -78,14 +124,29 @@ class TrackingControllerImpl @Inject constructor(
 
     private fun startCollection() {
         stationaryTracker.reset()
+        batteryGateLogged = false
         val config = configStore.get()
         job = scope.launch {
             provider.startUpdates(config).collect { point ->
-                if (passesBatteryRules(config) && !ignoresAccuracy(config, point)) {
-                    dao.insert(point.toEntity(config))
-                    diagnostics.onPointsCaptured(1)
-                    scheduleUpload(GpsUploadWorker.TRIGGER_CAPTURE)
-                    maybePauseWhenStationary(point, config)
+                // One bad fix (Room I/O, mapping failure) must not tear down
+                // the whole collection — skip it and keep capturing.
+                runCatching {
+                    if (passesBatteryRules(config)) {
+                        // A passing fix ends the gating episode; a later
+                        // failing one logs again.
+                        batteryGateLogged = false
+                        if (!ignoresAccuracy(config, point)) {
+                            dao.insert(point.toEntity(config))
+                            diagnostics.onPointsCaptured(1)
+                            scheduleUpload(GpsUploadWorker.TRIGGER_CAPTURE)
+                            maybePauseWhenStationary(point, config)
+                        }
+                    } else {
+                        maybeStopForBattery(config)
+                    }
+                }.onFailure { e ->
+                    if (e is CancellationException) throw e
+                    android.util.Log.w(TAG, "capture pipeline error: ${e.message?.take(120)}")
                 }
             }
         }
@@ -130,8 +191,14 @@ class TrackingControllerImpl @Inject constructor(
     /**
      * After [TrackingConfig.stationaryPauseMin] within the resume radius:
      * stop active collection and arm the resume trigger (geofence on gplay).
+     *
+     * Skipped when the flavor has no resume mechanism (foss — the noop
+     * trigger can't fire): a pause there would never end, silently freezing
+     * a session whose notification still claims to be active. Foss instead
+     * keeps recording through stationary stretches.
      */
     private fun maybePauseWhenStationary(point: CapturedPoint, config: TrackingConfig) {
+        if (!FlavorCapabilities.supportsStationaryResume) return
         val decision = stationaryTracker.onPoint(point, config)
         if (decision == StationaryTracker.Decision.PAUSE) {
             scope.launch {
@@ -157,6 +224,29 @@ class TrackingControllerImpl @Inject constructor(
         if (config.onlyWhileCharging && !charging) return false
         if (level != null && level <= config.batteryStopThreshold) return false
         return true
+    }
+
+    /**
+     * Battery gating used to keep the foreground service requesting at full
+     * rate while silently discarding every fix — GPS hot, notification
+     * claiming an active session, nothing recorded. Now the first drop of a
+     * gating episode is logged and updates stop (notification unchanged).
+     * Deliberately no auto-resume: the user restarts via the drawer toggle
+     * or the app; a resumed session re-reads the config.
+     */
+    private fun maybeStopForBattery(config: TrackingConfig) {
+        if (batteryGateLogged) return
+        batteryGateLogged = true
+        scope.launch {
+            diagnostics.logEvent(
+                "battery_gate",
+                "battery rules failed (threshold ${config.batteryStopThreshold}%, " +
+                    "charging-only=${config.onlyWhileCharging}) — capture paused",
+            )
+        }
+        job?.cancel()
+        job = null
+        provider.stopUpdates()
     }
 
     /** Applies the payload toggles (altitude/speed/heading/battery) from the config. */
@@ -224,6 +314,7 @@ class TrackingControllerImpl @Inject constructor(
     }
 
     private companion object {
+        const val TAG = "WayliTracking"
         const val MANUAL_FIX_TIMEOUT_MS = 30_000L
         const val IGNORE_INACCURATE_M = 100f
     }

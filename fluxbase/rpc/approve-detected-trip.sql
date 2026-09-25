@@ -25,7 +25,6 @@ SET
                 WHERE t.user_id = auth.uid()
                   AND t.recorded_at >= (trips.start_date::timestamp AT TIME ZONE 'UTC')
                   AND t.recorded_at < ((trips.end_date + INTERVAL '1 day')::timestamp AT TIME ZONE 'UTC')
-                  AND t.country_code IS NOT NULL
             ), 0)
         )
     ),

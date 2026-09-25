@@ -93,7 +93,12 @@ class FusedLocationProvider @Inject constructor(
                 }
             }
             ContextCompat.registerReceiver(context, br, IntentFilter(TRANSITION_ACTION), ContextCompat.RECEIVER_NOT_EXPORTED)
+            // requestLocationUpdates below returns void (no Task), so this is
+            // the only Play call here that can report failure — let it be seen.
             arClient.requestActivityTransitionUpdates(transitions, pi)
+                .addOnFailureListener { e ->
+                    android.util.Log.w(TAG, "activity transition updates failed: ${e.message?.take(120)}")
+                }
 
             awaitClose {
                 arClient.removeActivityTransitionUpdates(pi)
@@ -226,6 +231,7 @@ class FusedLocationProvider @Inject constructor(
     }
 
     companion object {
+        private const val TAG = "WayliFused"
         private const val TRANSITION_ACTION = "io.github.nimbleflux.wayli.ACTIVITY_TRANSITION"
         private const val TRANSITION_REQUEST_CODE = 4203
         private const val FIX_TIMEOUT_MS = 10_000L

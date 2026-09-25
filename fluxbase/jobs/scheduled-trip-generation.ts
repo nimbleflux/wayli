@@ -140,9 +140,72 @@ async function upsertOngoingTrip(
 }
 
 /**
+ * Close a stale auto-ongoing trip: the scheduled run's state machine saw the
+ * user home again (no open away span ≥ 24h), so the previously created
+ * auto-ongoing trip is completed instead of staying active forever.
+ * end_date is the return-home time from the state machine, clamped into
+ * [trip.start_date, today]. Only trips labelled 'auto-ongoing' are touched —
+ * never a user-created 'active' trip.
+ */
+async function closeAutoOngoingTrip(
+	db: FluxbaseClient,
+	userId: string,
+	returnTime: string | null
+): Promise<boolean> {
+	const today = todayDate();
+
+	// Same lookup as upsertOngoingTrip: only auto-labelled active trips.
+	const { data: existing, error: findErr } = await db
+		.from('trips')
+		.select('id, start_date, end_date')
+		.eq('user_id', userId)
+		.eq('status', 'active')
+		.contains('labels', [ONGOING_LABEL])
+		.lte('start_date', today)
+		.order('start_date', { ascending: false })
+		.limit(1);
+
+	if (findErr) {
+		console.warn(`[scheduled-trip-gen] find stale active trip failed for ${userId}:`, findErr);
+		return false;
+	}
+
+	const row = (existing as any[] | null)?.[0];
+	if (!row) return false;
+
+	const startDate = String(row.start_date).slice(0, 10);
+	const endDate = returnTime ? returnTime.slice(0, 10) : today;
+	// Clamp into [trip.start_date, today] (lexicographic compare is safe for
+	// ISO date strings — Math.min/Math.max would coerce to numbers).
+	let clampedEnd = endDate;
+	if (clampedEnd < startDate) clampedEnd = startDate;
+	if (clampedEnd > today) clampedEnd = today;
+
+	const { error: updErr } = await db
+		.from('trips')
+		.update({
+			status: 'completed',
+			end_date: clampedEnd,
+			updated_at: new Date().toISOString()
+		})
+		.eq('id', row.id);
+
+	if (updErr) {
+		console.warn(`[scheduled-trip-gen] close active trip failed for ${userId}:`, updErr);
+		return false;
+	}
+	console.log(
+		`[scheduled-trip-gen] Closed auto-ongoing trip ${row.id} (${startDate} → ${clampedEnd}) for ${userId}`
+	);
+	return true;
+}
+
+/**
  * Insert closed-trip suggestions as 'pending', skipping any whose (user_id,
- * start_date, end_date) already exists as pending to avoid duplicates across
- * runs. Returns the number inserted.
+ * start_date, end_date) already exists as pending, completed, or active to
+ * avoid duplicates across runs (e.g. the just-closed auto-ongoing trip) — the
+ * unique index on trips backs this up at the schema level. Returns the number
+ * inserted.
  */
 async function insertPendingSuggestions(
 	db: FluxbaseClient,
@@ -151,12 +214,13 @@ async function insertPendingSuggestions(
 ): Promise<number> {
 	if (trips.length === 0) return 0;
 
-	// Fetch existing pending trip date windows for this user to dedupe.
+	// Fetch existing trip date windows for this user to dedupe. Rejected
+	// trips stay re-suggestible on purpose (the user may change their mind).
 	const { data: existing, error: listErr } = await db
 		.from('trips')
 		.select('start_date, end_date')
 		.eq('user_id', userId)
-		.eq('status', 'pending');
+		.in('status', ['pending', 'completed', 'active']);
 	if (listErr) {
 		console.warn(`[scheduled-trip-gen] list pending failed for ${userId}:`, listErr);
 		return 0;
@@ -224,6 +288,7 @@ export async function handler(
 
 	let activeCreated = 0;
 	let activeUpdated = 0;
+	let activeClosed = 0;
 	let pendingInserted = 0;
 	let processed = 0;
 
@@ -250,23 +315,43 @@ export async function handler(
 							homeAddress.address?.city ||
 							homeAddress.address?.town ||
 							homeAddress.address?.village,
-						country_code: homeAddress.address?.country
+						// ISO code, not the country name — isHomeCountryTrip
+						// compares this against point geocode country codes.
+						country_code: homeAddress.address?.country_code?.toUpperCase()
 					}
 				};
 				tripDetectionService.setCustomHomeAddress(customHomeLocation);
 			}
 
-			// 1. Closed-trip suggestions over the recent window.
-			const detected = await tripDetectionService.detectTrips(userId, startDate, endDate);
-			pendingInserted += await insertPendingSuggestions(db, userId, detected);
+			// 1. Closed-trip suggestions over the recent window. Active trips
+			// are NOT excluded (excludeActiveTrips:false): the ongoing-trip
+			// lifecycle below needs the away data inside the active trip's
+			// range to keep rolling / close it on return.
+			const detected = await tripDetectionService.detectTrips(userId, startDate, endDate, {
+				excludeActiveTrips: false
+			});
 
-			// 2. Ongoing-trip detection (user currently away).
+			// 2. Ongoing-trip lifecycle — runs BEFORE inserting suggestions so
+			// a just-closed auto-ongoing trip is already in the dedup set.
 			const ongoing = await tripDetectionService.getOngoingTrip();
 			if (ongoing) {
 				const res = await upsertOngoingTrip(db, userId, ongoing);
 				if (res === 'created') activeCreated++;
 				else if (res === 'updated') activeUpdated++;
+			} else if (!tripDetectionService.isCurrentlyAway()) {
+				// User is home again: close the auto-ongoing trip so it
+				// doesn't stay active forever (and doesn't get duplicated as
+				// a pending suggestion for the same dates).
+				const closed = await closeAutoOngoingTrip(
+					db,
+					userId,
+					tripDetectionService.getHomeReturnTime()
+				);
+				if (closed) activeClosed++;
 			}
+
+			// 3. Insert closed-trip suggestions as 'pending'.
+			pendingInserted += await insertPendingSuggestions(db, userId, detected);
 
 			processed++;
 		} catch (e) {
@@ -274,7 +359,7 @@ export async function handler(
 		}
 	}
 
-	const summary = `Done: ${processed} users, ${pendingInserted} new suggestions, ${activeCreated} active trips created, ${activeUpdated} updated`;
+	const summary = `Done: ${processed} users, ${pendingInserted} new suggestions, ${activeCreated} active trips created, ${activeUpdated} updated, ${activeClosed} closed`;
 	job.reportProgress(100, summary);
 	console.log(`✅ Scheduled run complete: ${summary}`);
 	return {
@@ -283,7 +368,8 @@ export async function handler(
 			users_processed: processed,
 			pending_inserted: pendingInserted,
 			active_created: activeCreated,
-			active_updated: activeUpdated
+			active_updated: activeUpdated,
+			active_closed: activeClosed
 		}
 	};
 }

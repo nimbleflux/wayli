@@ -302,11 +302,4 @@ export class ExportService {
 			return signedUrl;
 		}
 	}
-
-	static async cleanupExpiredExports(): Promise<number> {
-		const { data, error } = await fluxbase.rpc('cleanup_expired_exports');
-
-		if (error) throw error;
-		return Number(data) || 0;
-	}
 }

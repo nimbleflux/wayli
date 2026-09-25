@@ -2,7 +2,7 @@
   "imports": {
     "@streamparser/json": "npm:@streamparser/json@^0.0.22",
     "geojson": "npm:@types/geojson",
-    "jszip": "npm:jszip",
+    "jszip": "npm:jszip@3.10.1",
     "_shared/": "./_shared/"
   },
   "compilerOptions": {

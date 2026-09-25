@@ -3,8 +3,12 @@
 /**
  * 🔍 Environment Separation Checker
  *
- * This script checks for cross-environment imports to ensure
- * client, server, and worker code remain properly separated.
+ * This script checks SvelteKit's real client/server boundary:
+ * - `src/lib` and `src/shared` are treated as client-safe code.
+ * - Files under `src/routes` and `src/shared` must NOT import from
+ *   `$lib/server/*` or the `server-only` module.
+ * - SvelteKit server files (`+server.ts`, `*.server.ts`) are excluded —
+ *   they run on the server by definition and may use `$lib/server`.
  */
 
 import fs from 'fs';
@@ -16,28 +20,24 @@ const __dirname = path.dirname(__filename);
 
 const SRC_DIR = path.join(__dirname, '..', 'src');
 
-// Environment-specific directories
+// Directories to check (src/lib is treated as client-safe and is not scanned)
 const ENVIRONMENTS = {
-	client: path.join(SRC_DIR, 'client'),
-	server: path.join(SRC_DIR, 'server'),
-	worker: path.join(SRC_DIR, 'worker'),
+	client: path.join(SRC_DIR, 'routes'),
 	shared: path.join(SRC_DIR, 'shared')
 };
 
-// Import patterns that indicate cross-environment violations
+// Import patterns that indicate cross-environment violations.
+// Files in `client` (routes) and `shared` must not reach server-only code.
 const VIOLATION_PATTERNS = [
-	// Client importing server/worker
-	{ from: 'client', to: ['server', 'worker'], pattern: /\$lib\/(server|worker)/ },
-	// Server importing client/worker
-	{ from: 'server', to: ['client', 'worker'], pattern: /\$lib\/(client|worker)/ },
-	// Worker importing client/server
-	{ from: 'worker', to: ['client', 'server'], pattern: /\$lib\/(client|server)/ },
-	// Shared importing environment-specific
-	{ from: 'shared', to: ['client', 'server', 'worker'], pattern: /\$lib\/(client|server|worker)/ }
+	{ from: 'client', pattern: /\$lib\/server|['"]server-only['"]/ },
+	{ from: 'shared', pattern: /\$lib\/server|['"]server-only['"]/ }
 ];
 
 // File extensions to check
 const FILE_EXTENSIONS = ['.ts', '.js', '.svelte'];
+
+// SvelteKit files that run on the server and may legitimately import $lib/server
+const SERVER_FILE_PATTERN = /(\.server\.(ts|js)$|^\+server\.(ts|js)$)/;
 
 function findFiles(dir, extensions = []) {
 	const files = [];
@@ -61,36 +61,28 @@ function findFiles(dir, extensions = []) {
 }
 
 function checkFileForViolations(filePath, environment) {
+	// Skip SvelteKit server files — they are allowed to import $lib/server
+	if (SERVER_FILE_PATTERN.test(path.basename(filePath))) return [];
+
 	const content = fs.readFileSync(filePath, 'utf8');
 	const violations = [];
 
 	for (const pattern of VIOLATION_PATTERNS) {
 		if (pattern.from === environment) {
-			const matches = content.match(pattern.pattern);
-			if (matches) {
-				const forbiddenEnv = matches[1];
-				if (pattern.to.includes(forbiddenEnv)) {
-					violations.push({
-						type: 'cross-environment-import',
-						message: `${environment} code importing from ${forbiddenEnv}`,
-						match: matches[0],
-						line: content.substring(0, content.indexOf(matches[0])).split('\n').length
-					});
-				}
+			const regex = new RegExp(pattern.pattern.source, 'g');
+			let match;
+			while ((match = regex.exec(content)) !== null) {
+				violations.push({
+					type: 'cross-environment-import',
+					message: `${environment} code importing server-only module`,
+					match: match[0],
+					line: content.substring(0, match.index).split('\n').length
+				});
 			}
 		}
 	}
 
 	return violations;
-}
-
-function getEnvironmentFromPath(filePath) {
-	for (const [env, envPath] of Object.entries(ENVIRONMENTS)) {
-		if (filePath.startsWith(envPath)) {
-			return env;
-		}
-	}
-	return 'unknown';
 }
 
 function main() {

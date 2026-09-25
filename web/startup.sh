@@ -5,6 +5,19 @@
 
 set -e
 
+# Escape sed replacement metacharacters (&, |, backslash) so runtime values
+# (URLs with query strings, keys containing specials) can't corrupt the
+# expression or inject into the generated config.
+sed_safe() {
+    printf '%s' "$1" | sed -e 's/[&|\\]/\\&/g'
+}
+
+# Replace a {{PLACEHOLDER}} in a file with a runtime value, safely.
+replace_placeholder() {
+    local file="$1" placeholder="$2" value="$3"
+    sed -i "s|${placeholder}|$(sed_safe "$value")|g" "$file"
+}
+
 # Configure nginx for runtime
 configure_nginx() {
     echo "Configuring nginx for runtime..."
@@ -31,8 +44,8 @@ configure_nginx() {
     # Copy nginx config to writable location and inject CSP
     echo "Configuring Content Security Policy..."
     cp /etc/nginx/nginx.conf /tmp/nginx/nginx.conf
-    sed -i "s|{{FLUXBASE_DOMAIN}}|$FLUXBASE_DOMAIN|g" /tmp/nginx/nginx.conf
-    sed -i "s|{{PORT}}|${PORT:-80}|g" /tmp/nginx/nginx.conf
+    replace_placeholder /tmp/nginx/nginx.conf '{{FLUXBASE_DOMAIN}}' "$FLUXBASE_DOMAIN"
+    replace_placeholder /tmp/nginx/nginx.conf '{{PORT}}' "${PORT:-80}"
 
     # Copy HTML files to writable location for env var injection
     echo "Copying static files..."
@@ -47,8 +60,8 @@ configure_nginx() {
     for file in *.html; do
         if [ -f "$file" ]; then
             echo "   Processing $file..."
-            sed -i "s|{{FLUXBASE_PUBLIC_BASE_URL}}|${FLUXBASE_PUBLIC_BASE_URL}|g" "$file"
-            sed -i "s|{{FLUXBASE_ANON_KEY}}|${PUBLIC_FLUXBASE_ANON_KEY:-$FLUXBASE_ANON_KEY}|g" "$file"
+            replace_placeholder "$file" '{{FLUXBASE_PUBLIC_BASE_URL}}' "${FLUXBASE_PUBLIC_BASE_URL}"
+            replace_placeholder "$file" '{{FLUXBASE_ANON_KEY}}' "${PUBLIC_FLUXBASE_ANON_KEY:-$FLUXBASE_ANON_KEY}"
         fi
     done
 
@@ -56,8 +69,8 @@ configure_nginx() {
     # Fluxbase backend through (same placeholders as the HTML).
     if [ -f wayli-app.json ]; then
         echo "   Processing wayli-app.json..."
-        sed -i "s|{{FLUXBASE_PUBLIC_BASE_URL}}|${FLUXBASE_PUBLIC_BASE_URL}|g" wayli-app.json
-        sed -i "s|{{FLUXBASE_ANON_KEY}}|${PUBLIC_FLUXBASE_ANON_KEY:-$FLUXBASE_ANON_KEY}|g" wayli-app.json
+        replace_placeholder wayli-app.json '{{FLUXBASE_PUBLIC_BASE_URL}}' "${FLUXBASE_PUBLIC_BASE_URL}"
+        replace_placeholder wayli-app.json '{{FLUXBASE_ANON_KEY}}' "${PUBLIC_FLUXBASE_ANON_KEY:-$FLUXBASE_ANON_KEY}"
     fi
 
     echo "Nginx configuration complete"
@@ -71,11 +84,15 @@ sync_all() {
         return 0
     fi
 
-    # Verify environment variables are set
+    # Verify environment variables are set. Fail CLOSED: a container that
+    # boots without sync will have no schema, no RPCs, no RLS — silently
+    # serving that state is worse than crashing (orchestrators restart us,
+    # and the /health endpoint stays 503 so nothing routes here). Operators
+    # who intentionally skip sync set SKIP_SYNC=true, handled above.
     if [ -z "$FLUXBASE_BASE_URL" ] || [ -z "$FLUXBASE_SERVICE_ROLE_KEY" ]; then
-        echo "Warning: FLUXBASE_BASE_URL or FLUXBASE_SERVICE_ROLE_KEY not set"
-        echo "Skipping sync - resources will need to be synced manually"
-        return 0
+        echo "Error: FLUXBASE_BASE_URL and FLUXBASE_SERVICE_ROLE_KEY must be set"
+        echo "(set SKIP_SYNC=true to intentionally run without resource sync)"
+        exit 1
     fi
 
     echo "Syncing all Fluxbase resources using CLI..."
@@ -83,6 +100,24 @@ sync_all() {
     # Set CLI environment variables (CLI expects FLUXBASE_SERVER and FLUXBASE_TOKEN)
     export FLUXBASE_SERVER="$FLUXBASE_BASE_URL"
     export FLUXBASE_TOKEN="$FLUXBASE_SERVICE_ROLE_KEY"
+
+    # Wait for the Fluxbase server to finish bootstrapping. /health can go
+    # green while the server is still creating its own tables (functions,
+    # shared_modules, …) — syncing against that half-initialized state fails
+    # with "relation ... does not exist". A short settle delay after /health
+    # plus the container-level restart make the race self-healing.
+    echo "Waiting for the Fluxbase server to become ready..."
+    local waits=0
+    until curl -fsS "${FLUXBASE_SERVER%/}/health" > /dev/null 2>&1; do
+        waits=$((waits + 1))
+        if [ "$waits" -ge 60 ]; then
+            echo "Error: Fluxbase server not ready after 120s"
+            exit 1
+        fi
+        sleep 2
+    done
+    sleep 3
+    echo "Fluxbase server is ready"
 
     # Run fluxbase CLI sync for each resource type
     local failed=0
@@ -105,9 +140,6 @@ sync_all() {
     fluxbase extensions enable postgis_topology 2>/dev/null || true
     fluxbase schema sync --dir /app/fluxbase/schema --namespace wayli || failed=1
 
-    echo "Syncing MCP tools..."
-    fluxbase mcp tools sync --dir /app/fluxbase/mcp-tools --namespace wayli || failed=1
-
     if [ "$failed" -eq 1 ]; then
         echo "Error: One or more sync operations failed"
         echo "Cannot continue - resources may be out of sync"
@@ -126,10 +158,11 @@ ensure_knowledge_base() {
 
     echo "Ensuring knowledge base exists..."
 
-    # Create the wayli-pois knowledge base if it doesn't exist.
-    # Match the name field with optional whitespace around the colon so the
-    # check is robust to both compact and pretty-printed JSON. (jq would be
-    # cleaner but is not installed in the production web image.)
+    # Create the wayli-pois knowledge base if it doesn't exist (the
+    # sync-poi-embeddings job needs it). Match the name field with optional
+    # whitespace around the colon so the check is robust to both compact and
+    # pretty-printed JSON. (jq would be cleaner but is not installed in the
+    # production web image.)
     KB_LIST_JSON=$(fluxbase kb list --namespace wayli -o json 2>/dev/null || true)
     if printf '%s' "$KB_LIST_JSON" | grep -qE '"name"[[:space:]]*:[[:space:]]*"wayli-pois"'; then
         echo "Knowledge base already exists"
@@ -141,42 +174,27 @@ ensure_knowledge_base() {
             --chunk-size 500 \
             --embedding-model text-embedding-3-small 2>&1; then
             echo "Knowledge base created successfully"
-            # Re-list so the ID extraction below can find the just-created KB.
-            KB_LIST_JSON=$(fluxbase kb list --namespace wayli -o json 2>/dev/null || true)
         else
-            echo "Warning: Failed to create knowledge base, skipping table exports"
+            echo "Warning: Failed to create knowledge base (embedding features degraded)"
             return 0
         fi
     fi
 
-    # Get the KB ID for table exports. Use the wayli-pois object's id when
-    # possible; fall back to the first id in the listing. All extraction uses
-    # `|| true` and `if [ -z ]` guards because `grep` returns a non-zero exit
-    # code on no-match, which would abort the script under `set -e`.
-    KB_ID=""
-    # Match the whole wayli-pois object ({...}) regardless of id/name order.
-    KB_OBJ=$(printf '%s' "$KB_LIST_JSON" | grep -oE '\{[^{}]*"wayli-pois"[^{}]*\}' | head -1 || true)
-    if [ -n "$KB_OBJ" ]; then
-        KB_ID=$(printf '%s' "$KB_OBJ" | grep -oE '"id"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | grep -oE '[0-9a-f-]{36}' | head -1 || true)
-    fi
-    if [ -z "$KB_ID" ]; then
-        KB_ID=$(printf '%s' "$KB_LIST_JSON" | grep -oE '"id"[[:space:]]*:[[:space:]]*"[0-9a-f-]{36}"' | head -1 | grep -oE '[0-9a-f-]{36}' || true)
-    fi
-
-    if [ -z "$KB_ID" ]; then
-        echo "Warning: Could not get KB ID for table exports"
-        return 0
-    fi
-
-    echo "Exporting tables to knowledge base..."
-    if ! fluxbase kb export-table "$KB_ID" --schema public --table place_visits --include-fks --sample-rows 3 2>/dev/null; then
-        echo "  Note: place_visits export skipped (table may not exist yet)"
-    fi
-    if ! fluxbase kb export-table "$KB_ID" --schema public --table user_preferences --include-fks 2>/dev/null; then
-        echo "  Note: user_preferences export skipped (table may not exist yet)"
-    fi
+    # NOTE: no kb export-table here. Boot-time exports of place_visits /
+    # user_preferences wrote real user rows into the instance-global KB with
+    # no user scoping — the chatbot RAG would serve one user's visits to
+    # another. Per-user documents are embedded by the sync-poi-embeddings job,
+    # which stamps metadata.user_id so retrieval filters per caller.
 
     echo "Knowledge base ready"
+}
+
+# Mark the container healthy for the nginx /health endpoint. Written only
+# after resource sync has succeeded (or was intentionally skipped); until the
+# file exists, /health answers 503 so orchestrators don't route to a container
+# whose schema/RPCs never synced.
+mark_healthy() {
+    printf 'healthy\n' > /tmp/nginx/health
 }
 
 # Start nginx in foreground
@@ -189,4 +207,5 @@ start_nginx() {
 configure_nginx
 sync_all
 ensure_knowledge_base
+mark_healthy
 start_nginx

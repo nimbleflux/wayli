@@ -19,6 +19,7 @@ Run the setup script to generate all required secrets:
 ```
 
 The script will prompt you for:
+
 - **FLUXBASE_PUBLIC_BASE_URL**: Public URL for the API (default: `http://localhost:8080`)
 - **FLUXBASE_BASE_URL**: Internal URL for container communication (default: `http://fluxbase:8080`)
 
@@ -47,17 +48,18 @@ docker compose pull && docker compose up -d   # Update to latest version
 ## Data Persistence
 
 Data is stored in Docker named volumes:
+
 - `wayli_db-data`: PostgreSQL database
 - `wayli_storage-data`: File storage
 
 ### Backup
 
 ```bash
-# Database
-docker compose exec db pg_dump -U postgres postgres > backup.sql
+# Database (service: postgres, default user/db: fluxbase)
+docker compose exec postgres pg_dump -U fluxbase fluxbase > backup.sql
 
 # Restore
-docker compose exec -T db psql -U postgres postgres < backup.sql
+docker compose exec -T postgres psql -U fluxbase fluxbase < backup.sql
 ```
 
 ## Troubleshooting

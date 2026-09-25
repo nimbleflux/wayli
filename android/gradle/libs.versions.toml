@@ -15,7 +15,8 @@ workmanager = "2.10.0"
 # none of its APIs). The 2026.9.5/
 # 2026.9.6 coordinates were partial MANUAL publishes from an incomplete chain
 # (missing the transport passthrough) — never pin those. Prefer release-CI
-# artifacts only.
+# artifacts only. 2026.9.6 released with publish_kotlin_sdk off (gpr publish
+# broken since 2026.9.4), so no release-CI artifact exists — stay on 2026.9.3.
 fluxbase-kotlin = "2026.9.3"
 detekt = "1.23.7"
 maplibre = "11.8.0"

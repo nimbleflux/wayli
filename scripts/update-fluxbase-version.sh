@@ -15,37 +15,46 @@ NEW_VERSION="$1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
+# GNU sed (Linux) rejects BSD's empty-backup-suffix form `sed -i ''`; BSD sed
+# (macOS) requires it. Pick the right form once and use it everywhere below.
+if sed --version >/dev/null 2>&1; then
+    SED_I=(-i)
+else
+    SED_I=(-i '')
+fi
+sed_inplace() { sed "${SED_I[@]}" "$@"; }
+
 echo "Updating Fluxbase to version: $NEW_VERSION"
 echo ""
 
 # Update .devcontainer/docker-compose.yml (fallback version in env var syntax)
 echo "Updating .devcontainer/docker-compose.yml..."
-sed -i '' "s|FLUXBASE_VERSION:-[0-9a-zA-Z.-]*}|FLUXBASE_VERSION:-$NEW_VERSION}|g" "$ROOT_DIR/.devcontainer/docker-compose.yml"
+sed_inplace "s|FLUXBASE_VERSION:-[0-9a-zA-Z.-]*}|FLUXBASE_VERSION:-$NEW_VERSION}|g" "$ROOT_DIR/.devcontainer/docker-compose.yml"
 
 # Update .devcontainer/Dockerfile (Fluxbase CLI version)
 echo "Updating .devcontainer/Dockerfile..."
-sed -i '' "s|ARG FLUXBASE_CLI_VERSION=v[0-9a-zA-Z.-]*|ARG FLUXBASE_CLI_VERSION=v$NEW_VERSION|g" "$ROOT_DIR/.devcontainer/Dockerfile"
+sed_inplace "s|ARG FLUXBASE_CLI_VERSION=v[0-9a-zA-Z.-]*|ARG FLUXBASE_CLI_VERSION=v$NEW_VERSION|g" "$ROOT_DIR/.devcontainer/Dockerfile"
 
 # Update deploy/docker-compose/docker-compose.yml
 echo "Updating deploy/docker-compose/docker-compose.yml..."
-sed -i '' "s|ghcr.io/nimbleflux/fluxbase:[0-9a-zA-Z.-]*|ghcr.io/nimbleflux/fluxbase:$NEW_VERSION|g" "$ROOT_DIR/deploy/docker-compose/docker-compose.yml"
+sed_inplace "s|ghcr.io/nimbleflux/fluxbase:[0-9a-zA-Z.-]*|ghcr.io/nimbleflux/fluxbase:$NEW_VERSION|g" "$ROOT_DIR/deploy/docker-compose/docker-compose.yml"
 
 # Update charts/wayli/Chart.yaml (dependency only — anchored to the indented,
 # quoted form; the chart's own unquoted `version:` must not be touched)
 echo "Updating charts/wayli/Chart.yaml..."
-sed -i '' "s|^    version: '[0-9a-zA-Z.-]*'|    version: '$NEW_VERSION'|" "$ROOT_DIR/charts/wayli/Chart.yaml"
+sed_inplace "s|^    version: '[0-9a-zA-Z.-]*'|    version: '$NEW_VERSION'|" "$ROOT_DIR/charts/wayli/Chart.yaml"
 
 # Update Dockerfile (Fluxbase CLI version ARG)
 echo "Updating Dockerfile..."
-sed -i '' "s|ARG FLUXBASE_CLI_VERSION=v[0-9a-zA-Z.-]*|ARG FLUXBASE_CLI_VERSION=v$NEW_VERSION|g" "$ROOT_DIR/Dockerfile"
+sed_inplace "s|ARG FLUXBASE_CLI_VERSION=v[0-9a-zA-Z.-]*|ARG FLUXBASE_CLI_VERSION=v$NEW_VERSION|g" "$ROOT_DIR/Dockerfile"
 
 # Update .github/workflows/release.yml (CLI version env for the checksummed install)
 echo "Updating .github/workflows/release.yml..."
-sed -i '' "s|FLUXBASE_CLI_VERSION: v[0-9a-zA-Z.-]*|FLUXBASE_CLI_VERSION: v$NEW_VERSION|g" "$ROOT_DIR/.github/workflows/release.yml"
+sed_inplace "s|FLUXBASE_CLI_VERSION: v[0-9a-zA-Z.-]*|FLUXBASE_CLI_VERSION: v$NEW_VERSION|g" "$ROOT_DIR/.github/workflows/release.yml"
 
 # Update android/gradle/libs.versions.toml (fluxbase-kotlin SDK, bare version)
 echo "Updating android/gradle/libs.versions.toml..."
-sed -i '' "s|fluxbase-kotlin = \"[0-9a-zA-Z.-]*\"|fluxbase-kotlin = \"$NEW_VERSION\"|" "$ROOT_DIR/android/gradle/libs.versions.toml"
+sed_inplace "s|fluxbase-kotlin = \"[0-9a-zA-Z.-]*\"|fluxbase-kotlin = \"$NEW_VERSION\"|" "$ROOT_DIR/android/gradle/libs.versions.toml"
 
 # Update Helm dependencies
 echo ""
@@ -68,16 +77,16 @@ SDK_PACKAGE="@nimbleflux/fluxbase-sdk"
 SDK_REACT_PACKAGE="@nimbleflux/fluxbase-sdk-react"
 
 if grep -q "$SDK_PACKAGE" "$ROOT_DIR/web/package.json"; then
-    sed -i '' "s|\"$SDK_PACKAGE\": \"[\\^]*[0-9a-zA-Z._-]*\"|\"$SDK_PACKAGE\": \"$NEW_VERSION\"|g" "$ROOT_DIR/web/package.json"
+    sed_inplace "s|\"$SDK_PACKAGE\": \"[\\^]*[0-9a-zA-Z._-]*\"|\"$SDK_PACKAGE\": \"$NEW_VERSION\"|g" "$ROOT_DIR/web/package.json"
     echo "  Updated $SDK_PACKAGE to $NEW_VERSION"
 else
     # Add the package to dependencies
-    sed -i '' "s|\"dependencies\": {|\"dependencies\": {\n\t\t\"$SDK_PACKAGE\": \"$NEW_VERSION\",|g" "$ROOT_DIR/web/package.json"
+    sed_inplace "s|\"dependencies\": {|\"dependencies\": {\n\t\t\"$SDK_PACKAGE\": \"$NEW_VERSION\",|g" "$ROOT_DIR/web/package.json"
     echo "  Added $SDK_PACKAGE $NEW_VERSION"
 fi
 
 if grep -q "$SDK_REACT_PACKAGE" "$ROOT_DIR/web/package.json"; then
-    sed -i '' "s|\"$SDK_REACT_PACKAGE\": \"[\\^]*[0-9a-zA-Z._-]*\"|\"$SDK_REACT_PACKAGE\": \"$NEW_VERSION\"|g" "$ROOT_DIR/web/package.json"
+    sed_inplace "s|\"$SDK_REACT_PACKAGE\": \"[\\^]*[0-9a-zA-Z._-]*\"|\"$SDK_REACT_PACKAGE\": \"$NEW_VERSION\"|g" "$ROOT_DIR/web/package.json"
     echo "  Updated $SDK_REACT_PACKAGE to $NEW_VERSION"
 else
     echo "  Note: $SDK_REACT_PACKAGE not found in package.json (skipping)"
@@ -93,8 +102,8 @@ bun install
 echo ""
 echo "Updating fluxbase/functions/deno.json..."
 SDK_PACKAGE="npm:@nimbleflux/fluxbase-sdk"
-sed -i '' "s|\"$SDK_PACKAGE@[0-9a-zA-Z.-]*\"|\"$SDK_PACKAGE@$NEW_VERSION\"|g" "$ROOT_DIR/fluxbase/functions/deno.json"
-sed -i '' "s|\"$SDK_PACKAGE@[0-9a-zA-Z.-]*/\"|\"$SDK_PACKAGE@$NEW_VERSION/\"|g" "$ROOT_DIR/fluxbase/functions/deno.json"
+sed_inplace "s|\"$SDK_PACKAGE@[0-9a-zA-Z.-]*\"|\"$SDK_PACKAGE@$NEW_VERSION\"|g" "$ROOT_DIR/fluxbase/functions/deno.json"
+sed_inplace "s|\"$SDK_PACKAGE@[0-9a-zA-Z.-]*/\"|\"$SDK_PACKAGE@$NEW_VERSION/\"|g" "$ROOT_DIR/fluxbase/functions/deno.json"
 echo "  Updated SDK to $NEW_VERSION"
 
 echo ""

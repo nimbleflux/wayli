@@ -301,19 +301,19 @@ export class TripDetectionService {
 				details: {}
 			});
 
-			// Fluxbase's REST grammar has no reliable NOT-BETWEEN. The
-			// `not.between` filter operator is not part of the server-side
-			// filter grammar (it degrades to a nonsense equality that matches
-			// ALL rows — verified in Fluxbase source,
-			// internal/api/query_parser_filter.go), and nested
-			// `or=(and(...),and(...))` groups lose their OR semantics there
-			// (each nested and() is parsed with IsOr=false, so all leaves are
-			// ANDed together). So exclusion of already-tripped date ranges is
-			// computed arithmetically: count ALL points in the window once,
-			// count the points INSIDE each excluded range with plain gte/lte
-			// filters (ranges pre-merged below so overlapping trips don't
-			// double-count), and subtract. The batch query further down skips
-			// in-range points client-side for the same reason.
+			// Exclusion of already-tripped date ranges is computed arithmetically:
+			// count ALL points in the window once, count the points INSIDE each
+			// excluded range with plain gte/lte filters, and subtract.
+			//
+			// History: `not.between` was never part of the server filter grammar
+			// and silently degraded to a match-all equality (Fluxbase
+			// #code-review-2026-09 added proper between/not.between support in
+			// 2026.9.3, plus loud failures on unknown operators). We keep the
+			// count-and-subtract approach anyway: per-range gte/lte counts are
+			// server-side ANDed with the window bounds (or-groups with between
+			// leaves remain unreliable), and pre-merging the ranges keeps
+			// overlapping trips from double-counting. The batch query further
+			// down skips in-range points client-side for the same reason.
 			const { count: windowPointCount, error: countError } = await this.fluxbase
 				.from('tracker_data')
 				.select('recorded_at', { count: 'exact', head: true })

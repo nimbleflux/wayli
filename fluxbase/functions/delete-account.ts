@@ -1,23 +1,28 @@
 /**
- * Self-service account deletion (Play Data Safety requires a working,
- * user-initiated deletion path).
+ * Self-service account deletion — phase 1 of 2 (tenant-side preparation).
  *
  * Deletion order matters:
- *   1. Storage objects are removed FIRST, while trip_media rows still exist
- *      to enumerate them (object storage does not cascade).
- *   2. Knowledge-base behavioral docs (tagged user:<id> by the
- *      sync-poi-embeddings job) — the shared KB is not covered by any FK.
- *   3. Residual rows the auth.users cascade does NOT reach: rows the user
- *      contributed to OTHER users' content (comments, likes), connections in
- *      both directions, shares received, notifications, visited_countries.
- *   4. The auth user itself — FK constraints
- *      (REFERENCES auth.users ON DELETE CASCADE, schema lines ~5090-5195)
- *      remove tracker_data, trips + all trip children, place_visits,
- *      fitness_*, daily activity, profiles, preferences, device tokens, …
+ *   1. Storage objects are removed HERE, while trip_media rows still exist
+ *      to enumerate them. The platform's account-deletion endpoint removes
+ *      storage.objects metadata rows but NOT the provider-side bytes on
+ *      disk/S3 — orphaned bytes for a location-history app's photos would
+ *      defeat the point of deletion.
+ *   2. Residual rows the auth.users cascade does NOT reach are removed HERE
+ *      (content the user contributed to OTHER users' content — comments,
+ *      likes — plus connections in both directions, shares received,
+ *      notifications, visited_countries). The service client is required:
+ *      RLS would not let the leaving user act on another user's trip.
  *
- * The service client is required for steps 2-4: residual deletes target rows
- * whose RLS would not let the leaving user act (e.g. another user's trip
- * sharing), and deleteUser is an admin API call.
+ * Phase 2 happens in the BROWSER after this function returns `ready`: the
+ * web app calls `auth.deleteAccount({ password })` (SDK ≥ 2026.9.4 →
+ * DELETE /api/v1/auth/account), which deletes the user's KB documents
+ * (metadata.user_id), revokes sessions/tokens, and hard-deletes the auth
+ * user — the tenant FK cascades (REFERENCES auth.users ON DELETE CASCADE,
+ * schema ~5090-5195) then remove tracker_data, trips and all trip children,
+ * place_visits, fitness_*, daily activity, profiles, preferences, tokens.
+ *
+ * This function is idempotent: re-running after a failed phase 2 finds no
+ * storage/residual rows and simply reports ready again.
  *
  * @fluxbase:require-role authenticated
  * @fluxbase:timeout 300
@@ -47,23 +52,25 @@ async function handler(
   if (!userId) return json({ error: 'Unauthorized' }, 401);
   if (req.method !== 'POST') return json({ error: 'POST required' }, 405);
   if (!fluxbaseService) {
-    return json({ error: 'No tenant context — cannot delete account' }, 503);
+    return json({ error: 'No tenant context — cannot prepare account deletion' }, 503);
   }
 
-  const deleted: Record<string, unknown> = { userId };
+  const cleaned: Record<string, unknown> = { userId };
   const errors: string[] = [];
 
-  // 1. Storage objects (media rows are the source of truth for paths; the
-  // upcoming cascade would erase our ability to enumerate them).
+  // 1. Storage objects (media rows are the source of truth for paths).
   try {
-    const { data: media, error: mediaErr } = await service_select(fluxbaseService, userId);
+    const { data: media, error: mediaErr } = await fluxbaseService
+      .from('trip_media')
+      .select('storage_path, thumbnail_path')
+      .eq('user_id', userId);
     if (mediaErr) throw new Error(`trip_media: ${mediaErr.message}`);
     const paths = [
       ...new Set(
         (media ?? []).flatMap((m: any) => [m.storage_path, m.thumbnail_path]).filter(Boolean)
       ),
     ] as string[];
-    deleted.storageObjects = paths.length;
+    cleaned.storageObjects = paths.length;
     if (paths.length > 0) {
       const { error } = await fluxbaseService.storage.from(MEDIA_BUCKET).remove(paths);
       if (error) errors.push(`storage.remove: ${error.message}`);
@@ -72,20 +79,7 @@ async function handler(
     errors.push(`storage: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  // 2. KB behavioral docs (best-effort: the KB may not exist on this instance).
-  try {
-    const kbRes = await fluxbaseService.admin.ai.listKnowledgeBases('wayli');
-    const kb = kbRes.data?.find((k) => k.name === 'wayli-pois');
-    if (kb) {
-      await fluxbaseService.admin.ai.deleteDocumentsByFilter(kb.id, { tags: [`user:${userId}`] });
-      deleted.kbDocs = 'removed';
-    }
-  } catch (e) {
-    errors.push(`kb: ${e instanceof Error ? e.message : String(e)}`);
-  }
-
-  // 3. Residual rows outside the cascade: content the user added to OTHER
-  // users' trips, and user-keyed rows without an auth.users FK.
+  // 2. Residual rows outside the auth.users cascade.
   const residual: Array<[table: string, column: string]> = [
     ['visited_countries', 'user_id'],
     ['notifications', 'user_id'],
@@ -101,29 +95,18 @@ async function handler(
       .eq(column, userId);
     if (error) errors.push(`${table}.${column}: ${error.message}`);
   }
-  deleted.residualTables = residual.length;
+  cleaned.residualTables = residual.length;
 
-  // 4. The auth user — DB FK cascades remove everything else (points, trips
-  // and their children, visits, fitness, profile, preferences, tokens, …).
-  const { error: deleteErr } = await fluxbaseService.admin.deleteUser(userId, 'app');
-  if (deleteErr) {
-    console.error(`❌ [DELETE_ACCOUNT] auth user delete failed:`, deleteErr, { userId });
-    return json(
-      { deleted: false, stage: 'auth-user', errors: [...errors, `deleteUser: ${deleteErr.message}`] },
-      500
-    );
+  if (errors.length > 0) {
+    console.error(`❌ [DELETE_ACCOUNT] preparation errors for ${userId}:`, errors);
+  } else {
+    console.log(`✅ [DELETE_ACCOUNT] tenant-side preparation complete`, cleaned);
   }
 
-  console.log(`✅ [DELETE_ACCOUNT] account deleted`, { userId, ...deleted });
-  return json({ deleted: true, errors });
-}
-
-/** trip_media paths owned by the user (via service client — RLS-free). */
-async function service_select(client: FluxbaseClient, userId: string) {
-  return client
-    .from('trip_media')
-    .select('storage_path, thumbnail_path')
-    .eq('user_id', userId);
+  // The hard delete itself is the browser's next call: auth.deleteAccount()
+  // (DELETE /api/v1/auth/account). KB documents are removed by that
+  // endpoint (metadata.user_id); tenant FK cascades do the rest.
+  return json({ ready: true, cleaned, errors });
 }
 
 export default handler;

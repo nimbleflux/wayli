@@ -194,7 +194,7 @@ generate_jwt() {
     local payload
     local signature
     header=$(printf '{"alg":"HS256","typ":"JWT"}' | b64url_encode)
-    payload=$(printf '{"role":"%s","iss":"fluxbase","iat":%s,"exp":%s}' "$role" "$now" "$exp" | b64url_encode)
+    payload=$(printf '{"role":"%s","iss":"fluxbase","token_type":"access","iat":%s,"exp":%s}' "$role" "$now" "$exp" | b64url_encode)
     signature=$(printf '%s.%s' "$header" "$payload" | openssl dgst -binary -sha256 -hmac "$jwt_secret" | b64url_encode)
 
     printf '%s.%s.%s' "$header" "$payload" "$signature"

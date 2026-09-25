@@ -91,6 +91,44 @@ export default async function syncPoiEmbeddings(
     };
   }
 
+  // 1b. Ensure the chatbot→KB link uses `filtered` access (per-user scoping).
+  // Fluxbase ≥ 2026.9.3 defaults NEW links to filtered, but links created
+  // before an instance upgrades keep `full` — where any document without a
+  // user_id would be retrievable by every user. Idempotent and best-effort:
+  // a failure here only means retrieval keeps the old scoping.
+  try {
+    const bots = await fluxbase.admin.ai.listChatbots(NAMESPACE);
+    const bot = (bots.data ?? []).find((b) => b.name === 'wayli-assistant');
+    if (!bot) {
+      console.warn('sync-poi-embeddings: wayli-assistant chatbot not found — skipping link scoping');
+    } else {
+      const links = await fluxbase.admin.ai.listChatbotKnowledgeBases(bot.id);
+      const existing = (links.data ?? []).find((l) => l.knowledge_base_id === kb.id);
+      if (existing && existing.access_level === 'filtered') {
+        console.log('sync-poi-embeddings: chatbot KB link already filtered');
+      } else {
+        // The PUT route cannot change access_level, so migrate via
+        // unlink + link-with-filtered (both are atomic single-link ops).
+        if (existing) {
+          const { error: unlinkErr } = await fluxbase.admin.ai.unlinkKnowledgeBase(bot.id, kb.id);
+          if (unlinkErr) throw new Error(`unlink: ${unlinkErr.message}`);
+        }
+        const { error: linkErr } = await fluxbase.admin.ai.linkKnowledgeBase(bot.id, {
+          knowledge_base_id: kb.id,
+          access_level: 'filtered'
+        });
+        if (linkErr) throw new Error(linkErr.message);
+        console.log('sync-poi-embeddings: chatbot KB link set to filtered access');
+      }
+    }
+  } catch (linkErr) {
+    console.warn(
+      `sync-poi-embeddings: could not scope the chatbot KB link (${
+        linkErr instanceof Error ? linkErr.message : String(linkErr)
+      }) — retrieval keeps the previous access level`
+    );
+  }
+
   // 2. Aggregate the user's POI visits into behavioral summaries.
   const { data: pois, error: aggError } = await fluxbase.rpc<PoiAggregate[]>(
     'aggregate_poi_behavior',

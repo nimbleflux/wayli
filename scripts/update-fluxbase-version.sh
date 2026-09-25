@@ -30,19 +30,36 @@ sed -i '' "s|ARG FLUXBASE_CLI_VERSION=v[0-9a-zA-Z.-]*|ARG FLUXBASE_CLI_VERSION=v
 echo "Updating deploy/docker-compose/docker-compose.yml..."
 sed -i '' "s|ghcr.io/nimbleflux/fluxbase:[0-9a-zA-Z.-]*|ghcr.io/nimbleflux/fluxbase:$NEW_VERSION|g" "$ROOT_DIR/deploy/docker-compose/docker-compose.yml"
 
-# Update charts/wayli/Chart.yaml
+# Update charts/wayli/Chart.yaml (dependency only — anchored to the indented,
+# quoted form; the chart's own unquoted `version:` must not be touched)
 echo "Updating charts/wayli/Chart.yaml..."
-sed -i '' "s|version: '[0-9a-zA-Z.-]*'|version: '$NEW_VERSION'|g" "$ROOT_DIR/charts/wayli/Chart.yaml"
+sed -i '' "s|^    version: '[0-9a-zA-Z.-]*'|    version: '$NEW_VERSION'|" "$ROOT_DIR/charts/wayli/Chart.yaml"
 
 # Update Dockerfile (Fluxbase CLI version ARG)
 echo "Updating Dockerfile..."
 sed -i '' "s|ARG FLUXBASE_CLI_VERSION=v[0-9a-zA-Z.-]*|ARG FLUXBASE_CLI_VERSION=v$NEW_VERSION|g" "$ROOT_DIR/Dockerfile"
+
+# Update .github/workflows/release.yml (CLI version env for the checksummed install)
+echo "Updating .github/workflows/release.yml..."
+sed -i '' "s|FLUXBASE_CLI_VERSION: v[0-9a-zA-Z.-]*|FLUXBASE_CLI_VERSION: v$NEW_VERSION|g" "$ROOT_DIR/.github/workflows/release.yml"
+
+# Update android/gradle/libs.versions.toml (fluxbase-kotlin SDK, bare version)
+echo "Updating android/gradle/libs.versions.toml..."
+sed -i '' "s|fluxbase-kotlin = \"[0-9a-zA-Z.-]*\"|fluxbase-kotlin = \"$NEW_VERSION\"|" "$ROOT_DIR/android/gradle/libs.versions.toml"
 
 # Update Helm dependencies
 echo ""
 echo "Updating Helm dependencies..."
 cd "$ROOT_DIR/charts/wayli"
 helm dependency update
+
+# Fail loudly if the lockfile did not actually pick up the new version —
+# a stale Chart.lock silently ships the old subchart (this exact drift
+# happened: lock at 2026.8.14 while Chart.yaml said 2026.9.2).
+if ! grep -q "$NEW_VERSION" "$ROOT_DIR/charts/wayli/Chart.lock"; then
+    echo "Error: charts/wayli/Chart.lock does not reference $NEW_VERSION after 'helm dependency update'" >&2
+    exit 1
+fi
 
 # Update web/package.json - Fluxbase SDK packages
 echo ""
@@ -88,8 +105,10 @@ echo "  - .devcontainer/docker-compose.yml"
 echo "  - .devcontainer/Dockerfile"
 echo "  - deploy/docker-compose/docker-compose.yml"
 echo "  - charts/wayli/Chart.yaml"
-echo "  - charts/wayli/Chart.lock"
+echo "  - charts/wayli/Chart.lock (+ vendored subchart tgz)"
 echo "  - Dockerfile"
+echo "  - .github/workflows/release.yml"
+echo "  - android/gradle/libs.versions.toml (fluxbase-kotlin)"
 echo "  - web/package.json (@nimbleflux/fluxbase-sdk, @nimbleflux/fluxbase-sdk-react)"
 echo "  - web/bun.lock"
 echo "  - fluxbase/functions/deno.json (@nimbleflux/fluxbase-sdk)"

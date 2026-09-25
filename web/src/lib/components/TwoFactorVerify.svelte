@@ -8,7 +8,7 @@
 	// Use the reactive translation function
 	let t = $derived($translate);
 
-	let { open = $bindable(false), userId = '' } = $props();
+	let { open = $bindable(false), userId = '', mfaToken = '' } = $props();
 
 	const dispatch = createEventDispatcher();
 
@@ -18,6 +18,13 @@
 	let error = $state<string | null>(null);
 
 	async function handleVerify() {
+		// The platform's challenge flow (Fluxbase ≥ 2026.9.3) requires the
+		// short-lived mfa_token returned by the signIn response.
+		if (!mfaToken) {
+			error = 'Your verification challenge expired — please sign in again';
+			return;
+		}
+
 		// Validate code format
 		if (useBackupCode) {
 			if (!code || code.length !== 8) {
@@ -37,7 +44,8 @@
 		try {
 			// Call Fluxbase SDK directly - no session needed for verify2FA
 			const { data, error: verifyError } = await fluxbase.auth.verify2FA({
-				user_id: userId,
+				mfa_token: mfaToken,
+				user_id: userId || undefined,
 				code: code
 			});
 

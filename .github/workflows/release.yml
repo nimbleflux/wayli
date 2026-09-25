@@ -489,7 +489,7 @@ jobs:
         # Pinned, checksum-verified download (replaces curl|bash from the
         # mutable main branch — same approach as the Dockerfile).
         env:
-          FLUXBASE_CLI_VERSION: v2026.9.6
+          FLUXBASE_CLI_VERSION: v2026.9.7
         run: |
           curl -fsSLo /tmp/fluxbase.tar.gz "https://github.com/nimbleflux/fluxbase/releases/download/${FLUXBASE_CLI_VERSION}/fluxbase-linux-amd64.tar.gz"
           curl -fsSLo /tmp/fluxbase.tar.gz.sha256 "https://github.com/nimbleflux/fluxbase/releases/download/${FLUXBASE_CLI_VERSION}/fluxbase-linux-amd64.tar.gz.sha256"

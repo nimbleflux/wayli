@@ -90,7 +90,7 @@ services:
 
   # Fluxbase API
   fluxbase:
-    image: ghcr.io/nimbleflux/fluxbase:2026.9.6
+    image: ghcr.io/nimbleflux/fluxbase:2026.9.7
     container_name: fluxbase
     restart: unless-stopped
     # Fluxbase runs as a non-root user; drop all caps (unverified upstream —

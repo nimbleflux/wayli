@@ -1,34 +1,33 @@
 [versions]
-agp = "8.12.3"
-kotlin = "2.3.20"
-ksp = "2.3.12"
+agp = "8.10.1"
+kotlin = "2.1.0"
+ksp = "2.1.0-1.0.29"
 compose-bom = "2024.12.01"
-hilt = "2.58"
+hilt = "2.54"
 hilt-navigation = "1.2.0"
 navigation = "2.8.5"
-room = "2.8.5"
+room = "2.6.1"
 workmanager = "2.10.0"
 # NOTE (verified by bytecode-diffing the published jars): 2026.9.1 was the
 # first release-CI artifact with all Android-compat fixes; 2026.9.2 adds the
-# case-insensitive Content-Range count parse (fluxbase#349). 2026.9.3/2026.9.4
-# are release-CI artifacts. The 2026.9.5/
+# case-insensitive Content-Range count parse (fluxbase#349). The 2026.9.5/
 # 2026.9.6 coordinates were partial MANUAL publishes from an incomplete chain
-# (missing the transport passthrough) — never pin those; they also 409-block
-# release-CI re-publishes (delete:packages required to remove them). Prefer
-# release-CI artifacts only. 2026.9.7 is the first complete release-CI
-# artifact covering the 2026.9.4+ platform changes (fresh-boot/upgrade fixes
-# in fluxbase#361).
+# (missing the transport passthrough) — never pin those. Prefer release-CI
+# artifacts only.
 #
-# Toolchain: fluxbase-kotlin ≥2026.9.3 carries Kotlin 2.4.0 metadata and pulls
-# kotlin-stdlib 2.4.x transitively, so the app compiler must be ≥2.3 (Kotlin's
-# one-minor metadata-forward rule). Stay on the 2.3 line until KSP ships a
-# 2.4-compatible release (KSP 2.3.12 is built against 2.3.20); jumping the app
-# to Kotlin 2.4.x would strand Hilt/KSP.
-fluxbase-kotlin = "2026.9.7"
+# 2026.9.3+ CANNOT be pinned yet: fluxbase-kotlin ≥2026.9.3 is compiled with
+# Kotlin 2.4 (jar metadata 2.4.0 + kotlin-stdlib 2.4.x transitively), which
+# this app's AGP-8 toolchain cannot consume — the Kotlin 2.1.0 compiler can't
+# read 2.4 metadata ("Internal compiler error"), and Hilt ≤2.58's shaded
+# kotlin-metadata-jvm caps at 2.3.0 while Hilt ≥2.59 requires AGP ≥ 9.
+# Consuming ≥2026.9.3 needs the AGP 9 migration (AGP 9.1 + Gradle 9.x +
+# Hilt 2.60.1 + androidx.hilt 1.4.0 + KSP 2.3.12); Android uses none of the
+# newer SDK APIs, so 2026.9.2 stays until that lands.
+fluxbase-kotlin = "2026.9.2"
 detekt = "1.23.7"
 maplibre = "11.8.0"
-kotlinx-serialization = "1.11.0"
-kotlinx-coroutines = "1.11.0"
+kotlinx-serialization = "1.7.3"
+kotlinx-coroutines = "1.9.0"
 kotlinx-datetime = "0.6.1"
 ktor = "3.0.3"
 robolectric = "4.16.1"
@@ -55,9 +54,9 @@ navigation-compose = { group = "androidx.navigation", name = "navigation-compose
 # Hilt
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version = "1.3.0" }
-hilt-work = { group = "androidx.hilt", name = "hilt-work", version = "1.3.0" }
-hilt-androidx-compiler = { group = "androidx.hilt", name = "hilt-compiler", version = "1.3.0" }
+hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hilt-navigation" }
+hilt-work = { group = "androidx.hilt", name = "hilt-work", version = "1.2.0" }
+hilt-androidx-compiler = { group = "androidx.hilt", name = "hilt-compiler", version = "1.2.0" }
 
 # Room
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }

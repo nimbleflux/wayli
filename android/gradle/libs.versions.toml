@@ -1,5 +1,5 @@
 [versions]
-agp = "8.10.1"
+agp = "8.12.3"
 kotlin = "2.3.20"
 ksp = "2.3.12"
 compose-bom = "2024.12.01"

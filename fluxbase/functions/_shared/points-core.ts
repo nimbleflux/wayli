@@ -61,7 +61,18 @@ export function successWithBody(body: unknown, status = 200): Response {
 }
 
 export function errorResponse(status = 400): Response {
-  return new Response('[]', {
+  // OwnTracks (and other callers) parse the response body as a JSON object;
+  // an opaque body (e.g. '[]') surfaces as "failed to parse JSON" on the
+  // client instead of the actual error.
+  const messages: Record<number, string> = {
+    400: 'Bad request',
+    401: 'Unauthorized',
+    403: 'Forbidden',
+    404: 'Not found',
+    405: 'Method not allowed',
+    500: 'Internal server error'
+  };
+  return new Response(JSON.stringify({ error: messages[status] ?? 'Error', status }), {
     status,
     headers: { 'Content-Type': 'application/json' }
   });

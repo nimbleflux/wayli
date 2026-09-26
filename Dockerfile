@@ -54,7 +54,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # publishes. This replaces the old `curl install-cli.sh | bash` from the
 # mutable main branch (no checksum, arbitrary code in every image build).
 # Set FLUXBASE_CLI_VERSION to 'local' to use a pre-built CLI from ./bin/fluxbase
-ARG FLUXBASE_CLI_VERSION=v2026.9.7
+ARG FLUXBASE_CLI_VERSION=v2026.9.8
 RUN if [ "${FLUXBASE_CLI_VERSION}" = "local" ]; then \
         cp bin/fluxbase /usr/local/bin/fluxbase; \
     else \

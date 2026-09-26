@@ -23,7 +23,7 @@ workmanager = "2.10.0"
 # Consuming ≥2026.9.3 needs the AGP 9 migration (AGP 9.1 + Gradle 9.x +
 # Hilt 2.60.1 + androidx.hilt 1.4.0 + KSP 2.3.12); Android uses none of the
 # newer SDK APIs, so 2026.9.2 stays until that lands.
-fluxbase-kotlin = "2026.9.7"
+fluxbase-kotlin = "2026.9.8"
 detekt = "1.23.7"
 maplibre = "11.8.0"
 kotlinx-serialization = "1.11.0"

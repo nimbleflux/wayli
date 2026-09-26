@@ -73,10 +73,22 @@ class MediaUploader @Inject constructor(
         storagePath: String?,
     ): String? {
         if (storagePath.isNullOrBlank()) return null
-        return if (storagePath.startsWith("http://") || storagePath.startsWith("https://")) {
-            storagePath
-        } else {
-            getSignedUrl(bucket = bucket, path = storagePath).getOrNull()
+        return when {
+            // Legacy web rows: absolute URL, load directly.
+            storagePath.startsWith("http://") || storagePath.startsWith("https://") ->
+                storagePath
+            // Host-relative API path (web 2.7.0+): re-derive the public URL
+            // from the embedded bucket and object — signing would treat the
+            // whole path as an object key and 404.
+            storagePath.startsWith("/api/v1/storage/") ->
+                runCatching {
+                    val withoutPrefix = storagePath.removePrefix("/api/v1/storage/")
+                    val refBucket = withoutPrefix.substringBefore('/')
+                    val obj = withoutPrefix.substringAfter('/')
+                    client.storage.from(refBucket).getPublicUrl(obj)
+                }.getOrNull()
+            // Android-stored rows: bare bucket path, sign it.
+            else -> getSignedUrl(bucket = bucket, path = storagePath).getOrNull()
         }
     }
 

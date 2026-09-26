@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { storageRefToUrl } from '$lib/utils/inline-media';
 	import { onMount } from 'svelte';
 	import { fluxbase } from '$lib/fluxbase';
 	import { userStore } from '$lib/stores/auth';
@@ -192,7 +193,7 @@
 					{#if entry.trip_image_url}
 						<div class="h-40 overflow-hidden">
 							<img
-								src={entry.trip_image_url}
+								src={storageRefToUrl(entry.trip_image_url)}
 								alt=""
 								class="h-full w-full object-cover"
 								loading="lazy"

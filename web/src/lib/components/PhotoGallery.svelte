@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { storageRefToUrl } from '$lib/utils/inline-media';
 	import { onMount } from 'svelte';
 	import { userStore } from '$lib/stores/auth';
 	import { page } from '$app/state';
@@ -255,7 +256,7 @@
 						aria-label="View photo"
 					>
 						<img
-							src={item.thumbnail_path ?? item.storage_path}
+							src={storageRefToUrl(item.thumbnail_path ?? item.storage_path)}
 							alt={item.caption || 'Trip photo'}
 							class="h-full w-full object-cover transition-transform group-hover:scale-105"
 							loading="lazy"
@@ -337,7 +338,7 @@
 			</button>
 		{/if}
 		<img
-			src={lightbox.storage_path}
+			src={storageRefToUrl(lightbox.storage_path)}
 			alt={lightbox.caption || 'Photo'}
 			class="animate-scale-in max-h-[92vh] max-w-full rounded-lg object-contain"
 			role="presentation"

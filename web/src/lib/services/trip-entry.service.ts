@@ -4,6 +4,7 @@
  */
 
 import { fluxbase } from '$lib/fluxbase';
+import { storageRefToUrl } from '$lib/utils/inline-media';
 import type {
 	TripEntry,
 	CreateTripEntryInput,
@@ -84,10 +85,10 @@ export async function listAllEntries(): Promise<
 		let coverImageUrl: string | null = null;
 		if (row.cover_media_id) {
 			const coverMedia = entryMedia.find((m) => m.id === row.cover_media_id);
-			coverImageUrl = coverMedia?.thumbnail_path ?? coverMedia?.storage_path ?? null;
+			coverImageUrl = storageRefToUrl(coverMedia?.thumbnail_path ?? coverMedia?.storage_path ?? '') || null;
 		}
 		if (!coverImageUrl && entryMedia.length > 0) {
-			coverImageUrl = entryMedia[0].thumbnail_path ?? entryMedia[0].storage_path ?? null;
+			coverImageUrl = storageRefToUrl(entryMedia[0].thumbnail_path ?? entryMedia[0].storage_path ?? '') || null;
 		}
 
 		return {

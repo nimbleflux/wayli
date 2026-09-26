@@ -428,7 +428,7 @@
 	<div class="relative h-[340px] w-full overflow-hidden sm:h-[420px]">
 		{#if trip.image_url}
 			<img
-				src={trip.image_url}
+				src={storageRefToUrl(trip.image_url)}
 				alt={trip.title}
 				class="h-full w-full object-cover"
 				style="object-position: {(trip.metadata?.image_focal_x ?? 0.5) * 100}% {(trip.metadata
@@ -784,7 +784,7 @@
 			>
 		{/if}
 		<img
-			src={lightbox.storage_path}
+			src={storageRefToUrl(lightbox.storage_path)}
 			alt={lightbox.caption || 'Photo'}
 			class="animate-scale-in max-h-[92vh] max-w-full rounded-lg object-contain"
 			role="presentation"

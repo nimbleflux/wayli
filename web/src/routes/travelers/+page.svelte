@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { storageRefToUrl } from '$lib/utils/inline-media';
 	import { onMount } from 'svelte';
 	import { Sun, Moon, ArrowLeft, Users, User } from 'lucide-svelte';
 	import LanguageSelector from '$lib/components/ui/language-selector/index.svelte';
@@ -166,7 +167,7 @@
 						class="bg-card border-border flex items-center gap-3 rounded-2xl border p-4 transition-all hover:shadow-lg"
 					>
 						{#if traveler.avatar_url}
-							<img src={traveler.avatar_url} alt="" class="h-12 w-12 rounded-full object-cover" />
+							<img src={storageRefToUrl(traveler.avatar_url)} alt="" class="h-12 w-12 rounded-full object-cover" />
 						{:else}
 							<div
 								class="bg-primary/10 text-primary flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold"

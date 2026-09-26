@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { storageRefToUrl } from '$lib/utils/inline-media';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { fluxbase } from '$lib/fluxbase';
@@ -796,7 +797,7 @@
 					<div class="flex items-center gap-1.5" title={`@${collab.username}`}>
 						{#if collab.avatar_url}
 							<img
-								src={collab.avatar_url}
+								src={storageRefToUrl(collab.avatar_url)}
 								alt={collab.username}
 								class="border-border h-8 w-8 rounded-full border-2 object-cover"
 							/>

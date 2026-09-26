@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { storageRefToUrl } from '$lib/utils/inline-media';
 	interface UserData {
 		first_name?: string;
 		last_name?: string;
@@ -55,7 +56,7 @@
 {#if user?.avatar_url && showFallback}
 	<!-- Use custom avatar URL if provided -->
 	<img
-		src={user.avatar_url}
+		src={storageRefToUrl(user.avatar_url)}
 		alt="User avatar"
 		class="rounded-full object-cover {sizeClasses[size]}"
 		onerror={() => (showFallback = false)}

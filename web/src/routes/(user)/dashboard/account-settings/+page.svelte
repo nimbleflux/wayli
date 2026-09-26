@@ -17,6 +17,7 @@
 		Save
 	} from 'lucide-svelte';
 	import { onMount } from 'svelte';
+	import { storageRefToUrl } from '$lib/utils/inline-media';
 	import Input from '$lib/components/ui/input/index.svelte';
 	import { toast } from 'svelte-sonner';
 
@@ -242,15 +243,14 @@
 				.upload(path, full.blob, { contentType: 'image/jpeg', upsert: true });
 			if (uploadError) throw uploadError;
 
-			const { data } = fluxbase.storage.from('trip-images').getPublicUrl(path);
-			profileAvatarUrl = data.publicUrl;
+			profileAvatarUrl = storageRefToUrl(path);
 
-			// Save to profile directly
+			// Save to profile directly — store the PATH, not an absolute URL
 			const { data: userData } = await fluxbase.auth.getUser();
 			if (userData?.user) {
 				await fluxbase
 					.from('user_profiles')
-					.update({ avatar_url: data.publicUrl })
+					.update({ avatar_url: path })
 					.eq('id', userData.user.id);
 			}
 			toast.success('Profile picture updated');
@@ -283,14 +283,13 @@
 				.upload(path, full.blob, { contentType: 'image/jpeg', upsert: true });
 			if (uploadError) throw uploadError;
 
-			const { data } = fluxbase.storage.from('trip-images').getPublicUrl(path);
-			profileCoverUrl = data.publicUrl;
+			profileCoverUrl = storageRefToUrl(path);
 
 			const { data: userData } = await fluxbase.auth.getUser();
 			if (userData?.user) {
 				await fluxbase
 					.from('user_profiles')
-					.update({ cover_photo_url: data.publicUrl })
+					.update({ cover_photo_url: path })
 					.eq('id', userData.user.id);
 			}
 			toast.success('Cover photo updated');
@@ -486,8 +485,8 @@
 				firstNameInput = profile.first_name || '';
 				usernameInput = (profile as any).username || '';
 				originalUsername = (profile as any).username || '';
-				profileAvatarUrl = (profile as any).avatar_url || '';
-				profileCoverUrl = (profile as any).cover_photo_url || '';
+				profileAvatarUrl = storageRefToUrl((profile as any).avatar_url || '');
+				profileCoverUrl = storageRefToUrl((profile as any).cover_photo_url || '');
 				lastNameInput = profile.last_name || '';
 				const d = (profile as any).discoverable;
 				if (d === 'everyone' || d === 'friends_of_friends' || d === 'nobody') {

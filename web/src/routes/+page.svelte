@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { storageRefToUrl } from '$lib/utils/inline-media';
 	import { onMount } from 'svelte';
 	import {
 		Sun,
@@ -564,7 +565,7 @@
 								{#if entry.trip_image_url}
 									<div class="h-32 overflow-hidden">
 										<img
-											src={entry.trip_image_url}
+											src={storageRefToUrl(entry.trip_image_url)}
 											alt={entry.trip_title || ''}
 											class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
 											loading="lazy"
@@ -620,7 +621,7 @@
 							>
 								{#if traveler.avatar_url}
 									<img
-										src={traveler.avatar_url}
+										src={storageRefToUrl(traveler.avatar_url)}
 										alt=""
 										class="h-12 w-12 rounded-full object-cover"
 									/>
@@ -664,7 +665,7 @@
 								{#if trip.image_url}
 									<div class="h-32 overflow-hidden">
 										<img
-											src={trip.image_url}
+											src={storageRefToUrl(trip.image_url)}
 											alt={trip.title}
 											class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
 											loading="lazy"

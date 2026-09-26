@@ -11,6 +11,7 @@
  */
 
 import { fluxbase } from '$lib/fluxbase';
+import { config } from '$lib/config';
 
 const MEDIA_TOKEN = /!\[([^\]]*)\]\(wayli-media:([^)\s]+)\)/g;
 
@@ -53,6 +54,12 @@ export function inlineMediaRefs(body?: string | null): Set<string> {
 export function storageRefToUrl(ref: string): string {
 	if (!ref) return '';
 	if (/^https?:\/\//i.test(ref)) return ref;
+	// Canonical stored form: host-relative API path (bucket included) —
+	// prepend the configured Fluxbase base URL only. Idempotent: passing an
+	// already-resolved path back in must not double the prefix.
+	if (ref.startsWith('/api/v1/storage/')) {
+		return `${config.fluxbaseUrl}${ref}`;
+	}
 	const { data } = fluxbase.storage.from('trip-images').getPublicUrl(ref);
 	return data.publicUrl;
 }

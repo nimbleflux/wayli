@@ -144,7 +144,21 @@ async function getPeliasEndpoint(fluxbase: FluxbaseClient): Promise<string> {
     console.log('No custom Pelias endpoint configured, using default');
   }
 
-  return Deno.env.get('PELIAS_ENDPOINT') || 'https://pelias.wayli.app';
+  // The function runtime grants env access via an explicit allowlist
+  // (--allow-env=<vars>): Deno.env.get throws NotCapable for unlisted names
+  // instead of returning undefined. Tolerate that and fall back to the
+  // default geocoder. FLUXBASE_SECRET_PELIAS_ENDPOINT is the supported
+  // override path: attach a `pelias-endpoint` function secret with value
+  // named PELIAS_ENDPOINT to inject and allowlist it.
+  for (const name of ['PELIAS_ENDPOINT', 'FLUXBASE_SECRET_PELIAS_ENDPOINT']) {
+    try {
+      const v = Deno.env.get(name);
+      if (v) return v;
+    } catch {
+      /* NotCapable: name not in the runtime allowlist */
+    }
+  }
+  return 'https://pelias.wayli.app';
 }
 
 // Country code conversion (3-letter to 2-letter ISO)

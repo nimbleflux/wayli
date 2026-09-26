@@ -143,7 +143,8 @@ function encodeGeohash(lat: number, lon: number, precision = 4): string {
 async function getPeliasEndpoint(fluxbase: FluxbaseClient): Promise<string> {
   try {
     const { data, error } = await fluxbase
-      .from('app.settings')
+      .schema('app')
+      .from('settings')
       .select('value')
       .eq('key', 'wayli.pelias_endpoint')
       .single();

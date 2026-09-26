@@ -171,7 +171,22 @@ async function handler(
 
     // Parse request body for location data using standard Web API
     const body = await req.json();
-    return ingestPoints(fluxbaseService, userId, authMethod, body, 'OWNTRACKS_POINTS');
+    const result = await ingestPoints(fluxbaseService, userId, authMethod, body, 'OWNTRACKS_POINTS');
+
+    // OwnTracks Android parses the response body as an OwnTracks message
+    // (kotlinx polymorphic on _type). The ingest summary object
+    // {"accepted":..} has no _type, so the app's parser throws
+    // "Failed to parse JSON" and the publish is treated as FAILED and
+    // re-queued forever — even though the points were stored. Respond with
+    // the ot-recorder-style empty message array on success instead; the
+    // ingest summary stays visible in the function logs.
+    if (result.status === 200) {
+      return new Response('[]', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    return result;
   } catch (error) {
     logError(error, 'OWNTRACKS_POINTS');
     return errorResponse(500);

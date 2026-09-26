@@ -3,5 +3,4 @@
 fluxbase-secret.yaml
 values.tmp.yaml
 *.local.yaml
-*.tgz
 .gitignore

@@ -368,13 +368,16 @@ fluxbase:
   # ## Key names within the secret. Defaults match the keys of the secret the
   # ## chart creates itself (templates/secret-fluxbase.yaml) when
   # ## fluxbase.existingSecret is empty. Override when bringing your own secret.
+  # Defaults match the kebab-case key names used by the v2.6.x chart and by
+  # deploy/docker-compose/generate-keys.sh output — bring-your-own secrets
+  # (fluxbase.existingSecret) sealed against those names keep working.
   existingSecretKeyRef:
-    serviceRoleKey: "serviceRoleKey"
-    anonKey: "anonKey"
-    jwtSecret: "jwtSecret"
-    setupToken: "setupToken"
-    databasePassword: "databasePassword"
-    smtpPassword: "smtpPassword"
+    serviceRoleKey: "service-role-key"
+    anonKey: "anon-key"
+    jwtSecret: "jwt-secret"
+    setupToken: "setup-token"
+    databasePassword: "db-password"
+    smtpPassword: "smtp-password"
   #   s3AccessKey: "s3-access-key"
   #   s3SecretKey: "s3-secret-key"
   #   sendgridApiKey: "sendgrid-api-key"

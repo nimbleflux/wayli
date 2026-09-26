@@ -1,12 +1,12 @@
 [versions]
-agp = "8.10.1"
-kotlin = "2.1.0"
-ksp = "2.1.0-1.0.29"
+agp = "9.1.1"
+kotlin = "2.3.20"
+ksp = "2.3.12"
 compose-bom = "2024.12.01"
-hilt = "2.54"
-hilt-navigation = "1.2.0"
+hilt = "2.60.1"
+hilt-navigation = "1.4.0"
 navigation = "2.8.5"
-room = "2.6.1"
+room = "2.8.5"
 workmanager = "2.10.0"
 # NOTE (verified by bytecode-diffing the published jars): 2026.9.1 was the
 # first release-CI artifact with all Android-compat fixes; 2026.9.2 adds the
@@ -14,11 +14,20 @@ workmanager = "2.10.0"
 # 2026.9.6 coordinates were partial MANUAL publishes from an incomplete chain
 # (missing the transport passthrough) — never pin those. Prefer release-CI
 # artifacts only.
-fluxbase-kotlin = "2026.9.2"
+#
+# 2026.9.3+ CANNOT be pinned yet: fluxbase-kotlin ≥2026.9.3 is compiled with
+# Kotlin 2.4 (jar metadata 2.4.0 + kotlin-stdlib 2.4.x transitively), which
+# this app's AGP-8 toolchain cannot consume — the Kotlin 2.1.0 compiler can't
+# read 2.4 metadata ("Internal compiler error"), and Hilt ≤2.58's shaded
+# kotlin-metadata-jvm caps at 2.3.0 while Hilt ≥2.59 requires AGP ≥ 9.
+# Consuming ≥2026.9.3 needs the AGP 9 migration (AGP 9.1 + Gradle 9.x +
+# Hilt 2.60.1 + androidx.hilt 1.4.0 + KSP 2.3.12); Android uses none of the
+# newer SDK APIs, so 2026.9.2 stays until that lands.
+fluxbase-kotlin = "2026.9.7"
 detekt = "1.23.7"
 maplibre = "11.8.0"
-kotlinx-serialization = "1.7.3"
-kotlinx-coroutines = "1.9.0"
+kotlinx-serialization = "1.11.0"
+kotlinx-coroutines = "1.11.0"
 kotlinx-datetime = "0.6.1"
 ktor = "3.0.3"
 robolectric = "4.16.1"
@@ -46,8 +55,8 @@ navigation-compose = { group = "androidx.navigation", name = "navigation-compose
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
 hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hilt-navigation" }
-hilt-work = { group = "androidx.hilt", name = "hilt-work", version = "1.2.0" }
-hilt-androidx-compiler = { group = "androidx.hilt", name = "hilt-compiler", version = "1.2.0" }
+hilt-work = { group = "androidx.hilt", name = "hilt-work", version.ref = "hilt-navigation" }
+hilt-androidx-compiler = { group = "androidx.hilt", name = "hilt-compiler", version.ref = "hilt-navigation" }
 
 # Room
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
@@ -72,7 +81,8 @@ kotlinx-datetime = { group = "org.jetbrains.kotlinx", name = "kotlinx-datetime",
 maplibre-android = { group = "org.maplibre.gl", name = "android-sdk", version.ref = "maplibre" }
 
 # Testing
-kotlin-test = { group = "org.jetbrains.kotlin", name = "kotlin-test", version.ref = "kotlin" }
+kotlin-test = { group = "org.jetbrains.kotlin", name = "kotlin-test-junit", version.ref = "kotlin" }
+kotlin-test-common = { group = "org.jetbrains.kotlin", name = "kotlin-test-common", version.ref = "kotlin" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
 mockk = { group = "io.mockk", name = "mockk", version = "1.13.13" }
 turbine = { group = "app.cash.turbine", name = "turbine", version = "1.2.0" }
@@ -91,7 +101,6 @@ coil-svg = { group = "io.coil-kt", name = "coil-svg", version = "2.7.0" }
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }

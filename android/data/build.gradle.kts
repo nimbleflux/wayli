@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
@@ -22,9 +21,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_21
     }
 
-    kotlin {
-        jvmToolchain(21)
-    }
+}
+
+// Built-in Kotlin (AGP 9): compiler options live on the top-level kotlin
+// extension; jvmTarget defaults to android.compileOptions.targetCompatibility.
+kotlin {
+    jvmToolchain(21)
 }
 
 dependencies {

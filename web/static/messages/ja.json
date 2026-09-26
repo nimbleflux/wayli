@@ -1099,7 +1099,9 @@
 		"deleteAccountPending": "Deleting…",
 		"deleteAccountCancel": "Cancel",
 		"deleteAccountSuccess": "Your account has been deleted.",
-		"deleteAccountError": "Account deletion failed — try again or contact your server administrator."
+		"deleteAccountError": "Account deletion failed — try again or contact your server administrator.",
+		"deletePasswordLabel": "Confirm with your password (leave empty if you sign in with OAuth):",
+		"deletePasswordPlaceholder": "Current password"
 	},
 	"serverAdmin": {
 		"title": "サーバー管理設定",

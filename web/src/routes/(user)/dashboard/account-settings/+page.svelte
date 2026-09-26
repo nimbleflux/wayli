@@ -346,27 +346,37 @@
 	// Trip exclusions state
 	let tripExclusions: any[] = $state([]);
 
-	// Account deletion (Danger Zone) — invokes the delete-account edge function,
-	// which removes storage objects, KB docs, residual cross-user rows, then the
-	// auth user (FK cascades remove the rest). Play Data Safety requirement.
+	// Account deletion (Danger Zone) — two-phase: the delete-account edge
+	// function removes storage bytes and residual cross-user rows, then
+	// auth.deleteAccount() (Fluxbase ≥ 2026.9.4) deletes KB docs, revokes
+	// sessions, and hard-deletes the auth user (FK cascades remove the rest).
+	// Play Data Safety requirement.
 	let showDeleteConfirm = $state(false);
 	let deleteConfirmText = $state('');
+	let deletePassword = $state('');
 	let isDeletingAccount = $state(false);
 
 	async function handleDeleteAccount() {
 		if (deleteConfirmText !== 'DELETE' || isDeletingAccount) return;
 		isDeletingAccount = true;
 		try {
+			// Phase 1: tenant-side cleanup.
 			const { data, error } = await fluxbase.functions.invoke('delete-account', {
 				body: { confirm: true }
 			});
 			if (error) throw new Error(error.message);
-			if ((data as any)?.deleted !== true) {
+			if ((data as any)?.ready !== true) {
 				throw new Error(
 					((data as any)?.errors as string[] | undefined)?.join('; ') ||
 						t('accountSettings.deleteAccountError')
 				);
 			}
+			// Phase 2: platform hard delete. Password is required for
+			// password-credential accounts; OAuth-only users may omit it.
+			const { error: deleteError } = await fluxbase.auth.deleteAccount({
+				password: deletePassword || undefined
+			});
+			if (deleteError) throw deleteError;
 			toast.success(t('accountSettings.deleteAccountSuccess'));
 			await sessionManager.signOut();
 			await goto('/auth/signin');
@@ -2750,6 +2760,16 @@
 				bind:value={deleteConfirmText}
 				placeholder={t('accountSettings.deleteConfirmWord')}
 				autocomplete="off"
+			/>
+			<p class="mt-3 text-sm">
+				{t('accountSettings.deletePasswordLabel')}
+			</p>
+			<Input
+				class="mt-2 max-w-xs"
+				type="password"
+				bind:value={deletePassword}
+				placeholder={t('accountSettings.deletePasswordPlaceholder')}
+				autocomplete="current-password"
 			/>
 			<div class="mt-3 flex gap-2">
 				<button

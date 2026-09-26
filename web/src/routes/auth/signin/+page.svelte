@@ -23,6 +23,7 @@
 	let rememberMe = $state(true); // Default to checked
 	let show2FAModal = $state(false);
 	let twoFactorUserId = $state('');
+	let twoFactorMfaToken = $state('');
 
 	// OAuth-only mode
 	let oauthOnlyMode = $state(false);
@@ -154,8 +155,10 @@
 			// the 2FA arm is the only one carrying 'requires_2fa'.
 			if (data && 'requires_2fa' in data) {
 				console.log('🔐 [SignIn] 2FA required for this user');
-				// User has 2FA enabled - show verification modal
+				// User has 2FA enabled - show verification modal. The response
+				// carries the short-lived challenge token verify2FA consumes.
 				twoFactorUserId = data.user_id || '';
+				twoFactorMfaToken = data.mfa_token || '';
 				show2FAModal = true;
 				loading = false;
 				return;
@@ -583,4 +586,9 @@
 </div>
 
 <!-- 2FA Verification Modal -->
-<TwoFactorVerify bind:open={show2FAModal} userId={twoFactorUserId} on:success={handle2FASuccess} />
+<TwoFactorVerify
+	bind:open={show2FAModal}
+	userId={twoFactorUserId}
+	mfaToken={twoFactorMfaToken}
+	on:success={handle2FASuccess}
+/>

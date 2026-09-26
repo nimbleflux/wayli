@@ -319,7 +319,7 @@ export class ServiceAdapter {
 		};
 	}
 
-	async verify2FA(request: { user_id: string; code: string }) {
+	async verify2FA(request: { mfa_token: string; code: string; user_id?: string }) {
 		const { fluxbase } = await import('$lib/fluxbase');
 
 		const { data, error } = await fluxbase.auth.verify2FA(request);

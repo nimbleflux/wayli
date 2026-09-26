@@ -1,7 +1,7 @@
 // Unit tests for ensureUserProfile() — the app-side replacement for the
 // auth.users trigger that Fluxbase wipes on restart.
 //
-// The role decision lives SERVER-SIDE now (RPC `ensure_user_profile` →
+// The role decision lives SERVER-SIDE now (RPC `ensure-user-profile` →
 // SECURITY DEFINER `request_user_profile`): the client must never decide or
 // send a role, and must never send the user id (identity comes from the JWT).
 // These tests pin that contract.
@@ -23,7 +23,7 @@ describe('ensureUserProfile', () => {
 		fluxbase.from.mockReset();
 	});
 
-	it('creates a profile via the ensure_user_profile RPC (signup)', async () => {
+	it('creates a profile via the ensure-user-profile RPC (signup)', async () => {
 		fluxbase.rpc.mockResolvedValue({
 			data: { id: mockUser.id, role: 'user', onboarding_completed: false },
 			error: null
@@ -36,7 +36,7 @@ describe('ensureUserProfile', () => {
 		});
 
 		expect(fluxbase.rpc).toHaveBeenCalledWith(
-			'ensure_user_profile',
+			'ensure-user-profile',
 			expect.objectContaining({
 				first_name: 'Ada',
 				last_name: 'Lovelace',

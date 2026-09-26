@@ -31,6 +31,7 @@ function getEnv(name: string): string | undefined {
 
 interface FluxbaseClient {
 	from(table: string): any;
+	schema(schemaName: string): { from(table: string): any };
 }
 
 let cachedEndpoint: string | null = null;
@@ -46,7 +47,8 @@ export async function getValhallaEndpoint(fluxbase?: FluxbaseClient): Promise<st
 	if (fluxbase) {
 		try {
 			const { data, error } = await fluxbase
-				.from('app.settings')
+				.schema('app')
+				.from('settings')
 				.select('value')
 				.eq('key', 'wayli.valhalla_endpoint')
 				.single();

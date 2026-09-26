@@ -46,7 +46,7 @@ export async function ensureUserProfile(
 	const resolvedFull = full_name || `${first_name} ${last_name}`.trim() || '';
 
 	try {
-		const { data, error } = await fluxbase.rpc('ensure_user_profile', {
+		const { data, error } = await fluxbase.rpc('ensure-user-profile', {
 			first_name,
 			last_name,
 			full_name: resolvedFull

@@ -31,6 +31,7 @@ function getEnv(name: string): string | undefined {
 
 interface FluxbaseClient {
 	from(table: string): any;
+	schema(schemaName: string): { from(table: string): any };
 }
 
 let cachedEndpoint: string | null = null;

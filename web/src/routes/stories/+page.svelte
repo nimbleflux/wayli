@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { storageRefToUrl } from '$lib/utils/inline-media';
 	import { onMount } from 'svelte';
 	import { Sun, Moon, ArrowLeft, BookOpen, Calendar, User, Loader2 } from 'lucide-svelte';
 	import LanguageSelector from '$lib/components/ui/language-selector/index.svelte';
@@ -201,7 +202,7 @@
 						{#if story.trip_image_url}
 							<div class="h-32 overflow-hidden">
 								<img
-									src={story.trip_image_url}
+									src={storageRefToUrl(story.trip_image_url)}
 									alt={story.trip_title || ''}
 									class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
 									loading="lazy"

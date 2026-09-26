@@ -76,11 +76,8 @@ export async function uploadTripImage(file: File, fileName?: string): Promise<st
 
 		// Get the public URL
 		console.log('🔗 [UPLOAD] Generating public URL...');
-		const { data: urlData } = fluxbase.storage.from('trip-images').getPublicUrl(filePath);
-
-		console.log('✅ [UPLOAD] Public URL generated:', urlData.publicUrl);
-		console.log('🎉 [UPLOAD] Image upload completed successfully!');
-		return urlData.publicUrl;
+		console.log('🎉 [UPLOAD] Image upload completed successfully — storing bucket path');
+		return filePath;
 	} catch (error) {
 		console.error('💥 [UPLOAD] Unexpected error uploading image:', error);
 		console.error('💥 [UPLOAD] Error details:', {

@@ -51,6 +51,7 @@ export function inlineMediaRefs(body?: string | null): Set<string> {
  * public-read); absolute URLs pass through unchanged.
  */
 export function storageRefToUrl(ref: string): string {
+	if (!ref) return '';
 	if (/^https?:\/\//i.test(ref)) return ref;
 	const { data } = fluxbase.storage.from('trip-images').getPublicUrl(ref);
 	return data.publicUrl;

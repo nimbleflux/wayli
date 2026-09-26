@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { storageRefToUrl } from '$lib/utils/inline-media';
 	import { onMount } from 'svelte';
 	import { userStore } from '$lib/stores/auth';
 	import {
@@ -151,7 +152,11 @@
 				{#each searchResults as user (user.id)}
 					<div class="bg-card border-border flex items-center gap-3 rounded-xl border p-3">
 						{#if user.avatar_url}
-							<img src={user.avatar_url} alt="" class="h-10 w-10 rounded-full object-cover" />
+							<img
+								src={storageRefToUrl(user.avatar_url)}
+								alt=""
+								class="h-10 w-10 rounded-full object-cover"
+							/>
 						{:else}
 							<div
 								class="bg-muted flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold"
@@ -193,7 +198,11 @@
 					{#each pendingRequests as req (req.id)}
 						<div class="bg-card border-border flex items-center gap-3 rounded-xl border p-3">
 							{#if req.avatar_url}
-								<img src={req.avatar_url} alt="" class="h-10 w-10 rounded-full object-cover" />
+								<img
+									src={storageRefToUrl(req.avatar_url)}
+									alt=""
+									class="h-10 w-10 rounded-full object-cover"
+								/>
 							{:else}
 								<div
 									class="bg-muted flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold"
@@ -239,7 +248,11 @@
 					{#each friends as friend (friend.id)}
 						<div class="bg-card border-border flex items-center gap-3 rounded-xl border p-3">
 							{#if friend.avatar_url}
-								<img src={friend.avatar_url} alt="" class="h-10 w-10 rounded-full object-cover" />
+								<img
+									src={storageRefToUrl(friend.avatar_url)}
+									alt=""
+									class="h-10 w-10 rounded-full object-cover"
+								/>
 							{:else}
 								<div
 									class="bg-muted flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold"

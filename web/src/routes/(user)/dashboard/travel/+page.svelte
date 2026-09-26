@@ -1540,7 +1540,7 @@
 								<div class="h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl">
 									{#if trip.image_url}
 										<img
-											src={trip.image_url}
+											src={storageRefToUrl(trip.image_url)}
 											alt={trip.title}
 											class="h-full w-full object-cover"
 											loading="eager"
@@ -1739,7 +1739,7 @@
 													{#if entry.cover_image_url}
 														<div class="mb-3 overflow-hidden rounded-lg">
 															<PannableCover
-																src={entry.cover_image_url}
+																src={storageRefToUrl(entry.cover_image_url)}
 																editable={true}
 																onFocalChange={async (x, y) => {
 																	// Update entry metadata with focal point
@@ -2113,7 +2113,7 @@
 												<div class="bg-muted/50 flex items-center gap-2 rounded-lg p-2">
 													{#if share.avatar_url}
 														<img
-															src={share.avatar_url}
+															src={storageRefToUrl(share.avatar_url)}
 															alt=""
 															class="h-6 w-6 rounded-full object-cover"
 														/>

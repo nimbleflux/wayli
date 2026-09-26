@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { storageRefToUrl } from '$lib/utils/inline-media';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -426,7 +427,7 @@
 	<div class="relative h-[420px] w-full overflow-hidden">
 		{#if profile.cover_photo_url}
 			<PannableCover
-				src={profile.cover_photo_url}
+				src={storageRefToUrl(profile.cover_photo_url)}
 				focalX={profile.cover_focal_x ?? 0.5}
 				focalY={profile.cover_focal_y ?? 0.5}
 				editable={isOwner}
@@ -445,7 +446,7 @@
 				<!-- Avatar -->
 				{#if profile.avatar_url}
 					<img
-						src={profile.avatar_url}
+						src={storageRefToUrl(profile.avatar_url)}
 						alt={profile.full_name || profile.username}
 						class="h-28 w-28 rounded-3xl border-2 border-white/20 object-cover shadow-2xl"
 					/>
@@ -629,7 +630,7 @@
 							<!-- Background image -->
 							{#if trip.image_url}
 								<img
-									src={trip.image_url}
+									src={storageRefToUrl(trip.image_url)}
 									alt={trip.title}
 									class="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
 									loading="lazy"

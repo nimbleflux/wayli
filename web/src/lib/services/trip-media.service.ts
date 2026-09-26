@@ -9,7 +9,10 @@ import type { TripMedia, CreateTripMediaInput } from '$lib/types/media.types';
 import { lazyBucketEnsure } from '$lib/services/bucket-ensure.service';
 
 /**
- * Upload a blob to the trip-images bucket and return the public URL.
+ * Upload a blob to the trip-images bucket and return the raw bucket path.
+ * DB columns store the PATH, never an absolute URL — the deployment hostname
+ * changes (flux.hazen.nu → flux.int.hazen.nu) must not invalidate stored
+ * rows. Renderers resolve paths to URLs via storageRefToUrl().
  * Path: {userId}/{tripId}/{filename}
  */
 export async function uploadMedia(
@@ -37,8 +40,7 @@ export async function uploadMedia(
 
 	if (error) throw new Error(error.message);
 
-	const { data } = fluxbase.storage.from('trip-images').getPublicUrl(path);
-	return data.publicUrl;
+	return path;
 }
 
 /**

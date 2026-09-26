@@ -46,11 +46,17 @@ export async function ensureUserProfile(
 	const resolvedFull = full_name || `${first_name} ${last_name}`.trim() || '';
 
 	try {
-		const { data, error } = await fluxbase.rpc('ensure-user-profile', {
-			first_name,
-			last_name,
-			full_name: resolvedFull
-		});
+		// The procedure is registered in the 'wayli' namespace (the chart's
+		// rpc sync) — the SDK defaults rpc calls to 'default', which 404s.
+		const { data, error } = await fluxbase.rpc(
+			'ensure-user-profile',
+			{
+				first_name,
+				last_name,
+				full_name: resolvedFull
+			},
+			{ namespace: 'wayli' }
+		);
 
 		if (error) {
 			console.error('[ensureUserProfile] rpc failed:', error);

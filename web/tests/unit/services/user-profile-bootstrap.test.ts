@@ -41,7 +41,10 @@ describe('ensureUserProfile', () => {
 				first_name: 'Ada',
 				last_name: 'Lovelace',
 				full_name: 'Ada Lovelace'
-			})
+			}),
+			// The procedure lives in the 'wayli' namespace (the chart's rpc
+			// sync); the SDK would default to 'default' and 404.
+			{ namespace: 'wayli' }
 		);
 		expect(result).toMatchObject({ id: mockUser.id, role: 'user', onboarding_completed: false });
 	});

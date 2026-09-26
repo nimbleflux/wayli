@@ -46,7 +46,7 @@ export async function getValhallaEndpoint(fluxbase?: FluxbaseClient): Promise<st
 	if (fluxbase) {
 		try {
 			const { data, error } = await fluxbase
-				.from('app.settings')
+				.schema('app').from('settings')
 				.select('value')
 				.eq('key', 'wayli.valhalla_endpoint')
 				.single();

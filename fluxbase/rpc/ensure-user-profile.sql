@@ -1,3 +1,4 @@
+-- @fluxbase:name ensure_user_profile
 -- @fluxbase:description Create the caller's user_profiles row if missing (app-side bootstrap, replacing the auth.users trigger Fluxbase wipes on restart). The first-user→admin decision is made SERVER-SIDE inside request_user_profile (SECURITY DEFINER, advisory-locked): clients can never send an id or role, so only the very first signup on a fresh instance becomes admin. Idempotent; returns the profile row as JSON.
 -- @fluxbase:require-role authenticated
 -- @fluxbase:input { "first_name": "text", "last_name": "text", "full_name": "text" }

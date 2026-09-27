@@ -1185,6 +1185,55 @@ export class ServiceAdapter {
 	}
 
 	/**
+	 * Reverse geocode a coordinate pair into a label + address summary.
+	 * Used to enrich manually entered home coordinates (#205): the label and
+	 * address (city) make the manual location fully equivalent to a geocoded
+	 * one (blue circle, city-based trip detection). Never throws — a failed
+	 * lookup must not block saving the coordinates; callers fall back to the
+	 * plain "lat, lng" label.
+	 */
+	async reverseGeocode(
+		lat: number,
+		lng: number
+	): Promise<{ label: string; address: Record<string, string>; layer?: string } | null> {
+		try {
+			const endpoint = import.meta.env.PUBLIC_PELIAS_ENDPOINT || 'https://pelias.wayli.app';
+			const url = `${endpoint}/v1/reverse?point.lat=${lat}&point.lon=${lng}&size=1`;
+
+			const response = await fetch(url, {
+				headers: {
+					'X-Client-App': 'WayliApp/1.0',
+					Accept: 'application/json'
+				},
+				// Enrichment must never hold up a profile save
+				signal: AbortSignal.timeout(5000)
+			});
+			if (!response.ok) return null;
+
+			const data = await response.json();
+			const feature = data?.features?.[0];
+			if (!feature?.properties) return null;
+
+			const props = feature.properties;
+			return {
+				label: props.label || '',
+				address: {
+					city: props.locality,
+					state: props.region,
+					country: props.country,
+					country_code: props.country_a,
+					postcode: props.postalcode,
+					road: props.street,
+					house_number: props.housenumber
+				},
+				layer: props.layer
+			};
+		} catch {
+			return null;
+		}
+	}
+
+	/**
 	 * GET a Pelias autocomplete/search endpoint and return the parsed JSON
 	 */
 	private async peliasRequest(endpoint: string, path: string, query: string) {

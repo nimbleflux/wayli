@@ -3,7 +3,8 @@ import { describe, it, expect } from 'vitest';
 import {
 	normalizeHomeAddress,
 	parseManualHomeCoordinates,
-	buildManualHomeAddress
+	buildManualHomeAddress,
+	homeCoordinatesEqual
 } from './home-address';
 
 describe('normalizeHomeAddress', () => {
@@ -148,5 +149,46 @@ describe('buildManualHomeAddress', () => {
 		expect(result.display_name).toBe('-35.042, 150.669');
 		expect(result.address).toEqual({ city: 'Huskisson' });
 		expect(result).not.toHaveProperty('layer');
+	});
+});
+
+describe('homeCoordinatesEqual', () => {
+	it('returns true when the stored value has the same manual coordinates', () => {
+		const stored = {
+			display_name: '-35.042, 150.669',
+			coordinates: { lat: -35.042, lng: 150.669 }
+		};
+		expect(homeCoordinatesEqual(stored, -35.042, 150.669)).toBe(true);
+	});
+
+	it('returns true when the enriched manual shape has the same coordinates', () => {
+		const stored = {
+			display_name: 'Somewhere',
+			coordinates: { lat: -35.042, lng: 150.669 },
+			address: { city: 'Huskisson' }
+		};
+		expect(homeCoordinatesEqual(stored, -35.042, 150.669)).toBe(true);
+	});
+
+	it('compares the raw Pelias flat lat/lon shape', () => {
+		const stored = { display_name: 'X', lat: -35.042, lon: 150.669 };
+		expect(homeCoordinatesEqual(stored, -35.042, 150.669)).toBe(true);
+	});
+
+	it('compares the adapter location.{lat, lon} shape', () => {
+		const stored = { address: 'Home', location: { lat: -35.042, lon: 150.669 } };
+		expect(homeCoordinatesEqual(stored, -35.042, 150.669)).toBe(true);
+	});
+
+	it('returns false for different coordinates', () => {
+		const stored = { coordinates: { lat: -35.042, lng: 150.669 } };
+		expect(homeCoordinatesEqual(stored, -35.1, 150.669)).toBe(false);
+	});
+
+	it('returns true when there is nothing stored or no coordinates to compare', () => {
+		expect(homeCoordinatesEqual(null, -35.042, 150.669)).toBe(true);
+		expect(homeCoordinatesEqual(undefined, -35.042, 150.669)).toBe(true);
+		expect(homeCoordinatesEqual('Huskisson, NSW', -35.042, 150.669)).toBe(true);
+		expect(homeCoordinatesEqual({ display_name: 'Home' }, -35.042, 150.669)).toBe(true);
 	});
 });

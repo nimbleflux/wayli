@@ -10,6 +10,8 @@
 // Every reader must go through normalizeHomeAddress; legacy plain strings
 // carry no coordinates and normalize to null.
 
+import type { ManualHomeCoordinates } from '$lib/types/geocoding.types';
+
 export interface ReverseGeocodeSummary {
 	label: string;
 	address: Record<string, string>;
@@ -23,6 +25,30 @@ export interface NormalizedHomeAddress {
 	layer?: string;
 	name?: string;
 	city?: string;
+}
+
+/**
+ * Build the home_address value for manually entered coordinates. Without a
+ * reverse-geocode summary this is exactly the plain manual shape; with one,
+ * the label and address/layer keys are added so city-based trip detection
+ * works for manual locations too (#205).
+ */
+export function buildManualHomeAddress(
+	lat: number,
+	lng: number,
+	reverse: ReverseGeocodeSummary | null
+): ManualHomeCoordinates {
+	const base: ManualHomeCoordinates = {
+		display_name: reverse?.label || `${lat}, ${lng}`,
+		coordinates: { lat, lng }
+	};
+	if (reverse?.address && Object.keys(reverse.address).length > 0) {
+		base.address = reverse.address;
+	}
+	if (reverse?.layer) {
+		base.layer = reverse.layer;
+	}
+	return base;
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -97,25 +123,26 @@ export function parseManualHomeCoordinates(
 }
 
 /**
- * Build the home_address value for manually entered coordinates. Without a
- * reverse-geocode summary this is exactly the plain manual shape; with one,
- * the label and address/layer keys are added so city-based trip detection
- * works for manual locations too (#205).
+ * Whether the stored home address already carries these exact coordinates.
+ * Used to skip reverse-geocode enrichment when the user re-saves unchanged
+ * manual coordinates. Coordinates can sit at `coordinates.{lat,lng|lon}`,
+ * `location.{lat,lon}` or flat `lat/lon` — all three persisted shapes.
  */
-export function buildManualHomeAddress(
-	lat: number,
-	lng: number,
-	reverse: ReverseGeocodeSummary | null
-): Record<string, unknown> {
-	const base: Record<string, unknown> = {
-		display_name: reverse?.label || `${lat}, ${lng}`,
-		coordinates: { lat, lng }
-	};
-	if (reverse?.address && Object.keys(reverse.address).length > 0) {
-		base.address = reverse.address;
-	}
-	if (reverse?.layer) {
-		base.layer = reverse.layer;
-	}
-	return base;
+export function homeCoordinatesEqual(stored: unknown, lat: number, lng: number): boolean {
+	const coords = pickLatLng(
+		stored && typeof stored === 'object' ? (stored as Record<string, unknown>).coordinates : null
+	);
+	const viaLocation = pickLatLng(
+		stored && typeof stored === 'object' ? (stored as Record<string, unknown>).location : null
+	);
+	const flat =
+		stored && typeof stored === 'object'
+			? pickLatLng({
+					lat: (stored as Record<string, unknown>).lat,
+					lng: (stored as Record<string, unknown>).lon
+				})
+			: null;
+	const current = coords ?? viaLocation ?? flat;
+	if (!current) return true; // nothing comparable → treat as changed
+	return Math.abs(current.lat - lat) < 1e-7 && Math.abs(current.lon - lng) < 1e-7;
 }

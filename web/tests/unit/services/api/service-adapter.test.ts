@@ -975,6 +975,75 @@ describe('ServiceAdapter', () => {
 				expect(urls[1]).toContain('/v1/search');
 			});
 		});
+
+		describe('reverseGeocode', () => {
+			beforeEach(() => {
+				global.fetch = vi.fn();
+			});
+
+			it('should reverse geocode coordinates and return a summary', async () => {
+				const peliasResponse = {
+					features: [
+						{
+							geometry: { coordinates: [150.669, -35.042] },
+							properties: {
+								label: '11 Beecroft Street, Huskisson, NSW, Australia',
+								layer: 'address',
+								locality: 'Huskisson',
+								region: 'New South Wales',
+								country: 'Australia',
+								country_a: 'AU',
+								street: 'Beecroft Street',
+								housenumber: '11'
+							}
+						}
+					]
+				};
+
+				(global.fetch as any).mockResolvedValue({
+					ok: true,
+					json: () => Promise.resolve(peliasResponse)
+				});
+
+				const result = await adapter.reverseGeocode(-35.042, 150.669);
+
+				expect(result).not.toBeNull();
+				expect(result?.label).toBe('11 Beecroft Street, Huskisson, NSW, Australia');
+				expect(result?.layer).toBe('address');
+				expect(result?.address).toEqual({
+					city: 'Huskisson',
+					state: 'New South Wales',
+					country: 'Australia',
+					country_code: 'AU',
+					postcode: undefined,
+					road: 'Beecroft Street',
+					house_number: '11'
+				});
+
+				const url = (global.fetch as any).mock.calls[0][0] as string;
+				expect(url).toContain('/v1/reverse');
+				expect(url).toContain('point.lat=-35.042');
+				expect(url).toContain('point.lon=150.669');
+			});
+
+			it('should return null when no features are found', async () => {
+				// Open water returns zero features — a legitimate result, not an error
+				(global.fetch as any).mockResolvedValue({
+					ok: true,
+					json: () => Promise.resolve({ features: [] })
+				});
+
+				expect(await adapter.reverseGeocode(-35.05, 150.72)).toBeNull();
+			});
+
+			it('should return null (never throw) when the request fails', async () => {
+				(global.fetch as any).mockResolvedValue({ ok: false, status: 500 });
+				expect(await adapter.reverseGeocode(-35.05, 150.72)).toBeNull();
+
+				(global.fetch as any).mockRejectedValue(new Error('offline'));
+				expect(await adapter.reverseGeocode(-35.05, 150.72)).toBeNull();
+			});
+		});
 	});
 
 	describe('Admin Operations', () => {

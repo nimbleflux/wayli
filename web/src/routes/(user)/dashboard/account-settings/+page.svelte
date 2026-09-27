@@ -33,7 +33,11 @@
 	import { sessionStore, userStore } from '$lib/stores/auth';
 	import { fluxbase } from '$lib/fluxbase';
 	import { readSetting } from '$lib/utils/settings';
-	import { parseManualHomeCoordinates as parseManualCoordinates } from '$lib/utils/home-address';
+	import {
+		parseManualHomeCoordinates as parseManualCoordinates,
+		homeCoordinatesEqual,
+		buildManualHomeAddress
+	} from '$lib/utils/home-address';
 	import { setFitnessBeta } from '$lib/stores/fitness-beta.svelte';
 	import { setValhallaBeta } from '$lib/stores/valhalla-beta.svelte';
 	import {
@@ -944,8 +948,20 @@
 			(profile as any).avatar_url = profileAvatarUrl || null;
 			(profile as any).cover_photo_url = profileCoverUrl || null;
 			(profile as any).discoverable = discoverableInput;
-			profile.home_address =
-				manualHomeCoordinates ?? selectedHomeAddress ?? (homeAddressInput.trim() || null);
+			// Manual coordinates (#205): reverse-geocode them into a label +
+			// address so the home circle and city-based trip detection work.
+			// Enrichment failure never blocks the save — the plain "lat, lng"
+			// shape is stored instead. Unchanged coordinates keep the stored
+			// value untouched (no pointless re-geocode, no enrichment loss).
+			if (manualHomeCoordinates) {
+				const { lat, lng } = manualHomeCoordinates.coordinates;
+				if (!homeCoordinatesEqual(profile.home_address, lat, lng)) {
+					const reverse = await serviceAdapter.reverseGeocode(lat, lng);
+					profile.home_address = buildManualHomeAddress(lat, lng, reverse);
+				}
+			} else {
+				profile.home_address = selectedHomeAddress ?? (homeAddressInput.trim() || null);
+			}
 
 			// Update profile using service adapter
 			await serviceAdapter.updateProfile({

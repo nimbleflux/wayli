@@ -175,7 +175,12 @@ export async function decodeAndPersist(
     if (valhallaClient) {
       try {
         const { confirmWithValhalla } = await import('./valhalla-confirm');
-        decisions = await confirmWithValhalla(observations, decisions, valhallaClient);
+        decisions = await confirmWithValhalla(
+          observations,
+          decisions,
+          valhallaClient,
+          new Set(disabledModes)
+        );
       } catch (err) {
         console.warn('[valhalla] Stage-2 confirmation failed (keeping Stage-1):', err);
       }

@@ -21,6 +21,10 @@ test('permanent geocode failure counts as water; retryable does not', () => {
 		true
 	);
 	assert.equal(isOnWaterGeocode(geocode({ geocoding_status: 'failed', retryable: true })), false);
+	assert.equal(
+		isOnWaterGeocode(geocode({ geocoding_status: 'failed', geocode_error: 'All Pelias endpoints failed' })),
+		false
+	);
 });
 
 test('marine layer, water categories and OSM water tags count as water', () => {

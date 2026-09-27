@@ -1153,8 +1153,10 @@ export class ServiceAdapter {
 		// Final fallback: an address whose house number isn't in the data (the
 		// street exists but the number was never mapped) returns nothing. Strip
 		// the leading house number and offer the street instead so the user can
-		// still select a sensible home location (#205).
-		const houseNumberMatch = query.trim().match(/^\d+[A-Za-z]?\s*[-,/ ]\s*(.+)$/);
+		// still select a sensible home location (#205). The remainder must
+		// contain a comma — "11 Beecroft Street, Huskisson" — so digit-leading
+		// non-address queries ("24 hour gym Sydney") can't misfire.
+		const houseNumberMatch = query.trim().match(/^\d+[A-Za-z]?\s+([^,]+,.+)$/);
 		if (!data?.features?.length && houseNumberMatch) {
 			data = await this.peliasRequest(endpoint, '/v1/search', houseNumberMatch[1]);
 		}

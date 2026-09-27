@@ -133,7 +133,11 @@ export function isOnWaterGeocode(
 
 	const props = reverseGeocode.properties as Record<string, unknown>;
 
-	if (props.geocoding_status === 'failed' && props.retryable !== true) {
+	if (
+		props.geocoding_status === 'failed' &&
+		props.retryable !== true &&
+		/no results/i.test(String(props.geocode_error ?? ''))
+	) {
 		return true;
 	}
 

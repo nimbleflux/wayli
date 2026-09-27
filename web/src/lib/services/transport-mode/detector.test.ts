@@ -54,6 +54,15 @@ function waterGeocode() {
 	} as ModeObservation['geocode'];
 }
 
+/** A plain land address geocode (opposite evidence of waterGeocode). */
+function landGeocode() {
+	return {
+		type: 'Feature',
+		geometry: { type: 'Point', coordinates: [4, 52] },
+		properties: { layer: 'address', locality: 'Huskisson' }
+	} as ModeObservation['geocode'];
+}
+
 /** Attach a geocode to every observation in a run. */
 function withGeocode(obs: ModeObservation[], geocode: ModeObservation['geocode']) {
 	return obs.map((o) => ({ ...o, geocode }));
@@ -411,5 +420,20 @@ describe('#220: per-user disabled modes', () => {
 		const obs = run([5, 5, 5, 5, 5, 5]);
 		const decisions = detectTransportModes(obs, { disabledModes: [] });
 		expect(decisions.every((d) => d.mode === 'walking')).toBe(true);
+	});
+});
+
+describe('#220: mixed water/land geocode evidence', () => {
+	test('any genuine land geocode in the segment keeps the conservative land call', () => {
+		// Viterbi mode persistence + no land suppression on land points means a
+		// segment containing even a few land geocodes stays on the land mode —
+		// the conservative direction. (Boat requires unanimous-ish water.)
+		const mixed = withGeocode(
+			run([18, 22, 20, 24, 19, 21, 23, 18, 20, 22, 21]),
+			waterGeocode()
+		).map((o, i) => (i >= 6 ? { ...o, geocode: landGeocode() } : o));
+		const decisions = detectTransportModes(mixed);
+		expect(decisions.some((d) => d.mode === 'swimming')).toBe(false);
+		expect(decisions.every((d) => d.mode !== 'unknown')).toBe(true);
 	});
 });

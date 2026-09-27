@@ -143,6 +143,9 @@ export function homeCoordinatesEqual(stored: unknown, lat: number, lng: number):
 				})
 			: null;
 	const current = coords ?? viaLocation ?? flat;
-	if (!current) return true; // nothing comparable → treat as changed
+	// Nothing stored (or no coordinates in the stored value) → NOT equal: the
+	// caller must run enrichment and save (a first-time manual save would
+	// otherwise be a silent no-op).
+	if (!current) return false;
 	return Math.abs(current.lat - lat) < 1e-7 && Math.abs(current.lon - lng) < 1e-7;
 }

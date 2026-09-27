@@ -276,9 +276,13 @@
 			// Mirror the job-side disabled-modes preference into the live decode.
 			void (async () => {
 				try {
+					const { data: authData } = await fluxbase.auth.getUser();
+					const user = authData?.user;
+					if (!user) return;
 					const { data } = await fluxbase
 						.from('user_preferences')
 						.select('preferences')
+						.eq('id', user.id)
 						.maybeSingle();
 					const disabled = (data as any)?.preferences?.transport_detection?.disabled_modes;
 					if (Array.isArray(disabled)) statisticsService?.setDisabledModes(disabled);

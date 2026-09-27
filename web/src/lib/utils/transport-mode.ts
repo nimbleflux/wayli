@@ -147,8 +147,14 @@ export function isOnWaterGeocode(
 
 	const props = reverseGeocode.properties as Record<string, unknown>;
 
-	// Signal 1: permanent no-result failures (open water has no land record)
-	if (props.geocoding_status === 'failed' && props.retryable !== true) {
+	// Signal 1: permanent NO-RESULT failures (open water has no land record).
+	// Only no-result-class errors count — infra failures ("All Pelias endpoints
+	// failed", 5xx) are also non-retryable but are NOT evidence of water.
+	if (
+		props.geocoding_status === 'failed' &&
+		props.retryable !== true &&
+		/no results/i.test(String(props.geocode_error ?? ''))
+	) {
 		return true;
 	}
 

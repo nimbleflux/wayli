@@ -31,6 +31,27 @@ describe('isOnWaterGeocode (#220)', () => {
 		expect(isOnWaterGeocode(geocode({ geocoding_status: 'failed', retryable: true }))).toBe(false);
 	});
 
+	it('does not treat Pelias outage errors as water (non-retryable but not no-result)', () => {
+		expect(
+			isOnWaterGeocode(
+				geocode({ geocoding_status: 'failed', geocode_error: 'All Pelias endpoints failed' })
+			)
+		).toBe(false);
+		expect(
+			isOnWaterGeocode(
+				geocode({ geocoding_status: 'failed', geocode_error: 'Pelias error: 503 - upstream' })
+			)
+		).toBe(false);
+	});
+
+	it('treats the no-result error string as water', () => {
+		expect(
+			isOnWaterGeocode(
+				geocode({ geocoding_status: 'failed', geocode_error: 'Pelias returned no results' })
+			)
+		).toBe(true);
+	});
+
 	it('treats the marine layer as water', () => {
 		expect(isOnWaterGeocode(geocode({ layer: 'marine', name: 'Jervis Bay' }))).toBe(true);
 	});

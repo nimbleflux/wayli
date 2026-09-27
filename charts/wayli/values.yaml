@@ -343,10 +343,12 @@ fluxbase:
 
     ## Storage: ensure the trip-images bucket exists on startup so photo
     ## uploads (Polarsteps import, frontend media uploads) work immediately.
-    ## trip-images is declared public-read: every renderer resolves stored
-    ## bucket paths to public URLs, so a private bucket 404s all images
-    ## (avatars, covers, gallery photos — nimbleflux/wayli#219). temp-files
-    ## stays private (read back via signed URLs).
+    ## The two lists are orthogonal: default_buckets CREATES the bucket
+    ## (physical + DB row), default_public_buckets only marks visibility
+    ## (seeded public + healed on boot). trip-images needs to be in both:
+    ## every renderer resolves stored bucket paths to public URLs, so a
+    ## private bucket 404s all images (avatars, covers, gallery photos —
+    ## nimbleflux/wayli#219). temp-files stays private (signed URLs).
     storage:
       default_buckets:
         - trip-images

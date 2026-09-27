@@ -6,7 +6,7 @@ import {
 	MODE_CONTINUITY_LIMITS,
 	SPEED_CV_THRESHOLDS
 } from './config.ts';
-import { NUM_MODES, TRANSPORT_MODES, MODE_INDEX } from './states.ts';
+import { NUM_MODES, TRANSPORT_MODES, MODE_INDEX, type TransportMode } from './states.ts';
 import type { ModeFeatures, SegmentContext } from './types.ts';
 
 const LOG_ZERO = -Infinity;
@@ -49,7 +49,11 @@ function buildTransitionMatrix(): number[][] {
 	return T.map((row) => row.map(safeLog));
 }
 
-export function emissionScores(f: ModeFeatures, segCtx?: SegmentContext): number[] {
+export function emissionScores(
+	f: ModeFeatures,
+	segCtx?: SegmentContext,
+	disabledModes?: ReadonlySet<TransportMode>
+): number[] {
 	const scores = new Array(NUM_MODES).fill(1);
 	const PRIOR: Record<string, number> = {
 		stationary: 1.0,
@@ -136,6 +140,9 @@ export function emissionScores(f: ModeFeatures, segCtx?: SegmentContext): number
 		}
 		s = s * (0.3 + 0.7 * f.accuracyWeight);
 		s *= PRIOR[mode] ?? 1;
+		// Hard exclusion of user-disabled modes (#220): zero emission
+		// probability, Viterbi can never choose them.
+		if (disabledModes?.has(mode)) s = 0;
 		scores[m] = s;
 	}
 	return scores;
@@ -146,7 +153,11 @@ export interface ViterbiResult {
 	logProbs: number[];
 }
 
-export function viterbi(features: ModeFeatures[], segCtx?: SegmentContext): ViterbiResult {
+export function viterbi(
+	features: ModeFeatures[],
+	segCtx?: SegmentContext,
+	disabledModes?: ReadonlySet<TransportMode>
+): ViterbiResult {
 	const n = features.length;
 	if (n === 0) return { path: [], logProbs: [] };
 	const logT = buildTransitionMatrix();
@@ -154,10 +165,10 @@ export function viterbi(features: ModeFeatures[], segCtx?: SegmentContext): Vite
 	start[MODE_INDEX['stationary']] = safeLog((1 / NUM_MODES) * 1.3);
 	const dp: number[][] = Array.from({ length: n }, () => new Array(NUM_MODES).fill(LOG_ZERO));
 	const back: number[][] = Array.from({ length: n }, () => new Array(NUM_MODES).fill(0));
-	const e0 = emissionScores(features[0], segCtx);
+	const e0 = emissionScores(features[0], segCtx, disabledModes);
 	for (let s = 0; s < NUM_MODES; s++) dp[0][s] = start[s] + safeLog(e0[s]);
 	for (let t = 1; t < n; t++) {
-		const et = emissionScores(features[t], segCtx);
+		const et = emissionScores(features[t], segCtx, disabledModes);
 		for (let s = 0; s < NUM_MODES; s++) {
 			let best = LOG_ZERO;
 			let bestPrev = 0;

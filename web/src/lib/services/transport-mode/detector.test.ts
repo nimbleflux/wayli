@@ -397,3 +397,19 @@ describe('#220: water modes (boat / swimming)', () => {
 		expect(decisions.some((d) => d.mode === 'boat' || d.mode === 'swimming')).toBe(false);
 	});
 });
+
+describe('#220: per-user disabled modes', () => {
+	test('a disabled mode is never chosen even on a perfect fixture', () => {
+		const obs = run([18, 22, 20, 24, 19, 21, 23, 18, 20, 22]);
+		const decisions = detectTransportModes(obs, { disabledModes: ['cycling'] });
+		expect(decisions.some((d) => d.mode === 'cycling')).toBe(false);
+		// The run still decodes to something plausible (car or walking fallback).
+		expect(decisions.length).toBe(obs.length);
+	});
+
+	test('empty disabledModes behaves exactly like before', () => {
+		const obs = run([5, 5, 5, 5, 5, 5]);
+		const decisions = detectTransportModes(obs, { disabledModes: [] });
+		expect(decisions.every((d) => d.mode === 'walking')).toBe(true);
+	});
+});

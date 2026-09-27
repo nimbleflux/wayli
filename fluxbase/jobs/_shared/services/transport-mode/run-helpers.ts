@@ -6,6 +6,7 @@
 
 import type { FluxbaseClient } from '../../../types.d.ts';
 import { detectTransportModes } from './detector.ts';
+import { TRANSPORT_MODES, type TransportMode } from './states.ts';
 import { LOOKBACK_MS } from './segmentation.ts';
 import type { ModeObservation } from './types.ts';
 
@@ -74,6 +75,7 @@ export async function decodeAndPersist(
   // user's preference once — when off, Stage-2 is skipped entirely and the
   // behaviour is identical to the pre-Valhalla pipeline.
   let valhallaClient: import('../external/valhalla.service').ValhallaClient | null = null;
+  let disabledModes: TransportMode[] = [];
   try {
     const { data: pref } = await db
       .from('user_preferences')
@@ -81,6 +83,16 @@ export async function decodeAndPersist(
       .eq('id', userId)
       .maybeSingle();
     const useValhalla = (pref as any)?.preferences?.use_valhalla_transport === true;
+    // #220: user-disabled modes are a hard exclusion for the detector.
+    const disabledList = (pref as any)?.preferences?.transport_detection?.disabled_modes;
+    if (Array.isArray(disabledList) && disabledList.length > 0) {
+      disabledModes = disabledList.filter((m: unknown): m is TransportMode =>
+        typeof m === 'string' && (TRANSPORT_MODES as readonly string[]).includes(m)
+      );
+      if (disabledModes.length > 0) {
+        console.log(`[transport-mode] User ${userId}: disabled modes [${disabledModes.join(', ')}]`);
+      }
+    }
     if (useValhalla) {
       const { traceAttributes } = await import('../external/valhalla.service');
       valhallaClient = {
@@ -154,7 +166,7 @@ export async function decodeAndPersist(
 
     // Decode with the previous batch's tail as context, then keep this
     // batch's tail for the next iteration.
-    let decisions = _detector(observations, { prevObs });
+    let decisions = _detector(observations, { prevObs, disabledModes });
     prevObs = observations.slice(-TAIL);
 
     // Stage 2: confirm ambiguous segments via Valhalla map matching (when

@@ -94,6 +94,11 @@ export interface SegmentDetection {
  */
 export interface DetectionContext {
 	prevObs?: ModeObservation[];
+	/**
+	 * Modes the user has switched off (#220). Disabled modes get zero emission
+	 * probability — a hard exclusion. Empty/undefined keeps prior behavior.
+	 */
+	disabledModes?: TransportMode[];
 }
 
 /** Result of decoding one gap-bounded segment. */

@@ -28,6 +28,8 @@
 	import Switch from '$lib/components/ui/Switch.svelte';
 	import PannableCover from '$lib/components/PannableCover.svelte';
 	import { translate, changeLocale, currentLocale, type SupportedLocale } from '$lib/i18n';
+	import { TRANSPORT_MODES, type TransportMode } from '$lib/services/transport-mode/states';
+	import { transportModeIcon } from '$lib/services/transport-mode/visuals';
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
 	import { sessionManager } from '$lib/services/session';
 	import { sessionStore, userStore } from '$lib/stores/auth';
@@ -123,6 +125,14 @@
 	let preferredTimezone = $state('');
 	let notificationsEnabled = $state(false);
 	let valhallaEnabled = $state(false);
+	// #220: modes the user switched off — hard-excluded from detection.
+	let disabledTransportModes = $state<TransportMode[]>([]);
+
+	function toggleDisabledMode(mode: TransportMode) {
+		disabledTransportModes = disabledTransportModes.includes(mode)
+			? disabledTransportModes.filter((m) => m !== mode)
+			: [...disabledTransportModes, mode];
+	}
 	// Fitness beta opt-in; persisted immediately (not via the Save button)
 	// because gated UI depends on it.
 	let fitnessBetaEnabled = $state(false);
@@ -524,6 +534,10 @@
 				preferredUnit = (preferences as any).preferences?.units || 'metric';
 				notificationsEnabled = preferences.notifications_enabled ?? false;
 				valhallaEnabled = (preferences as any).preferences?.use_valhalla_transport === true;
+				const savedDisabled = (preferences as any).preferences?.transport_detection?.disabled_modes;
+				disabledTransportModes = Array.isArray(savedDisabled)
+					? savedDisabled.filter((m: string) => (TRANSPORT_MODES as readonly string[]).includes(m))
+					: [];
 				fitnessBetaEnabled = (preferences as any).preferences?.beta_features?.fitness === true;
 				valhallaRoutesBetaEnabled =
 					(preferences as any).preferences?.beta_features?.valhalla_routes === true;
@@ -1028,7 +1042,11 @@
 				preferences: {
 					...(preferences.preferences || {}),
 					units: preferredUnit,
-					use_valhalla_transport: valhallaEnabled
+					use_valhalla_transport: valhallaEnabled,
+					transport_detection: {
+						...((preferences.preferences as any)?.transport_detection ?? {}),
+						disabled_modes: disabledTransportModes
+					}
 				}
 			});
 
@@ -2271,6 +2289,29 @@
 							routing server)
 						</span>
 						<Switch bind:checked={valhallaEnabled} label="Transport Detection" />
+					</div>
+					<div class="mt-4 border-t pt-3">
+						<span class="text-sm font-medium">{t('accountSettings.disabledModesTitle')}</span>
+						<p class="text-muted-foreground mt-1 mb-2 text-xs">
+							{t('accountSettings.disabledModesHint')}
+						</p>
+						<div class="flex flex-wrap gap-2">
+							{#each TRANSPORT_MODES as mode (mode)}
+								{@const Icon = transportModeIcon(mode)}
+								<button
+									type="button"
+									class={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors ${
+										disabledTransportModes.includes(mode)
+											? 'border-muted text-muted-foreground line-through opacity-50'
+											: 'border-primary text-foreground'
+									}`}
+									onclick={() => toggleDisabledMode(mode)}
+								>
+									<Icon size={13} />
+									{t(`transport.${mode}`)}
+								</button>
+							{/each}
+						</div>
 					</div>
 				</div>
 			</div>

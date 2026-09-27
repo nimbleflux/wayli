@@ -139,6 +139,8 @@ export function detectTransportModes(
 ): PointModeDecision[] {
 	if (observations.length === 0) return [];
 
+	const disabledSet: ReadonlySet<TransportMode> = new Set(context.disabledModes ?? []);
+
 	// Prepend the previous batch's tail so the first points of this batch get a
 	// real Viterbi context instead of being treated as segment starts.
 	const tail = context.prevObs ?? [];
@@ -163,7 +165,7 @@ export function detectTransportModes(
 
 		// Single-point segment: no temporal context, score on emission alone.
 		if (segment.length === 1) {
-			const scores = emissionScores(features[0], segCtx);
+			const scores = emissionScores(features[0], segCtx, disabledSet);
 			let bestIdx = 0;
 			let best = -Infinity;
 			for (let m = 0; m < scores.length; m++) {
@@ -183,7 +185,7 @@ export function detectTransportModes(
 		}
 
 		// Multi-point: HMM + Viterbi over the segment.
-		const { path } = viterbi(features, segCtx);
+		const { path } = viterbi(features, segCtx, disabledSet);
 		for (let i = 0; i < segment.length; i++) {
 			const mode = TRANSPORT_MODES[path[i]];
 			decisions.push({

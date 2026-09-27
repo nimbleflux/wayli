@@ -15,6 +15,7 @@ export {
 	exportOptionsSchema,
 	createExportSchema,
 	updateProfileSchema,
+	profileUpdateSchema,
 	updatePreferencesSchema,
 	geocodeSearchSchema,
 	createTripExclusionSchema,

@@ -60,6 +60,13 @@ export function storageRefToUrl(ref: string): string {
 	if (ref.startsWith('/api/v1/storage/')) {
 		return `${config.fluxbaseUrl}${ref}`;
 	}
+	// Heals refs mangled by the pre-2.7.1 host-rename repair, which stripped
+	// https://<host> from ALL stored URLs — including external Pexels CDN
+	// image URLs. Those are hotlinked (never uploaded to trip-images), so
+	// resolving them as bucket paths yields trip-images//photos/… and 404s.
+	if (/^\/photos\/\d+\//.test(ref)) {
+		return `https://images.pexels.com${ref}`;
+	}
 	const { data } = fluxbase.storage.from('trip-images').getPublicUrl(ref);
 	return data.publicUrl;
 }

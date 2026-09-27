@@ -90,7 +90,7 @@ services:
 
   # Fluxbase API
   fluxbase:
-    image: ghcr.io/nimbleflux/fluxbase:2026.9.8
+    image: ghcr.io/nimbleflux/fluxbase:2026.9.9
     container_name: fluxbase
     restart: unless-stopped
     # Fluxbase runs as a non-root user; drop all caps (unverified upstream —
@@ -130,6 +130,9 @@ services:
       FLUXBASE_STORAGE_PROVIDER: local
       FLUXBASE_STORAGE_LOCAL_PATH: /app/storage
       FLUXBASE_STORAGE_DEFAULT_BUCKETS: 'trip-images,temp-files,uploads,public'
+      # trip-images serves public object URLs (image tags carry no auth) —
+      # seeded public and healed on boot; without this every uploaded image 404s.
+      FLUXBASE_STORAGE_DEFAULT_PUBLIC_BUCKETS: 'trip-images'
 
       # Enable features
       FLUXBASE_ADMIN_ENABLED: ${FLUXBASE_ADMIN_ENABLED-false}

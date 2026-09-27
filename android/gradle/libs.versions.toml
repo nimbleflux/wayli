@@ -15,15 +15,11 @@ workmanager = "2.10.0"
 # (missing the transport passthrough) — never pin those. Prefer release-CI
 # artifacts only.
 #
-# 2026.9.3+ CANNOT be pinned yet: fluxbase-kotlin ≥2026.9.3 is compiled with
-# Kotlin 2.4 (jar metadata 2.4.0 + kotlin-stdlib 2.4.x transitively), which
-# this app's AGP-8 toolchain cannot consume — the Kotlin 2.1.0 compiler can't
-# read 2.4 metadata ("Internal compiler error"), and Hilt ≤2.58's shaded
-# kotlin-metadata-jvm caps at 2.3.0 while Hilt ≥2.59 requires AGP ≥ 9.
-# Consuming ≥2026.9.3 needs the AGP 9 migration (AGP 9.1 + Gradle 9.x +
-# Hilt 2.60.1 + androidx.hilt 1.4.0 + KSP 2.3.12); Android uses none of the
-# newer SDK APIs, so 2026.9.2 stays until that lands.
-fluxbase-kotlin = "2026.9.8"
+# fluxbase-kotlin ≥2026.9.3 is compiled with Kotlin 2.4 and needs the AGP 9
+# toolchain (AGP 9.1 + Gradle 9.x + Hilt 2.60.1 + androidx.hilt 1.4.0 +
+# KSP 2.3.12) — consumable since the AGP 9 migration landed (#207). Pin only
+# release-CI artifacts.
+fluxbase-kotlin = "2026.9.9"
 detekt = "1.23.7"
 maplibre = "11.8.0"
 kotlinx-serialization = "1.11.0"

@@ -216,8 +216,12 @@
 		}
 	}
 	let profileAvatarUrl = $state('');
+	// Raw stored ref behind profileAvatarUrl. Saving must persist the ref, not
+	// the rendered URL — baked-in hostnames orphan the avatar on host renames.
+	let profileAvatarPath = $state<string | null>(null);
 	let avatarFileInput: HTMLInputElement | undefined = $state();
 	let profileCoverUrl = $state('');
+	let profileCoverPath = $state<string | null>(null);
 	let coverFileInput: HTMLInputElement | undefined = $state();
 
 	async function handleAvatarUpload(event: Event) {
@@ -243,6 +247,7 @@
 				.upload(path, full.blob, { contentType: 'image/jpeg', upsert: true });
 			if (uploadError) throw uploadError;
 
+			profileAvatarPath = path;
 			profileAvatarUrl = storageRefToUrl(path);
 
 			// Save to profile directly — store the PATH, not an absolute URL
@@ -283,6 +288,7 @@
 				.upload(path, full.blob, { contentType: 'image/jpeg', upsert: true });
 			if (uploadError) throw uploadError;
 
+			profileCoverPath = path;
 			profileCoverUrl = storageRefToUrl(path);
 
 			const { data: userData } = await fluxbase.auth.getUser();
@@ -485,7 +491,9 @@
 				firstNameInput = profile.first_name || '';
 				usernameInput = (profile as any).username || '';
 				originalUsername = (profile as any).username || '';
+				profileAvatarPath = (profile as any).avatar_url || null;
 				profileAvatarUrl = storageRefToUrl((profile as any).avatar_url || '');
+				profileCoverPath = (profile as any).cover_photo_url || null;
 				profileCoverUrl = storageRefToUrl((profile as any).cover_photo_url || '');
 				lastNameInput = profile.last_name || '';
 				const d = (profile as any).discoverable;
@@ -940,8 +948,8 @@
 			profile.first_name = firstNameInput.trim();
 			profile.last_name = lastNameInput.trim();
 			(profile as any).username = usernameInput.trim() || null;
-			(profile as any).avatar_url = profileAvatarUrl || null;
-			(profile as any).cover_photo_url = profileCoverUrl || null;
+			(profile as any).avatar_url = profileAvatarPath;
+			(profile as any).cover_photo_url = profileCoverPath;
 			(profile as any).discoverable = discoverableInput;
 			profile.home_address =
 				manualHomeCoordinates ?? selectedHomeAddress ?? (homeAddressInput.trim() || null);

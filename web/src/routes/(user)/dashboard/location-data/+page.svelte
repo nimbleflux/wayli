@@ -273,6 +273,19 @@
 	function initializeService() {
 		if (!statisticsService) {
 			statisticsService = new ClientStatisticsService();
+			// Mirror the job-side disabled-modes preference into the live decode.
+			void (async () => {
+				try {
+					const { data } = await fluxbase
+						.from('user_preferences')
+						.select('preferences')
+						.maybeSingle();
+					const disabled = (data as any)?.preferences?.transport_detection?.disabled_modes;
+					if (Array.isArray(disabled)) statisticsService?.setDisabledModes(disabled);
+				} catch {
+					// Preference read failure is non-fatal — nothing is disabled.
+				}
+			})();
 		}
 	}
 

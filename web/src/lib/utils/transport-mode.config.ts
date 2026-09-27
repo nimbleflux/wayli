@@ -27,7 +27,9 @@ export const MODE_PHYSICAL_LIMITS = {
 	cycling: { min: 5, max: 45 }, // Includes downhill/racing bikes
 	car: { min: 10, max: 180 }, // Typical car speeds (some cars can go faster, but rare)
 	train: { min: 30, max: 350 }, // Regional to high-speed trains
-	airplane: { min: 150, max: 1000 } // Commercial aircraft
+	airplane: { min: 150, max: 1000 }, // Commercial aircraft
+	boat: { min: 0, max: 100 }, // #220: dinghies to fast cruisers; ferries ~70
+	swimming: { min: 0, max: 8 } // #220: leisure to sprint freestyle
 } as const;
 
 // Minimum requirements for mode detection
@@ -48,7 +50,9 @@ export const MODE_CONTINUITY_LIMITS = {
 	cycling: { maxSpeedDiff: 15 }, // Can accelerate more (downhill, pedaling harder)
 	car: { maxSpeedDiff: 50 }, // Can accelerate significantly (0→50 is possible)
 	train: { maxSpeedDiff: 30 }, // Trains accelerate gradually
-	airplane: { maxSpeedDiff: 1500 } // Aircraft can have high speed variations (descent, approach)
+	airplane: { maxSpeedDiff: 1500 }, // Aircraft can have high speed variations (descent, approach)
+	boat: { maxSpeedDiff: 40 }, // #220: planing hulls get on step quickly
+	swimming: { maxSpeedDiff: 4 } // #220: swimmers change speed slowly
 } as const;
 
 // Physical acceleration limits (maximum km/h change per second)
@@ -57,7 +61,9 @@ export const ACCELERATION_LIMITS = {
 	cycling: 5, // Cycling max acceleration: ~5 km/h per second
 	car: 15, // Car max acceleration: ~15 km/h per second (0-60 in 4s)
 	train: 10, // Train max acceleration: ~10 km/h per second
-	airplane: 20 // Aircraft max acceleration: ~20 km/h per second (on ground/takeoff)
+	airplane: 20, // Aircraft max acceleration: ~20 km/h per second (on ground/takeoff)
+	boat: 10, // #220: planing hull 0-30 in ~3s
+	swimming: 1 // #220: push-off glide aside, swimmers are slow to accelerate
 } as const;
 
 // Speed brackets for car/train overlap zone (60-110 km/h)

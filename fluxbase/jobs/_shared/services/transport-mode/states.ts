@@ -7,7 +7,9 @@ export const TRANSPORT_MODES = [
 	'cycling',
 	'car',
 	'train',
-	'airplane'
+	'airplane',
+	'boat',
+	'swimming'
 ] as const;
 
 export type TransportMode = (typeof TRANSPORT_MODES)[number];

@@ -974,6 +974,40 @@ describe('ServiceAdapter', () => {
 				expect(urls[0]).toContain('/v1/autocomplete');
 				expect(urls[1]).toContain('/v1/search');
 			});
+			it('should fall back to street-level search when the house number returns nothing (#205)', async () => {
+				// Addresses missing from the data (e.g. 11 Beecroft Street,
+				// Huskisson) can't be found — but the STREET exists. Strip the
+				// house number and offer the street so the user can still select
+				// a sensible home location.
+				const streetResponse = {
+					features: [
+						{
+							geometry: { coordinates: [150.6693, -35.0421] },
+							properties: {
+								label: 'Beecroft Street, Huskisson, NSW, Australia',
+								name: 'Beecroft Street',
+								layer: 'street',
+								locality: 'Huskisson',
+								country: 'Australia'
+							}
+						}
+					]
+				};
+
+				(global.fetch as any)
+					.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ features: [] }) })
+					.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ features: [] }) })
+					.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(streetResponse) });
+
+				const result = await adapter.searchGeocode('11 Beecroft Street, Huskisson, NSW');
+
+				expect(result).toHaveLength(1);
+				expect(result[0].layer).toBe('street');
+				const urls = (global.fetch as any).mock.calls.map((call: any[]) => call[0] as string);
+				expect(urls).toHaveLength(3);
+				expect(urls[2]).toContain(encodeURIComponent('Beecroft Street, Huskisson, NSW'));
+				expect(urls[2]).not.toContain(encodeURIComponent('11 Beecroft'));
+			});
 		});
 
 		describe('reverseGeocode', () => {

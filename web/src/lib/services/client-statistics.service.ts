@@ -733,6 +733,7 @@ export class ClientStatisticsService {
 				// Different time thresholds for different transport modes
 				// Long-distance modes (train, car, plane) can have longer intervals between updates
 				// Walking/cycling should have shorter intervals to avoid GPS drift
+				// boat/swimming deliberately excluded — short-distance water modes (#220)
 				const longDistanceModes = ['train', 'car', 'plane', 'bus', 'tram', 'metro'];
 				const maxTimeSpent = longDistanceModes.includes(mode)
 					? 7200000 // 2 hours for long-distance travel

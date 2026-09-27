@@ -241,6 +241,8 @@
     "car": "Car",
     "train": "Train",
     "airplane": "Airplane",
+    "boat": "Boat",
+    "swimming": "Swimming",
     "stationary": "Stationary",
     "unknown": "Unknown"
   },

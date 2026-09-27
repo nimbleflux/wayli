@@ -587,7 +587,7 @@
 	});
 
 	// Helper functions (reused from original)
-	const greenModes = ['walking', 'cycling'];
+	const greenModes = ['walking', 'cycling', 'swimming'];
 
 	function formatEarthCircumferences(circumferences?: number): string {
 		if (!circumferences || circumferences === 0) return '0';
@@ -606,6 +606,8 @@
 			car: t('transport.car'),
 			train: t('transport.train'),
 			airplane: t('transport.airplane'),
+			boat: t('transport.boat'),
+			swimming: t('transport.swimming'),
 			stationary: t('transport.stationary'),
 			unknown: t('transport.unknown')
 		};

@@ -33,6 +33,7 @@
 	import { sessionStore, userStore } from '$lib/stores/auth';
 	import { fluxbase } from '$lib/fluxbase';
 	import { readSetting } from '$lib/utils/settings';
+	import { parseManualHomeCoordinates as parseManualCoordinates } from '$lib/utils/home-address';
 	import { setFitnessBeta } from '$lib/stores/fitness-beta.svelte';
 	import { setValhallaBeta } from '$lib/stores/valhalla-beta.svelte';
 	import {
@@ -1232,12 +1233,7 @@
 
 	function parseManualHomeCoordinates() {
 		if (!useHomeCoordinates) return null;
-		// Accept both decimal separators; reject out-of-range values and Null Island
-		const lat = Number.parseFloat(homeLatitudeInput.trim().replace(',', '.'));
-		const lng = Number.parseFloat(homeLongitudeInput.trim().replace(',', '.'));
-		if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-		if (Math.abs(lat) > 90 || Math.abs(lng) > 180 || (lat === 0 && lng === 0)) return null;
-		return { display_name: `${lat}, ${lng}`, coordinates: { lat, lng } };
+		return parseManualCoordinates(homeLatitudeInput, homeLongitudeInput);
 	}
 
 	const manualHomeCoordinates = $derived(parseManualHomeCoordinates());

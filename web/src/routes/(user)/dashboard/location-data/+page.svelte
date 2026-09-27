@@ -46,6 +46,7 @@
 	} from '$lib/types/transport-detection-reasons';
 	import { formatDateInTimezone, getTimezoneFromOffset } from '$lib/utils/timezone-utils';
 	import { formatLocalDate } from '$lib/utils/utils';
+	import { normalizeHomeAddress } from '$lib/utils/home-address';
 	import { isFitnessBetaEnabled, loadFitnessBeta } from '$lib/stores/fitness-beta.svelte';
 	import {
 		formatDistance as formatFitnessDistance,
@@ -620,34 +621,8 @@
 		return String.fromCodePoint(...codePoints);
 	}
 
-	// Transport mode colors + icons come from the shared visuals module.
-
-	/**
-	 * Normalize home address data to handle both formats:
-	 * - New format: { address, location: { lat, lon }, display_name }
-	 * - Old/Raw format: { display_name, lat, lon, name, layer, address, addendum }
-	 */
-	function normalizeHomeAddress(raw: any): any {
-		if (!raw) return null;
-
-		// If already has location.lat/lon, return as-is
-		if (raw.location?.lat && raw.location?.lon) {
-			return raw;
-		}
-
-		// Otherwise, convert from raw Pelias format
-		if (raw.lat !== undefined && raw.lon !== undefined) {
-			return {
-				address: raw.display_name || raw.name || 'Home',
-				location: { lat: raw.lat, lon: raw.lon },
-				display_name: raw.display_name,
-				layer: raw.layer, // 'locality' for cities, etc.
-				name: raw.name
-			};
-		}
-
-		return null;
-	}
+	// Home address normalization (all three persisted shapes) comes from the
+	// shared $lib/utils/home-address module.
 
 	/**
 	 * Normalize trip exclusion data to handle both formats:

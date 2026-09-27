@@ -116,3 +116,40 @@ export function isOnHighwayOrMotorway(
 	}
 	return false;
 }
+
+/**
+ * Water evidence for the boat/swimming states (#220). Mirrors
+ * web/src/lib/utils/transport-mode.ts isOnWaterGeocode — update both together.
+ * Signals: permanent reverse-geocode failures (no land record; retryable
+ * failures like rate limits do NOT count), the Pelias marine layer / water
+ * categories, and OSM water tags in the addendum.
+ */
+export function isOnWaterGeocode(
+	reverseGeocode: GeocodeGeoJSONFeature | null | undefined
+): boolean {
+	if (!reverseGeocode || typeof reverseGeocode !== 'object' || !reverseGeocode.properties) {
+		return false;
+	}
+
+	const props = reverseGeocode.properties as Record<string, unknown>;
+
+	if (props.geocoding_status === 'failed' && props.retryable !== true) {
+		return true;
+	}
+
+	if (props.layer === 'marine') return true;
+	const category = props.category as string[] | undefined;
+	if (category && Array.isArray(category) && category.some((c) => String(c).includes('water'))) {
+		return true;
+	}
+
+	const osm = getOsmDataFromAddendum(reverseGeocode);
+	if (osm) {
+		if (typeof osm.waterway === 'string' && osm.waterway.length > 0) return true;
+		if (['water', 'coastline', 'bay'].includes(osm.natural as string)) return true;
+		if (['pier', 'breakwater', 'groyne'].includes(osm['man_made'] as string)) return true;
+		if (typeof osm['seamark:type'] === 'string' && osm['seamark:type'].length > 0) return true;
+	}
+
+	return false;
+}

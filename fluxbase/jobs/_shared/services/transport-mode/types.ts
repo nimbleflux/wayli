@@ -23,6 +23,8 @@ export interface ModeFeatures {
 	onHighway: boolean;
 	atVenue: boolean;
 	accuracyWeight: number;
+	/** Per-point water evidence (#220), see web types.ts. */
+	onWater: boolean;
 }
 
 /**
@@ -42,6 +44,8 @@ export interface ModeFeatures {
 export interface SegmentContext {
 	touchesStation: boolean;
 	meanIntervalSec: number;
+	/** Fraction [0,1] of geocoded points with water evidence (#220); 0 when none attempted. */
+	waterFraction: number;
 }
 
 export interface PointModeDecision {

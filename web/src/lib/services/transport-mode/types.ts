@@ -51,6 +51,12 @@ export interface ModeFeatures {
 	 * far from any station point or no segment context was supplied.
 	 */
 	stationProximity: number;
+	/**
+	 * Per-point water evidence (#220): the reverse geocode says the point is on
+	 * open water — a permanent no-result failure, the marine layer, or an OSM
+	 * water tag. Gate for the boat/swimming emissions.
+	 */
+	onWater: boolean;
 }
 
 /**
@@ -61,6 +67,12 @@ export interface ModeFeatures {
 export interface SegmentContext {
 	/** Mean inter-point interval for the segment (the measurement-density signal). */
 	meanIntervalSec: number;
+	/**
+	 * Fraction [0,1] of the segment's geocoded points with water evidence
+	 * (#220). 0 when no point in the segment carries a geocode attempt — an
+	 * un-geocoded segment must never trigger the water modes.
+	 */
+	waterFraction: number;
 }
 
 export interface SegmentDetection {

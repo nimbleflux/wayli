@@ -42,6 +42,23 @@ function stationGeocode() {
 	} as ModeObservation['geocode'];
 }
 
+/**
+ * A geocode marking open water: a permanent reverse-geocode failure (Pelias
+ * has no land record for the coordinate) — the #220 water signal.
+ */
+function waterGeocode() {
+	return {
+		type: 'Feature',
+		geometry: { type: 'Point', coordinates: [150.72, -35.05] },
+		properties: { geocoding_status: 'failed', geocode_error: 'No results found' }
+	} as ModeObservation['geocode'];
+}
+
+/** Attach a geocode to every observation in a run. */
+function withGeocode(obs: ModeObservation[], geocode: ModeObservation['geocode']) {
+	return obs.map((o) => ({ ...o, geocode }));
+}
+
 describe('detectTransportModes', () => {
 	test('steady walking speed decodes to walking end-to-end (no flicker)', () => {
 		const obs = run([5, 5, 5, 5, 5, 4.5, 5, 5]);
@@ -323,5 +340,60 @@ describe('v2: intercity train detection (no geocode context)', () => {
 		);
 		const car = decisions.filter((d) => d.mode === 'car').length;
 		expect(car).toBeGreaterThanOrEqual(5);
+	});
+});
+
+describe('#220: water modes (boat / swimming)', () => {
+	test('20 km/h over open water decodes to boat, not cycling', () => {
+		const obs = withGeocode(run([18, 22, 20, 24, 19, 21, 23, 18, 20, 22, 21, 19]), waterGeocode());
+		const decisions = detectTransportModes(obs);
+		const boat = decisions.filter((d) => d.mode === 'boat').length;
+		const cycling = decisions.filter((d) => d.mode === 'cycling').length;
+		expect(boat).toBeGreaterThanOrEqual(8);
+		expect(cycling).toBe(0);
+	});
+
+	test('3 km/h over open water decodes to swimming, not walking', () => {
+		const obs = withGeocode(
+			run([2.5, 3, 3.5, 2.8, 3.2, 2.6, 3.4, 3, 2.9, 3.1, 3.3, 2.7]),
+			waterGeocode()
+		);
+		const decisions = detectTransportModes(obs);
+		const swimming = decisions.filter((d) => d.mode === 'swimming').length;
+		const walking = decisions.filter((d) => d.mode === 'walking').length;
+		expect(swimming).toBeGreaterThanOrEqual(8);
+		expect(walking).toBe(0);
+	});
+
+	test('the same speeds on land never decode to boat or swimming (backward compat)', () => {
+		// Cycling-band speeds with land geocodes → cycling, zero boat/swimming.
+		const landRide = detectTransportModes(
+			withGeocode(run([18, 22, 20, 24, 19, 21, 23, 18, 20, 22, 21, 19]), waterGeocode()).map(
+				(o) => ({
+					...o,
+					geocode: {
+						type: 'Feature',
+						geometry: { type: 'Point', coordinates: [4, 52] },
+						properties: { layer: 'address', locality: 'Huskisson' }
+					} as ModeObservation['geocode']
+				})
+			)
+		);
+		expect(landRide.some((d) => d.mode === 'boat' || d.mode === 'swimming')).toBe(false);
+
+		// Same speeds with NO geocode at all → zero boat/swimming.
+		const noGeocode = detectTransportModes(run([18, 22, 20, 24, 19, 21, 23, 18, 20, 22, 21, 19]));
+		expect(noGeocode.some((d) => d.mode === 'boat' || d.mode === 'swimming')).toBe(false);
+
+		// Walking-band speeds, no geocode → walking/stationary, zero swimming.
+		const walk = detectTransportModes(run([4, 5, 4.5, 5, 4.8, 5.2, 4.6, 5]));
+		expect(walk.some((d) => d.mode === 'swimming' || d.mode === 'boat')).toBe(false);
+	});
+
+	test('a partially-water segment (30% evidence) does not trigger boat', () => {
+		const base = run([18, 22, 20, 24, 19, 21, 23, 18, 20, 22]);
+		const obs = base.map((o, i) => ({ ...o, geocode: i < 3 ? waterGeocode() : null }));
+		const decisions = detectTransportModes(obs);
+		expect(decisions.some((d) => d.mode === 'boat' || d.mode === 'swimming')).toBe(false);
 	});
 });

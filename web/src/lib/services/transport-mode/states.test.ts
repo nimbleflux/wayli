@@ -1,12 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import {
-	GREEN_MODES,
-	MODE_INDEX,
-	NUM_MODES,
-	TRANSPORT_MODES,
-	normalizeMode
-} from './states';
+import { GREEN_MODES, MODE_INDEX, NUM_MODES, TRANSPORT_MODES, normalizeMode } from './states';
 
 describe('transport-mode states registry', () => {
 	test('registers boat and swimming as states 7 and 8 (#220)', () => {

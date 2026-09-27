@@ -74,7 +74,12 @@ export function emissionScores(f: ModeFeatures, segCtx?: SegmentContext): number
 		// 0.5 made every ambiguous call default to car; 0.7 still favors
 		// evidence over prior but no longer structurally biases against train.
 		train: 0.7,
-		airplane: 0.05
+		airplane: 0.05,
+		// #220: water modes only surface under strong water evidence (the
+		// boosts below outweigh this prior ~20x); without evidence they sit
+		// far below every land mode so existing land trips are untouched.
+		boat: 0.05,
+		swimming: 0.05
 	};
 	// Per-point station proximity is on the feature (f.stationProximity).
 	const meanIntervalSec = segCtx?.meanIntervalSec ?? 0;
@@ -131,6 +136,18 @@ export function emissionScores(f: ModeFeatures, segCtx?: SegmentContext): number
 		if (meanIntervalSec > 0 && f.speed >= 30 && f.speed <= 200) {
 			if (mode === 'train' && meanIntervalSec >= 30) s *= 1.25;
 			if (mode === 'car' && meanIntervalSec < 8) s *= 1.15;
+		}
+		// #220: water-gated boat/swimming. Only when a MAJORITY of the
+		// segment's geocodes show water evidence AND this point itself is on
+		// water do the water modes' boosts (which must outweigh their 0.05
+		// priors) kick in; land competitors are mildly suppressed at speeds
+		// where the water mode is plausible. Land trips never see this path.
+		const waterStrong = (segCtx?.waterFraction ?? 0) >= 0.5 && f.onWater;
+		if (waterStrong) {
+			if (mode === 'boat') s *= 20;
+			if (mode === 'swimming' && f.speed <= 8) s *= 12;
+			if (f.speed >= 5 && (mode === 'cycling' || mode === 'car')) s *= 0.5;
+			if (f.speed >= 0.5 && f.speed <= 8 && mode === 'walking') s *= 0.35;
 		}
 		s = s * (0.3 + 0.7 * f.accuracyWeight);
 		s *= PRIOR[mode] ?? 1;

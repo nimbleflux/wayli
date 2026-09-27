@@ -8,7 +8,7 @@
 import { segmentByGaps } from './segmentation';
 import { extractFeatures } from './features';
 import { viterbi, confidenceForPoint, emissionScores } from './model';
-import { isAtTrainStation } from '../../utils/transport-mode';
+import { isAtTrainStation, isOnWaterGeocode } from '../../utils/transport-mode';
 import { TRANSPORT_MODES, type TransportMode } from './states';
 import type {
 	ModeFeatures,
@@ -67,8 +67,23 @@ function computeSegmentContext(segment: ModeObservation[]): {
 			intervalCount++;
 		}
 	}
+
+	// Water evidence (#220): fraction of geocoded points on open water.
+	// Points without a geocode attempt count toward neither side — an
+	// un-geocoded segment gets fraction 0 and can never trigger boat/swimming.
+	let geocodedCount = 0;
+	let waterCount = 0;
+	for (let i = 0; i < n; i++) {
+		if (segment[i].geocode == null) continue;
+		geocodedCount++;
+		if (segment[i].geocode && isOnWaterGeocode(segment[i].geocode)) waterCount++;
+	}
+
 	return {
-		segCtx: { meanIntervalSec: intervalCount > 0 ? intervalSum / intervalCount : 0 },
+		segCtx: {
+			meanIntervalSec: intervalCount > 0 ? intervalSum / intervalCount : 0,
+			waterFraction: geocodedCount > 0 ? waterCount / geocodedCount : 0
+		},
 		proximity
 	};
 }
@@ -89,6 +104,10 @@ function reasonFor(mode: TransportMode, speed: number): string {
 			return 'steady_speed_with_rail_context';
 		case 'airplane':
 			return 'speed_in_airplane_range';
+		case 'boat':
+			return 'open_water_no_land_evidence';
+		case 'swimming':
+			return 'open_water_slow_speed';
 		default:
 			return 'hmm_decoded';
 	}

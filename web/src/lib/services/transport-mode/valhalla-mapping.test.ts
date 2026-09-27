@@ -46,6 +46,32 @@ describe('modeFromEdges', () => {
 		expect(verdict?.evidence).toBe('valhalla_footway_edge');
 	});
 
+	test('majority ferry use → boat (#220)', () => {
+		const edges = [
+			edge({ use: 'ferry', length: 20, speed: 35 }),
+			edge({ use: 'ferry', length: 10, speed: 35 }),
+			edge({ use: 'road', length: 1 })
+		];
+		const verdict = modeFromEdges(edges);
+		expect(verdict?.mode).toBe('boat');
+		expect(verdict?.evidence).toBe('valhalla_ferry_edge');
+	});
+
+	test('boat verdict rejected beyond plausible vessel speed (p90 gate)', () => {
+		const edges = [edge({ use: 'ferry', length: 5 })];
+		const verdict = modeFromEdges(edges, { p90Kmh: 160, avgKmh: null, pathMeters: 0 });
+		expect(verdict).toBeNull();
+	});
+
+	test('one ferry edge in a motorway run stays car (#220)', () => {
+		const edges = [
+			edge({ road_class: 'motorway', speed: 110, length: 10 }),
+			edge({ use: 'ferry', length: 0.5, speed: 30 })
+		];
+		const verdict = modeFromEdges(edges);
+		expect(verdict?.mode).toBe('car');
+	});
+
 	test('motorway + high speed → car', () => {
 		const edges = [
 			edge({ road_class: 'motorway', speed: 110, length: 10 }),

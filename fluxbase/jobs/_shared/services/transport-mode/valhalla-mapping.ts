@@ -68,6 +68,7 @@ export function modeFromEdges(
 	if (verdict.mode === 'walking' && speedStats.p90Kmh > WALKING_MAX_P90_KMH) return null;
 	if (verdict.mode === 'cycling' && speedStats.p90Kmh > CYCLING_MAX_P90_KMH) return null;
 	if (verdict.mode === 'car' && speedStats.p90Kmh > CAR_MAX_P90_KMH) return null;
+	if (verdict.mode === 'boat' && speedStats.p90Kmh > BOAT_MAX_P90_KMH) return null;
 	return verdict;
 }
 
@@ -116,6 +117,18 @@ function modeFromEdgesUnchecked(edges: ValhallaEdge[]): ValhallaModeVerdict | nu
 		};
 	}
 
+	// 3.5 Ferry crossings — definitive water (#220). rail_ferry counts too:
+	// the vessel is a boat even when it carries rail cars.
+	const ferryWeight = weightedCount((e) => e.use === 'ferry' || e.use === 'rail_ferry');
+	if (ferryWeight / totalWeight > 0.5) {
+		return {
+			mode: 'boat',
+			confidence: 0.9,
+			evidence: 'valhalla_ferry_edge',
+			names: dominantNames(edges, (e) => e.use === 'ferry' || e.use === 'rail_ferry')
+		};
+	}
+
 	// 4. High-speed motorized roads.
 	const highSpeedWeight = weightedCount(
 		(e) => HIGH_SPEED_CLASSES.has(e.road_class) && (e.speed ?? 0) > 60
@@ -156,6 +169,8 @@ export const OFFROAD_TRAIN_MIN_KMH = 50;
 export const OFFROAD_TRAIN_MAX_KMH = 250;
 /** Beyond this sustained average it's a plane. */
 export const OFFROAD_PLANE_MIN_KMH = 250;
+/** Ferry verdicts are rejected beyond this p90 (matches the boat band ceiling). */
+export const BOAT_MAX_P90_KMH = 100;
 /** Minimum path length (m) before a plane verdict is allowed. */
 export const OFFROAD_PLANE_MIN_PATH_M = 20000;
 /** Share of matched length on edges slower than half the GPS speed that

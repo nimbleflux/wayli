@@ -38,6 +38,7 @@
 		formatDuration,
 		formatSpeed,
 		movingAverage,
+		formatSubSport,
 		sportTheme,
 		type FitnessActivity
 	} from '$lib/utils/fitness';
@@ -704,7 +705,9 @@
 			<div class="relative flex flex-wrap items-end justify-between gap-4 p-6 text-white sm:p-8">
 				<div class="min-w-0 flex-1">
 					<p class="mb-1 text-sm font-medium tracking-wider text-white/75 uppercase">
-						{t(theme.labelKey)}{activity.sub_sport ? ` · ${activity.sub_sport}` : ''}
+						{t(theme.labelKey)}{activity.sub_sport
+							? ` · ${formatSubSport(activity.sub_sport, t)}`
+							: ''}
 					</p>
 					<h1 class="text-2xl font-bold sm:text-3xl">
 						{activity.title ?? formatHeaderDate(activity.started_at)}

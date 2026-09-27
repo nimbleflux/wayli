@@ -123,14 +123,16 @@ describe.skipIf(!fileAvailable)('fit-decoder (real Bryton activity file)', () =>
 		expect(cadence.length).toBeGreaterThan(3000);
 	});
 
-	it('decodes the session summary (with the Bryton sport quirk)', async () => {
+	it('decodes the session summary with the real sport/sub_sport fields (#221)', async () => {
 		const { sessions } = await decodeFixture();
 		expect(sessions).toHaveLength(1);
 		const session = sessions[0];
-		// This Bryton ride writes a bogus sport byte (9 = american_football);
-		// the decoder stays faithful to the file, the parser remaps via
-		// resolveSportTag (tested below).
-		expect(session.sport).toBe('american_football');
+		// Session fields 5/6 carry sport/sub_sport per the FIT profile. This
+		// Bryton ride declares sport=2 (cycling), sub_sport=8 (mountain).
+		// (#221: the decoder used to read fields 0/1 — event/event_type — and
+		// labelled this file american_football/treadmill.)
+		expect(session.sport).toBe('cycling');
+		expect(session.subSport).toBe('mountain');
 		expect(session.totalDistanceM).toBeCloseTo(34245.34, 0);
 		expect(session.totalElapsedTimeS).toBeCloseTo(4281.0, 1);
 		expect(session.totalTimerTimeS).toBeCloseTo(4134.0, 1);
@@ -148,9 +150,11 @@ describe.skipIf(!fileAvailable)('fit-decoder (real Bryton activity file)', () =>
 
 	it('resolves the sport tag from the data signature for anomalous sport bytes', async () => {
 		const { sessions } = await decodeFixture();
-		// Power + cadence data present → the american_football byte is quirk,
-		// not truth; the ride resolves to cycling.
-		expect(resolveSportTag(sessions[0], true, true)).toBe('cycling');
+		// Power + cadence data present → an implausible declared byte would be
+		// a device quirk, not truth; the ride still resolves to cycling.
+		expect(resolveSportTag({ ...sessions[0], sport: 'american_football' }, true, true)).toBe(
+			'cycling'
+		);
 		// Plausible declared sports are kept as-is.
 		expect(resolveSportTag({ sport: 'running' }, false, false)).toBe('running');
 		expect(resolveSportTag({ sport: 'swimming' }, false, false)).toBe('swimming');
@@ -184,5 +188,122 @@ describe.skipIf(!fileAvailable)('fit-decoder (real Bryton activity file)', () =>
 			}
 		});
 		await expect(decodeFitStream(garbage, {})).rejects.toThrow(/header size|FIT/i);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Synthetic session-message tests (#221) — independent of the real fixture.
+// FIT session (global message 18): field 0 = event, 1 = event_type,
+// 5 = sport, 6 = sub_sport, 253 = message timestamp (uint32, FIT epoch s).
+// ---------------------------------------------------------------------------
+
+const CRC_TABLE = (() => {
+	const table = new Uint16Array(256);
+	for (let n = 0; n < 256; n++) {
+		let c = n;
+		for (let k = 0; k < 8; k++) c = c & 1 ? 0x1021 ^ (c >>> 1) : c >>> 1;
+		table[n] = c & 0xffff;
+	}
+	return table;
+})();
+
+function crc16(bytes: Uint8Array): number {
+	let crc = 0;
+	for (const b of bytes) crc = (CRC_TABLE[((crc >> 8) ^ b) & 0xff] ^ (crc << 8)) & 0xffff;
+	return crc;
+}
+
+/** Build a minimal but valid FIT file: one session definition + data message. */
+function buildSessionFitFile(fields: Array<[number, number]>, values: number[]): Uint8Array {
+	// Definition message for local 0: architecture little-endian, msg 18,
+	// sport/sub_sport as enum (base type 0x00), timestamp as uint32 (0x86).
+	const fieldDefs: Array<[number, number, number]> = fields.map(([num]) => [
+		num,
+		1,
+		num === 253 ? 0x86 : 0x00
+	]);
+	fieldDefs[fieldDefs.length - 1] = [fields[fields.length - 1][0], 4, 0x86];
+
+	const def: number[] = [0x40, 0x00, 0x00, 0x12, 0x00, fields.length];
+	for (const [num, size, base] of fieldDefs) def.push(num, size, base);
+
+	// Data message: timestamp is FIT epoch seconds (2026-01-01T00:00:00Z).
+	const data: number[] = [0x00];
+	let valueIndex = 0;
+	for (const [num] of fields) {
+		if (num === 253) {
+			const ts = 1767225600;
+			data.push(ts & 0xff, (ts >> 8) & 0xff, (ts >> 16) & 0xff, (ts >> 24) & 0xff);
+		} else {
+			data.push(values[valueIndex++]);
+		}
+	}
+
+	const body = new Uint8Array([...def, ...data]);
+	const header = new Uint8Array(14);
+	header[0] = 14;
+	header[1] = 0x10; // protocol 1.0
+	header[2] = 0x10; // profile 1.10
+	header[3] = 0x0a;
+	new DataView(header.buffer).setUint32(4, body.length, true);
+	header.set([0x2e, 0x46, 0x49, 0x54], 8);
+	header.set([0x00, 0x00], 12); // header CRC optional
+
+	const all = new Uint8Array([...header, ...body]);
+	const crc = crc16(all);
+	const out = new Uint8Array(all.length + 2);
+	out.set(all);
+	out[all.length] = crc & 0xff;
+	out[all.length + 1] = (crc >> 8) & 0xff;
+	return out;
+}
+
+async function decodeBytes(bytes: Uint8Array): Promise<FitSession[]> {
+	const sessions: FitSession[] = [];
+	await decodeFitStream(
+		new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(bytes);
+				controller.close();
+			}
+		}),
+		{ onSession: (s) => sessions.push(s) }
+	);
+	return sessions;
+}
+
+describe('fit-decoder synthetic session messages (#221)', () => {
+	it('reads sport/sub_sport from fields 5/6, not event/event_type (0/1)', async () => {
+		// event=9 american_football-ish, event_type=1 — the pair the old decoder
+		// misread as sport=american_football/sub_sport=treadmill. Declared
+		// sport=11 (walking), sub_sport=3 (trail).
+		const bytes = buildSessionFitFile(
+			[
+				[0, 1],
+				[1, 1],
+				[5, 11],
+				[6, 3],
+				[253, 0]
+			],
+			[9, 1, 11, 3, 0]
+		);
+		const sessions = await decodeBytes(bytes);
+		expect(sessions).toHaveLength(1);
+		expect(sessions[0].sport).toBe('walking');
+		expect(sessions[0].subSport).toBe('trail');
+	});
+
+	it('leaves subSport undefined when the session has no sub_sport field', async () => {
+		const bytes = buildSessionFitFile(
+			[
+				[5, 1],
+				[253, 0]
+			],
+			[11, 0]
+		);
+		const sessions = await decodeBytes(bytes);
+		expect(sessions).toHaveLength(1);
+		expect(sessions[0].sport).toBe('walking');
+		expect(sessions[0].subSport).toBeUndefined();
 	});
 });

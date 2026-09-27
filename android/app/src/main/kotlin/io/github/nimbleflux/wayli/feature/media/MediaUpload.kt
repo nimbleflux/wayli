@@ -21,6 +21,11 @@ class MediaUploader @Inject constructor(
 
     private class CachedUrl(val url: String, val expiresAt: Long)
 
+    private companion object {
+        /** Host-stripped Pexels CDN ref: /photos/<numeric id>/<file>. */
+        val PEXELS_STRIPPED_REF = Regex("""^/photos/\d+/""")
+    }
+
     /**
      * Session-scoped signed-URL cache — signing is one HTTP round trip per
      * image, so re-signing on every screen load dominates trip load times.
@@ -87,6 +92,12 @@ class MediaUploader @Inject constructor(
                     val obj = withoutPrefix.substringAfter('/')
                     client.storage.from(refBucket).getPublicUrl(obj)
                 }.getOrNull()
+            // Host-stripped Pexels CDN URL (damage from the pre-2.7.1
+            // host-rename repair): the CDN host was stripped along with ours,
+            // leaving a bucket path whose object was never uploaded. Restore
+            // it — signing would 404.
+            PEXELS_STRIPPED_REF.matches(storagePath) ->
+                "https://images.pexels.com$storagePath"
             // Android-stored rows: bare bucket path, sign it.
             else -> getSignedUrl(bucket = bucket, path = storagePath).getOrNull()
         }

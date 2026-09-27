@@ -343,12 +343,18 @@ fluxbase:
 
     ## Storage: ensure the trip-images bucket exists on startup so photo
     ## uploads (Polarsteps import, frontend media uploads) work immediately.
+    ## trip-images is declared public-read: every renderer resolves stored
+    ## bucket paths to public URLs, so a private bucket 404s all images
+    ## (avatars, covers, gallery photos — nimbleflux/wayli#219). temp-files
+    ## stays private (read back via signed URLs).
     storage:
       default_buckets:
         - trip-images
         - temp-files
         - uploads
         - public
+      default_public_buckets:
+        - trip-images
 
     ## Auth configuration. Leave jwt_secret empty (default) and provide it via
     ## fluxbase.existingSecret in production; when existingSecret is empty the

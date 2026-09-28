@@ -56,7 +56,7 @@ export async function saveImmichSettings(patch: Partial<ImmichSettings>): Promis
 		.maybeSingle();
 
 	const current = (prefs?.preferences ?? {}) as Record<string, any>;
-	const mergedImmich = { ...(current.immich ?? {}), ...patch };
+	const mergedImmich = { ...current.immich, ...patch };
 	const preferences = { ...current, immich: mergedImmich };
 
 	if (prefs) {

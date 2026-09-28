@@ -43,7 +43,9 @@ export async function attachPhotosToEntry(opts: {
 	for (const asset of assets) {
 		if (existing.has(asset.asset_id)) continue;
 		try {
+			// oxlint-disable-next-line eslint/no-await-in-loop -- ordered on purpose: bounded proxy/storage load, deterministic failure isolation
 			const thumb = await proxyThumbBlob(asset.asset_id, 'thumbnail');
+			// oxlint-disable-next-line eslint/no-await-in-loop -- ordered on purpose: bounded proxy/storage load, deterministic failure isolation
 			const preview = await proxyThumbBlob(asset.asset_id, 'preview');
 			if (!thumb.ok || !preview.ok) {
 				result.failed++;
@@ -51,12 +53,14 @@ export async function attachPhotosToEntry(opts: {
 			}
 
 			const base = `${userId}/${tripId}/immich-${asset.asset_id}`;
+			// oxlint-disable-next-line eslint/no-await-in-loop -- ordered on purpose: bounded proxy/storage load, deterministic failure isolation
 			const storagePath = await uploadMedia(
 				userId,
 				tripId,
 				preview.blob,
 				`immich-${asset.asset_id}.webp`
 			);
+			// oxlint-disable-next-line eslint/no-await-in-loop -- ordered on purpose: bounded proxy/storage load, deterministic failure isolation
 			const thumbPath = await uploadMedia(
 				userId,
 				tripId,
@@ -65,6 +69,7 @@ export async function attachPhotosToEntry(opts: {
 			);
 			void base;
 
+			// oxlint-disable-next-line eslint/no-await-in-loop -- ordered on purpose: bounded proxy/storage load, deterministic failure isolation
 			const created = await createMedia({
 				trip_id: tripId,
 				entry_id: entryId,

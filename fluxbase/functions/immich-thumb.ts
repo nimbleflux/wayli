@@ -17,7 +17,7 @@ import {
 	thumbSize,
 	THUMB_CACHE_CONTROL
 } from './_shared/immich.ts';
-import { fetchThumbnail, resolveImmichBase } from '../jobs/_shared/services/external/immich.service.ts';
+import { fetchThumbnail, resolveImmichBase } from './_shared/services/immich.service.ts';
 
 interface FluxbaseRequest {
 	method: string;

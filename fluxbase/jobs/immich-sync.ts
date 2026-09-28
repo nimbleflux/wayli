@@ -34,7 +34,7 @@ import {
 	takenAfterFor,
 	toAssetRows
 } from '_shared/services/external/immich-sync-core.ts';
-import { getAdminSetting } from '../../functions/_shared/immich.ts';
+import { getAdminSetting } from '_shared/immich-settings.ts';
 
 const IMMICH_API_KEY = 'immich_api_key';
 

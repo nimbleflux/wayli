@@ -633,7 +633,9 @@
       "pickerSelected": "selected",
       "pickerAdd": "Add {count} photos",
       "pickerAddedCount": "Added {count} photo(s) to the entry ({failed} failed).",
-      "days": "days"
+      "days": "days",
+      "enableHint": "When enabled, your Immich photos appear on the map and timeline. Requires an API key with the permissions listed below.",
+      "disabledHint": "Toggle on to configure the connection. You will need your Immich server URL and an API key with the required permissions."
     }
   },
   "importExport": {

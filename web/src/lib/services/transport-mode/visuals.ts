@@ -4,7 +4,17 @@
 // order. Not exported from index.ts — the Deno jobs mirror the other modules
 // in this folder, and lucide icons are a web concern only.
 
-import { Footprints, Bike, Car, TrainFront, Plane, Pause, CircleHelp } from 'lucide-svelte';
+import {
+	Footprints,
+	Bike,
+	Car,
+	TrainFront,
+	Plane,
+	Sailboat,
+	Waves,
+	Pause,
+	CircleHelp
+} from 'lucide-svelte';
 import type { TransportMode } from './states';
 
 // lucide-svelte v1 still ships legacy SvelteComponentTyped class components,
@@ -20,6 +30,8 @@ export const TRANSPORT_MODE_ICONS: Record<string, IconComponent> = {
 	car: Car,
 	train: TrainFront,
 	airplane: Plane,
+	boat: Sailboat,
+	swimming: Waves,
 	stationary: Pause,
 	unknown: CircleHelp
 };
@@ -31,6 +43,8 @@ export const TRANSPORT_MODE_COLORS: Record<string, string> = {
 	car: '#dc2626', // Red
 	train: '#7c3aed', // Purple
 	airplane: '#000000', // Black
+	boat: '#0369a1', // Deep teal-blue (#220 water modes)
+	swimming: '#06b6d4', // Cyan
 	stationary: '#2563eb', // Blue
 	unknown: '#6b7280' // Grey
 };
@@ -42,6 +56,8 @@ export const TRANSPORT_MODE_PICKER_ORDER: TransportMode[] = [
 	'car',
 	'train',
 	'airplane',
+	'boat',
+	'swimming',
 	'stationary'
 ];
 

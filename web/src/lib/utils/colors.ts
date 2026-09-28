@@ -25,6 +25,8 @@ export const TRANSPORT_MODE_COLORS: Record<string, string> = {
 	airplane: '#0ea5e9', // sky blue — visible on dark tiles (replaces black)
 	cycling: '#ea580c', // orange — warm, distinct from walking's green
 	walking: '#16a34a', // green — matches --success token
+	boat: '#0369a1', // deep teal-blue (#220 water modes)
+	swimming: '#06b6d4', // cyan
 	stationary: '#6b7280', // grey — low activity, muted
 	unknown: '#6b7280' // grey — fallback (same as stationary)
 } as const;

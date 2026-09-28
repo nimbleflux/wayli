@@ -121,7 +121,9 @@ const SPORT_MAP: Record<number, string> = {
   19: 'paddling',
   20: 'flying',
   21: 'e_biking',
-  22: 'commuting',
+  22: 'motorcycling',
+  23: 'boating',
+  24: 'driving',
   25: 'diving',
   26: 'flexibility_training',
   27: 'strength_training',
@@ -820,9 +822,12 @@ class FitStreamDecoder {
       if (ts !== undefined) session.timestamp = ts;
     }
 
-    const sportRaw = this.rawInt(v.get(0));
+    // Session profile field numbers: 0 = event, 1 = event_type, 5 = sport,
+    // 6 = sub_sport. (#221: this used to read fields 0/1, labelling every
+    // session whose stop event was 9/1 as american_football/treadmill.)
+    const sportRaw = this.rawInt(v.get(5));
     if (sportRaw !== undefined) session.sport = SPORT_MAP[sportRaw] ?? 'fitness';
-    const subSportRaw = this.rawInt(v.get(1));
+    const subSportRaw = this.rawInt(v.get(6));
     if (subSportRaw !== undefined && SUB_SPORT_MAP[subSportRaw]) {
       session.subSport = SUB_SPORT_MAP[subSportRaw];
     }

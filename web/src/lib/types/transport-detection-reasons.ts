@@ -116,6 +116,8 @@ export const HMM_REASON_LABELS: Record<string, string> = {
 	speed_in_high_speed_car_range: 'High speed in car range, likely car',
 	speed_in_airplane_range: 'Speed in airplane range, likely plane',
 	steady_speed_with_rail_context: 'Steady speed near rail context, likely train',
+	open_water_no_land_evidence: 'Moving over open water — reverse geocoder finds no land',
+	open_water_slow_speed: 'Slow movement over open water, likely swimming',
 	hmm_decoded: 'Decoded by the movement model'
 };
 

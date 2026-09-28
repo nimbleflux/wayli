@@ -180,7 +180,7 @@ export async function generateTripRoute(db: FluxbaseClient, trip: TripForRoute):
 		for (const run of runs) {
 			let shape: LatLng[] = [];
 			let matched = false;
-			if (run.mode !== 'train' && run.mode !== 'airplane') {
+			if (run.mode !== 'train' && run.mode !== 'airplane' && run.mode !== 'boat' && run.mode !== 'swimming') {
 				try {
 					const trace: ValhallaTracePoint[] = run.points.map((p) => ({ lat: p.lat, lon: p.lng }));
 					const result = await traceAttributes(trace, costingForRunMode(run.mode), db);

@@ -344,6 +344,21 @@ export function fromPeliasResponse(feature: PeliasFeature): GeocodedLocation {
 // GeocodedLocation and helpers
 // =============================================================================
 
+/**
+ * Manually entered home coordinates (#205 fallback for addresses the geocoder
+ * cannot find). May carry `address`/`layer` when the coordinates were
+ * reverse-geocoded at save time.
+ */
+export interface ManualHomeCoordinates {
+	display_name: string;
+	coordinates: {
+		lat: number;
+		lng: number;
+	};
+	address?: PeliasAddress;
+	layer?: string;
+}
+
 export interface GeocodedLocation {
 	display_name: string;
 	coordinates: {

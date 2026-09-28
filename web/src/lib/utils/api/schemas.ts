@@ -182,7 +182,11 @@ export const profileUpdateSchema = z.object({
 	last_name: z.string().min(1, 'Last name is required').max(100, 'Last name too long').optional(),
 	full_name: z.string().min(1, 'Full name is required').max(200, 'Full name too long').optional(),
 	avatar_url: z.string().url('Invalid avatar URL').optional(),
-	home_address: z.string().max(500, 'Home address too long').optional()
+	// home_address is persisted as a JSON object (geocoded suggestion, manual
+	// coordinates or legacy adapter shape) — legacy plain strings stay legal
+	home_address: z
+		.union([z.string().max(500, 'Home address too long'), z.record(z.string(), z.unknown())])
+		.optional()
 });
 
 // Statistics query schemas

@@ -212,3 +212,18 @@ export function cumulativeDistances(points: Array<{ lat: number; lon: number }>)
 	}
 	return out;
 }
+
+/** A translate function over i18n keys (the pages pass their `t`). */
+export type Translate = (key: string) => string;
+
+/**
+ * Format a FIT sub_sport slug for display (#221). Known slugs translate via
+ * the `fitness.subSport.*` keys; unknown device-specific slugs fall back to
+ * the raw slug with underscores replaced by spaces.
+ */
+export function formatSubSport(slug: string | null | undefined, t: Translate): string {
+	if (!slug) return '';
+	const label = t(`fitness.subSport.${slug}`);
+	if (label !== `fitness.subSport.${slug}`) return label;
+	return slug.replace(/_/g, ' ');
+}

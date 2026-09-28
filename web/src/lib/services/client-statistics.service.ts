@@ -4,6 +4,7 @@
 import { fluxbase } from '$lib/fluxbase';
 import {
 	detectTransportModes,
+	type TransportMode,
 	type ModeObservation,
 	type DetectionContext
 } from '$lib/services/transport-mode';
@@ -136,6 +137,16 @@ export class ClientStatisticsService {
 	// threaded into the next detectTransportModes call so journeys spanning a
 	// page boundary decode as one Viterbi segment instead of two.
 	private detectionContext: DetectionContext = {};
+
+	// #220: user-disabled modes, hard-excluded from the live decode. Set via
+	// setDisabledModes by whoever loaded the user's preferences.
+	private disabledModes: TransportMode[] = [];
+
+	/** Set the modes excluded from live decoding (mirrors the job-side pref). */
+	setDisabledModes(modes: TransportMode[]): void {
+		this.disabledModes = modes;
+		this.detectionContext = { ...this.detectionContext, disabledModes: modes };
+	}
 
 	// Sampling configuration
 	private readonly MAX_POINTS_TARGET = 3000; // Target max points to process
@@ -365,7 +376,7 @@ export class ClientStatisticsService {
 		this.currentOffset = 0;
 		this.isUsingSampledData = false;
 		this.rawDataPoints = [];
-		this.detectionContext = {};
+		this.detectionContext = { disabledModes: this.disabledModes };
 
 		try {
 			// Get total count first
@@ -680,7 +691,7 @@ export class ClientStatisticsService {
 								geocode: this.createGeocodeFeature(point)
 							}
 						],
-						this.detectionContext
+						{ disabledModes: this.disabledModes }
 					);
 					if (decision) {
 						transportMode = decision.mode;
@@ -733,6 +744,7 @@ export class ClientStatisticsService {
 				// Different time thresholds for different transport modes
 				// Long-distance modes (train, car, plane) can have longer intervals between updates
 				// Walking/cycling should have shorter intervals to avoid GPS drift
+				// boat/swimming deliberately excluded — short-distance water modes (#220)
 				const longDistanceModes = ['train', 'car', 'plane', 'bus', 'tram', 'metro'];
 				const maxTimeSpent = longDistanceModes.includes(mode)
 					? 7200000 // 2 hours for long-distance travel

@@ -141,7 +141,7 @@ async function handler(
 	for (const run of runs) {
 		let shape: Array<{ lat: number; lng: number }> = [];
 		let matched = false;
-		if (run.mode !== 'train' && run.mode !== 'airplane') {
+		if (run.mode !== 'train' && run.mode !== 'airplane' && run.mode !== 'boat' && run.mode !== 'swimming') {
 			try {
 				const result = await traceAttributes(
 					run.points.map((p) => ({ lat: p.lat, lon: p.lng })),

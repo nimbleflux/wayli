@@ -174,7 +174,8 @@ function sliceRun(observations: ModeObservation[]): ModeObservation[][] {
 export async function confirmWithValhalla(
 	observations: ModeObservation[],
 	decisions: PointModeDecision[],
-	valhalla: ValhallaClient
+	valhalla: ValhallaClient,
+	disabledModes?: ReadonlySet<string>
 ): Promise<PointModeDecision[]> {
 	if (observations.length === 0 || decisions.length === 0) return decisions;
 	if (observations.length !== decisions.length) {
@@ -220,6 +221,8 @@ export async function confirmWithValhalla(
 	let confirmed = 0;
 	let overridden = 0;
 	const apply = (idxs: number[], mode: string, evidence: string, confidence: number) => {
+		// #220: a user-disabled mode can never be (re)assigned by Stage 2.
+		if (disabledModes?.has(mode)) return;
 		for (const i of idxs) {
 			result[i] = {
 				...result[i],

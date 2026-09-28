@@ -28,11 +28,18 @@
 	import Switch from '$lib/components/ui/Switch.svelte';
 	import PannableCover from '$lib/components/PannableCover.svelte';
 	import { translate, changeLocale, currentLocale, type SupportedLocale } from '$lib/i18n';
+	import { TRANSPORT_MODES, type TransportMode } from '$lib/services/transport-mode/states';
+	import { transportModeIcon } from '$lib/services/transport-mode/visuals';
 	import { ServiceAdapter } from '$lib/services/api/service-adapter';
 	import { sessionManager } from '$lib/services/session';
 	import { sessionStore, userStore } from '$lib/stores/auth';
 	import { fluxbase } from '$lib/fluxbase';
 	import { readSetting } from '$lib/utils/settings';
+	import {
+		parseManualHomeCoordinates as parseManualCoordinates,
+		homeCoordinatesEqual,
+		buildManualHomeAddress
+	} from '$lib/utils/home-address';
 	import { setFitnessBeta } from '$lib/stores/fitness-beta.svelte';
 	import { setValhallaBeta } from '$lib/stores/valhalla-beta.svelte';
 	import {
@@ -118,6 +125,14 @@
 	let preferredTimezone = $state('');
 	let notificationsEnabled = $state(false);
 	let valhallaEnabled = $state(false);
+	// #220: modes the user switched off — hard-excluded from detection.
+	let disabledTransportModes = $state<TransportMode[]>([]);
+
+	function toggleDisabledMode(mode: TransportMode) {
+		disabledTransportModes = disabledTransportModes.includes(mode)
+			? disabledTransportModes.filter((m) => m !== mode)
+			: [...disabledTransportModes, mode];
+	}
 	// Fitness beta opt-in; persisted immediately (not via the Save button)
 	// because gated UI depends on it.
 	let fitnessBetaEnabled = $state(false);
@@ -527,6 +542,10 @@
 				preferredUnit = (preferences as any).preferences?.units || 'metric';
 				notificationsEnabled = preferences.notifications_enabled ?? false;
 				valhallaEnabled = (preferences as any).preferences?.use_valhalla_transport === true;
+				const savedDisabled = (preferences as any).preferences?.transport_detection?.disabled_modes;
+				disabledTransportModes = Array.isArray(savedDisabled)
+					? savedDisabled.filter((m: string) => (TRANSPORT_MODES as readonly string[]).includes(m))
+					: [];
 				fitnessBetaEnabled = (preferences as any).preferences?.beta_features?.fitness === true;
 				valhallaRoutesBetaEnabled =
 					(preferences as any).preferences?.beta_features?.valhalla_routes === true;
@@ -951,8 +970,20 @@
 			(profile as any).avatar_url = profileAvatarPath;
 			(profile as any).cover_photo_url = profileCoverPath;
 			(profile as any).discoverable = discoverableInput;
-			profile.home_address =
-				manualHomeCoordinates ?? selectedHomeAddress ?? (homeAddressInput.trim() || null);
+			// Manual coordinates (#205): reverse-geocode them into a label +
+			// address so the home circle and city-based trip detection work.
+			// Enrichment failure never blocks the save — the plain "lat, lng"
+			// shape is stored instead. Unchanged coordinates keep the stored
+			// value untouched (no pointless re-geocode, no enrichment loss).
+			if (manualHomeCoordinates) {
+				const { lat, lng } = manualHomeCoordinates.coordinates;
+				if (!homeCoordinatesEqual(profile.home_address, lat, lng)) {
+					const reverse = await serviceAdapter.reverseGeocode(lat, lng);
+					profile.home_address = buildManualHomeAddress(lat, lng, reverse);
+				}
+			} else {
+				profile.home_address = selectedHomeAddress ?? (homeAddressInput.trim() || null);
+			}
 
 			// Update profile using service adapter
 			await serviceAdapter.updateProfile({
@@ -1019,7 +1050,11 @@
 				preferences: {
 					...(preferences.preferences || {}),
 					units: preferredUnit,
-					use_valhalla_transport: valhallaEnabled
+					use_valhalla_transport: valhallaEnabled,
+					transport_detection: {
+						...((preferences.preferences as any)?.transport_detection ?? {}),
+						disabled_modes: disabledTransportModes
+					}
 				}
 			});
 
@@ -1240,12 +1275,7 @@
 
 	function parseManualHomeCoordinates() {
 		if (!useHomeCoordinates) return null;
-		// Accept both decimal separators; reject out-of-range values and Null Island
-		const lat = Number.parseFloat(homeLatitudeInput.trim().replace(',', '.'));
-		const lng = Number.parseFloat(homeLongitudeInput.trim().replace(',', '.'));
-		if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-		if (Math.abs(lat) > 90 || Math.abs(lng) > 180 || (lat === 0 && lng === 0)) return null;
-		return { display_name: `${lat}, ${lng}`, coordinates: { lat, lng } };
+		return parseManualCoordinates(homeLatitudeInput, homeLongitudeInput);
 	}
 
 	const manualHomeCoordinates = $derived(parseManualHomeCoordinates());
@@ -2267,6 +2297,29 @@
 							routing server)
 						</span>
 						<Switch bind:checked={valhallaEnabled} label="Transport Detection" />
+					</div>
+					<div class="mt-4 border-t pt-3">
+						<span class="text-sm font-medium">{t('accountSettings.disabledModesTitle')}</span>
+						<p class="text-muted-foreground mt-1 mb-2 text-xs">
+							{t('accountSettings.disabledModesHint')}
+						</p>
+						<div class="flex flex-wrap gap-2">
+							{#each TRANSPORT_MODES as mode (mode)}
+								{@const Icon = transportModeIcon(mode)}
+								<button
+									type="button"
+									class={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors ${
+										disabledTransportModes.includes(mode)
+											? 'border-muted text-muted-foreground line-through opacity-50'
+											: 'border-primary text-foreground'
+									}`}
+									onclick={() => toggleDisabledMode(mode)}
+								>
+									<Icon size={13} />
+									{t(`transport.${mode}`)}
+								</button>
+							{/each}
+						</div>
 					</div>
 				</div>
 			</div>

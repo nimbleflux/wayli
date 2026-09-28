@@ -17,24 +17,11 @@
 	let previewUrl = $state('');
 
 	onMount(async () => {
-		// Normalize the date: accept "YYYY-MM-DD" or full ISO, strip the time part.
-		const day = date?.slice(0, 10) ?? '';
-		const start = new Date(`${day}T00:00:00.000Z`);
-
-		// Guard: a missing or unparseable date must not crash the page.
-		if (!day || Number.isNaN(start.getTime())) {
-			loaded = true;
-			return;
-		}
-		try {
-			const end = new Date(start);
-			end.setUTCDate(end.getUTCDate() + 1);
-			photos = (await loadPhotosForRange(start.toISOString(), end.toISOString())) as ThumbRow[];
-		} catch {
-			// Query failure — render nothing rather than crashing the page.
-		} finally {
-			loaded = true;
-		}
+		const start = new Date(`${date}T00:00:00.000Z`);
+		const end = new Date(start);
+		end.setUTCDate(end.getUTCDate() + 1);
+		photos = (await loadPhotosForRange(start.toISOString(), end.toISOString())) as ThumbRow[];
+		loaded = true;
 	});
 
 	async function loadThumb(assetId: string, el: HTMLImageElement) {

@@ -394,158 +394,145 @@
 				</div>
 
 				<div class="space-y-4">
-					<!-- Enable toggle (gates the settings below) -->
-					<div class="flex items-center justify-between">
-						<div>
-							<span class="text-foreground text-sm font-medium">
-								{t('connections.immich.enable')}
-							</span>
-							<p class="text-muted-foreground mt-0.5 text-xs">
-								{t('connections.immich.enableHint')}
+					<!-- Required permissions explainer -->
+					<div
+						class="border-primary/30 bg-primary/5 dark:border-primary/30 dark:bg-primary/20 rounded-lg border p-4"
+					>
+						<h3 class="text-primary dark:text-primary mb-2 text-sm font-medium">
+							{t('connections.immich.requiredPermissions')}
+						</h3>
+						<ul class="text-primary dark:text-primary/80 space-y-1 text-sm">
+							{#each IMMICH_REQUIRED_PERMISSIONS as perm (perm.scope)}
+								<li>
+									<code class="font-mono font-semibold">{perm.scope}</code>
+									— {perm.why}
+								</li>
+							{/each}
+						</ul>
+						<p class="text-primary dark:text-primary/80 mt-2 text-xs">
+							{t('connections.immich.permissionsHowTo')}
+						</p>
+						<p class="text-primary/60 dark:text-primary/60 mt-1 text-xs">
+							{t('connections.immich.permissionsDownloadNote')}
+						</p>
+					</div>
+
+					<!-- Server URL -->
+					<div>
+						<label class="text-foreground mb-1.5 block text-sm font-medium" for="immichServerUrl"
+							>{t('connections.immich.serverUrl')}</label
+						>
+						<input
+							id="immichServerUrl"
+							type="url"
+							bind:value={immichServerUrl}
+							placeholder={String(getSetting('wayli.immich_endpoint', 'http://immich.local:2283'))}
+							class="border-border dark:bg-muted/20 focus:ring-primary/50 focus:border-primary w-full rounded-md border px-3 py-2 text-sm"
+						/>
+						<p class="text-muted-foreground mt-1 text-xs">
+							{t('connections.immich.serverUrlHint')}
+						</p>
+					</div>
+
+					<!-- API key -->
+					<div>
+						<label class="text-foreground mb-1.5 block text-sm font-medium" for="immichApiKey"
+							>{t('connections.immich.apiKey')}</label
+						>
+						{#if immichKeyStatus === 'loading'}
+							<p class="text-muted-foreground text-sm">{t('connections.checkingApiKey')}</p>
+						{:else if immichKeyStatus === 'configured'}
+							<p
+								class="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300"
+							>
+								<Check class="h-4 w-4" />
+								{t('connections.immich.apiKeyConfigured')}
 							</p>
-						</div>
+						{:else if immichKeyStatus === 'error'}
+							<p class="text-sm font-medium text-red-600">{t('connections.apiKeyCheckFailed')}</p>
+						{:else}
+							<p
+								class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
+							>
+								<AlertTriangle class="h-4 w-4" />
+								{t('connections.immich.apiKeyMissing')}
+							</p>
+						{/if}
+						<input
+							id="immichApiKey"
+							type="password"
+							bind:value={immichKeyInput}
+							placeholder={immichKeyStatus === 'configured'
+								? t('connections.immich.apiKeyReplacePlaceholder')
+								: t('connections.immich.apiKeyPlaceholder')}
+							class="border-border dark:bg-muted/20 focus:ring-primary/50 focus:border-primary mt-2 w-full rounded-md border px-3 py-2 text-sm"
+						/>
+					</div>
+
+					<!-- Enable toggle -->
+					<div class="flex items-center justify-between">
+						<span class="text-foreground text-sm font-medium">
+							{t('connections.immich.enable')}
+						</span>
 						<Switch bind:checked={immichEnabled} />
 					</div>
 
-					{#if immichEnabled}
-						<!-- Required permissions explainer -->
-						<div
-							class="border-primary/30 bg-primary/5 dark:border-primary/30 dark:bg-primary/20 rounded-lg border p-4"
+					<!-- Actions -->
+					<div class="flex flex-wrap items-center gap-2">
+						<button
+							type="button"
+							onclick={saveImmichConnection}
+							disabled={immichKeyInput.trim().length === 0}
+							class="bg-primary hover:bg-primary/90 flex cursor-pointer items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
 						>
-							<h3 class="text-primary dark:text-primary mb-2 text-sm font-medium">
-								{t('connections.immich.requiredPermissions')}
-							</h3>
-							<ul class="text-primary dark:text-primary/80 space-y-1 text-sm">
-								{#each IMMICH_REQUIRED_PERMISSIONS as perm (perm.scope)}
-									<li>
-										<code class="font-mono font-semibold">{perm.scope}</code>
-										— {perm.why}
-									</li>
-								{/each}
-							</ul>
-							<p class="text-primary dark:text-primary/80 mt-2 text-xs">
-								{t('connections.immich.permissionsHowTo')}
-							</p>
-							<p class="text-primary/60 dark:text-primary/60 mt-1 text-xs">
-								{t('connections.immich.permissionsDownloadNote')}
-							</p>
-						</div>
+							{t('connections.immich.save')}
+						</button>
+						<button
+							type="button"
+							onclick={testImmichConnection}
+							disabled={immichTesting}
+							class="border-border hover:bg-muted flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium"
+						>
+							<RefreshCw class={immichTesting ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
+							{t('connections.immich.test')}
+						</button>
+						<button
+							type="button"
+							onclick={syncImmich}
+							disabled={immichSyncing || immichKeyStatus !== 'configured'}
+							class="border-border hover:bg-muted flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							<Camera class="h-4 w-4" />
+							{t('connections.immich.syncNow')}
+						</button>
+						<button
+							type="button"
+							onclick={disconnectImmich}
+							disabled={immichDisconnecting}
+							class="ml-auto flex cursor-pointer items-center gap-2 rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+						>
+							<Unplug class="h-4 w-4" />
+							{t('connections.immich.disconnect')}
+						</button>
+					</div>
 
-						<!-- Server URL -->
-						<div>
-							<label class="text-foreground mb-1.5 block text-sm font-medium" for="immichServerUrl"
-								>{t('connections.immich.serverUrl')}</label
-							>
-							<input
-								id="immichServerUrl"
-								type="url"
-								bind:value={immichServerUrl}
-								placeholder={String(
-									getSetting('wayli.immich_endpoint', 'http://immich.local:2283')
-								)}
-								class="border-border dark:bg-muted/20 focus:ring-primary/50 focus:border-primary w-full rounded-md border px-3 py-2 text-sm"
-							/>
-							<p class="text-muted-foreground mt-1 text-xs">
-								{t('connections.immich.serverUrlHint')}
-							</p>
-						</div>
-
-						<!-- API key -->
-						<div>
-							<label class="text-foreground mb-1.5 block text-sm font-medium" for="immichApiKey"
-								>{t('connections.immich.apiKey')}</label
-							>
-							{#if immichKeyStatus === 'loading'}
-								<p class="text-muted-foreground text-sm">{t('connections.checkingApiKey')}</p>
-							{:else if immichKeyStatus === 'configured'}
-								<p
-									class="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300"
-								>
-									<Check class="h-4 w-4" />
-									{t('connections.immich.apiKeyConfigured')}
-								</p>
-							{:else if immichKeyStatus === 'error'}
-								<p class="text-sm font-medium text-red-600">{t('connections.apiKeyCheckFailed')}</p>
-							{:else}
-								<p
-									class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
-								>
-									<AlertTriangle class="h-4 w-4" />
-									{t('connections.immich.apiKeyMissing')}
-								</p>
-							{/if}
-							<input
-								id="immichApiKey"
-								type="password"
-								bind:value={immichKeyInput}
-								placeholder={immichKeyStatus === 'configured'
-									? t('connections.immich.apiKeyReplacePlaceholder')
-									: t('connections.immich.apiKeyPlaceholder')}
-								class="border-border dark:bg-muted/20 focus:ring-primary/50 focus:border-primary mt-2 w-full rounded-md border px-3 py-2 text-sm"
-							/>
-						</div>
-
-						<!-- Actions -->
-						<div class="flex flex-wrap items-center gap-2">
-							<button
-								type="button"
-								onclick={saveImmichConnection}
-								disabled={immichKeyInput.trim().length === 0}
-								class="bg-primary hover:bg-primary/90 flex cursor-pointer items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-							>
-								{t('connections.immich.save')}
-							</button>
-							<button
-								type="button"
-								onclick={testImmichConnection}
-								disabled={immichTesting}
-								class="border-border hover:bg-muted flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium"
-							>
-								<RefreshCw class={immichTesting ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
-								{t('connections.immich.test')}
-							</button>
-							<button
-								type="button"
-								onclick={syncImmich}
-								disabled={immichSyncing || immichKeyStatus !== 'configured'}
-								class="border-border hover:bg-muted flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
-							>
-								<Camera class="h-4 w-4" />
-								{t('connections.immich.syncNow')}
-							</button>
-							<button
-								type="button"
-								onclick={disconnectImmich}
-								disabled={immichDisconnecting}
-								class="ml-auto flex cursor-pointer items-center gap-2 rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
-							>
-								<Unplug class="h-4 w-4" />
-								{t('connections.immich.disconnect')}
-							</button>
-						</div>
-
-						{#if immichTestResult}
-							<p
-								class={`rounded-md border px-3 py-2 text-sm ${immichTestResult.ok ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300' : 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300'}`}
-							>
-								{immichTestResult.message}
-							</p>
-						{/if}
-
-						{#if immichSettings()?.last_sync_at}
-							<p class="text-muted-foreground text-xs">
-								{t('connections.immich.lastSync', {
-									time: new Date(immichSettings()!.last_sync_at!).toLocaleString()
-								})}
-							</p>
-						{/if}
-
-						<p class="text-muted-foreground text-xs">{t('connections.immich.displayOnlyNote')}</p>
-					{:else}
-						<p class="text-muted-foreground text-sm">
-							{t('connections.immich.disabledHint')}
+					{#if immichTestResult}
+						<p
+							class={`rounded-md border px-3 py-2 text-sm ${immichTestResult.ok ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300' : 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300'}`}
+						>
+							{immichTestResult.message}
 						</p>
 					{/if}
+
+					{#if immichSettings()?.last_sync_at}
+						<p class="text-muted-foreground text-xs">
+							{t('connections.immich.lastSync', {
+								time: new Date(immichSettings()!.last_sync_at!).toLocaleString()
+							})}
+						</p>
+					{/if}
+
+					<p class="text-muted-foreground text-xs">{t('connections.immich.displayOnlyNote')}</p>
 				</div>
 			</div>
 		{/if}

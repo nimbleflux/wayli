@@ -1619,6 +1619,53 @@ CREATE POLICY "User profiles can be viewed" ON user_profiles FOR SELECT TO authe
 -- Name: want_to_visit_places; Type: TABLE; Schema: -; Owner: -
 --
 
+--
+-- Name: immich_assets; Type: TABLE; Schema: -; Owner: -
+--
+
+CREATE TABLE IF NOT EXISTS immich_assets (
+    user_id uuid NOT NULL,
+    asset_id text NOT NULL,
+    latitude double precision NOT NULL,
+    longitude double precision NOT NULL,
+    taken_at timestamptz NOT NULL,
+    city text,
+    state text,
+    country text,
+    synced_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT immich_assets_pkey PRIMARY KEY (user_id, asset_id)
+);
+
+
+CREATE INDEX IF NOT EXISTS idx_immich_assets_user_taken ON immich_assets (user_id, taken_at);
+
+
+COMMENT ON TABLE immich_assets IS 'Geotagged photo metadata synced from a user''s Immich instance. Display-only: never used as tracking points. Thumbnails are proxied live from Immich, not stored.';
+
+
+--
+-- Name: immich_assets; Type: RLS; Schema: -; Owner: -
+--
+
+ALTER TABLE immich_assets ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "Users can view their own immich assets" ON immich_assets
+    FOR SELECT TO authenticated USING (auth.uid() = user_id);
+
+
+CREATE POLICY "Users can insert their own immich assets" ON immich_assets
+    FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+
+
+CREATE POLICY "Users can update their own immich assets" ON immich_assets
+    FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+
+CREATE POLICY "Users can delete their own immich assets" ON immich_assets
+    FOR DELETE TO authenticated USING (auth.uid() = user_id);
+
+
 CREATE TABLE IF NOT EXISTS want_to_visit_places (
     id uuid DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL,

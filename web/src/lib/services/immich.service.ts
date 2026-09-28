@@ -49,10 +49,8 @@ export async function getThumbUrl(
 	if (cached) return cached;
 
 	try {
-		const {
-			data: { session }
-		} = await fluxbase.auth.getSession();
-		const token = session?.access_token;
+		const { data } = await fluxbase.auth.getSession();
+		const token = data?.session?.access_token;
 		if (!token) return null;
 
 		const response = await fetch(

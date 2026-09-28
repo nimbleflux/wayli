@@ -554,7 +554,10 @@
     "whenYouMoveMost": "When you move most",
     "speedAxisLabel": "km/h, coloured by dominant mode",
     "fitnessSessions": "Fitness sessions",
-    "fitnessInPeriod": "{count} fitness sessions in view"
+    "fitnessInPeriod": "{count} fitness sessions in view",
+    "immichPhotos": "Photos",
+    "immichPhotosToggle": "Show geotagged photos from Immich",
+    "immichOpenInImmich": "Open in Immich"
   },
   "connections": {
     "title": "Connections",

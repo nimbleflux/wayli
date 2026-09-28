@@ -17,7 +17,8 @@
 		ChevronRight,
 		X,
 		Flame,
-		Sparkles
+		Sparkles,
+		Camera
 	} from 'lucide-svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import { toast } from 'svelte-sonner';
@@ -47,6 +48,9 @@
 	import { formatDateInTimezone, getTimezoneFromOffset } from '$lib/utils/timezone-utils';
 	import { formatLocalDate } from '$lib/utils/utils';
 	import { isFitnessBetaEnabled, loadFitnessBeta } from '$lib/stores/fitness-beta.svelte';
+	import { loadImmichSettings, immichSettings } from '$lib/stores/immich.svelte';
+	import { getSetting } from '$lib/stores/settings.svelte';
+	import { loadPhotosForRange, getThumbUrl, clearThumbCache } from '$lib/services/immich.service';
 	import {
 		formatDistance as formatFitnessDistance,
 		formatDuration as formatFitnessDuration,
@@ -142,6 +146,37 @@
 	// points), built from the same rawDataPoints the circle-marker map uses.
 	let heatLayer: any = null;
 	let showHeatmap = $state(false);
+
+	// Immich photo layer (#13): clustered photo markers, display-only.
+	let photoLayer: any = null;
+	let showPhotos = $state(false);
+	let photosLoading = $state(false);
+	let immichAvailableForMap = $state(false);
+
+	// Enable the layer toggle only when the user connected Immich and the
+	// server admin allows the integration.
+	$effect(() => {
+		void loadImmichSettings().then((settings) => {
+			immichAvailableForMap = settings?.enabled === true;
+			if (!immichAvailableForMap && showPhotos) {
+				showPhotos = false;
+				if (photoLayer && map) {
+					map.removeLayer(photoLayer);
+					photoLayer = null;
+				}
+			}
+		});
+	});
+
+	// Re-render the photo layer when the visible date range changes.
+	$effect(() => {
+		void formatLocalDate(appState.filtersStartDate);
+		void formatLocalDate(appState.filtersEndDate);
+		if (showPhotos) void renderPhotoLayer();
+	});
+
+	// Teardown: release thumbnail object URLs.
+	onDestroy(() => clearThumbCache());
 
 	// Snap-to-roads view layer: when on, the drawn track is replaced by
 	// Valhalla-matched segments (one per transport-mode run, mode-colored)
@@ -1006,6 +1041,97 @@
 		} else if (!showHeatmap && heatLayer && map) {
 			map.removeLayer(heatLayer);
 			heatLayer = null;
+		}
+	}
+
+	// ── Immich photo layer (#13) ────────────────────────────────────────
+	async function togglePhotos() {
+		showPhotos = !showPhotos;
+		if (!map || !L) return;
+		if (!showPhotos) {
+			if (photoLayer) {
+				map.removeLayer(photoLayer);
+				photoLayer = null;
+			}
+			clearThumbCache();
+			return;
+		}
+		await renderPhotoLayer();
+	}
+
+	async function renderPhotoLayer() {
+		if (!map || !L) return;
+		if (photoLayer) {
+			map.removeLayer(photoLayer);
+			photoLayer = null;
+		}
+		photosLoading = true;
+		try {
+			const start = new Date(`${formatLocalDate(appState.filtersStartDate)}T00:00:00Z`);
+			const end = new Date(`${formatLocalDate(appState.filtersEndDate)}T00:00:00Z`);
+			end.setUTCDate(end.getUTCDate() + 1);
+			const photos = await loadPhotosForRange(start.toISOString(), end.toISOString());
+			if (!showPhotos) return; // toggled off while loading
+
+			// Load the markercluster plugin the same way want-to-visit does.
+			const clusterModule = await import('leaflet.markercluster');
+			const Lf = (clusterModule as any).default ?? L;
+
+			const group = Lf.markerClusterGroup({
+				chunkedLoading: true,
+				disableClusteringAtZoom: 16,
+				maxClusterRadius: 60,
+				showCoverageOnHover: false,
+				iconCreateFunction: (cluster: any) => {
+					const count = cluster.getChildCount();
+					return Lf.divIcon({
+						html: `<div class="immich-photo-cluster">${count}</div>`,
+						className: '',
+						iconSize: Lf.point(36, 36)
+					});
+				}
+			});
+
+			for (const photo of photos) {
+				const marker = L.circleMarker([photo.latitude, photo.longitude], {
+					radius: 5,
+					color: '#a855f7',
+					weight: 2,
+					fillColor: '#a855f7',
+					fillOpacity: 0.9
+				});
+				const when = formatDateInTimezone(
+					new Date(photo.taken_at),
+					getTimezoneFromOffset(new Date(photo.taken_at).getTimezoneOffset())
+				);
+				marker.bindPopup(
+					`<div class="space-y-1" style="min-width:180px">` +
+						`<div class="immich-thumb" data-asset="${photo.asset_id}" style="width:180px;height:120px;background:#eee;border-radius:6px;overflow:hidden"></div>` +
+						`<div style="font-weight:600">${when}</div>` +
+						(photo.city
+							? `<div>${[photo.city, photo.state, photo.country].filter(Boolean).join(', ')}</div>`
+							: '') +
+						`<a href="${(immichSettings()?.server_url || String(getSetting('wayli.immich_endpoint', ''))).replace(/\/+$/, '')}/photos/${photo.asset_id}" target="_blank" rel="noopener" style="color:#a855f7">${t('statistics.immichOpenInImmich') || 'Open in Immich'}</a>` +
+						`</div>`
+				);
+				marker.on('popupopen', async () => {
+					const el = document.querySelector(`.immich-thumb[data-asset="${photo.asset_id}"] img`);
+					if (el) return; // already loaded
+					const url = await getThumbUrl(photo.asset_id, 'preview');
+					const container = document.querySelector(`.immich-thumb[data-asset="${photo.asset_id}"]`);
+					if (container && url) {
+						container.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover" alt="" />`;
+					} else if (container) {
+						container.textContent = '📷';
+					}
+				});
+				group.addLayer(marker);
+			}
+
+			photoLayer = group;
+			map.addLayer(group);
+		} finally {
+			photosLoading = false;
 		}
 	}
 
@@ -1995,6 +2121,26 @@
 				? t('statistics.roadMatching') || 'Matching…'
 				: t('statistics.roadMatch') || 'Snap to roads'}
 		</button>
+
+		<!-- Immich photos toggle -->
+		{#if immichAvailableForMap}
+			<button
+				type="button"
+				onclick={togglePhotos}
+				disabled={photosLoading}
+				class="absolute top-28 right-4 z-[1001] inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium shadow-sm transition-colors {showPhotos
+					? 'border-primary bg-primary text-primary-foreground'
+					: 'border-border bg-card text-foreground hover:bg-muted'} disabled:cursor-not-allowed disabled:opacity-50"
+				title={t('statistics.immichPhotosToggle') || 'Show geotagged photos from Immich'}
+			>
+				{#if photosLoading}
+					<Loader2 class="h-4 w-4 animate-spin" />
+				{:else}
+					<Camera class="h-4 w-4" />
+				{/if}
+				{t('statistics.immichPhotos') || 'Photos'}
+			</button>
+		{/if}
 
 		<!-- Map Legend -->
 		<div

@@ -19,6 +19,7 @@
 	import { aiDrawer, type PlanSuggestion } from '$lib/stores/ai-drawer';
 	import { renderMarkdown } from '$lib/utils/markdown';
 	import { storageRefToUrl } from '$lib/utils/inline-media';
+	import { formatLocalDate } from '$lib/utils/utils';
 	import {
 		effectiveBlocks,
 		legacyBodyFromBlocks,
@@ -39,6 +40,11 @@
 	import DateRangePicker from '$lib/components/ui/date-range-picker.svelte';
 	import EntryBlockEditor from '$lib/components/EntryBlockEditor.svelte';
 	import EntryBlocksView from '$lib/components/EntryBlocksView.svelte';
+	import { loadPhotosForRange } from '$lib/services/immich.service';
+	import { loadImmichSettings } from '$lib/stores/immich.svelte';
+	import { getSetting, loadPublicSettings } from '$lib/stores/settings.svelte';
+	import ImmichPhotoStrip from '$lib/components/ImmichPhotoStrip.svelte';
+	import ImmichPhotoPicker from '$lib/components/ImmichPhotoPicker.svelte';
 	import EntryLikeButton from '$lib/components/EntryLikeButton.svelte';
 	import EntryComments from '$lib/components/EntryComments.svelte';
 	import TripGenerationModal from '$lib/components/modals/TripGenerationModal.svelte';
@@ -500,7 +506,8 @@
 	}
 
 	// ── Trip section expand/collapse ──
-	function toggleTrip(tripId: string) {
+	function toggleTrip(trip: Trip) {
+		const tripId = trip.id;
 		const next = new Set(expandedTrips);
 		if (next.has(tripId)) {
 			next.delete(tripId);
@@ -510,6 +517,12 @@
 			// Lazily fetch this trip's GPS track + media now that it's expanded.
 			loadTripGps(tripId);
 			loadTripMedia(tripId);
+			// Hint about unattached Immich photos from this trip's date range.
+			void computeImmichHint({
+				id: tripId,
+				start_date: trip.start_date,
+				end_date: trip.end_date
+			});
 		}
 		expandedTrips = next;
 		setTimeout(() => setupObserver(), 50);
@@ -552,6 +565,19 @@
 
 	let isGenerating = $state(false);
 	let t = $derived($translate);
+
+	// Immich photo strips: enabled only when the user connected Immich (#13).
+	let immichEnabled = $state(false);
+	onMount(async () => {
+		try {
+			await loadPublicSettings();
+			const adminAllowed = getSetting<boolean>('wayli.immich_enabled', false) === true;
+			const settings = await loadImmichSettings();
+			immichEnabled = adminAllowed && settings?.enabled === true;
+		} catch {
+			immichEnabled = false;
+		}
+	});
 	let isRecalculating = $state(false);
 
 	// ── Suggestion modal state ──
@@ -664,6 +690,63 @@
 	 * rows immediately; new entries attach theirs when the entry is saved.
 	 * Resolves with the created media ids (appended as a photo block).
 	 */
+	let showImmichPicker = $state(false);
+
+	let immichHint = $state<{ count: number } | null>(null);
+	let immichHintDismissed = $state(false);
+
+	/** Unattached Immich photos within the trip's date range. */
+	async function computeImmichHint(trip: { id?: string; start_date: string; end_date: string }) {
+		try {
+			if (!immichEnabled) {
+				immichHint = null;
+				return;
+			}
+			const start = new Date(`${trip.start_date}T00:00:00.000Z`);
+			const end = new Date(`${trip.end_date}T00:00:00.000Z`);
+			end.setUTCDate(end.getUTCDate() + 1);
+			const [photos, media] = await Promise.all([
+				loadPhotosForRange(start.toISOString(), end.toISOString()),
+				listMedia(trip.id ?? '')
+			]);
+			const attached = new Set(
+				media.map((m: { immich_asset_id?: string | null }) => m.immich_asset_id).filter(Boolean)
+			);
+			const unattached = photos.filter((p) => !attached.has(p.asset_id));
+			immichHint = unattached.length > 0 ? { count: unattached.length } : null;
+		} catch {
+			immichHint = null;
+		}
+	}
+
+	async function handleOpenImmichPicker(): Promise<string[]> {
+		// The picker resolves user/dates itself; the created media ids come back
+		// via the `added` event (handled in handleImmichAdded).
+		showImmichPicker = true;
+		// Keep the editor open; ids are appended when the event fires.
+		return [];
+	}
+
+	function handleImmichAdded(mediaIds: string[]) {
+		const ids = mediaIds ?? [];
+		if (ids.length === 0) {
+			showImmichPicker = false;
+			return;
+		}
+		void loadTripMedia(editorTripId!).then(() => {
+			if (editingEntry) {
+				const last = editorBlocks[editorBlocks.length - 1];
+				if (last?.t === 'photos') {
+					const rest = editorBlocks.slice(0, -1);
+					editorBlocks = [...rest, { t: 'photos', ids: [...last.ids, ...ids] }];
+				} else {
+					editorBlocks = [...editorBlocks, { t: 'photos', ids }];
+				}
+			}
+			showImmichPicker = false;
+		});
+	}
+
 	async function handleAddPhotos(files: File[]): Promise<string[]> {
 		if (!$userStore?.id || !editorTripId) throw new Error('No trip selected');
 		const createdIds: string[] = [];
@@ -1533,7 +1616,7 @@
 							<!-- Trip header -->
 							<button
 								type="button"
-								onclick={() => toggleTrip(trip.id)}
+								onclick={() => toggleTrip(trip)}
 								class="hover:bg-muted/50 flex w-full items-center gap-4 p-4 text-left transition-colors"
 							>
 								<!-- Cover thumbnail -->
@@ -1808,6 +1891,9 @@
 															{/if}
 														</h3>
 													{/if}
+													{#if immichEnabled}
+														<ImmichPhotoStrip date={entry.entry_date} />
+													{/if}
 													{#if mediaForEntry(trip.id, entry.id).length > 0 || entry.body}
 														{@const entryMedia = mediaForEntry(trip.id, entry.id)}
 														{@const effectiveEntryBlocks = effectiveBlocks(
@@ -1936,9 +2022,21 @@
 								coverMediaId={editorCoverId}
 								onSetCover={handleEditorSetCover}
 								onAddPhotos={handleAddPhotos}
+								onOpenImmichPicker={handleOpenImmichPicker}
+								{immichEnabled}
 								onDeletePhoto={handleEditorDeletePhoto}
 								disabled={isSaving}
 							/>
+							{#if showImmichPicker}
+								<ImmichPhotoPicker
+									open
+									tripId={editorTripId ?? ''}
+									entryId={editingEntry?.id}
+									initialDate={editorDate || formatLocalDate(new Date())}
+									onadded={handleImmichAdded}
+									onclose={() => (showImmichPicker = false)}
+								/>
+							{/if}
 
 							<div class="flex justify-end gap-2">
 								<button

@@ -195,3 +195,21 @@ data class Notification(
     @SerialName("read_at") val readAt: String? = null,
     @SerialName("created_at") val createdAt: String = "",
 )
+
+// ---- Immich photo integration (#13) ----
+
+/**
+ * A geotagged photo synced from the user's Immich instance
+ * (`immich_assets` table). Display-only: photo coordinates never become
+ * tracking points.
+ */
+@Serializable
+data class ImmichAsset(
+    @SerialName("asset_id") val assetId: String,
+    val latitude: Double,
+    val longitude: Double,
+    @SerialName("taken_at") val takenAt: String,
+    val city: String? = null,
+    val state: String? = null,
+    val country: String? = null,
+)

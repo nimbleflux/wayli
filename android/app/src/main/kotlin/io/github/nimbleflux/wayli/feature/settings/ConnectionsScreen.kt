@@ -56,11 +56,28 @@ class ConnectionsViewModel @Inject constructor(
     private val instanceManager: InstanceManager,
     private val demoManager: DemoManager,
     private val client: FluxbaseClient,
+    private val immichRepo: io.github.nimbleflux.wayli.repo.ImmichRepository,
 ) : ViewModel() {
 
     val isDemo: Boolean get() = demoManager.isDemoMode
     val baseUrl: String? get() = instanceManager.getConfig()?.url
     val userId: String? get() = client.auth.currentUser?.id
+
+    /** Immich connection status for the read-only Connections card (#13). */
+    data class ImmichStatus(
+        val enabled: Boolean,
+        val keyConfigured: Boolean,
+        val lastSyncAt: String?,
+    )
+
+    suspend fun immichStatus(userId: String): ImmichStatus {
+        val settings = immichRepo.settings(userId)
+        return ImmichStatus(
+            enabled = settings?.enabled == true,
+            keyConfigured = runCatching { immichRepo.hasApiKey() }.getOrDefault(false),
+            lastSyncAt = settings?.lastSyncAt,
+        )
+    }
 
     sealed class UiState {
         object Loading : UiState()
@@ -218,10 +235,29 @@ fun ConnectionsScreen(
 
     var pexelsInput by remember { mutableStateOf("") }
     var showPexelsField by remember { mutableStateOf(false) }
+
+    // Immich photos (#13) — read-only here: the connection (URL + API key)
+    // is managed in the Wayli web app.
+    var immichEnabled by remember { mutableStateOf(false) }
+    var immichKeyConfigured by remember { mutableStateOf(false) }
+    var immichLastSync by remember { mutableStateOf<String?>(null) }
     var showAddDevice by remember { mutableStateOf(false) }
     var deviceLabel by remember { mutableStateOf("") }
 
-    androidx.compose.runtime.LaunchedEffect(Unit) { viewModel.loadDeviceTokens() }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        viewModel.loadDeviceTokens()
+        val uid = viewModel.userId
+        if (uid != null) {
+            try {
+                val status = viewModel.immichStatus(uid)
+                immichEnabled = status.enabled
+                immichKeyConfigured = status.keyConfigured
+                immichLastSync = status.lastSyncAt
+            } catch (err: Exception) {
+                // Status read is best-effort; the card simply shows defaults.
+            }
+        }
+    }
 
     SubScreenScaffold(title = "Connections & Integrations", onBack = onBack) {
         WayliSectionCard(title = "Devices (GPS tracking)") {
@@ -373,6 +409,42 @@ fun ConnectionsScreen(
             Spacer(Modifier.height(8.dp))
             Text(
                 "Per-user rate limit isn't available in the Android app yet.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+
+    WayliSectionCard(title = "Immich Photos") {
+        if (!immichEnabled && !immichKeyConfigured) {
+            Text(
+                "Not connected. Connect your Immich instance in the Wayli web app to show your geotagged photos on the map and timeline.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            ProfileCard(
+                title = "Connection",
+                value = if (immichEnabled) "Enabled" else "Disabled",
+                subtitle = "Managed in the Wayli web app (Connections → Immich)",
+            )
+            Spacer(Modifier.height(8.dp))
+            ProfileCard(
+                title = "API key",
+                value = if (immichKeyConfigured) "Configured" else "Not configured",
+                subtitle = null,
+            )
+            if (immichLastSync != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Last photo sync: ${immichLastSync}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Photos are display-only — they never become tracking points.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

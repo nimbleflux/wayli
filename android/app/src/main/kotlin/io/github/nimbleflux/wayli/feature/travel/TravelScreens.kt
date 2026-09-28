@@ -965,6 +965,7 @@ fun TripDetailScreen(
                         val track by viewModel.track.collectAsState()
                         if (track.isNotEmpty()) TripMapCard(track = track)
                     }
+                    item(key = "immich-photos") { ImmichTripStrip(trip = data.trip) }
                     item(key = "journal-header") {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),

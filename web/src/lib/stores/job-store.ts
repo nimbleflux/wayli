@@ -118,7 +118,8 @@ function jobDisplayName(jobName: string): string {
 		detect_place_visits: 'Place visit detection',
 		detect_transport_mode: 'Transport mode detection',
 		refresh_daily_activity: 'Daily activity refresh',
-		polarsteps_import: 'Polarsteps import'
+		polarsteps_import: 'Polarsteps import',
+		immich_sync: 'Immich photo sync'
 	};
 	// Allow prefix matching (data-import-* variants use underscores in some
 	// places, hyphens in others).

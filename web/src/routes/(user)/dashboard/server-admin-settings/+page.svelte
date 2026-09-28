@@ -68,6 +68,8 @@
 	let pexelsRateLimit = $state(200); // Default: 200 requests/hour
 	let peliasEndpoint = $state('https://pelias.wayli.app');
 	let valhallaEndpoint = $state('https://valhalla.wayli.app');
+	let immichEnabled = $state(false);
+	let immichEndpoint = $state('');
 	let isGeneratingTripRoutes = $state(false);
 
 	// Tavily web-search integration (Fluxbase ai.tool_integrations)
@@ -392,6 +394,18 @@
 				'wayli.valhalla_endpoint',
 				valhallaEndpoint,
 				'Valhalla routing service endpoint URL'
+			);
+
+			// Save Immich integration toggle + default endpoint
+			await serviceAdapter.updateCustomSetting(
+				'wayli.immich_enabled',
+				immichEnabled,
+				'Enable the Immich photo integration for all users'
+			);
+			await serviceAdapter.updateCustomSetting(
+				'wayli.immich_endpoint',
+				immichEndpoint,
+				'Default Immich instance URL users can connect to'
 			);
 
 			// Use encrypted secret storage for Pexels API key
@@ -1538,6 +1552,10 @@
 			customValue<string>(custom, 'wayli.valhalla_endpoint', 'https://valhalla.wayli.app') ||
 			'https://valhalla.wayli.app';
 
+		// Load Immich integration settings
+		immichEnabled = customValue<boolean>(custom, 'wayli.immich_enabled', false) || false;
+		immichEndpoint = customValue<string>(custom, 'wayli.immich_endpoint', '') || '';
+
 		// Load Pexels API key secret metadata (value is not returned)
 		if (result.secrets?.pexels_api_key) {
 			pexelsApiKeyConfigured = true;
@@ -2455,6 +2473,32 @@
 								Routing service URL for map-matching transport detection (used when a user enables
 								it in their preferences)
 							</p>
+						</div>
+
+						<div class="rounded-md border p-3">
+							<div class="flex items-center justify-between">
+								<label for="immichEnabled" class="block text-sm font-medium">
+									Immich Photo Integration
+								</label>
+								<Switch bind:checked={immichEnabled} />
+							</div>
+							<div class="mt-3">
+								<label for="immichEndpoint" class="text-muted-foreground block text-sm font-medium">
+									Default Immich Endpoint
+								</label>
+								<Input
+									type="url"
+									id="immichEndpoint"
+									bind:value={immichEndpoint}
+									class="mt-1 w-full"
+									placeholder="http://immich.local:2283"
+									pattern="https?://.+"
+								/>
+								<p class="text-muted-foreground mt-1 text-xs">
+									Default Immich instance URL offered to users on the Connections page (users can
+									enter their own). The integration is hidden from all users while disabled.
+								</p>
+							</div>
 						</div>
 
 						<div class="flex justify-end">

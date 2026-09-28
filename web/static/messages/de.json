@@ -558,7 +558,10 @@
     "whenYouMoveMost": "Wann du dich am meisten bewegst",
     "speedAxisLabel": "km/h, eingefärbt nach Hauptmodus",
     "fitnessSessions": "Fitness-Einheiten",
-    "fitnessInPeriod": "{count} Fitness-Einheiten im Zeitraum"
+    "fitnessInPeriod": "{count} Fitness-Einheiten im Zeitraum",
+    "immichPhotos": "Fotos",
+    "immichPhotosToggle": "Mit Geotags versehene Fotos von Immich anzeigen",
+    "immichOpenInImmich": "Geöffnet in Immich"
   },
   "connections": {
     "title": "Verbindungen",
@@ -591,7 +594,47 @@
     "downloadIOS": "Holen Sie sich für iOS",
     "checkingApiKey": "API-Schlüssel-Status wird geprüft…",
     "apiKeyCheckFailed": "API-Schlüssel-Status konnte nicht geprüft werden",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "immich": {
+      "title": "Immich Fotointegration",
+      "description": "Zeigen Sie die mit Geotags versehenen Fotos aus Ihrer selbst gehosteten Immich-Bibliothek auf Ihrer Reisekarte und Zeitleiste an. Fotostandorte dienen nur der Anzeige und werden niemals zu Trackingpunkten.",
+      "requiredPermissions": "Erforderliche Immich-API-Schlüsselberechtigungen",
+      "permissionsHowTo": "Markieren Sie in Immich: Kontoeinstellungen → API-Schlüssel → Neuer API-Schlüssel genau diese drei Berechtigungen.",
+      "permissionsDownloadNote": "Einige strengere Immich-Setups benötigen zusätzlich asset.download, damit Miniaturansichten funktionieren.",
+      "serverUrl": "Immich-Server-URL",
+      "serverUrlHint": "Lassen Sie das Feld leer, um die Standard-Immich-Instanz dieses Servers zu verwenden.",
+      "apiKey": "Immich API-Schlüssel",
+      "apiKeyPlaceholder": "Fügen Sie den API-Schlüssel ein, den Sie in Immich erstellt haben",
+      "apiKeyReplacePlaceholder": "Lassen Sie das Feld leer, um den vorhandenen Schlüssel beizubehalten",
+      "apiKeyConfigured": "API-Schlüssel konfiguriert",
+      "apiKeyMissing": "Noch kein API-Schlüssel gespeichert",
+      "enable": "Immich-Fotos aktivieren",
+      "save": "Verbindung speichern",
+      "test": "Testverbindung",
+      "testOk": "Verbunden als {user}",
+      "testPermission": "Dem API-Schlüssel fehlt eine der erforderlichen Berechtigungen (user.read, asset.read, asset.view) – bearbeiten Sie den Schlüssel in Immich erneut.",
+      "testAuth": "Immich hat den API-Schlüssel abgelehnt – überprüfen Sie, ob Sie ihn korrekt eingefügt haben.",
+      "testFailed": "Ihre Immich-Instanz konnte nicht erreicht werden. Überprüfen Sie die URL und ob Immich ausgeführt wird.",
+      "syncNow": "Jetzt Fotos synchronisieren",
+      "syncStarted": "Immich-Synchronisierung gestartet – Fotos werden auf der Karte angezeigt, wenn sie abgeschlossen ist.",
+      "syncFailed": "Die Immich-Synchronisierung konnte nicht gestartet werden.",
+      "lastSync": "Letzte Fotosynchronisierung: {time}",
+      "disconnect": "Daten trennen und löschen",
+      "disconnectConfirm": "Immich trennen und alle synchronisierten Fotometadaten von Wayli löschen? Ihre Immich-Bibliothek selbst bleibt davon unberührt.",
+      "disconnected": "Immich getrennt und synchronisierte Fotodaten gelöscht.",
+      "disconnectFailed": "Die Verbindung konnte nicht vollständig getrennt werden. Versuchen Sie es erneut.",
+      "saved": "Immich Verbindung gespeichert.",
+      "saveFailed": "Die Immich-Verbindung konnte nicht gespeichert werden.",
+      "displayOnlyNote": "Fotostandorte dienen nur der Anzeige: Sie werden niemals zu Trackingpunkten und haben keinen Einfluss auf die Fahrterkennung oder -statistik.",
+      "pickerTitle": "Add photos from Immich",
+      "pickerRangeLabel": "Show photos near",
+      "pickerLoading": "Loading photos…",
+      "pickerEmpty": "No geotagged photos from your Immich library in this range.",
+      "pickerSelected": "selected",
+      "pickerAdd": "Add {count} photos",
+      "pickerAddedCount": "Added {count} photo(s) to the entry ({failed} failed).",
+      "days": "days"
+    }
   },
   "importExport": {
     "title": "Import/Export",
@@ -1737,7 +1780,10 @@
     "tripsApproved": "{count} Reisen genehmigt",
     "upload": "Hochladen",
     "uploadFailed": "Bild konnte nicht hochgeladen werden",
-    "saveBeforePexels": "Speichern Sie zuerst die Reise und rufen Sie dann ein Titelbild ab."
+    "saveBeforePexels": "Speichern Sie zuerst die Reise und rufen Sie dann ein Titelbild ab.",
+    "immichPhotosTakenOn": "Fotos aufgenommen am {Datum}",
+    "immichTripHint": "{count} photo(s) from your Immich library were taken during this trip but are not attached yet.",
+    "immichTripHintAdd": "Add photos"
   },
   "community": {
     "by": "von",

@@ -558,7 +558,10 @@
     "whenYouMoveMost": "Quand vous bougez le plus",
     "speedAxisLabel": "km/h, coloré par mode dominant",
     "fitnessSessions": "Séances de sport",
-    "fitnessInPeriod": "{count} séances de sport visibles"
+    "fitnessInPeriod": "{count} séances de sport visibles",
+    "immichPhotos": "Photos",
+    "immichPhotosToggle": "Afficher les photos géolocalisées d'Immich",
+    "immichOpenInImmich": "Ouvert à Immich"
   },
   "connections": {
     "title": "Relations",
@@ -591,7 +594,47 @@
     "downloadIOS": "Obtenir pour iOS",
     "checkingApiKey": "Vérification du statut de la clé API…",
     "apiKeyCheckFailed": "Impossible de vérifier le statut de la clé API",
-    "retry": "Réessayer"
+    "retry": "Réessayer",
+    "immich": {
+      "title": "Intégration de photos Immich",
+      "description": "Affichez les photos géolocalisées de votre bibliothèque Immich auto-hébergée sur votre carte de voyage et votre chronologie. Les emplacements des photos sont uniquement affichés et ne deviennent jamais des points de suivi.",
+      "requiredPermissions": "Autorisations requises par la clé API Immich",
+      "permissionsHowTo": "Dans Immich : Paramètres du compte → Clés API → Nouvelle clé API, cochez exactement ces trois autorisations.",
+      "permissionsDownloadNote": "Certaines configurations Immich plus strictes nécessitent également Asset.download pour que les vignettes fonctionnent.",
+      "serverUrl": "URL du serveur Immich",
+      "serverUrlHint": "Laissez vide pour utiliser l’instance Immich par défaut de ce serveur.",
+      "apiKey": "Clé API Immich",
+      "apiKeyPlaceholder": "Collez la clé API que vous avez créée dans Immich",
+      "apiKeyReplacePlaceholder": "Laisser vide pour conserver la clé existante",
+      "apiKeyConfigured": "Clé API configurée",
+      "apiKeyMissing": "Aucune clé API enregistrée pour le moment",
+      "enable": "Activer les photos Immich",
+      "save": "Enregistrer la connexion",
+      "test": "Tester la connexion",
+      "testOk": "Connecté en tant que {user}",
+      "testPermission": "Il manque à la clé API l'une des autorisations requises (user.read,asset.read,asset.view) — rééditez la clé dans Immich.",
+      "testAuth": "Immich a rejeté la clé API — vérifiez que vous l'avez collée correctement.",
+      "testFailed": "Impossible d'accéder à votre instance Immich. Vérifiez l'URL et qu'Immich est en cours d'exécution.",
+      "syncNow": "Synchronisez les photos maintenant",
+      "syncStarted": "La synchronisation Immich a commencé : les photos apparaissent sur la carte une fois la synchronisation terminée.",
+      "syncFailed": "Impossible de démarrer la synchronisation Immich.",
+      "lastSync": "Last photo sync: {time}",
+      "disconnect": "Déconnecter et supprimer des données",
+      "disconnectConfirm": "Déconnecter Immich et supprimer toutes les métadonnées des photos synchronisées de Wayli ? Votre bibliothèque Immich elle-même n'est pas touchée.",
+      "disconnected": "Immich déconnecté et données photo synchronisées supprimées.",
+      "disconnectFailed": "Impossible de se déconnecter complètement : réessayez.",
+      "saved": "Connexion Immich enregistrée.",
+      "saveFailed": "Impossible de sauvegarder la connexion Immich.",
+      "displayOnlyNote": "Les emplacements des photos sont uniquement affichés : ils ne deviennent jamais des points de suivi et n'affectent pas la détection des déplacements ou les statistiques.",
+      "pickerTitle": "Add photos from Immich",
+      "pickerRangeLabel": "Show photos near",
+      "pickerLoading": "Loading photos…",
+      "pickerEmpty": "No geotagged photos from your Immich library in this range.",
+      "pickerSelected": "selected",
+      "pickerAdd": "Add {count} photos",
+      "pickerAddedCount": "Added {count} photo(s) to the entry ({failed} failed).",
+      "days": "days"
+    }
   },
   "importExport": {
     "title": "Importer/Exporter",
@@ -1740,7 +1783,10 @@
     "tripsApproved": "{count} voyages approuvés",
     "upload": "Télécharger",
     "uploadFailed": "Échec du téléchargement de l'image",
-    "saveBeforePexels": "Enregistrez d’abord le voyage, puis récupérez une image de couverture."
+    "saveBeforePexels": "Enregistrez d’abord le voyage, puis récupérez une image de couverture.",
+    "immichPhotosTakenOn": "Photos prises le {date}",
+    "immichTripHint": "{count} photo(s) from your Immich library were taken during this trip but are not attached yet.",
+    "immichTripHintAdd": "Add photos"
   },
   "community": {
     "by": "par",

@@ -558,7 +558,10 @@
     "whenYouMoveMost": "Wanneer je het meest beweegt",
     "speedAxisLabel": "km/u, gekleurd naar dominante wijze",
     "fitnessSessions": "Fitnessactiviteiten",
-    "fitnessInPeriod": "{count} fitnessactiviteiten in beeld"
+    "fitnessInPeriod": "{count} fitnessactiviteiten in beeld",
+    "immichPhotos": "Foto's",
+    "immichPhotosToggle": "Toon geotagged foto's van Immich",
+    "immichOpenInImmich": "Geopend in Immich"
   },
   "connections": {
     "title": "Verbindingen",
@@ -591,7 +594,47 @@
     "downloadIOS": "Verkrijg voor iOS",
     "apiKeyCheckFailed": "Kan de status van de API-sleutel niet controleren",
     "checkingApiKey": "Status van API-sleutel controleren…",
-    "retry": "Opnieuw proberen"
+    "retry": "Opnieuw proberen",
+    "immich": {
+      "title": "Immich-foto-integratie",
+      "description": "Toon de geotagged foto's uit uw zelfgehoste Immich-bibliotheek op uw reiskaart en tijdlijn. Fotolocaties zijn uitsluitend bedoeld voor weergave en worden nooit trackingpunten.",
+      "requiredPermissions": "Vereiste Immich API-sleutelmachtigingen",
+      "permissionsHowTo": "In Immich: Accountinstellingen → API-sleutels → Nieuwe API-sleutel vinkt u precies deze drie machtigingen aan.",
+      "permissionsDownloadNote": "Sommige strengere Immich-instellingen hebben bovendien asset.download nodig om thumbnails te laten werken.",
+      "serverUrl": "Immich-server-URL",
+      "serverUrlHint": "Laat dit leeg om de standaard Immich-instantie van deze server te gebruiken.",
+      "apiKey": "Immich API-sleutel",
+      "apiKeyPlaceholder": "Plak de API-sleutel die je in Immich hebt gemaakt",
+      "apiKeyReplacePlaceholder": "Laat dit leeg om de bestaande sleutel te behouden",
+      "apiKeyConfigured": "API-sleutel geconfigureerd",
+      "apiKeyMissing": "Nog geen API-sleutel opgeslagen",
+      "enable": "Schakel Immich-foto's in",
+      "save": "Verbinding opslaan",
+      "test": "Verbinding testen",
+      "testOk": "Verbonden als {gebruiker}",
+      "testPermission": "De API-sleutel mist een van de vereiste machtigingen (user.read, asset.read, asset.view) - bewerk de sleutel opnieuw in Immich.",
+      "testAuth": "Immich heeft de API-sleutel afgewezen. Controleer of je deze correct hebt geplakt.",
+      "testFailed": "Kan uw Immich-instantie niet bereiken. Controleer de URL en controleer of Immich actief is.",
+      "syncNow": "Synchroniseer nu foto's",
+      "syncStarted": "Immich-synchronisatie gestart: foto's verschijnen op de kaart wanneer deze is voltooid.",
+      "syncFailed": "Kan de Immich-synchronisatie niet starten.",
+      "lastSync": "Laatste fotosynchronisatie: {time}",
+      "disconnect": "Ontkoppel en verwijder gegevens",
+      "disconnectConfirm": "Immich ontkoppelen en alle gesynchroniseerde fotometagegevens van Wayli verwijderen? Uw Immich-bibliotheek zelf wordt niet aangeraakt.",
+      "disconnected": "Immich heeft de verbinding verbroken en de gesynchroniseerde fotogegevens verwijderd.",
+      "disconnectFailed": "Kan de verbinding niet volledig verbreken. Probeer het opnieuw.",
+      "saved": "Immich-verbinding opgeslagen.",
+      "saveFailed": "Kon de Immich-verbinding niet opslaan.",
+      "displayOnlyNote": "Fotolocaties zijn alleen voor weergave: ze worden nooit trackingpunten en hebben geen invloed op de ritdetectie of statistieken.",
+      "pickerTitle": "Add photos from Immich",
+      "pickerRangeLabel": "Show photos near",
+      "pickerLoading": "Loading photos…",
+      "pickerEmpty": "No geotagged photos from your Immich library in this range.",
+      "pickerSelected": "selected",
+      "pickerAdd": "Add {count} photos",
+      "pickerAddedCount": "Added {count} photo(s) to the entry ({failed} failed).",
+      "days": "days"
+    }
   },
   "importExport": {
     "title": "Importeren/Exporteren",
@@ -1737,7 +1780,10 @@
     "tripsApproved": "{count} reizen goedgekeurd",
     "upload": "Uploaden",
     "uploadFailed": "Kan afbeelding niet uploaden",
-    "saveBeforePexels": "Sla eerst de reis op en haal vervolgens een omslagafbeelding op."
+    "saveBeforePexels": "Sla eerst de reis op en haal vervolgens een omslagafbeelding op.",
+    "immichPhotosTakenOn": "Foto's gemaakt op {date}",
+    "immichTripHint": "{count} photo(s) from your Immich library were taken during this trip but are not attached yet.",
+    "immichTripHintAdd": "Add photos"
   },
   "community": {
     "by": "door",

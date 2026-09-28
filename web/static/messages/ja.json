@@ -558,7 +558,10 @@
     "whenYouMoveMost": "最も移動する時間帯",
     "speedAxisLabel": "km/h、主要モードで色分け",
     "fitnessSessions": "フィットネスセッション",
-    "fitnessInPeriod": "表示中のフィットネスセッション：{count}件"
+    "fitnessInPeriod": "表示中のフィットネスセッション：{count}件",
+    "immichPhotos": "Photos",
+    "immichPhotosToggle": "Show geotagged photos from Immich",
+    "immichOpenInImmich": "Open in Immich"
   },
   "connections": {
     "title": "接続",
@@ -591,7 +594,47 @@
     "downloadIOS": "iOS 用に入手",
     "checkingApiKey": "API キーの状態を確認中…",
     "apiKeyCheckFailed": "API キーの状態を確認できませんでした",
-    "retry": "再試行"
+    "retry": "再試行",
+    "immich": {
+      "title": "Immich Photo Integration",
+      "description": "Show the geotagged photos from your self-hosted Immich library on your travel map and timeline. Photo locations are display-only and never become tracking points.",
+      "requiredPermissions": "Required Immich API-key permissions",
+      "permissionsHowTo": "In Immich: Account Settings → API Keys → New API Key, tick exactly these three permissions.",
+      "permissionsDownloadNote": "Some stricter Immich setups additionally need asset.download for thumbnails to work.",
+      "serverUrl": "Immich server URL",
+      "serverUrlHint": "Leave empty to use this server’s default Immich instance.",
+      "apiKey": "Immich API key",
+      "apiKeyPlaceholder": "Paste the API key you created in Immich",
+      "apiKeyReplacePlaceholder": "Leave empty to keep the existing key",
+      "apiKeyConfigured": "API key configured",
+      "apiKeyMissing": "No API key saved yet",
+      "enable": "Enable Immich photos",
+      "save": "Save connection",
+      "test": "Test connection",
+      "testOk": "Connected as {user}",
+      "testPermission": "The API key is missing one of the required permissions (user.read, asset.read, asset.view) — re-edit the key in Immich.",
+      "testAuth": "Immich rejected the API key — check that you pasted it correctly.",
+      "testFailed": "Could not reach your Immich instance. Check the URL and that Immich is running.",
+      "syncNow": "Sync photos now",
+      "syncStarted": "Immich sync started — photos appear on the map when it finishes.",
+      "syncFailed": "Could not start the Immich sync.",
+      "lastSync": "Last photo sync: {time}",
+      "disconnect": "Disconnect & delete data",
+      "disconnectConfirm": "Disconnect Immich and delete all synced photo metadata from Wayli? Your Immich library itself is not touched.",
+      "disconnected": "Immich disconnected and synced photo data deleted.",
+      "disconnectFailed": "Could not fully disconnect — try again.",
+      "saved": "Immich connection saved.",
+      "saveFailed": "Could not save the Immich connection.",
+      "displayOnlyNote": "Photo locations are display-only: they never become tracking points and do not affect trip detection or statistics.",
+      "pickerTitle": "Add photos from Immich",
+      "pickerRangeLabel": "Show photos near",
+      "pickerLoading": "Loading photos…",
+      "pickerEmpty": "No geotagged photos from your Immich library in this range.",
+      "pickerSelected": "selected",
+      "pickerAdd": "Add {count} photos",
+      "pickerAddedCount": "Added {count} photo(s) to the entry ({failed} failed).",
+      "days": "days"
+    }
   },
   "importExport": {
     "title": "インポート/エクスポート",
@@ -1741,7 +1784,10 @@
     "tripsApproved": "{count} 件の旅行が承認されました",
     "upload": "アップロード",
     "uploadFailed": "画像のアップロードに失敗しました",
-    "saveBeforePexels": "まず旅行を保存してから、カバー画像を取得します。"
+    "saveBeforePexels": "まず旅行を保存してから、カバー画像を取得します。",
+    "immichPhotosTakenOn": "Photos taken on {date}",
+    "immichTripHint": "{count} photo(s) from your Immich library were taken during this trip but are not attached yet.",
+    "immichTripHintAdd": "Add photos"
   },
   "community": {
     "by": "による",

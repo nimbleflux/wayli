@@ -623,7 +623,15 @@
       "disconnectFailed": "Kan de verbinding niet volledig verbreken. Probeer het opnieuw.",
       "saved": "Immich-verbinding opgeslagen.",
       "saveFailed": "Kon de Immich-verbinding niet opslaan.",
-      "displayOnlyNote": "Fotolocaties zijn alleen voor weergave: ze worden nooit trackingpunten en hebben geen invloed op de ritdetectie of statistieken."
+      "displayOnlyNote": "Fotolocaties zijn alleen voor weergave: ze worden nooit trackingpunten en hebben geen invloed op de ritdetectie of statistieken.",
+      "pickerTitle": "Add photos from Immich",
+      "pickerRangeLabel": "Show photos near",
+      "pickerLoading": "Loading photos…",
+      "pickerEmpty": "No geotagged photos from your Immich library in this range.",
+      "pickerSelected": "selected",
+      "pickerAdd": "Add {count} photos",
+      "pickerAddedCount": "Added {count} photo(s) to the entry ({failed} failed).",
+      "days": "days"
     }
   },
   "importExport": {
@@ -1769,7 +1777,9 @@
     "upload": "Uploaden",
     "uploadFailed": "Kan afbeelding niet uploaden",
     "saveBeforePexels": "Sla eerst de reis op en haal vervolgens een omslagafbeelding op.",
-    "immichPhotosTakenOn": "Foto's gemaakt op {date}"
+    "immichPhotosTakenOn": "Foto's gemaakt op {date}",
+    "immichTripHint": "{count} photo(s) from your Immich library were taken during this trip but are not attached yet.",
+    "immichTripHintAdd": "Add photos"
   },
   "community": {
     "by": "door",

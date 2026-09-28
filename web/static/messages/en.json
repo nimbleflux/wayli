@@ -1692,7 +1692,9 @@
     "recalcFailed": "Failed to recalculate",
     "trip": "Trip",
     "saveBeforePexels": "Save the trip first, then fetch a cover image.",
-    "immichPhotosTakenOn": "Photos taken on {date}"
+    "immichPhotosTakenOn": "Photos taken on {date}",
+    "immichTripHint": "{count} photo(s) from your Immich library were taken during this trip but are not attached yet.",
+    "immichTripHintAdd": "Add photos"
   },
   "plan": {
     "pageTitle": "{title} · Plan · Wayli",

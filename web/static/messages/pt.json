@@ -623,7 +623,15 @@
       "disconnectFailed": "Could not fully disconnect — try again.",
       "saved": "Immich connection saved.",
       "saveFailed": "Could not save the Immich connection.",
-      "displayOnlyNote": "Photo locations are display-only: they never become tracking points and do not affect trip detection or statistics."
+      "displayOnlyNote": "Photo locations are display-only: they never become tracking points and do not affect trip detection or statistics.",
+      "pickerTitle": "Add photos from Immich",
+      "pickerRangeLabel": "Show photos near",
+      "pickerLoading": "Loading photos…",
+      "pickerEmpty": "No geotagged photos from your Immich library in this range.",
+      "pickerSelected": "selected",
+      "pickerAdd": "Add {count} photos",
+      "pickerAddedCount": "Added {count} photo(s) to the entry ({failed} failed).",
+      "days": "days"
     }
   },
   "importExport": {
@@ -1769,7 +1777,9 @@
     "upload": "Carregar",
     "uploadFailed": "Falha ao carregar a imagem",
     "saveBeforePexels": "Salve a viagem primeiro e depois busque uma imagem de capa.",
-    "immichPhotosTakenOn": "Photos taken on {date}"
+    "immichPhotosTakenOn": "Photos taken on {date}",
+    "immichTripHint": "{count} photo(s) from your Immich library were taken during this trip but are not attached yet.",
+    "immichTripHintAdd": "Add photos"
   },
   "community": {
     "by": "por",

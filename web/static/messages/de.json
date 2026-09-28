@@ -623,7 +623,15 @@
       "disconnectFailed": "Die Verbindung konnte nicht vollständig getrennt werden. Versuchen Sie es erneut.",
       "saved": "Immich Verbindung gespeichert.",
       "saveFailed": "Die Immich-Verbindung konnte nicht gespeichert werden.",
-      "displayOnlyNote": "Fotostandorte dienen nur der Anzeige: Sie werden niemals zu Trackingpunkten und haben keinen Einfluss auf die Fahrterkennung oder -statistik."
+      "displayOnlyNote": "Fotostandorte dienen nur der Anzeige: Sie werden niemals zu Trackingpunkten und haben keinen Einfluss auf die Fahrterkennung oder -statistik.",
+      "pickerTitle": "Add photos from Immich",
+      "pickerRangeLabel": "Show photos near",
+      "pickerLoading": "Loading photos…",
+      "pickerEmpty": "No geotagged photos from your Immich library in this range.",
+      "pickerSelected": "selected",
+      "pickerAdd": "Add {count} photos",
+      "pickerAddedCount": "Added {count} photo(s) to the entry ({failed} failed).",
+      "days": "days"
     }
   },
   "importExport": {
@@ -1769,7 +1777,9 @@
     "upload": "Hochladen",
     "uploadFailed": "Bild konnte nicht hochgeladen werden",
     "saveBeforePexels": "Speichern Sie zuerst die Reise und rufen Sie dann ein Titelbild ab.",
-    "immichPhotosTakenOn": "Fotos aufgenommen am {Datum}"
+    "immichPhotosTakenOn": "Fotos aufgenommen am {Datum}",
+    "immichTripHint": "{count} photo(s) from your Immich library were taken during this trip but are not attached yet.",
+    "immichTripHintAdd": "Add photos"
   },
   "community": {
     "by": "von",

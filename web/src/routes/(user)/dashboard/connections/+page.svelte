@@ -6,6 +6,7 @@
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import { Database, Link, Copy, Check, RefreshCw, AlertTriangle, X, Loader2 } from 'lucide-svelte';
+	import Switch from '$lib/components/ui/Switch.svelte';
 
 	// Use the reactive translation function
 	let t = $derived($translate);
@@ -13,6 +14,127 @@
 	// Removed unused data prop since this page is now fully client-side
 
 	let copiedField = $state('');
+
+	// ── Immich integration ──────────────────────────────────────────────
+	import {
+		loadImmichSettings,
+		saveImmichSettings,
+		immichSettings
+	} from '$lib/stores/immich.svelte';
+	import { IMMICH_API_KEY, IMMICH_REQUIRED_PERMISSIONS } from '$lib/types/immich.types';
+	import { getSetting, loadPublicSettings } from '$lib/stores/settings.svelte';
+	import { Camera, Unplug } from 'lucide-svelte';
+
+	type ImmichKeyStatus = 'loading' | 'configured' | 'missing' | 'error';
+	let immichKeyStatus = $state<ImmichKeyStatus>('loading');
+	let immichServerUrl = $state('');
+	let immichEnabled = $state(false);
+	let immichAvailable = $state(false);
+	let immichTesting = $state(false);
+	let immichTestResult = $state<{ ok: boolean; message: string } | null>(null);
+	let immichSyncing = $state(false);
+	let immichDisconnecting = $state(false);
+	let immichKeyInput = $state('');
+
+	async function refreshImmichData() {
+		await loadPublicSettings();
+		immichAvailable = getSetting<boolean>('wayli.immich_enabled', false) === true;
+		if (!immichAvailable) return;
+
+		try {
+			const result = await fluxbase.settings.listSecrets();
+			const allSecrets = ((result as any)?.data ?? result) as any[] | null;
+			const meta = Array.isArray(allSecrets)
+				? allSecrets.find((sec: any) => sec.key === IMMICH_API_KEY)
+				: undefined;
+			immichKeyStatus = meta ? 'configured' : 'missing';
+		} catch {
+			immichKeyStatus = 'error';
+		}
+
+		const settings = await loadImmichSettings();
+		immichServerUrl = settings?.server_url
+			? String(settings.server_url)
+			: String(getSetting('wayli.immich_endpoint', ''));
+		immichEnabled = settings?.enabled === true;
+	}
+
+	async function saveImmichConnection() {
+		try {
+			await fluxbase.settings.setSecret(IMMICH_API_KEY, immichKeyInput.trim(), {
+				description: 'Immich API key for the photo integration'
+			});
+			await saveImmichSettings({
+				server_url: immichServerUrl.trim() || undefined,
+				enabled: immichEnabled
+			});
+			toast.success(t('connections.immich.saved'));
+			await refreshImmichData();
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : t('connections.immich.saveFailed'));
+		}
+	}
+
+	async function testImmichConnection() {
+		immichTesting = true;
+		immichTestResult = null;
+		try {
+			const { data, error } = await fluxbase.functions.invoke('immich-test', {
+				body: { serverUrl: immichServerUrl.trim() || undefined }
+			});
+			const result = (data ?? error) as any;
+			if (result?.ok) {
+				immichTestResult = {
+					ok: true,
+					message: t('connections.immich.testOk', {
+						values: { user: String(result.user ?? '') }
+					})
+				};
+			} else {
+				immichTestResult = {
+					ok: false,
+					message:
+						result?.errorKind === 'permission'
+							? t('connections.immich.testPermission')
+							: result?.errorKind === 'auth'
+								? t('connections.immich.testAuth')
+								: t('connections.immich.testFailed')
+				};
+			}
+		} catch {
+			immichTestResult = { ok: false, message: t('connections.immich.testFailed') };
+		} finally {
+			immichTesting = false;
+		}
+	}
+
+	async function syncImmich() {
+		immichSyncing = true;
+		try {
+			await fluxbase.jobs.submit('immich_sync', {}, { namespace: 'wayli' });
+			toast.success(t('connections.immich.syncStarted'));
+		} catch {
+			toast.error(t('connections.immich.syncFailed'));
+		} finally {
+			immichSyncing = false;
+		}
+	}
+
+	async function disconnectImmich() {
+		if (!confirm(t('connections.immich.disconnectConfirm'))) return;
+		immichDisconnecting = true;
+		try {
+			await fluxbase.functions.invoke('immich-sync', { body: { wipe: true } });
+			await fluxbase.settings.deleteSecret(IMMICH_API_KEY);
+			immichKeyInput = '';
+			await refreshImmichData();
+			toast.success(t('connections.immich.disconnected'));
+		} catch {
+			toast.error(t('connections.immich.disconnectFailed'));
+		} finally {
+			immichDisconnecting = false;
+		}
+	}
 
 	// OwnTracks API key status. We distinguish a fetch failure from "no key set"
 	// so a transient error (network blip, auth race, or a wrapped API response)
@@ -131,6 +253,7 @@
 	}
 
 	onMount(async () => {
+		void refreshImmichData();
 		await refreshApiKeyData();
 	});
 </script>
@@ -254,6 +377,167 @@
 				</div>
 			</div>
 		</div>
+
+		<!-- Immich Photo Integration -->
+		{#if immichAvailable}
+			<div class="border-border dark:border-border dark:bg-card rounded-xl border bg-white p-6">
+				<div class="mb-6">
+					<div class="flex items-center gap-2">
+						<Camera class="text-muted-foreground h-5 w-5" />
+						<h2 class="text-foreground text-xl font-semibold">
+							{t('connections.immich.title')}
+						</h2>
+					</div>
+					<p class="text-muted-foreground mt-1 text-sm">
+						{t('connections.immich.description')}
+					</p>
+				</div>
+
+				<div class="space-y-4">
+					<!-- Required permissions explainer -->
+					<div
+						class="border-primary/30 bg-primary/5 dark:border-primary/30 dark:bg-primary/20 rounded-lg border p-4"
+					>
+						<h3 class="text-primary dark:text-primary mb-2 text-sm font-medium">
+							{t('connections.immich.requiredPermissions')}
+						</h3>
+						<ul class="text-primary dark:text-primary/80 space-y-1 text-sm">
+							{#each IMMICH_REQUIRED_PERMISSIONS as perm (perm.scope)}
+								<li>
+									<code class="font-mono font-semibold">{perm.scope}</code>
+									— {perm.why}
+								</li>
+							{/each}
+						</ul>
+						<p class="text-primary dark:text-primary/80 mt-2 text-xs">
+							{t('connections.immich.permissionsHowTo')}
+						</p>
+						<p class="text-primary/60 dark:text-primary/60 mt-1 text-xs">
+							{t('connections.immich.permissionsDownloadNote')}
+						</p>
+					</div>
+
+					<!-- Server URL -->
+					<div>
+						<label class="text-foreground mb-1.5 block text-sm font-medium" for="immichServerUrl"
+							>{t('connections.immich.serverUrl')}</label
+						>
+						<input
+							id="immichServerUrl"
+							type="url"
+							bind:value={immichServerUrl}
+							placeholder={String(getSetting('wayli.immich_endpoint', 'http://immich.local:2283'))}
+							class="border-border dark:bg-muted/20 focus:ring-primary/50 focus:border-primary w-full rounded-md border px-3 py-2 text-sm"
+						/>
+						<p class="text-muted-foreground mt-1 text-xs">
+							{t('connections.immich.serverUrlHint')}
+						</p>
+					</div>
+
+					<!-- API key -->
+					<div>
+						<label class="text-foreground mb-1.5 block text-sm font-medium" for="immichApiKey"
+							>{t('connections.immich.apiKey')}</label
+						>
+						{#if immichKeyStatus === 'loading'}
+							<p class="text-muted-foreground text-sm">{t('connections.checkingApiKey')}</p>
+						{:else if immichKeyStatus === 'configured'}
+							<p
+								class="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300"
+							>
+								<Check class="h-4 w-4" />
+								{t('connections.immich.apiKeyConfigured')}
+							</p>
+						{:else if immichKeyStatus === 'error'}
+							<p class="text-sm font-medium text-red-600">{t('connections.apiKeyCheckFailed')}</p>
+						{:else}
+							<p
+								class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
+							>
+								<AlertTriangle class="h-4 w-4" />
+								{t('connections.immich.apiKeyMissing')}
+							</p>
+						{/if}
+						<input
+							id="immichApiKey"
+							type="password"
+							bind:value={immichKeyInput}
+							placeholder={immichKeyStatus === 'configured'
+								? t('connections.immich.apiKeyReplacePlaceholder')
+								: t('connections.immich.apiKeyPlaceholder')}
+							class="border-border dark:bg-muted/20 focus:ring-primary/50 focus:border-primary mt-2 w-full rounded-md border px-3 py-2 text-sm"
+						/>
+					</div>
+
+					<!-- Enable toggle -->
+					<div class="flex items-center justify-between">
+						<span class="text-foreground text-sm font-medium">
+							{t('connections.immich.enable')}
+						</span>
+						<Switch bind:checked={immichEnabled} />
+					</div>
+
+					<!-- Actions -->
+					<div class="flex flex-wrap items-center gap-2">
+						<button
+							type="button"
+							onclick={saveImmichConnection}
+							disabled={immichKeyInput.trim().length === 0}
+							class="bg-primary hover:bg-primary/90 disabled:opacity-50 flex cursor-pointer items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed"
+						>
+							{t('connections.immich.save')}
+						</button>
+						<button
+							type="button"
+							onclick={testImmichConnection}
+							disabled={immichTesting}
+							class="border-border hover:bg-muted flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium"
+						>
+							<RefreshCw class="h-4 w-4" class={immichTesting ? 'animate-spin' : ''} />
+							{t('connections.immich.test')}
+						</button>
+						<button
+							type="button"
+							onclick={syncImmich}
+							disabled={immichSyncing || immichKeyStatus !== 'configured'}
+							class="border-border hover:bg-muted disabled:opacity-50 flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:cursor-not-allowed"
+						>
+							<Camera class="h-4 w-4" />
+							{t('connections.immich.syncNow')}
+						</button>
+						<button
+							type="button"
+							onclick={disconnectImmich}
+							disabled={immichDisconnecting}
+							class="ml-auto flex cursor-pointer items-center gap-2 rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+						>
+							<Unplug class="h-4 w-4" />
+							{t('connections.immich.disconnect')}
+						</button>
+					</div>
+
+					{#if immichTestResult}
+						<p
+							class={`rounded-md border px-3 py-2 text-sm ${immichTestResult.ok ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300' : 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300'}`}
+						>
+							{immichTestResult.message}
+						</p>
+					{/if}
+
+					{#if immichSettings()?.last_sync_at}
+						<p class="text-muted-foreground text-xs">
+							{t('connections.immich.lastSync', {
+								values: {
+									time: new Date(immichSettings()!.last_sync_at!).toLocaleString()
+								}
+							})}
+						</p>
+					{/if}
+
+					<p class="text-muted-foreground text-xs">{t('connections.immich.displayOnlyNote')}</p>
+				</div>
+			</div>
+		{/if}
 	</div>
 </div>
 

@@ -483,7 +483,7 @@
 							type="button"
 							onclick={saveImmichConnection}
 							disabled={immichKeyInput.trim().length === 0}
-							class="bg-primary hover:bg-primary/90 disabled:opacity-50 flex cursor-pointer items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed"
+							class="bg-primary hover:bg-primary/90 flex cursor-pointer items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
 						>
 							{t('connections.immich.save')}
 						</button>
@@ -493,14 +493,14 @@
 							disabled={immichTesting}
 							class="border-border hover:bg-muted flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium"
 						>
-							<RefreshCw class="h-4 w-4" class={immichTesting ? 'animate-spin' : ''} />
+							<RefreshCw class={immichTesting ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
 							{t('connections.immich.test')}
 						</button>
 						<button
 							type="button"
 							onclick={syncImmich}
 							disabled={immichSyncing || immichKeyStatus !== 'configured'}
-							class="border-border hover:bg-muted disabled:opacity-50 flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:cursor-not-allowed"
+							class="border-border hover:bg-muted flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
 						>
 							<Camera class="h-4 w-4" />
 							{t('connections.immich.syncNow')}

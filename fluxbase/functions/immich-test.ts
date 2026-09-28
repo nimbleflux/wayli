@@ -12,7 +12,7 @@
  */
 
 import type { FluxbaseClient } from '../jobs/types';
-import { resolveImmichBase, testConnection } from './_shared/services/immich.service.ts';
+import { resolveImmichBase, testConnection } from './_shared/immich.service.ts';
 import { getAdminSetting } from './_shared/immich.ts';
 
 interface FluxbaseRequest {

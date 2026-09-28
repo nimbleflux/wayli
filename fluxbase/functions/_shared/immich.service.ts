@@ -1,4 +1,8 @@
 // Mirrors fluxbase/jobs/_shared/services/external/immich.service.ts.
+// The functions sync only ships top-level files under functions/_shared —
+// vendored per tree. Update both together.
+
+// Mirrors fluxbase/jobs/_shared/services/external/immich.service.ts.
 // The functions and jobs trees bundle from separate roots — cross-tree
 // imports fail at sync time, so shared Immich clients are vendored per tree.
 // Update both together.

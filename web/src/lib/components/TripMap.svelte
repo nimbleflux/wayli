@@ -198,8 +198,20 @@
 
 	onDestroy(() => {
 		destroyed = true;
-		cleanupThemeWatcher?.();
-		map?.remove();
+		// Each cleanup step is guarded: a partial init (async Leaflet import,
+		// async maplibre-gl style load, WebGL context loss) can make any of
+		// them throw. The page must not crash because a map cleanup failed.
+		try {
+			cleanupThemeWatcher?.();
+		} catch {
+			// basemap layer was never fully attached
+		}
+		try {
+			map?.remove();
+		} catch {
+			// map was partially initialized — the GL context is reclaimed
+			// by the browser when the container is removed from the DOM.
+		}
 	});
 </script>
 

@@ -50,11 +50,19 @@
 		resultMessage = '';
 		selected = new Set();
 		try {
-			const start = new Date(`${initialDate}T00:00:00.000Z`);
+			// Guard: a missing or malformed initialDate must not crash the modal.
+			const base = new Date(`${initialDate}T00:00:00.000Z`);
+			if (Number.isNaN(base.getTime())) {
+				photos = [];
+				return;
+			}
+			const start = new Date(base);
 			start.setUTCDate(start.getUTCDate() - rangeDays);
-			const end = new Date(`${initialDate}T00:00:00.000Z`);
+			const end = new Date(base);
 			end.setUTCDate(end.getUTCDate() + rangeDays + 1);
 			photos = await loadPhotosForRange(start.toISOString(), end.toISOString());
+		} catch {
+			photos = [];
 		} finally {
 			loading = false;
 		}

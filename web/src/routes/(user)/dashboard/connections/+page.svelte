@@ -124,7 +124,7 @@
 		if (!confirm(t('connections.immich.disconnectConfirm'))) return;
 		immichDisconnecting = true;
 		try {
-			await fluxbase.functions.invoke('immich-sync', { body: { wipe: true } });
+			await fluxbase.jobs.submit('immich_sync', { wipe: true }, { namespace: 'wayli' });
 			await fluxbase.settings.deleteSecret(IMMICH_API_KEY);
 			immichKeyInput = '';
 			await refreshImmichData();

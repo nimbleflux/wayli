@@ -1,7 +1,49 @@
-// Shared pure validators for the Immich edge functions (#13).
-// No I/O — testable in isolation.
+// Shared settings + authorization helpers for the Immich edge functions and
+// jobs (#13). Server settings live in the `app` schema `settings` table with
+// a jsonb wrapper: row.value = { value: <actual> }.
 
-export type ThumbSize = 'thumbnail' | 'preview';
+export type ImmichErrorKind = 'auth' | 'permission' | 'network' | 'other' | 'disabled';
+
+export interface AdminSettingResult<T> {
+	value: T | null;
+	error: string | null;
+}
+
+/**
+ * Read a server-wide `wayli.*` setting (app schema). Returns the unwrapped
+ * value or null; errors are surfaced (never silently ignored).
+ */
+export async function getAdminSetting<T = unknown>(
+	fluxbaseService: {
+		schema(schema: string): {
+			from(table: string): {
+				select(columns: string): {
+					eq(column: string, value: unknown): {
+						maybeSingle(): Promise<{ data: unknown; error: unknown }>;
+					};
+				};
+			};
+		};
+	},
+	key: string
+): Promise<AdminSettingResult<T>> {
+	try {
+		const { data, error } = await fluxbaseService
+			.schema('app')
+			.from('settings')
+			.select('value')
+			.eq('key', key)
+			.maybeSingle();
+		if (error) {
+			return { value: null, error: (error as { message?: string })?.message ?? 'settings read failed' };
+		}
+		const wrapped = data as { value?: { value?: T } } | null;
+		const value = (wrapped?.value?.value ?? null) as T | null;
+		return { value, error: null };
+	} catch (e) {
+		return { value: null, error: e instanceof Error ? e.message : String(e) };
+	}
+}
 
 export interface ThumbAuthorizationInput {
 	adminEnabled: boolean;

@@ -156,16 +156,23 @@
 	// Enable the layer toggle only when the user connected Immich and the
 	// server admin allows the integration.
 	$effect(() => {
-		void loadImmichSettings().then((settings) => {
-			immichAvailableForMap = settings?.enabled === true;
-			if (!immichAvailableForMap && showPhotos) {
-				showPhotos = false;
-				if (photoLayer && map) {
-					map.removeLayer(photoLayer);
-					photoLayer = null;
+		void loadImmichSettings()
+			.then((settings) => {
+				// Admin toggle gates the layer too (Review Focus 3): a stale
+				// per-user pref alone must not expose it.
+				const adminAllowed = getSetting<boolean>('wayli.immich_enabled', false) === true;
+				immichAvailableForMap = adminAllowed && settings?.enabled === true;
+				if (!immichAvailableForMap && showPhotos) {
+					showPhotos = false;
+					if (photoLayer && map) {
+						map.removeLayer(photoLayer);
+						photoLayer = null;
+					}
 				}
-			}
-		});
+			})
+			.catch(() => {
+				immichAvailableForMap = false;
+			});
 	});
 
 	// Re-render the photo layer when the visible date range changes.
@@ -1045,6 +1052,14 @@
 	}
 
 	// ── Immich photo layer (#13) ────────────────────────────────────────
+	function escapeHtml(value: string): string {
+		return value
+			.replaceAll('&', '&amp;')
+			.replaceAll('<', '&lt;')
+			.replaceAll('>', '&gt;')
+			.replaceAll('"', '&quot;')
+			.replaceAll("'", '&#39;');
+	}
 	async function togglePhotos() {
 		showPhotos = !showPhotos;
 		if (!map || !L) return;
@@ -1104,14 +1119,18 @@
 					new Date(photo.taken_at),
 					getTimezoneFromOffset(new Date(photo.taken_at).getTimezoneOffset())
 				);
+				const place = escapeHtml(
+					[photo.city, photo.state, photo.country].filter(Boolean).join(', ')
+				);
+				const immichBase = (
+					immichSettings()?.server_url || String(getSetting('wayli.immich_endpoint', ''))
+				).replace(/\/+$/, '');
 				marker.bindPopup(
 					`<div class="space-y-1" style="min-width:180px">` +
-						`<div class="immich-thumb" data-asset="${photo.asset_id}" style="width:180px;height:120px;background:#eee;border-radius:6px;overflow:hidden"></div>` +
-						`<div style="font-weight:600">${when}</div>` +
-						(photo.city
-							? `<div>${[photo.city, photo.state, photo.country].filter(Boolean).join(', ')}</div>`
-							: '') +
-						`<a href="${(immichSettings()?.server_url || String(getSetting('wayli.immich_endpoint', ''))).replace(/\/+$/, '')}/photos/${photo.asset_id}" target="_blank" rel="noopener" style="color:#a855f7">${t('statistics.immichOpenInImmich') || 'Open in Immich'}</a>` +
+						`<div class="immich-thumb" data-asset="${escapeHtml(photo.asset_id)}" style="width:180px;height:120px;background:#eee;border-radius:6px;overflow:hidden"></div>` +
+						`<div style="font-weight:600">${escapeHtml(when)}</div>` +
+						(place ? `<div>${place}</div>` : '') +
+						`<a href="${escapeHtml(immichBase)}/photos/${encodeURIComponent(photo.asset_id)}" target="_blank" rel="noopener" style="color:#a855f7">${t('statistics.immichOpenInImmich') || 'Open in Immich'}</a>` +
 						`</div>`
 				);
 				marker.on('popupopen', async () => {

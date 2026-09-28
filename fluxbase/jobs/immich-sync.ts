@@ -34,6 +34,7 @@ import {
 	takenAfterFor,
 	toAssetRows
 } from '_shared/services/external/immich-sync-core.ts';
+import { getAdminSetting } from '../../functions/_shared/immich.ts';
 
 const IMMICH_API_KEY = 'immich_api_key';
 
@@ -85,12 +86,12 @@ export async function handler(
 		return { success: true, synced: 0, skipped: 'immich not enabled for this user' };
 	}
 
-	const { data: adminEnabled } = await fluxbaseService
-		.from('app_settings')
-		.select('value')
-		.eq('key', 'wayli.immich_enabled')
-		.maybeSingle();
-	if (adminEnabled?.value !== true) {
+	const adminSetting = await getAdminSetting<boolean>(fluxbaseService, 'wayli.immich_enabled');
+	if (adminSetting.error) {
+		console.error('immich-sync: admin settings read failed:', adminSetting.error);
+		return { success: true, synced: 0, skipped: 'admin settings unreadable' };
+	}
+	if (adminSetting.value !== true) {
 		return { success: true, synced: 0, skipped: 'immich integration disabled by administrator' };
 	}
 
@@ -98,21 +99,20 @@ export async function handler(
 	try {
 		apiKey = await fluxbaseService.admin.settings.app.getUserSecretValue(userId, IMMICH_API_KEY);
 	} catch (secretError) {
-		console.warn('immich-sync: could not read the Immich API key:', secretError);
+		console.warn(
+			'immich-sync: could not read the Immich API key:',
+			secretError instanceof Error ? secretError.message : 'unknown error'
+		);
 		return { success: true, synced: 0, skipped: 'no Immich API key configured' };
 	}
 	if (!apiKey) {
 		return { success: true, synced: 0, skipped: 'no Immich API key configured' };
 	}
 
-	const { data: defaultEndpoint } = await fluxbaseService
-		.from('app_settings')
-		.select('value')
-		.eq('key', 'wayli.immich_endpoint')
-		.maybeSingle();
+	const endpointSetting = await getAdminSetting<string>(fluxbaseService, 'wayli.immich_endpoint');
 	const base = resolveImmichBase(
 		typeof immichPrefs.server_url === 'string' ? immichPrefs.server_url : undefined,
-		typeof defaultEndpoint?.value === 'string' ? defaultEndpoint.value : null
+		endpointSetting.value
 	);
 	if (!base) {
 		return { success: true, synced: 0, skipped: 'no Immich server URL configured' };
@@ -153,8 +153,15 @@ export async function handler(
 		}
 	}
 
-	// Advance the watermark to the newest synced taken_at.
-	const watermark = maxTakenAt(assets) ?? immichPrefs.last_sync_at ?? new Date().toISOString();
+	// Advance the watermark to the newest synced taken_at, clamped to now — a
+	// future-dated camera clock would otherwise make every incremental sync
+	// silently empty.
+	const newest = maxTakenAt(assets);
+	const nowIso = new Date().toISOString();
+	const watermark =
+		newest && Date.parse(newest) <= Date.parse(nowIso)
+			? newest
+			: immichPrefs.last_sync_at ?? nowIso;
 	const mergedPrefs = {
 		...(prefs as Record<string, unknown>),
 		immich: { ...immichPrefs, last_sync_at: watermark }

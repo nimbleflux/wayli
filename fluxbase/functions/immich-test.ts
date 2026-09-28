@@ -13,6 +13,7 @@
 
 import type { FluxbaseClient } from '../jobs/types';
 import { resolveImmichBase, testConnection } from '../jobs/_shared/services/external/immich.service.ts';
+import { getAdminSetting } from './_shared/immich.ts';
 
 interface FluxbaseRequest {
 	method: string;
@@ -46,12 +47,8 @@ export async function handler(
 	}
 
 	// Admin toggle gates the whole integration.
-	const { data: adminEnabled } = await fluxbaseService
-		.from('app_settings')
-		.select('value')
-		.eq('key', 'wayli.immich_enabled')
-		.maybeSingle();
-	if (adminEnabled?.value !== true) {
+	const adminSetting = await getAdminSetting<boolean>(fluxbaseService, 'wayli.immich_enabled');
+	if (adminSetting.error || adminSetting.value !== true) {
 		return Response.json(
 			{ ok: false, errorKind: 'disabled', error: 'The Immich integration is disabled on this server.' },
 			{ status: 403 }
@@ -65,13 +62,9 @@ export async function handler(
 		serverUrl = undefined;
 	}
 
-	const { data: defaultEndpoint } = await fluxbaseService
-		.from('app_settings')
-		.select('value')
-		.eq('key', 'wayli.immich_endpoint')
-		.maybeSingle();
+	const endpointSetting = await getAdminSetting<string>(fluxbaseService, 'wayli.immich_endpoint');
 
-	const base = resolveImmichBase(serverUrl, typeof defaultEndpoint?.value === 'string' ? defaultEndpoint.value : null);
+	const base = resolveImmichBase(serverUrl, endpointSetting.value);
 	if (!base) {
 		return Response.json(
 			{ ok: false, errorKind: 'other', error: 'No Immich server URL configured.' },

@@ -40,6 +40,7 @@
 	import EntryBlockEditor from '$lib/components/EntryBlockEditor.svelte';
 	import EntryBlocksView from '$lib/components/EntryBlocksView.svelte';
 	import { loadImmichSettings } from '$lib/stores/immich.svelte';
+	import { getSetting, loadPublicSettings } from '$lib/stores/settings.svelte';
 	import ImmichPhotoStrip from '$lib/components/ImmichPhotoStrip.svelte';
 	import EntryLikeButton from '$lib/components/EntryLikeButton.svelte';
 	import EntryComments from '$lib/components/EntryComments.svelte';
@@ -559,8 +560,10 @@
 	let immichEnabled = $state(false);
 	onMount(async () => {
 		try {
+			await loadPublicSettings();
+			const adminAllowed = getSetting<boolean>('wayli.immich_enabled', false) === true;
 			const settings = await loadImmichSettings();
-			immichEnabled = settings?.enabled === true;
+			immichEnabled = adminAllowed && settings?.enabled === true;
 		} catch {
 			immichEnabled = false;
 		}

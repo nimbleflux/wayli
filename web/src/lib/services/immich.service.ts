@@ -11,6 +11,8 @@ import type { ImmichAssetRow } from '$lib/types/immich.types';
 const THUMB_FUNCTION = 'functions/immich-thumb';
 
 /** Geotagged photos taken within [startISO, endISO), oldest first. */
+export type ThumbRow = ImmichAssetRow;
+
 export async function loadPhotosForRange(
 	startISO: string,
 	endISO: string

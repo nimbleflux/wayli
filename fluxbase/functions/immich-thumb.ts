@@ -54,11 +54,10 @@ export async function handler(
 	const size = thumbSize(req.params?.size);
 
 	// Authorization inputs (service DB: admin toggle + user prefs + ownership).
-	const { data: adminEnabled } = await fluxbaseService
-		.from('app_settings')
-		.select('value')
-		.eq('key', 'wayli.immich_enabled')
-		.maybeSingle();
+	const adminSetting = await getAdminSetting<boolean>(fluxbaseService, 'wayli.immich_enabled');
+	if (adminSetting.error || adminSetting.value !== true) {
+		return new Response(null, { status: 403 });
+	}
 	const { data: prefRow } = await fluxbaseService
 		.from('user_preferences')
 		.select('preferences')
@@ -73,7 +72,7 @@ export async function handler(
 		.maybeSingle();
 
 	const denial = authorizeThumb({
-		adminEnabled: adminEnabled?.value === true,
+		adminEnabled: adminSetting.value === true,
 		userEnabled,
 		hasAssetRow: !!owned
 	});
@@ -89,11 +88,7 @@ export async function handler(
 	}
 	if (!apiKey) return new Response(null, { status: 502 });
 
-	const { data: defaultEndpoint } = await fluxbaseService
-		.from('app_settings')
-		.select('value')
-		.eq('key', 'wayli.immich_endpoint')
-		.maybeSingle();
+	const endpointSetting = await getAdminSetting<string>(fluxbaseService, 'wayli.immich_endpoint');
 	const { data: prefUrl } = await fluxbaseService
 		.from('user_preferences')
 		.select('preferences')
@@ -103,7 +98,7 @@ export async function handler(
 		typeof (prefUrl?.preferences as any)?.immich?.server_url === 'string'
 			? (prefUrl!.preferences as any).immich.server_url
 			: undefined,
-		typeof defaultEndpoint?.value === 'string' ? defaultEndpoint.value : null
+		endpointSetting.value
 	);
 	if (!base) return new Response(null, { status: 502 });
 

@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 const { test } = await import('node:test');
 
-const { authorizeThumb, thumbSize, THUMB_CACHE_CONTROL } = await import('./immich.ts');
+const { authorizeThumb, thumbSize, THUMB_CACHE_CONTROL, getAdminSetting } = await import('./immich.ts');
 
 test('authorizeThumb: happy path allows', () => {
 	assert.deepEqual(
@@ -47,4 +47,59 @@ test('thumbSize accepts thumbnail (default) and preview', () => {
 
 test('thumbnails cache privately and immutably', () => {
 	assert.equal(THUMB_CACHE_CONTROL, 'private, max-age=604800, immutable');
+});
+
+
+test('getAdminSetting unwraps the app.settings jsonb wrapper', async () => {
+	const calls: any[] = [];
+	const fake = {
+		schema(schema: string) {
+			calls.push(schema);
+			return {
+				from(table: string) {
+					calls.push(table);
+					return {
+						select() {
+							return {
+								eq(key: string, value: unknown) {
+									calls.push([key, value]);
+									return {
+										maybeSingle: () =>
+											Promise.resolve({ data: { value: { value: true } }, error: null })
+									};
+								}
+							};
+						}
+					};
+				}
+			};
+		}
+	};
+	const result = await getAdminSetting<boolean>(fake as any, 'wayli.immich_enabled');
+	assert.equal(result.value, true);
+	assert.equal(result.error, null);
+	assert.deepEqual(calls, ['app', 'settings', ['key', 'wayli.immich_enabled']]);
+});
+
+test('getAdminSetting surfaces errors instead of silently nulling', async () => {
+	const fake = {
+		schema() {
+			return {
+				from() {
+					return {
+						select() {
+							return {
+								eq() {
+									return { maybeSingle: () => Promise.resolve({ data: null, error: { message: 'perm denied' } }) };
+								}
+							};
+						}
+					};
+				}
+			};
+		}
+	};
+	const result = await getAdminSetting(fake as any, 'wayli.immich_enabled');
+	assert.equal(result.value, null);
+	assert.equal(result.error, 'perm denied');
 });

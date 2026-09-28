@@ -7,12 +7,14 @@
 	import { X } from 'lucide-svelte';
 	import { loadPhotosForRange, getThumbUrl, type ThumbRow } from '$lib/services/immich.service';
 	import { immichSettings } from '$lib/stores/immich.svelte';
+	import { getSetting, loadPublicSettings } from '$lib/stores/settings.svelte';
 
 	let { date }: { date: string } = $props();
 
 	let photos = $state<ThumbRow[]>([]);
 	let loaded = $state(false);
 	let preview = $state<ThumbRow | null>(null);
+	let previewUrl = $state('');
 
 	onMount(async () => {
 		const start = new Date(`${date}T00:00:00.000Z`);
@@ -27,12 +29,17 @@
 		if (url) el.src = url;
 	}
 
-	function openPreview(photo: ThumbRow) {
+	async function openPreview(photo: ThumbRow) {
 		preview = photo;
+		previewUrl = await immichPhotoUrl(photo.asset_id);
 	}
 
-	function immichPhotoUrl(assetId: string): string {
-		const base = (immichSettings()?.server_url || '').replace(/\/+$/, '');
+	async function immichPhotoUrl(assetId: string): Promise<string> {
+		await loadPublicSettings();
+		const base = (immichSettings()?.server_url || getSetting('wayli.immich_endpoint', '')).replace(
+			/\/+$/,
+			''
+		);
 		return `${base}/photos/${assetId}`;
 	}
 </script>
@@ -53,6 +60,7 @@
 					<img
 						src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
 						alt={photo.city ?? 'Photo'}
+						loading="lazy"
 						class="h-full w-full object-cover"
 						onload={(e) => loadThumb(photo.asset_id, e.currentTarget as HTMLImageElement)}
 					/>
@@ -95,7 +103,7 @@
 			</p>
 			<a
 				class="text-primary text-sm underline underline-offset-2"
-				href={immichPhotoUrl(preview.asset_id)}
+				href={previewUrl}
 				target="_blank"
 				rel="noopener"
 			>

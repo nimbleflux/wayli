@@ -610,7 +610,15 @@
       "disconnectFailed": "Could not fully disconnect — try again.",
       "saved": "Immich connection saved.",
       "saveFailed": "Could not save the Immich connection.",
-      "displayOnlyNote": "Photo locations are display-only: they never become tracking points and do not affect trip detection or statistics."
+      "displayOnlyNote": "Photo locations are display-only: they never become tracking points and do not affect trip detection or statistics.",
+      "pickerTitle": "Add photos from Immich",
+      "pickerRangeLabel": "Show photos near",
+      "pickerLoading": "Loading photos…",
+      "pickerEmpty": "No geotagged photos from your Immich library in this range.",
+      "pickerSelected": "selected",
+      "pickerAdd": "Add {count} photos",
+      "pickerAddedCount": "Added {count} photo(s) to the entry ({failed} failed).",
+      "days": "days"
     },
     "apiKeyCopied": "{field} copied to clipboard",
     "failedToCopy": "Failed to copy to clipboard",

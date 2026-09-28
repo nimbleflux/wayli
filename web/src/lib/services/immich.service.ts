@@ -40,6 +40,33 @@ function functionBaseUrl(): string {
 }
 
 /**
+ * Fetch a thumbnail/preview blob through the authenticated immich-thumb
+ * proxy. Returns { ok: false } when the proxy fails (Immich down, asset gone,
+ * not authorized) — never throws.
+ */
+export async function proxyThumbBlob(
+	assetId: string,
+	size: 'thumbnail' | 'preview' = 'thumbnail'
+): Promise<{ ok: true; blob: Blob } | { ok: false; blob: null }> {
+	try {
+		const { data } = await fluxbase.auth.getSession();
+		const token = data?.session?.access_token;
+		if (!token) return { ok: false, blob: null };
+
+		const response = await fetch(
+			`${functionBaseUrl()}/${THUMB_FUNCTION}?assetId=${encodeURIComponent(assetId)}&size=${size}`,
+			{ headers: { Authorization: `Bearer ${token}` } }
+		);
+		if (!response.ok) return { ok: false, blob: null };
+
+		const blob = await response.blob();
+		return { ok: true, blob };
+	} catch {
+		return { ok: false, blob: null };
+	}
+}
+
+/**
  * Resolve a thumbnail object URL for an asset, cached across calls.
  * Returns null when the proxy fails (Immich down, asset gone, not authorized).
  */
@@ -50,24 +77,12 @@ export async function getThumbUrl(
 	const cached = thumbCache.get(`${assetId}:${size}`);
 	if (cached) return cached;
 
-	try {
-		const { data } = await fluxbase.auth.getSession();
-		const token = data?.session?.access_token;
-		if (!token) return null;
+	const result = await proxyThumbBlob(assetId, size);
+	if (!result.ok) return null;
 
-		const response = await fetch(
-			`${functionBaseUrl()}/${THUMB_FUNCTION}?assetId=${encodeURIComponent(assetId)}&size=${size}`,
-			{ headers: { Authorization: `Bearer ${token}` } }
-		);
-		if (!response.ok) return null;
-
-		const blob = await response.blob();
-		const url = URL.createObjectURL(blob);
-		thumbCache.set(`${assetId}:${size}`, url);
-		return url;
-	} catch {
-		return null;
-	}
+	const url = URL.createObjectURL(result.blob);
+	thumbCache.set(`${assetId}:${size}`, url);
+	return url;
 }
 
 /** Revoke all cached object URLs (call on page teardown). */

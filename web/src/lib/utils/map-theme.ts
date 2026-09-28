@@ -158,7 +158,15 @@ export function watchMapTheme(
 			invalidateTimer = null;
 		}
 		if (currentLayer) {
-			currentLayer.remove();
+			// The maplibre-gl layer's onRemove accesses this._glMap — if the
+			// GL context was lost or never fully initialized (async style
+			// loading vs fast unmount), remove() throws and breaks the
+			// teardown chain. Guard so the rest of the cleanup still runs.
+			try {
+				currentLayer.remove();
+			} catch {
+				// Layer was never fully attached — safe to skip.
+			}
 			currentLayer = null;
 		}
 	};

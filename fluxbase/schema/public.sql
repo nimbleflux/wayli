@@ -5556,12 +5556,17 @@ CREATE OR REPLACE VIEW my_tracker_data WITH (security_barrier=true, security_inv
     transport_mode_confidence,
     transport_mode_manual,
     created_at,
-    recorded_at AS started_at
+    recorded_at AS started_at,
+    -- appended (CREATE OR REPLACE VIEW can only add columns at the end)
+    distance,
+    time_spent,
+    speed,
+    activity_type
    FROM tracker_data
   WHERE user_id = auth.uid();
 
 
-COMMENT ON VIEW my_tracker_data IS 'Secure view of tracker_data filtered to current user. Use this for LLM queries.';
+COMMENT ON VIEW my_tracker_data IS 'Secure view of tracker_data filtered to current user. Use this for LLM queries. Includes distance (meters from previous point), time_spent (seconds from previous point) and speed (km/h) so LLM queries can aggregate traveled distance per transport_mode.';
 
 --
 -- Name: my_trip_entries; Type: VIEW; Schema: -; Owner: -

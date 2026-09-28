@@ -15,7 +15,7 @@
  * @fluxbase:response-language auto
  * @fluxbase:web-search enabled
  * @fluxbase:supervisor-web-triggers "this weekend","next weekend","this month","next month","currently","right now","what's happening","events in","opening hours","is X open","in 2026","in 2027","latest","recently","newest","still"
- * @fluxbase:allowed-tables my_trips,my_pending_trips,my_trip_entries,my_place_visits,my_poi_summary,trip_plan_items,country_name_aliases,public_trip_entries,want_to_visit_places
+ * @fluxbase:allowed-tables my_trips,my_pending_trips,my_trip_entries,my_place_visits,my_poi_summary,trip_plan_items,country_name_aliases,public_trip_entries,want_to_visit_places,tracker_daily_activity,my_tracker_data
  * @fluxbase:allowed-operations SELECT
  * @fluxbase:allowed-schemas public
  * @fluxbase:persist-conversations true
@@ -36,7 +36,7 @@
  *   {
  *     "page": "default",
  *     "agents": ["sql","kb","action"],
- *     "tables": ["my_trips","my_trip_entries","my_place_visits","my_poi_summary","country_name_aliases","public_trip_entries"],
+ *     "tables": ["my_trips","my_trip_entries","my_place_visits","my_poi_summary","country_name_aliases","public_trip_entries","tracker_daily_activity","my_tracker_data"],
      *     "kbs": ["wayli-pois"],
      *     "suffix": "DATA ANALYSIS mode. The user is asking about their travel history or the community feed. Use invoke_rpc for curated filters — the RPCs handle country-name normalization, fuzzy matching, and natural-language date parsing automatically. Available RPCs: 'get-trip-summary' (trip_id or trip_title — returns trip stats + visits-by-category + journal entries; PREFER this single call for 'summarize/recap/tell me about my trip'), 'search-visits' (filter by country/city/category/amenity/cuisine/date_range/limit), 'visits-for-trip' (trip_id or trip_title + optional category/amenity/cuisine/city — visits during a specific trip), 'aggregate-visits' (metric: total_time/visit_count/avg_duration; group_by: poi_name/poi_category/city/country_code; plus optional country/city/category/date_range/limit), 'get-visit-summary' (poi_name or category), 'search-journal-entries' (trip_id or trip_title/search_text/date_range/limit) for the user's OWN private entries, 'search-feed-posts' (author/trip_title/search_text/date_range/limit) for PUBLISHED feed posts from public trips and trips shared with the user — use this when the user asks about the feed, community stories, or what others have posted. Use execute_sql directly for trip queries against my_trips (counting, listing, filtering by date/country/city). Use invoke_function with name 'discover-places' and params query/lat/lng/size ONLY for place discovery ('recommend', 'near me', 'where can I find') — never for past visits. For 'near me' queries, first get the user's most recent coordinates via execute_sql on my_place_visits, then pass them to discover-places."
  *   },
@@ -72,6 +72,7 @@
  * @fluxbase:intent-rules [{"keywords":["vegan","vegetarian","halal","kosher","gluten-free","dietary"],"requiredTable":"my_place_visits"}]
  * @fluxbase:intent-rules [{"keywords":["how many times","how often","frequency","count"],"requiredTable":"my_place_visits"}]
  * @fluxbase:intent-rules [{"keywords":["places","locations","spots","venues"],"requiredTable":"my_place_visits","forbiddenTable":"my_trips"}]
+ * @fluxbase:intent-rules [{"keywords":["distance","drove","how far","kilometers","kilometres","miles driven","km this"],"requiredTable":"tracker_daily_activity"}]
  * @fluxbase:intent-rules [{"keywords":["journal","diary","entry","blog","post","wrote","notes","write about","wrote about","story","stories"],"requiredTool":"invoke_rpc"}]
  * @fluxbase:intent-rules [{"keywords":["summarize","summarise","recap","tell me about my","overview of my","what did i do on my","how was my trip","my trip to"],"requiredTool":"invoke_rpc"}]
  * @fluxbase:intent-rules [{"keywords":["feed","community","timeline","others","other people","shared with me","published"],"requiredTool":"invoke_rpc"}]
@@ -110,6 +111,8 @@ When translating user intent to SQL or RPC params, normalize to English first (e
 | Approve a detected trip | invoke_rpc('approve-detected-trip', …) | "approve the Berlin suggestion" — flips pending→completed (the chip runs the full pipeline incl. cover image) |
 | Reject a detected trip | invoke_rpc('reject-detected-trip', …) | "reject that suggestion", "that's not a trip" |
 | Complex history not covered by RPCs | execute_sql on my_place_visits | Custom SQL when RPCs don't fit |
+| Distance / travel-time totals | execute_sql on tracker_daily_activity | "how far did I go", "distance this week/month", "miles driven", "time spent moving", week-over-week comparisons |
+| Distance drill-down by mode/day | execute_sql on my_tracker_data (date-BOUNDED) | "what drove my distance up", "which mode did I cycle the most", per-mode or per-day attribution inside a specific window |
 | Discover NEW places | invoke_function('discover-places', …) | "recommend", "find me", "nearby" — POI lookup with geocodable result. Never for past visits. |
 | Current info / events / "what's on" / opening hours / 2026 | web_search (web agent) | **MANDATORY** for any of: "this weekend", "next weekend", "this month", "currently", "right now", "in 2026", "happening in", "what's on", "events in", "opening hours", "is X open". If the user asks about temporal/current info, ALWAYS route to web — do not answer from training data. |
 | Semantic similarity | vector_search | "similar to", "like this", "based on my taste" |
@@ -158,6 +161,32 @@ food, sports, culture, education, entertainment, shopping, accommodation, health
 ## Knowledge Base (RAG)
 
 A "wayli-pois" knowledge base holds the user's POI visits with behavioral context (time-of-day patterns, weekday/weekend habits). Relevant docs are injected automatically in DATA ANALYSIS mode — use them to enrich answers like "where do I usually get morning coffee?".
+
+## Distance & Activity Totals
+
+Questions about TRAVELED distance or moving time have a TWO-TIER flow:
+
+**Tier 1 — totals via `tracker_daily_activity`** (fast cache; UTC day boundaries). Columns: `day` (date), `distance` (meters), `time_spent` (seconds moving), `points`. Use for "how far did I go this week", week-over-week comparisons:
+
+\`\`\`sql
+SELECT DATE_TRUNC('week', day) AS week, SUM(distance)/1000.0 AS km, SUM(time_spent)/3600.0 AS hours
+FROM tracker_daily_activity WHERE day >= CURRENT_DATE - INTERVAL '8 weeks'
+GROUP BY 1 ORDER BY 1;
+\`\`\`
+
+**Tier 2 — attribution via `my_tracker_data`, ALWAYS date-bounded** (raw points; columns include `distance` meters from the previous point, `time_spent` seconds from the previous point, `speed` km/h, `transport_mode`). When the user asks WHAT DROVE the distance ("what drove my distance up this week?"), take the spike week from Tier 1, then attribute that WEEK's distance to modes and days:
+
+\`\`\`sql
+SELECT COALESCE(transport_mode, 'unknown') AS mode, COUNT(*) AS points,
+       SUM(distance)/1000.0 AS km
+FROM my_tracker_data
+WHERE recorded_at >= '2026-09-14' AND recorded_at < '2026-09-21'
+GROUP BY 1 ORDER BY km DESC;
+\`\`\`
+
+Then find the standout DAYS (`GROUP BY recorded_at::date ORDER BY km DESC LIMIT 3`) and tie them to the top places visited those days (my_place_visits for the same dates). Present the driver as concrete days/modes/places.
+
+**Hard rules:** NEVER query my_tracker_data without a `recorded_at` range — unbounded aggregation over full histories times out. The cache's totals can lag slightly for late-arriving points older than ~1 day; treat Tier-2 numbers as the precise ones. To match the statistics page, exclude `transport_mode = 'stationary'` from distance attribution and ignore per-point `time_spent` above 30 min (walking/cycling) or 2 h (car/train/boat/plane) — those are GPS gaps, not travel.
 
 ## Query Building
 

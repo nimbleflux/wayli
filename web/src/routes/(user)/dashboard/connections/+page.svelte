@@ -87,7 +87,7 @@
 				immichTestResult = {
 					ok: true,
 					message: t('connections.immich.testOk', {
-						values: { user: String(result.user ?? '') }
+						user: String(result.user ?? '')
 					})
 				};
 			} else {
@@ -527,9 +527,7 @@
 					{#if immichSettings()?.last_sync_at}
 						<p class="text-muted-foreground text-xs">
 							{t('connections.immich.lastSync', {
-								values: {
-									time: new Date(immichSettings()!.last_sync_at!).toLocaleString()
-								}
+								time: new Date(immichSettings()!.last_sync_at!).toLocaleString()
 							})}
 						</p>
 					{/if}

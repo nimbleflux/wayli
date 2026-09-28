@@ -39,6 +39,8 @@
 	import DateRangePicker from '$lib/components/ui/date-range-picker.svelte';
 	import EntryBlockEditor from '$lib/components/EntryBlockEditor.svelte';
 	import EntryBlocksView from '$lib/components/EntryBlocksView.svelte';
+	import { loadImmichSettings } from '$lib/stores/immich.svelte';
+	import ImmichPhotoStrip from '$lib/components/ImmichPhotoStrip.svelte';
 	import EntryLikeButton from '$lib/components/EntryLikeButton.svelte';
 	import EntryComments from '$lib/components/EntryComments.svelte';
 	import TripGenerationModal from '$lib/components/modals/TripGenerationModal.svelte';
@@ -552,6 +554,17 @@
 
 	let isGenerating = $state(false);
 	let t = $derived($translate);
+
+	// Immich photo strips: enabled only when the user connected Immich (#13).
+	let immichEnabled = $state(false);
+	onMount(async () => {
+		try {
+			const settings = await loadImmichSettings();
+			immichEnabled = settings?.enabled === true;
+		} catch {
+			immichEnabled = false;
+		}
+	});
 	let isRecalculating = $state(false);
 
 	// ── Suggestion modal state ──
@@ -1807,6 +1820,9 @@
 																>
 															{/if}
 														</h3>
+													{/if}
+													{#if immichEnabled}
+														<ImmichPhotoStrip date={entry.entry_date} />
 													{/if}
 													{#if mediaForEntry(trip.id, entry.id).length > 0 || entry.body}
 														{@const entryMedia = mediaForEntry(trip.id, entry.id)}

@@ -244,9 +244,7 @@
     "train": "Тренироваться",
     "airplane": "Самолет",
     "stationary": "Стационарный",
-    "unknown": "Неизвестный",
-    "boat": "Лодка",
-    "swimming": "Плавание"
+    "unknown": "Неизвестный"
   },
   "wayli": "Свиш",
   "wayliSubtitle": "Ваш личный спутник в путешествии",
@@ -633,9 +631,7 @@
       "pickerSelected": "selected",
       "pickerAdd": "Add {count} photos",
       "pickerAddedCount": "Added {count} photo(s) to the entry ({failed} failed).",
-      "days": "days",
-      "enableHint": "When enabled, your Immich photos appear on the map and timeline. Requires an API key with the permissions listed below.",
-      "disabledHint": "Toggle on to configure the connection. You will need your Immich server URL and an API key with the required permissions."
+      "days": "days"
     }
   },
   "importExport": {
@@ -1148,9 +1144,7 @@
     "deleteAccountSuccess": "Your account has been deleted.",
     "deleteAccountError": "Account deletion failed — try again or contact your server administrator.",
     "deletePasswordLabel": "Confirm with your password (leave empty if you sign in with OAuth):",
-    "deletePasswordPlaceholder": "Current password",
-    "disabledModesTitle": "Detected activities",
-    "disabledModesHint": "Tap a mode to switch off its automatic detection. Changes apply from the next detection run on."
+    "deletePasswordPlaceholder": "Current password"
   },
   "serverAdmin": {
     "title": "Настройки администратора сервера",
@@ -2032,33 +2026,6 @@
       "linkCopied": "Ссылка скопирована",
       "linkCopiedPrivate": "Ссылка скопирована — активность личная, открыть можете только вы",
       "copyFailed": "Не удалось скопировать ссылку"
-    },
-    "subSport": {
-      "treadmill": "Беговая дорожка",
-      "street": "Улица",
-      "trail": "Тащить",
-      "track": "Отслеживать",
-      "spin": "Вращаться",
-      "indoor_cycling": "Велоспорт в помещении",
-      "road": "Дорога",
-      "mountain": "Гора",
-      "downhill": "скоростной спуск",
-      "recumbent": "Лежачий",
-      "cyclocross": "Велокросс",
-      "hand_cycling": "Ручной велоспорт",
-      "track_cycling": "Велоспорт на треке",
-      "indoor_rowing": "Гребля в помещении",
-      "elliptical": "Эллиптический",
-      "stair_climbing": "Подъем по лестнице",
-      "lap_swimming": "Плавание на коленях",
-      "open_water": "Открытая вода",
-      "gym": "Спортзал",
-      "yard_games": "Дворовые игры",
-      "platform_tennis": "Теннис на платформе",
-      "motor_pacing": "Двигательная стимуляция",
-      "bike_to_run": "Велосипед для бега",
-      "run_to_bike": "Беги на велосипеде",
-      "indoor_snow_sport": "Зимний спорт в помещении"
     }
   }
 }

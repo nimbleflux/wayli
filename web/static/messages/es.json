@@ -244,9 +244,7 @@
     "train": "Tren",
     "airplane": "Avión",
     "stationary": "Estacionario",
-    "unknown": "Desconocido",
-    "boat": "Bote",
-    "swimming": "Nadar"
+    "unknown": "Desconocido"
   },
   "wayli": "Wayli",
   "wayliSubtitle": "Tu compañero de viaje personal",
@@ -633,9 +631,7 @@
       "pickerSelected": "selected",
       "pickerAdd": "Add {count} photos",
       "pickerAddedCount": "Added {count} photo(s) to the entry ({failed} failed).",
-      "days": "days",
-      "enableHint": "When enabled, your Immich photos appear on the map and timeline. Requires an API key with the permissions listed below.",
-      "disabledHint": "Toggle on to configure the connection. You will need your Immich server URL and an API key with the required permissions."
+      "days": "days"
     }
   },
   "importExport": {
@@ -1144,9 +1140,7 @@
     "deleteAccountSuccess": "Your account has been deleted.",
     "deleteAccountError": "Account deletion failed — try again or contact your server administrator.",
     "deletePasswordLabel": "Confirm with your password (leave empty if you sign in with OAuth):",
-    "deletePasswordPlaceholder": "Current password",
-    "disabledModesTitle": "Detected activities",
-    "disabledModesHint": "Tap a mode to switch off its automatic detection. Changes apply from the next detection run on."
+    "deletePasswordPlaceholder": "Current password"
   },
   "serverAdmin": {
     "title": "Configuración del administrador del servidor",
@@ -2028,33 +2022,6 @@
       "linkCopied": "Enlace copiado",
       "linkCopiedPrivate": "Enlace copiado: la actividad es privada, solo tú puedes abrirla",
       "copyFailed": "No se pudo copiar el enlace"
-    },
-    "subSport": {
-      "treadmill": "Rueda de andar",
-      "street": "Calle",
-      "trail": "Camino",
-      "track": "Pista",
-      "spin": "Girar",
-      "indoor_cycling": "Ciclismo indoor",
-      "road": "Camino",
-      "mountain": "Montaña",
-      "downhill": "Cuesta abajo",
-      "recumbent": "Yacente",
-      "cyclocross": "ciclocross",
-      "hand_cycling": "ciclismo de mano",
-      "track_cycling": "Ciclismo en pista",
-      "indoor_rowing": "remo interior",
-      "elliptical": "Elíptico",
-      "stair_climbing": "subir escaleras",
-      "lap_swimming": "natación de vuelta",
-      "open_water": "aguas abiertas",
-      "gym": "Gimnasia",
-      "yard_games": "juegos de jardin",
-      "platform_tennis": "Tenis de plataforma",
-      "motor_pacing": "estimulación motora",
-      "bike_to_run": "bicicleta para correr",
-      "run_to_bike": "correr a andar en bicicleta",
-      "indoor_snow_sport": "Deporte de nieve cubierto"
     }
   }
 }

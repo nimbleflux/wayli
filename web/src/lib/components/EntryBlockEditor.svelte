@@ -7,7 +7,7 @@
 	 */
 	import MarkdownEditor from './MarkdownEditor.svelte';
 	import type { EntryBlock } from '$lib/types/journal.types';
-	import { ImagePlus, Type, Trash2, Star, Loader2, ArrowUp, ArrowDown, X } from 'lucide-svelte';
+	import { ImagePlus, Type, Trash2, Star, Loader2, ArrowUp, ArrowDown, X , Camera } from 'lucide-svelte';
 
 	type ViewMedia = { url: string; caption?: string | null };
 
@@ -21,6 +21,10 @@
 		onSetCover?: (mediaId: string) => void;
 		/** Upload picked files; resolves with the created media ids. */
 		onAddPhotos: (files: File[]) => Promise<string[]>;
+		/** Open the Immich picker; resolves with the created media ids (#13). */
+		onOpenImmichPicker?: () => Promise<string[]>;
+		/** Whether the Immich integration is connected + enabled. */
+		immichEnabled?: boolean;
 		/** Delete a media row (fires after the inline confirm step). */
 		onDeletePhoto?: (mediaId: string) => Promise<void>;
 		disabled?: boolean;
@@ -32,6 +36,8 @@
 		coverMediaId = null,
 		onSetCover,
 		onAddPhotos,
+		onOpenImmichPicker,
+		immichEnabled = false,
 		onDeletePhoto,
 		disabled = false
 	}: Props = $props();
@@ -44,6 +50,28 @@
 
 	function addTextBlock() {
 		blocks = [...blocks, { t: 'text', md: '' }];
+	}
+
+	function appendPhotoIds(ids: string[]) {
+		if (ids.length === 0) return;
+		const last = blocks[blocks.length - 1];
+		if (last?.t === 'photos') {
+			const rest = blocks.slice(0, -1);
+			blocks = [...rest, { t: 'photos', ids: [...last.ids, ...ids] }];
+		} else {
+			blocks = [...blocks, { t: 'photos', ids }];
+		}
+	}
+
+	async function handleImmichPicker() {
+		if (!onOpenImmichPicker) return;
+		uploading = true;
+		try {
+			const ids = await onOpenImmichPicker();
+			appendPhotoIds(ids);
+		} finally {
+			uploading = false;
+		}
 	}
 
 	async function handleFileSelect(event: Event) {
@@ -240,6 +268,17 @@
 			{:else}
 				<ImagePlus class="h-3.5 w-3.5" /> Add photos
 			{/if}
+		</button>
+		{#if immichEnabled && onOpenImmichPicker}
+			<button
+				type="button"
+				onclick={handleImmichPicker}
+				disabled={uploading || disabled}
+				class="border-border text-foreground hover:bg-muted inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
+			>
+				<Camera class="h-3.5 w-3.5" /> Add from Immich
+			</button>
+		{/if}
 		</button>
 	</div>
 </div>

@@ -1,7 +1,6 @@
 <script lang="ts">
 	// Immich photo picker: browse synced geotagged photos around a date,
 	// multi-select, and attach copies to a journal entry / trip (#13).
-	import { createEventDispatcher } from 'svelte';
 	import { t } from '$lib/i18n';
 	import { X, Loader2, Check } from 'lucide-svelte';
 	import { fluxbase } from '$lib/fluxbase';
@@ -12,10 +11,17 @@
 		open,
 		tripId,
 		entryId,
-		initialDate
-	}: { open: boolean; tripId: string; entryId?: string; initialDate: string } = $props();
-
-	const dispatch = createEventDispatcher<{ added: number; close: void }>();
+		initialDate,
+		onadded,
+		onclose
+	}: {
+		open: boolean;
+		tripId: string;
+		entryId?: string;
+		initialDate: string;
+		onadded?: (mediaIds: string[]) => void;
+		onclose?: () => void;
+	} = $props();
 
 	let photos = $state<ThumbRow[]>([]);
 	let selected = $state<Set<string>>(new Set());
@@ -77,7 +83,9 @@
 			});
 			photos = photos.filter((p) => !selected.has(p.asset_id));
 			selected = new Set();
-			if (result.added > 0) dispatch('added', result.added);
+			if (result.added > 0) {
+				onadded?.(result.created.map((c) => c.id));
+			}
 		} finally {
 			attaching = false;
 		}
@@ -88,7 +96,7 @@
 	}
 	function previewClose() {
 		// parent controls `open`; ask it to close
-		dispatch('close');
+		onclose?.();
 	}
 
 	async function loadThumb(assetId: string, el: HTMLImageElement) {

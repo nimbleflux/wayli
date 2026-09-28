@@ -18,7 +18,9 @@ export const MODE_PHYSICAL_LIMITS = {
 	cycling: { min: 5, max: 45 },
 	car: { min: 10, max: 180 },
 	train: { min: 30, max: 350 },
-	airplane: { min: 150, max: 1000 }
+	airplane: { min: 150, max: 1000 },
+	boat: { min: 0, max: 100 },
+	swimming: { min: 0, max: 8 }
 } as const;
 
 export const SPEED_CV_THRESHOLDS = {
@@ -32,5 +34,7 @@ export const MODE_CONTINUITY_LIMITS = {
 	cycling: { maxSpeedDiff: 15 },
 	car: { maxSpeedDiff: 50 },
 	train: { maxSpeedDiff: 30 },
-	airplane: { maxSpeedDiff: 1500 }
+	airplane: { maxSpeedDiff: 1500 },
+	boat: { maxSpeedDiff: 40 },
+	swimming: { maxSpeedDiff: 4 }
 } as const;

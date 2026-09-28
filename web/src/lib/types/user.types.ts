@@ -1,4 +1,4 @@
-import type { GeocodedLocation } from './geocoding.types';
+import type { GeocodedLocation, ManualHomeCoordinates } from './geocoding.types';
 
 export interface UserProfile {
 	id: string;
@@ -9,7 +9,7 @@ export interface UserProfile {
 	role: 'user' | 'admin';
 	username?: string;
 	avatar_url?: string;
-	home_address?: string | GeocodedLocation;
+	home_address?: string | GeocodedLocation | ManualHomeCoordinates;
 	email_confirmed_at?: string;
 	created_at: string;
 	updated_at: string;
@@ -42,7 +42,7 @@ export interface UpdateProfileRequest {
 	first_name?: string;
 	last_name?: string;
 	full_name?: string;
-	home_address?: string | GeocodedLocation;
+	home_address?: string | GeocodedLocation | ManualHomeCoordinates;
 	avatar_url?: string;
 }
 

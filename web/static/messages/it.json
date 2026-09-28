@@ -244,7 +244,9 @@
     "train": "Treno",
     "airplane": "Aereo",
     "stationary": "Stazionario",
-    "unknown": "Sconosciuto"
+    "unknown": "Sconosciuto",
+    "boat": "Barca",
+    "swimming": "Nuoto"
   },
   "wayli": "Swish",
   "wayliSubtitle": "Il tuo compagno di viaggio personale",
@@ -1140,7 +1142,9 @@
     "deleteAccountSuccess": "Your account has been deleted.",
     "deleteAccountError": "Account deletion failed — try again or contact your server administrator.",
     "deletePasswordLabel": "Confirm with your password (leave empty if you sign in with OAuth):",
-    "deletePasswordPlaceholder": "Current password"
+    "deletePasswordPlaceholder": "Current password",
+    "disabledModesTitle": "Detected activities",
+    "disabledModesHint": "Tap a mode to switch off its automatic detection. Changes apply from the next detection run on."
   },
   "serverAdmin": {
     "title": "Impostazioni di amministrazione del server",
@@ -2022,6 +2026,33 @@
       "linkCopied": "Link copiato",
       "linkCopiedPrivate": "Link copiato: l'attività è privata, solo tu puoi aprirla",
       "copyFailed": "Impossibile copiare il link"
+    },
+    "subSport": {
+      "treadmill": "Tapis roulant",
+      "street": "Strada",
+      "trail": "Sentiero",
+      "track": "Traccia",
+      "spin": "Rotazione",
+      "indoor_cycling": "Ciclismo indoor",
+      "road": "Strada",
+      "mountain": "Montagna",
+      "downhill": "Discesa",
+      "recumbent": "Reclinato",
+      "cyclocross": "Ciclocross",
+      "hand_cycling": "Ciclismo a mano",
+      "track_cycling": "Pista ciclistica",
+      "indoor_rowing": "Canottaggio indoor",
+      "elliptical": "Ellittico",
+      "stair_climbing": "Salire le scale",
+      "lap_swimming": "Nuoto in vasca",
+      "open_water": "Acqua aperta",
+      "gym": "Palestra",
+      "yard_games": "Giochi in giardino",
+      "platform_tennis": "Tennis con piattaforma",
+      "motor_pacing": "Stimolazione motoria",
+      "bike_to_run": "Bici per correre",
+      "run_to_bike": "Corri in bicicletta",
+      "indoor_snow_sport": "Sport sulla neve al coperto"
     }
   }
 }

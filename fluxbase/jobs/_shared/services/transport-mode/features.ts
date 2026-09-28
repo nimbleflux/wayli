@@ -6,7 +6,8 @@ import {
 	isAtTrainStation,
 	isAtAirport,
 	isOnHighwayOrMotorway,
-	getVenueTypeFromAddendum
+	getVenueTypeFromAddendum,
+	isOnWaterGeocode
 } from './geocode-features.ts';
 import { MAX_PLAUSIBLE_SPEED_KMH } from './config.ts';
 
@@ -74,6 +75,7 @@ export function extractFeatures(observations: ModeObservation[], cvWindow = 5): 
 			onHighway: isOnHighwayOrMotorway(obs.geocode),
 			atVenue: getVenueTypeFromAddendum(obs.geocode) !== null,
 			accuracyWeight: accuracyWeight(obs.accuracy),
+			onWater: isOnWaterGeocode(obs.geocode),
 			stationProximity: 0
 		};
 	}

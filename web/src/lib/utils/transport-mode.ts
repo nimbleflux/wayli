@@ -128,6 +128,55 @@ export function isStationaryVenue(
 
 	return stationaryVenueTypes.includes(venueType.toLowerCase());
 }
+/**
+ * Checks if the geocode evidence suggests the point is on (or immediately at)
+ * open water (#220). Three signal classes:
+ *   1. A permanent reverse-geocode failure — Pelias had no land record for the
+ *      coordinate. Rate-limit and transport failures are flagged `retryable`
+ *      and must NOT count (a missing lookup is not evidence of water).
+ *   2. Pelias marine layer / water categories.
+ *   3. OSM water tags in the addendum (waterway, natural=water|coastline|bay,
+ *      man_made=pier|breakwater|groyne, seamark:type).
+ */
+export function isOnWaterGeocode(
+	reverseGeocode: GeocodeGeoJSONFeature | null | undefined
+): boolean {
+	if (!reverseGeocode || typeof reverseGeocode !== 'object' || !reverseGeocode.properties) {
+		return false;
+	}
+
+	const props = reverseGeocode.properties as Record<string, unknown>;
+
+	// Signal 1: permanent NO-RESULT failures (open water has no land record).
+	// Only no-result-class errors count — infra failures ("All Pelias endpoints
+	// failed", 5xx) are also non-retryable but are NOT evidence of water.
+	if (
+		props.geocoding_status === 'failed' &&
+		props.retryable !== true &&
+		/no results/i.test(String(props.geocode_error ?? ''))
+	) {
+		return true;
+	}
+
+	// Signal 2: Pelias marine layer / water categories
+	if (props.layer === 'marine') return true;
+	const category = props.category as string[] | undefined;
+	if (category && Array.isArray(category) && category.some((c) => String(c).includes('water'))) {
+		return true;
+	}
+
+	// Signal 3: OSM water tags
+	const osm = getOsmDataFromAddendum(reverseGeocode);
+	if (osm) {
+		if (typeof osm.waterway === 'string' && osm.waterway.length > 0) return true;
+		if (['water', 'coastline', 'bay'].includes(osm.natural as string)) return true;
+		if (['pier', 'breakwater', 'groyne'].includes(osm['man_made'] as string)) return true;
+		if (typeof osm['seamark:type'] === 'string' && osm['seamark:type'].length > 0) return true;
+	}
+
+	return false;
+}
+
 // ponytail: haversine consolidated into multi-point-speed.ts; re-exported here for back-compat.
 export { haversine } from './multi-point-speed';
 import { haversine } from './multi-point-speed';

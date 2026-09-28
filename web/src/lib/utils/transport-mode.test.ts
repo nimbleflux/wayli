@@ -6,8 +6,86 @@ import {
 	isAtTrainStation,
 	isAtAirport,
 	isOnHighwayOrMotorway,
-	isModeSwitchPossible
+	isModeSwitchPossible,
+	isOnWaterGeocode
 } from './transport-mode';
+
+import type { GeocodeGeoJSONFeature } from './geojson-converter';
+
+function geocode(properties: Record<string, unknown>): GeocodeGeoJSONFeature {
+	return {
+		type: 'Feature',
+		geometry: { type: 'Point', coordinates: [150.67, -35.04] },
+		properties: properties as never
+	};
+}
+
+describe('isOnWaterGeocode (#220)', () => {
+	it('treats a permanent no-result geocode failure as open water', () => {
+		expect(
+			isOnWaterGeocode(geocode({ geocoding_status: 'failed', geocode_error: 'No results found' }))
+		).toBe(true);
+	});
+
+	it('does not treat retryable failures (rate limits) as water', () => {
+		expect(isOnWaterGeocode(geocode({ geocoding_status: 'failed', retryable: true }))).toBe(false);
+	});
+
+	it('does not treat Pelias outage errors as water (non-retryable but not no-result)', () => {
+		expect(
+			isOnWaterGeocode(
+				geocode({ geocoding_status: 'failed', geocode_error: 'All Pelias endpoints failed' })
+			)
+		).toBe(false);
+		expect(
+			isOnWaterGeocode(
+				geocode({ geocoding_status: 'failed', geocode_error: 'Pelias error: 503 - upstream' })
+			)
+		).toBe(false);
+	});
+
+	it('treats the no-result error string as water', () => {
+		expect(
+			isOnWaterGeocode(
+				geocode({ geocoding_status: 'failed', geocode_error: 'Pelias returned no results' })
+			)
+		).toBe(true);
+	});
+
+	it('treats the marine layer as water', () => {
+		expect(isOnWaterGeocode(geocode({ layer: 'marine', name: 'Jervis Bay' }))).toBe(true);
+	});
+
+	it('treats water-related Pelias categories as water', () => {
+		expect(isOnWaterGeocode(geocode({ category: ['water:bay'] }))).toBe(true);
+	});
+
+	it('treats OSM waterway/natural/man_made/seamark addendum tags as water', () => {
+		expect(isOnWaterGeocode(geocode({ addendum: { osm: { waterway: 'river' } } }))).toBe(true);
+		expect(isOnWaterGeocode(geocode({ addendum: { osm: { natural: 'water' } } }))).toBe(true);
+		expect(isOnWaterGeocode(geocode({ addendum: { osm: { natural: 'coastline' } } }))).toBe(true);
+		expect(isOnWaterGeocode(geocode({ addendum: { osm: { natural: 'bay' } } }))).toBe(true);
+		expect(isOnWaterGeocode(geocode({ addendum: { osm: { man_made: 'pier' } } }))).toBe(true);
+		expect(isOnWaterGeocode(geocode({ addendum: { osm: { man_made: 'breakwater' } } }))).toBe(true);
+		expect(isOnWaterGeocode(geocode({ addendum: { osm: { man_made: 'groyne' } } }))).toBe(true);
+		expect(isOnWaterGeocode(geocode({ addendum: { osm: { 'seamark:type': 'buoy' } } }))).toBe(true);
+	});
+
+	it('returns false for ordinary land geocodes', () => {
+		expect(
+			isOnWaterGeocode(
+				geocode({ layer: 'venue', name: 'Cafe', addendum: { osm: { amenity: 'cafe' } } })
+			)
+		).toBe(false);
+		expect(isOnWaterGeocode(geocode({ layer: 'address', locality: 'Huskisson' }))).toBe(false);
+	});
+
+	it('returns false for missing, empty or non-attempted geocodes', () => {
+		expect(isOnWaterGeocode(null)).toBe(false);
+		expect(isOnWaterGeocode(undefined)).toBe(false);
+		expect(isOnWaterGeocode({} as GeocodeGeoJSONFeature)).toBe(false);
+	});
+});
 
 describe('Transport Mode Detection', () => {
 	describe('Utility Functions', () => {

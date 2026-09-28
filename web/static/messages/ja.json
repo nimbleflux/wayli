@@ -244,7 +244,9 @@
     "train": "電車",
     "airplane": "飛行機",
     "stationary": "静止",
-    "unknown": "未知"
+    "unknown": "未知",
+    "boat": "ボート",
+    "swimming": "水泳"
   },
   "wayli": "スウィッシュ",
   "wayliSubtitle": "あなたの個人的な旅の仲間",
@@ -1144,7 +1146,9 @@
     "deleteAccountSuccess": "Your account has been deleted.",
     "deleteAccountError": "Account deletion failed — try again or contact your server administrator.",
     "deletePasswordLabel": "Confirm with your password (leave empty if you sign in with OAuth):",
-    "deletePasswordPlaceholder": "Current password"
+    "deletePasswordPlaceholder": "Current password",
+    "disabledModesTitle": "Detected activities",
+    "disabledModesHint": "Tap a mode to switch off its automatic detection. Changes apply from the next detection run on."
   },
   "serverAdmin": {
     "title": "サーバー管理設定",
@@ -2026,6 +2030,33 @@
       "linkCopied": "共有リンクをコピーしました",
       "linkCopiedPrivate": "リンクをコピーしました — アクティビティは非公開で、あなたのみ開けます",
       "copyFailed": "リンクをコピーできませんでした"
+    },
+    "subSport": {
+      "treadmill": "トレッドミル",
+      "street": "通り",
+      "trail": "トレイル",
+      "track": "追跡",
+      "spin": "スピン",
+      "indoor_cycling": "インドアサイクリング",
+      "road": "道",
+      "mountain": "山",
+      "downhill": "下り坂",
+      "recumbent": "リカンベント",
+      "cyclocross": "シクロクロス",
+      "hand_cycling": "ハンドサイクリング",
+      "track_cycling": "トラックサイクリング",
+      "indoor_rowing": "Indoor rowing",
+      "elliptical": "Elliptical",
+      "stair_climbing": "Stair climbing",
+      "lap_swimming": "Lap swimming",
+      "open_water": "Open water",
+      "gym": "Gym",
+      "yard_games": "Yard games",
+      "platform_tennis": "Platform tennis",
+      "motor_pacing": "Motor pacing",
+      "bike_to_run": "Bike to run",
+      "run_to_bike": "Run to bike",
+      "indoor_snow_sport": "Indoor snow sport"
     }
   }
 }

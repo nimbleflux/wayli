@@ -14,6 +14,7 @@
 		formatDuration,
 		formatSpeed,
 		movingAverage,
+		formatSubSport,
 		sportTheme
 	} from '$lib/utils/fitness';
 
@@ -385,7 +386,7 @@
 				<div class="min-w-0 flex-1">
 					<p class="mb-1 text-sm font-medium tracking-wider text-white/75 uppercase">
 						{t(theme.labelKey)}{activity.sub_sport
-							? ` · ${activity.sub_sport.replace('_', ' ')}`
+							? ` · ${formatSubSport(activity.sub_sport, t)}`
 							: ''}
 					</p>
 					<h1 class="text-2xl font-bold sm:text-3xl">

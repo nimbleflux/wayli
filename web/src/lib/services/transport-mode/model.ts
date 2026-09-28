@@ -21,7 +21,7 @@ import {
 	MODE_CONTINUITY_LIMITS,
 	SPEED_CV_THRESHOLDS
 } from '../../utils/transport-mode.config';
-import { NUM_MODES, TRANSPORT_MODES, MODE_INDEX } from './states';
+import { NUM_MODES, TRANSPORT_MODES, MODE_INDEX, type TransportMode } from './states';
 import type { ModeFeatures, SegmentContext } from './types';
 
 const LOG_ZERO = -Infinity;
@@ -64,7 +64,11 @@ function buildTransitionMatrix(): number[][] {
 	return T.map((row) => row.map(safeLog));
 }
 
-export function emissionScores(f: ModeFeatures, segCtx?: SegmentContext): number[] {
+export function emissionScores(
+	f: ModeFeatures,
+	segCtx?: SegmentContext,
+	disabledModes?: ReadonlySet<TransportMode>
+): number[] {
 	const scores = new Array(NUM_MODES).fill(1);
 	const PRIOR: Record<string, number> = {
 		stationary: 1.0,
@@ -74,7 +78,12 @@ export function emissionScores(f: ModeFeatures, segCtx?: SegmentContext): number
 		// 0.5 made every ambiguous call default to car; 0.7 still favors
 		// evidence over prior but no longer structurally biases against train.
 		train: 0.7,
-		airplane: 0.05
+		airplane: 0.05,
+		// #220: water modes only surface under strong water evidence (the
+		// boosts below outweigh this prior ~20x); without evidence they sit
+		// far below every land mode so existing land trips are untouched.
+		boat: 0.05,
+		swimming: 0.05
 	};
 	// Per-point station proximity is on the feature (f.stationProximity).
 	const meanIntervalSec = segCtx?.meanIntervalSec ?? 0;
@@ -132,8 +141,23 @@ export function emissionScores(f: ModeFeatures, segCtx?: SegmentContext): number
 			if (mode === 'train' && meanIntervalSec >= 30) s *= 1.25;
 			if (mode === 'car' && meanIntervalSec < 8) s *= 1.15;
 		}
+		// #220: water-gated boat/swimming. Only when a MAJORITY of the
+		// segment's geocodes show water evidence AND this point itself is on
+		// water do the water modes' boosts (which must outweigh their 0.05
+		// priors) kick in; land competitors are mildly suppressed at speeds
+		// where the water mode is plausible. Land trips never see this path.
+		const waterStrong = (segCtx?.waterFraction ?? 0) >= 0.5 && f.onWater;
+		if (waterStrong) {
+			if (mode === 'boat') s *= 20;
+			if (mode === 'swimming' && f.speed <= 8) s *= 12;
+			if (f.speed >= 5 && (mode === 'cycling' || mode === 'car')) s *= 0.5;
+			if (f.speed >= 0.5 && f.speed <= 8 && mode === 'walking') s *= 0.35;
+		}
 		s = s * (0.3 + 0.7 * f.accuracyWeight);
 		s *= PRIOR[mode] ?? 1;
+		// Hard exclusion of user-disabled modes (#220): zero emission
+		// probability, Viterbi can never choose them.
+		if (disabledModes?.has(mode)) s = 0;
 		scores[m] = s;
 	}
 	return scores;
@@ -144,7 +168,11 @@ export interface ViterbiResult {
 	logProbs: number[];
 }
 
-export function viterbi(features: ModeFeatures[], segCtx?: SegmentContext): ViterbiResult {
+export function viterbi(
+	features: ModeFeatures[],
+	segCtx?: SegmentContext,
+	disabledModes?: ReadonlySet<TransportMode>
+): ViterbiResult {
 	const n = features.length;
 	if (n === 0) return { path: [], logProbs: [] };
 	const logT = buildTransitionMatrix();
@@ -152,10 +180,10 @@ export function viterbi(features: ModeFeatures[], segCtx?: SegmentContext): Vite
 	start[MODE_INDEX['stationary']] = safeLog((1 / NUM_MODES) * 1.3);
 	const dp: number[][] = Array.from({ length: n }, () => new Array(NUM_MODES).fill(LOG_ZERO));
 	const back: number[][] = Array.from({ length: n }, () => new Array(NUM_MODES).fill(0));
-	const e0 = emissionScores(features[0], segCtx);
+	const e0 = emissionScores(features[0], segCtx, disabledModes);
 	for (let s = 0; s < NUM_MODES; s++) dp[0][s] = start[s] + safeLog(e0[s]);
 	for (let t = 1; t < n; t++) {
-		const et = emissionScores(features[t], segCtx);
+		const et = emissionScores(features[t], segCtx, disabledModes);
 		for (let s = 0; s < NUM_MODES; s++) {
 			let best = LOG_ZERO;
 			let bestPrev = 0;

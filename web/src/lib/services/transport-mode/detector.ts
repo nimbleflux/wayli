@@ -8,7 +8,7 @@
 import { segmentByGaps } from './segmentation';
 import { extractFeatures } from './features';
 import { viterbi, confidenceForPoint, emissionScores } from './model';
-import { isAtTrainStation } from '../../utils/transport-mode';
+import { isAtTrainStation, isOnWaterGeocode } from '../../utils/transport-mode';
 import { TRANSPORT_MODES, type TransportMode } from './states';
 import type {
 	ModeFeatures,
@@ -67,8 +67,23 @@ function computeSegmentContext(segment: ModeObservation[]): {
 			intervalCount++;
 		}
 	}
+
+	// Water evidence (#220): fraction of geocoded points on open water.
+	// Points without a geocode attempt count toward neither side — an
+	// un-geocoded segment gets fraction 0 and can never trigger boat/swimming.
+	let geocodedCount = 0;
+	let waterCount = 0;
+	for (let i = 0; i < n; i++) {
+		if (segment[i].geocode == null) continue;
+		geocodedCount++;
+		if (segment[i].geocode && isOnWaterGeocode(segment[i].geocode)) waterCount++;
+	}
+
 	return {
-		segCtx: { meanIntervalSec: intervalCount > 0 ? intervalSum / intervalCount : 0 },
+		segCtx: {
+			meanIntervalSec: intervalCount > 0 ? intervalSum / intervalCount : 0,
+			waterFraction: geocodedCount > 0 ? waterCount / geocodedCount : 0
+		},
 		proximity
 	};
 }
@@ -89,6 +104,10 @@ function reasonFor(mode: TransportMode, speed: number): string {
 			return 'steady_speed_with_rail_context';
 		case 'airplane':
 			return 'speed_in_airplane_range';
+		case 'boat':
+			return 'open_water_no_land_evidence';
+		case 'swimming':
+			return 'open_water_slow_speed';
 		default:
 			return 'hmm_decoded';
 	}
@@ -120,6 +139,8 @@ export function detectTransportModes(
 ): PointModeDecision[] {
 	if (observations.length === 0) return [];
 
+	const disabledSet: ReadonlySet<TransportMode> = new Set(context.disabledModes ?? []);
+
 	// Prepend the previous batch's tail so the first points of this batch get a
 	// real Viterbi context instead of being treated as segment starts.
 	const tail = context.prevObs ?? [];
@@ -144,7 +165,7 @@ export function detectTransportModes(
 
 		// Single-point segment: no temporal context, score on emission alone.
 		if (segment.length === 1) {
-			const scores = emissionScores(features[0], segCtx);
+			const scores = emissionScores(features[0], segCtx, disabledSet);
 			let bestIdx = 0;
 			let best = -Infinity;
 			for (let m = 0; m < scores.length; m++) {
@@ -164,7 +185,7 @@ export function detectTransportModes(
 		}
 
 		// Multi-point: HMM + Viterbi over the segment.
-		const { path } = viterbi(features, segCtx);
+		const { path } = viterbi(features, segCtx, disabledSet);
 		for (let i = 0; i < segment.length; i++) {
 			const mode = TRANSPORT_MODES[path[i]];
 			decisions.push({

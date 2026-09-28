@@ -244,7 +244,9 @@
     "train": "Zug",
     "airplane": "Flugzeug",
     "stationary": "Stationär",
-    "unknown": "Unbekannt"
+    "unknown": "Unbekannt",
+    "boat": "Boot",
+    "swimming": "Baden"
   },
   "wayli": "Swish",
   "wayliSubtitle": "Ihr persönlicher Reisebegleiter",
@@ -1140,7 +1142,9 @@
     "deleteAccountSuccess": "Your account has been deleted.",
     "deleteAccountError": "Account deletion failed — try again or contact your server administrator.",
     "deletePasswordLabel": "Confirm with your password (leave empty if you sign in with OAuth):",
-    "deletePasswordPlaceholder": "Current password"
+    "deletePasswordPlaceholder": "Current password",
+    "disabledModesTitle": "Detected activities",
+    "disabledModesHint": "Tap a mode to switch off its automatic detection. Changes apply from the next detection run on."
   },
   "serverAdmin": {
     "title": "Serveradministratoreinstellungen",
@@ -2022,6 +2026,33 @@
       "linkCopied": "Link zum Teilen kopiert",
       "linkCopiedPrivate": "Link kopiert — die Aktivität ist privat, nur du kannst sie öffnen",
       "copyFailed": "Link konnte nicht kopiert werden"
+    },
+    "subSport": {
+      "treadmill": "Tretmühle",
+      "street": "Straße",
+      "trail": "Pfad",
+      "track": "Schiene",
+      "spin": "Drehen",
+      "indoor_cycling": "Indoor-Cycling",
+      "road": "Straße",
+      "mountain": "Berg",
+      "downhill": "Bergab",
+      "recumbent": "Liegerad",
+      "cyclocross": "Cyclocross",
+      "hand_cycling": "Handradfahren",
+      "track_cycling": "Bahnradfahren",
+      "indoor_rowing": "Indoor-Rudern",
+      "elliptical": "Elliptisch",
+      "stair_climbing": "Treppensteigen",
+      "lap_swimming": "Rundenschwimmen",
+      "open_water": "Offenes Wasser",
+      "gym": "Fitnessstudio",
+      "yard_games": "Hofspiele",
+      "platform_tennis": "Plattformtennis",
+      "motor_pacing": "Motorische Geschwindigkeit",
+      "bike_to_run": "Fahrrad zum Laufen",
+      "run_to_bike": "Laufen Sie zum Fahrrad",
+      "indoor_snow_sport": "Indoor-Schneesport"
     }
   }
 }

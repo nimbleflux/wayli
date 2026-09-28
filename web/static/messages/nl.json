@@ -244,7 +244,9 @@
     "train": "Trein",
     "airplane": "Vliegtuig",
     "stationary": "Stilstand",
-    "unknown": "Onbekend"
+    "unknown": "Onbekend",
+    "boat": "Boot",
+    "swimming": "Zwemmen"
   },
   "wayli": "Wayli",
   "wayliSubtitle": "Jouw persoonlijke reisgezel",
@@ -1140,7 +1142,9 @@
     "deleteAccountSuccess": "Your account has been deleted.",
     "deleteAccountError": "Account deletion failed — try again or contact your server administrator.",
     "deletePasswordLabel": "Confirm with your password (leave empty if you sign in with OAuth):",
-    "deletePasswordPlaceholder": "Current password"
+    "deletePasswordPlaceholder": "Current password",
+    "disabledModesTitle": "Detected activities",
+    "disabledModesHint": "Tap a mode to switch off its automatic detection. Changes apply from the next detection run on."
   },
   "serverAdmin": {
     "title": "Server beheerder instellingen",
@@ -2022,6 +2026,33 @@
       "linkCopied": "Deellink gekopieerd",
       "linkCopiedPrivate": "Link gekopieerd — de activiteit is privé, alleen jij kunt hem openen",
       "copyFailed": "Kon de link niet kopiëren"
+    },
+    "subSport": {
+      "treadmill": "Loopband",
+      "street": "Straat",
+      "trail": "Pad",
+      "track": "Spoor",
+      "spin": "Draai",
+      "indoor_cycling": "Indoor fietsen",
+      "road": "Weg",
+      "mountain": "Berg",
+      "downhill": "Bergafwaarts",
+      "recumbent": "Ligfiets",
+      "cyclocross": "Cyclocross",
+      "hand_cycling": "Handfietsen",
+      "track_cycling": "Baanwielrennen",
+      "indoor_rowing": "Indoor roeien",
+      "elliptical": "Elliptisch",
+      "stair_climbing": "Traplopen",
+      "lap_swimming": "Baantjes zwemmen",
+      "open_water": "Openwater",
+      "gym": "Sportschool",
+      "yard_games": "Tuinspellen",
+      "platform_tennis": "Platformtennis",
+      "motor_pacing": "Motorisch tempo",
+      "bike_to_run": "Fiets om te rennen",
+      "run_to_bike": "Ren naar de fiets",
+      "indoor_snow_sport": "Indoor sneeuwsport"
     }
   }
 }

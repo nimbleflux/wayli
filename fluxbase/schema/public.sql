@@ -555,7 +555,7 @@ COMMENT ON COLUMN tracker_data.time_spent IS 'Time spent in seconds from the pre
 COMMENT ON COLUMN tracker_data.tz_diff IS 'Timezone difference from UTC in hours (e.g., +2.0 for UTC+2, -5.0 for UTC-5)';
 
 
-COMMENT ON COLUMN tracker_data.transport_mode IS 'Detected transport mode: stationary|walking|cycling|car|train|airplane. NULL when not yet processed by the detect-transport-mode job.';
+COMMENT ON COLUMN tracker_data.transport_mode IS 'Detected transport mode: stationary|walking|cycling|car|train|airplane|boat|swimming. NULL when not yet processed by the detect-transport-mode job.';
 
 
 COMMENT ON COLUMN tracker_data.detection_reason IS 'Machine-readable reason key for the detected transport_mode (see TransportDetectionReason labels in the UI).';
@@ -3833,6 +3833,8 @@ WHEN 'cycling' THEN window_size := 4;
 WHEN 'car' THEN window_size := 5;
 WHEN 'train' THEN window_size := 7;
 WHEN 'airplane' THEN window_size := 10;
+WHEN 'boat' THEN window_size := 4;
+WHEN 'swimming' THEN window_size := 3;
 ELSE window_size := 5;
 END CASE
 ;
@@ -3897,6 +3899,8 @@ WHEN 'cycling' THEN mode_factor := 0.9;
 WHEN 'car' THEN mode_factor := 1.0;
 WHEN 'train' THEN mode_factor := 1.1;
 WHEN 'airplane' THEN mode_factor := 1.2;
+WHEN 'boat' THEN mode_factor := 0.9;
+WHEN 'swimming' THEN mode_factor := 0.8;
 ELSE mode_factor := 1.0;
 END CASE
 ;
@@ -5613,12 +5617,17 @@ CREATE OR REPLACE VIEW my_tracker_data WITH (security_barrier=true, security_inv
     transport_mode_confidence,
     transport_mode_manual,
     created_at,
-    recorded_at AS started_at
+    recorded_at AS started_at,
+    -- appended (CREATE OR REPLACE VIEW can only add columns at the end)
+    distance,
+    time_spent,
+    speed,
+    activity_type
    FROM tracker_data
   WHERE user_id = auth.uid();
 
 
-COMMENT ON VIEW my_tracker_data IS 'Secure view of tracker_data filtered to current user. Use this for LLM queries.';
+COMMENT ON VIEW my_tracker_data IS 'Secure view of tracker_data filtered to current user. Use this for LLM queries. Includes distance (meters from previous point), time_spent (seconds from previous point) and speed (km/h) so LLM queries can aggregate traveled distance per transport_mode.';
 
 --
 -- Name: my_trip_entries; Type: VIEW; Schema: -; Owner: -

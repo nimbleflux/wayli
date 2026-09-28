@@ -14,6 +14,7 @@ import {
 	updateTripSchema,
 	createExportSchema,
 	updateProfileSchema,
+	profileUpdateSchema,
 	updatePreferencesSchema,
 	geocodeSearchSchema,
 	createTripExclusionSchema,
@@ -291,6 +292,34 @@ describe('API Validation Schemas', () => {
 			};
 
 			const result = updateProfileSchema.safeParse(partialProfile);
+			expect(result.success).toBe(true);
+		});
+
+		it('should accept a geocoded home_address object (#205)', () => {
+			// The settings page stores the geocoded suggestion object, not a string
+			const result = profileUpdateSchema.safeParse({
+				home_address: {
+					display_name: '11 Dent Street, Huskisson, NSW, Australia',
+					lat: -35.0347,
+					lon: 150.6739,
+					coordinates: { lat: -35.0347, lng: 150.6739 },
+					name: '11 Dent Street',
+					layer: 'address',
+					address: { city: 'Huskisson' }
+				}
+			});
+			expect(result.success).toBe(true);
+		});
+
+		it('should accept a manual coordinates home_address object (#205)', () => {
+			const result = profileUpdateSchema.safeParse({
+				home_address: {
+					display_name: '-35.042, 150.669',
+					coordinates: { lat: -35.042, lng: 150.669 },
+					address: { city: 'Huskisson' },
+					layer: 'address'
+				}
+			});
 			expect(result.success).toBe(true);
 		});
 	});

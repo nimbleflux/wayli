@@ -7,7 +7,17 @@
 	 */
 	import MarkdownEditor from './MarkdownEditor.svelte';
 	import type { EntryBlock } from '$lib/types/journal.types';
-	import { ImagePlus, Type, Trash2, Star, Loader2, ArrowUp, ArrowDown, X , Camera } from 'lucide-svelte';
+	import {
+		ImagePlus,
+		Type,
+		Trash2,
+		Star,
+		Loader2,
+		ArrowUp,
+		ArrowDown,
+		X,
+		Camera
+	} from 'lucide-svelte';
 
 	type ViewMedia = { url: string; caption?: string | null };
 
@@ -279,6 +289,5 @@
 				<Camera class="h-3.5 w-3.5" /> Add from Immich
 			</button>
 		{/if}
-		</button>
 	</div>
 </div>

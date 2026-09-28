@@ -21,7 +21,8 @@ type JobType =
 	| 'trip-generation'
 	| 'trip-detection'
 	| 'reverse-geocoding'
-	| 'distance-calculation';
+	| 'distance-calculation'
+	| 'immich_sync';
 
 // All formats now use the unified data-import job
 const SUPPORTED_IMPORT_FORMATS = ['GeoJSON', 'GPX', 'KML', 'OwnTracks', 'Polarsteps', 'FIT'];

@@ -12,6 +12,8 @@ export interface TripMedia {
 	height: number | null;
 	taken_at: string | null;
 	exif: Record<string, unknown> | null;
+	source?: 'upload' | 'immich';
+	immich_asset_id?: string | null;
 	created_at: string;
 }
 
@@ -26,4 +28,6 @@ export interface CreateTripMediaInput {
 	height?: number;
 	taken_at?: string;
 	exif?: Record<string, unknown>;
+	source?: 'upload' | 'immich';
+	immich_asset_id?: string;
 }

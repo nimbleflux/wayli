@@ -2102,10 +2102,24 @@ CREATE TABLE IF NOT EXISTS trip_media (
     taken_at timestamptz,
     exif jsonb,
     created_at timestamptz DEFAULT now(),
+    source text DEFAULT 'upload' NOT NULL,
+    immich_asset_id text,
     CONSTRAINT trip_media_pkey PRIMARY KEY (id),
     CONSTRAINT trip_media_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES trip_entries (id) ON DELETE SET NULL,
     CONSTRAINT trip_media_trip_id_fkey FOREIGN KEY (trip_id) REFERENCES trips (id) ON DELETE CASCADE
 );
+
+
+-- Additive columns for existing deployments (fresh installs get them above).
+ALTER TABLE trip_media ADD COLUMN IF NOT EXISTS source text DEFAULT 'upload' NOT NULL;
+ALTER TABLE trip_media ADD COLUMN IF NOT EXISTS immich_asset_id text;
+CREATE INDEX IF NOT EXISTS idx_trip_media_user_immich_asset
+    ON trip_media (user_id, immich_asset_id)
+    WHERE immich_asset_id IS NOT NULL;
+
+
+COMMENT ON COLUMN trip_media.source IS 'Where this media came from: upload (default) or immich (display-size copies attached from a user''s Immich library).';
+COMMENT ON COLUMN trip_media.immich_asset_id IS 'Immich asset id when source = immich. The original lives in Immich; Wayli stores only display-size copies in the trip-images bucket.';
 
 
 COMMENT ON TABLE trip_media IS 'User-uploaded photos/videos for trips and journal entries.';

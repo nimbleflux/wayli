@@ -88,7 +88,9 @@ export async function createMedia(
 			width: input.width ?? null,
 			height: input.height ?? null,
 			taken_at: input.taken_at ?? null,
-			exif: input.exif ?? null
+			exif: input.exif ?? null,
+			source: input.source ?? 'upload',
+			immich_asset_id: input.immich_asset_id ?? null
 		})
 		.select('*')
 		.single();

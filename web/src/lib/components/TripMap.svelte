@@ -33,8 +33,14 @@
 	let highlightLayer: any = null;
 	let cleanupThemeWatcher: (() => void) | null = null;
 
+	let destroyed = false;
+
 	onMount(async () => {
 		L = await import('leaflet');
+
+		// Guard: the container may have been removed while Leaflet was loading
+		// (async import yields to the microtask queue, allowing unmounts).
+		if (!mapContainer || !mapContainer.isConnected) return;
 
 		const mapInstance = L.map(mapContainer, { scrollWheelZoom: true });
 		map = mapInstance;
@@ -191,6 +197,7 @@
 	});
 
 	onDestroy(() => {
+		destroyed = true;
 		cleanupThemeWatcher?.();
 		map?.remove();
 	});

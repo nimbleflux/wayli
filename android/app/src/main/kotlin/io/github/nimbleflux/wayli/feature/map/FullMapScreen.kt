@@ -20,6 +20,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.SavedStateHandle
@@ -30,9 +31,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.nimbleflux.fluxbase.FluxbaseClient
 import io.github.nimbleflux.wayli.designsystem.MapLegend
 import io.github.nimbleflux.wayli.designsystem.map.MapTrack
+import io.github.nimbleflux.wayli.designsystem.map.MapPhoto
 import io.github.nimbleflux.wayli.designsystem.map.WayliMap
 import io.github.nimbleflux.wayli.demo.DemoManager
 import io.github.nimbleflux.wayli.designsystem.toDates
+import io.github.nimbleflux.wayli.repo.ImmichRepository
 import io.github.nimbleflux.wayli.repo.StatsRepository
 import io.github.nimbleflux.wayli.repo.TripRepository
 import javax.inject.Inject
@@ -79,14 +82,36 @@ fun FullMapScreen(
             when (val s = state) {
                 is FullMapUiState.Loading -> CircularProgressIndicator()
                 is FullMapUiState.Ready -> Box(Modifier.fillMaxSize()) {
+                    var tappedAsset by androidx.compose.runtime.remember {
+                        androidx.compose.runtime.mutableStateOf<io.github.nimbleflux.wayli.models.ImmichAsset?>(null)
+                    }
+                    val mapPhotos = s.immichAssets.map {
+                        MapPhoto(id = it.assetId, lat = it.latitude, lng = it.longitude)
+                    }
                     WayliMap(
                         modifier = Modifier.fillMaxSize(),
                         tracks = s.tracks,
+                        photos = mapPhotos,
+                        onPhotoTap = { tapped ->
+                            tappedAsset = s.immichAssets.firstOrNull { it.assetId == tapped.id }
+                        },
                         zoom = 6.0,
                         controls = true,
                         // keep the zoom buttons above the floating dock
                         controlsBottomPadding = io.github.nimbleflux.wayli.designsystem.rememberDockClearance(),
                     )
+                    // Immich photo tap → detail sheet with thumbnail + deep link.
+                    tappedAsset?.let { asset ->
+                        ImmichPhotoSheet(
+                            asset = asset,
+                            serverUrl = s.immichServerUrl,
+                            thumbnailProvider = { assetId, size ->
+                                viewModel.thumbnailBytes(assetId, size)
+                            },
+                            onDismiss = { tappedAsset = null },
+                            modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter),
+                        )
+                    }
                     // Compact legend — mode colors only appear when present.
                     val presentModes = s.tracks.map { it.color }.distinct()
                     if (s.tracks.size > 1 || presentModes != listOf("#3b82f6")) {
@@ -106,7 +131,14 @@ fun FullMapScreen(
 
 sealed interface FullMapUiState {
     data object Loading : FullMapUiState
-    data class Ready(val title: String, val tracks: List<MapTrack>) : FullMapUiState
+    data class Ready(
+        val title: String,
+        val tracks: List<MapTrack>,
+        /** Geotagged Immich assets for the same window (#13); empty when disabled. */
+        val immichAssets: List<io.github.nimbleflux.wayli.models.ImmichAsset> = emptyList(),
+        /** Immich server URL for "open in Immich" deep links; null when unset. */
+        val immichServerUrl: String? = null,
+    ) : FullMapUiState
     data class Error(val message: String) : FullMapUiState
 }
 
@@ -117,6 +149,7 @@ class FullMapViewModel @Inject constructor(
     private val fluxbaseClient: FluxbaseClient,
     private val tripRepo: TripRepository,
     private val statsRepo: StatsRepository,
+    private val immichRepo: ImmichRepository,
     private val rangeStore: io.github.nimbleflux.wayli.feature.stats.StatsRangeStore,
 ) : ViewModel() {
 
@@ -172,12 +205,41 @@ class FullMapViewModel @Inject constructor(
                         listOf(MapTrack(coords.map { LatLng(it.first, it.second) }, color = "#3b82f6", width = 4f))
                     }.orEmpty()
                 }
+            // Geotagged Immich assets for the same window (#13); skipped
+            // entirely when the user hasn't enabled the integration.
+            val immichRepo = ImmichRepository(fluxbaseClient)
+            val immichSettings = uid?.let { immichRepo.settings(uid) }
+            val assets = if (immichSettings?.enabled == true) {
+                val (start, end) = if (tripId != null) {
+                    val trip = tripRepo.getTrip(tripId).getOrNull()
+                    val start = io.github.nimbleflux.wayli.util.parseIsoDate(trip?.startDate)
+                        ?: java.time.LocalDate.now().minusDays(30)
+                    val end = io.github.nimbleflux.wayli.util.parseIsoDate(trip?.endDate)
+                        ?: java.time.LocalDate.now()
+                    Pair(start, end)
+                } else {
+                    rangeStore.range.value.toDates()
+                }
+                immichRepo.photosForRange(
+                    start.atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toString(),
+                    end.plusDays(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toString(),
+                ).getOrNull().orEmpty()
+            } else {
+                emptyList()
+            }
+
             _state.value = FullMapUiState.Ready(
                 title = if (tripId != null) "Trip map" else "Your journeys",
                 tracks = tracks,
+                immichAssets = assets,
+                immichServerUrl = immichSettings?.serverUrl,
             )
         }.onFailure {
             _state.value = FullMapUiState.Error(it.message ?: "Failed to load the map")
         }
     }
+
+    /** Preview bytes through the authenticated immich-thumb proxy (#13). */
+    suspend fun thumbnailBytes(assetId: String, size: String): ByteArray? =
+        immichRepo.thumbnailBytes(assetId, size)
 }

@@ -54,6 +54,13 @@ data class MapPoint(
     val color: String = "#233869",
 )
 
+/** A geotagged Immich photo marker (#13). [id] is the Immich asset id. */
+data class MapPhoto(
+    val id: String,
+    val lat: Double,
+    val lng: Double,
+)
+
 data class MapTrack(
     val points: List<LatLng>,
     val color: String = "#3b82f6",
@@ -97,6 +104,9 @@ fun WayliMap(
      * `rememberDockClearance()`; the default keeps cards/hero maps untouched.
      */
     controlsBottomPadding: androidx.compose.ui.unit.Dp = 12.dp,
+    /** Geotagged Immich photos (#13): purple circles, tap → [onPhotoTap]. */
+    photos: List<MapPhoto> = emptyList(),
+    onPhotoTap: ((MapPhoto) -> Unit)? = null,
 ) {
     // MapLibre.getInstance() is called in WayliApplication.onCreate() — must
     // happen before any MapView is created.
@@ -109,6 +119,8 @@ fun WayliMap(
     // Track layers/sources we add so we can clean them up before re-rendering.
     val addedLayerIds = remember { mutableStateListOf<String>() }
     val addedSourceIds = remember { mutableStateListOf<String>() }
+    // Current photo tap listener (#13) — replaced on re-render, removed on dispose.
+    var photoClickListener by remember { mutableStateOf<MapLibreMap.OnMapClickListener?>(null) }
 
     // Forward the host lifecycle to MapView (the previous version only called
     // onCreate, which leaked the map and could crash when backgrounded).
@@ -119,7 +131,10 @@ fun WayliMap(
             override fun onResume(owner: LifecycleOwner) = mapView.onResume()
             override fun onPause(owner: LifecycleOwner) = mapView.onPause()
             override fun onStop(owner: LifecycleOwner) = mapView.onStop()
-            override fun onDestroy(owner: LifecycleOwner) = mapView.onDestroy()
+            override fun onDestroy(owner: LifecycleOwner) {
+                photoClickListener?.let { mapRef?.removeOnMapClickListener(it) }
+                mapView.onDestroy()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
@@ -199,7 +214,7 @@ fun WayliMap(
     }
 
     // Render points/tracks whenever the style is ready or the data changes.
-    LaunchedEffect(styleRef, points, tracks) {
+    LaunchedEffect(styleRef, points, tracks, photos) {
         val style = styleRef ?: return@LaunchedEffect
         val map = mapRef ?: return@LaunchedEffect
 
@@ -216,6 +231,32 @@ fun WayliMap(
         addTracksToMap(style, tracks) { layerId, sourceId ->
             addedLayerIds += layerId
             addedSourceIds += sourceId
+        }
+
+        val photoLayerId = addPhotosToMap(style, photos) { layerId, sourceId ->
+            addedLayerIds += layerId
+            addedSourceIds += sourceId
+        }
+
+        // Tap → resolve the tapped photo feature back to its MapPhoto. The
+        // previous listener is removed first: this effect re-runs on every
+        // photos/points change and MapLibre listeners accumulate otherwise.
+        if (onPhotoTap != null && photos.isNotEmpty()) {
+            val callback = onPhotoTap
+            photoClickListener?.let { map.removeOnMapClickListener(it) }
+            val listener = MapLibreMap.OnMapClickListener { latLng ->
+                val screenPoint = map.projection.toScreenLocation(latLng)
+                val tapped = map.queryRenderedFeatures(screenPoint, photoLayerId)
+                    .firstOrNull()
+                    ?.getProperty("assetId")
+                    ?.toString()
+                    ?: return@OnMapClickListener false
+                val photo = photos.firstOrNull { it.id == tapped } ?: return@OnMapClickListener false
+                callback(photo)
+                true
+            }
+            map.addOnMapClickListener(listener)
+            photoClickListener = listener
         }
 
         // If no explicit center was supplied, frame all the geometry.
@@ -311,6 +352,46 @@ private fun addPointsToMap(
         )
         register(id, sourceId)
     }
+}
+
+/**
+ * Adds the Immich photo layer: one purple circle per photo, each carrying its
+ * asset id as an `assetId` feature property for tap resolution (#13).
+ */
+private fun addPhotosToMap(
+    style: Style,
+    photos: List<MapPhoto>,
+    register: (layerId: String, sourceId: String) -> Unit,
+): String? {
+    if (photos.isEmpty()) return null
+    val layerId = "wayli-immich-photos-${nextId()}"
+    val sourceId = "$layerId-src"
+    val features = photos.map { photo ->
+        buildJsonObject {
+            put("type", "Feature")
+            putJsonObject("geometry") {
+                put("type", "Point")
+                putJsonArray("coordinates") {
+                    add(photo.lng)
+                    add(photo.lat)
+                }
+            }
+            putJsonObject("properties") {
+                put("assetId", photo.id)
+            }
+        }
+    }
+    style.addSource(GeoJsonSource(sourceId, featureCollection(features)))
+    style.addLayer(
+        CircleLayer(layerId, sourceId).withProperties(
+            PropertyFactory.circleRadius(6f),
+            PropertyFactory.circleColor("#a855f7"),
+            PropertyFactory.circleStrokeWidth(2f),
+            PropertyFactory.circleStrokeColor("#ffffff"),
+        ),
+    )
+    register(layerId, sourceId)
+    return layerId
 }
 
 private fun addTracksToMap(

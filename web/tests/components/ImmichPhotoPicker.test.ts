@@ -75,8 +75,11 @@ describe('ImmichPhotoPicker', () => {
 			props: { open: true, tripId: 'trip-1', entryId: 'entry-1', initialDate: '2026-09-05' }
 		});
 		// The picker live-queries first; loadPhotosForRange is the cache fallback.
+		// The 300ms minimum loader display means the grid appears after it.
 		await waitFor(() => expect(searchPhotosLive).toHaveBeenCalled());
-		expect(screen.getByRole('checkbox')).toBeInTheDocument();
+		await waitFor(() => expect(screen.getByRole('checkbox')).toBeInTheDocument(), {
+			timeout: 3000
+		});
 	});
 
 	it('attaches selected photos on Add and dispatches added', async () => {

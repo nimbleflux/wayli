@@ -5,6 +5,7 @@
 	// Queries the user's Immich library LIVE via the immich-search function
 	// (server-side API key) — always fresh, no sync prerequisite. Falls back
 	// to the local immich_assets cache when Immich is unreachable.
+	import { onMount } from 'svelte';
 	import { t } from '$lib/i18n';
 	import { X, Loader2, Check } from 'lucide-svelte';
 	import { fluxbase } from '$lib/fluxbase';
@@ -42,29 +43,47 @@
 	/** True when the live query failed and the cache was used (or empty). */
 	let usingCache = $state(false);
 
-	$effect(() => {
-		if (open) {
-			void (async () => {
-				try {
-					const { data } = await fluxbase.auth.getUser();
-					userId = data?.user?.id ?? '';
-				} catch {
-					userId = '';
-				}
-			})();
-			void load();
-		}
+	// The component is always mounted with open=true (it's inside {#if} in the
+	// parent), so onMount is the reliable entry point. A $effect keyed on
+	// `open` was unreliable here — in production it didn't reliably trigger
+	// the initial load.
+	onMount(() => {
+		if (!open) return;
+		console.log('[immich-picker] mounted, initialDate:', JSON.stringify(initialDate));
+		void (async () => {
+			try {
+				const { data } = await fluxbase.auth.getUser();
+				userId = data?.user?.id ?? '';
+			} catch {
+				userId = '';
+			}
+		})();
+		void load();
 	});
 
 	async function load() {
+		console.log(
+			'[immich-picker] load() called, rangeDays:',
+			rangeDays,
+			'initialDate:',
+			JSON.stringify(initialDate)
+		);
 		loading = true;
 		resultMessage = '';
 		selected = new Set();
 		usingCache = false;
 		try {
 			// Guard: a missing or malformed initialDate must not crash the modal.
-			const base = new Date(`${initialDate}T00:00:00.000Z`);
-			if (Number.isNaN(base.getTime())) {
+			// Normalize: strip anything after the first 10 chars (YYYY-MM-DD).
+			const day = (initialDate ?? '').toString().slice(0, 10);
+			const base = new Date(`${day}T00:00:00.000Z`);
+			console.log(
+				'[immich-picker] date parse:',
+				day,
+				'→',
+				!Number.isNaN(base.getTime()) ? base.toISOString() : 'INVALID'
+			);
+			if (!day || Number.isNaN(base.getTime())) {
 				photos = [];
 				return;
 			}
@@ -76,7 +95,9 @@
 			const endIso = end.toISOString();
 
 			// Live query first — always fresh, no sync needed.
+			console.log('[immich-picker] calling searchPhotosLive');
 			const live = await searchPhotosLive(startIso, endIso);
+			console.log('[immich-picker] searchPhotosLive returned:', live.length, 'photos');
 			if (live.length > 0) {
 				photos = live;
 				return;
@@ -85,6 +106,7 @@
 			// unreachable/disabled. Fall back to the local cache — if the
 			// cache has rows for this range, show them.
 			const cached = await loadPhotosForRange(startIso, endIso);
+			console.log('[immich-picker] cache fallback:', cached.length, 'photos');
 			if (cached.length > 0) {
 				photos = cached;
 				usingCache = true;
@@ -94,6 +116,10 @@
 		} catch {
 			photos = [];
 		} finally {
+			// Minimum 300ms display so the spinner is actually visible even
+			// for instant (cached/guard) responses — without this the loading
+			// state toggles true→false in one batch and never renders.
+			await new Promise((r) => setTimeout(r, 300));
 			loading = false;
 		}
 	}

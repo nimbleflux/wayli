@@ -868,7 +868,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [get-version, release]
-    if: inputs.dry_run == false && inputs.publish_helm
+    # RCs skip chart publishing entirely — no chart bump commits, no OCI push,
+    # no gh-pages update. Charts only track stable releases.
+    if: inputs.dry_run == false && inputs.publish_helm && needs.get-version.outputs.is_rc != 'true'
     # Pushes chart commits/tags, updates gh-pages, and pushes the OCI chart.
     permissions:
       contents: write

@@ -18,7 +18,7 @@ import {
 	takenAfterFor,
 	toAssetRows
 } from './external/immich-sync-core.ts';
-import { getAdminSetting } from './immich-settings.ts';
+import { getAdminSetting } from '../immich-settings.ts';
 
 const IMMICH_API_KEY = 'immich_api_key';
 
@@ -73,7 +73,12 @@ export async function syncUserImmich(
 		return { success: true, synced: 0, skipped: 'immich not enabled for this user' };
 	}
 
-	const adminSetting = await getAdminSetting<boolean>(serviceDb, 'wayli.immich_enabled');
+	// FluxbaseClient's TS interface doesn't declare .schema() but the runtime
+	// client has it — getAdminSetting's narrow structural type needs the cast.
+	const adminSetting = await getAdminSetting<boolean>(
+		serviceDb as unknown as Parameters<typeof getAdminSetting>[0],
+		'wayli.immich_enabled'
+	);
 	if (adminSetting.error) {
 		console.error('immich-sync: admin settings read failed:', adminSetting.error);
 		return { success: true, synced: 0, skipped: 'admin settings unreadable' };
@@ -96,7 +101,10 @@ export async function syncUserImmich(
 		return { success: true, synced: 0, skipped: 'no Immich API key configured' };
 	}
 
-	const endpointSetting = await getAdminSetting<string>(serviceDb, 'wayli.immich_endpoint');
+	const endpointSetting = await getAdminSetting<string>(
+		serviceDb as unknown as Parameters<typeof getAdminSetting>[0],
+		'wayli.immich_endpoint'
+	);
 	const base = resolveImmichBase(
 		typeof immichPrefs.server_url === 'string' ? immichPrefs.server_url : undefined,
 		endpointSetting.value

@@ -8,6 +8,9 @@
 
 export type ImmichErrorKind = 'auth' | 'permission' | 'network' | 'other' | 'disabled';
 
+/** Thumbnail size variants the immich-thumb proxy accepts. */
+export type ThumbSize = 'thumbnail' | 'preview';
+
 export interface AdminSettingResult<T> {
 	value: T | null;
 	error: string | null;

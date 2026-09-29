@@ -69,7 +69,13 @@ async function immichFetch(
 			signal: AbortSignal.timeout(TIMEOUT_MS)
 		})) as Response;
 		if (!response.ok) {
-			return { ok: false, error: statusMessage(response.status), errorKind: classify(response.status) };
+			let detail = '';
+			try {
+				const text = await response.text();
+				detail = text.replace(/sk-[a-zA-Z0-9]+/g, 'sk-***').slice(0, 200);
+			} catch { /* body unreadable */ }
+			const msg = statusMessage(response.status) + (detail ? ` Immich said: ${detail}` : '');
+			return { ok: false, error: msg, errorKind: classify(response.status) };
 		}
 		return { ok: true, response };
 	} catch (error) {
@@ -92,7 +98,8 @@ export async function fetchGeotaggedAssets(
 	const assets: ImmichAsset[] = [];
 	let page = 1;
 	for (let guard = 0; guard < 1000; guard++) {
-		const body: Record<string, unknown> = { withExif: true, size: opts.pageSize ?? 1000, page };
+		// 250 = Immich's default max page size (larger values 400 on some versions)
+		const body: Record<string, unknown> = { withExif: true, size: opts.pageSize ?? 250, page };
 		if (opts.takenAfter) body.takenAfter = opts.takenAfter;
 
 		const res = await immichFetch(base, '/api/search/metadata', apiKey, {

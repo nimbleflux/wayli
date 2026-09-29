@@ -1,8 +1,8 @@
 /**
  * Scheduled Immich photo metadata sync for all users with the integration
- * enabled. Each enabled user gets a per-user `immich_sync` job submitted
- * onBehalfOf so it runs with their own identity (secrets decryption + RLS).
- * Runs after the 05:00 daily-activity job.
+ * enabled. Calls the shared syncUserImmich() directly with each enabled
+ * user's id — no per-user job submission (the Deno job runtime has no
+ * auth.admin for the onBehalfOf email lookup; that path crashed production).
  *
  * @fluxbase:require-role admin, service_role
  * @fluxbase:timeout 3600
@@ -13,6 +13,7 @@
  */
 
 import type { FluxbaseClient, JobUtils } from './types';
+import { syncUserImmich } from '_shared/services/immich-sync-user.ts';
 
 const USERS_RANGE = 500;
 
@@ -47,10 +48,10 @@ export async function handler(
 	}
 
 	console.log(`👥 ${userIds.length} user(s) with Immich enabled`);
-	job.reportProgress(5, `Submitting ${userIds.length} sync(s)...`);
+	job.reportProgress(5, `Syncing ${userIds.length} user(s)...`);
 
-	let submitted = 0;
-	let failed = 0;
+	let syncedTotal = 0;
+	let permissionErrors = 0;
 	for (let i = 0; i < userIds.length; i++) {
 		if (await job.isCancelled()) {
 			console.log('🛑 Cancelled');
@@ -58,41 +59,24 @@ export async function handler(
 		}
 		const userId = userIds[i];
 		try {
-			// onBehalfOf needs the email; auth.admin works from service_role.
-			const { data: userData, error: userError } = await fluxbaseService.auth.admin
-				.getUserById(userId)
-				.catch(() => ({ data: null, error: { message: 'getUserById failed' } }));
-			const email = userData?.user?.email ?? '';
-			if (userError || !email) {
-				console.error(`❌ [${userId}] could not resolve email — skipping`);
-				failed++;
-				continue;
-			}
-
-			const { error } = await fluxbaseService.jobs.submit(
-				'immich_sync',
+			const result = (await syncUserImmich(
+				fluxbaseService, // service client writes on the user's behalf
+				fluxbaseService,
+				userId,
 				{},
-				{
-					namespace: 'wayli',
-					onBehalfOf: { user_id: userId, user_email: email, user_role: 'authenticated' }
-				}
-			);
-			if (error) {
-				console.error(`❌ [${userId}] submit failed:`, error.message);
-				failed++;
-			} else {
-				submitted++;
-			}
+				(pct, msg) => job.reportProgress(pct, `${userId.slice(0, 8)}: ${msg}`)
+			)) as { synced?: number; permissionError?: boolean };
+			syncedTotal += result.synced ?? 0;
+			if (result.permissionError) permissionErrors++;
 		} catch (err) {
-			console.error(`❌ [${userId}] submit threw:`, err instanceof Error ? err.message : err);
-			failed++;
+			console.error(`❌ [${userId}] sync threw:`, err instanceof Error ? err.message : err);
 		}
 		job.reportProgress(
 			Math.round(((i + 1) / Math.max(1, userIds.length)) * 100),
-			`Submitted ${i + 1}/${userIds.length}`
+			`Synced ${i + 1}/${userIds.length}`
 		);
 	}
 
-	console.log(`✅ Immich sync submissions: ${submitted} ok, ${failed} failed`);
-	return { success: failed === 0, submitted, failed, users: userIds.length };
+	console.log(`✅ Immich sync complete: ${syncedTotal} photos (${permissionErrors} permission errors)`);
+	return { success: true, users: userIds.length, photos: syncedTotal, permissionErrors };
 }

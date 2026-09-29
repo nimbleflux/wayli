@@ -30,6 +30,42 @@ export async function loadPhotosForRange(
 	return (data ?? []) as ImmichAssetRow[];
 }
 
+/**
+ * LIVE query against the user's Immich library via the immich-search
+ * function (server-side API key — never client-side). Returns the same row
+ * shape as immich_assets so consumers are format-agnostic. Empty array on
+ * any failure — callers fall back to the local table.
+ */
+export async function searchPhotosLive(
+	startISO: string,
+	endISO: string
+): Promise<ImmichAssetRow[]> {
+	try {
+		const { data: sessionData } = await fluxbase.auth.getSession();
+		const token = sessionData?.session?.access_token;
+		if (!token) return [];
+
+		const response = await fetch(
+			`${functionBaseUrl()}/functions/immich-search?date=${startISO.slice(0, 10)}&rangeDays=0`,
+			{
+				method: 'POST',
+				headers: {
+					Authorization: `Bearer ${token}`,
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ takenAfter: startISO, takenBefore: endISO })
+			}
+		);
+		if (!response.ok) return [];
+
+		const result = await response.json();
+		if (!result?.ok || !Array.isArray(result.assets)) return [];
+		return result.assets as ImmichAssetRow[];
+	} catch {
+		return [];
+	}
+}
+
 // object-URL cache: assetId → URL. one fetch per asset per session.
 const thumbCache = new Map<string, string>();
 

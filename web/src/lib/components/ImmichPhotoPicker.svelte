@@ -1,10 +1,19 @@
 <script lang="ts">
-	// Immich photo picker: browse synced geotagged photos around a date,
-	// multi-select, and attach copies to a journal entry / trip (#13).
+	// Immich photo picker: browse geotagged photos around a date, multi-select,
+	// and attach copies to a journal entry / trip (#13).
+	//
+	// Queries the user's Immich library LIVE via the immich-search function
+	// (server-side API key) — always fresh, no sync prerequisite. Falls back
+	// to the local immich_assets cache when Immich is unreachable.
 	import { t } from '$lib/i18n';
 	import { X, Loader2, Check } from 'lucide-svelte';
 	import { fluxbase } from '$lib/fluxbase';
-	import { loadPhotosForRange, getThumbUrl, type ThumbRow } from '$lib/services/immich.service';
+	import {
+		searchPhotosLive,
+		loadPhotosForRange,
+		getThumbUrl,
+		type ThumbRow
+	} from '$lib/services/immich.service';
 	import { attachPhotosToEntry } from '$lib/services/immich-attach.service';
 
 	let {
@@ -30,6 +39,8 @@
 	let rangeDays = $state(3);
 	let resultMessage = $state('');
 	let userId = $state('');
+	/** True when the live query failed and the cache was used (or empty). */
+	let usingCache = $state(false);
 
 	$effect(() => {
 		if (open) {
@@ -49,6 +60,7 @@
 		loading = true;
 		resultMessage = '';
 		selected = new Set();
+		usingCache = false;
 		try {
 			// Guard: a missing or malformed initialDate must not crash the modal.
 			const base = new Date(`${initialDate}T00:00:00.000Z`);
@@ -60,7 +72,25 @@
 			start.setUTCDate(start.getUTCDate() - rangeDays);
 			const end = new Date(base);
 			end.setUTCDate(end.getUTCDate() + rangeDays + 1);
-			photos = await loadPhotosForRange(start.toISOString(), end.toISOString());
+			const startIso = start.toISOString();
+			const endIso = end.toISOString();
+
+			// Live query first — always fresh, no sync needed.
+			const live = await searchPhotosLive(startIso, endIso);
+			if (live.length > 0) {
+				photos = live;
+				return;
+			}
+			// Live returned nothing: could be genuinely empty OR Immich
+			// unreachable/disabled. Fall back to the local cache — if the
+			// cache has rows for this range, show them.
+			const cached = await loadPhotosForRange(startIso, endIso);
+			if (cached.length > 0) {
+				photos = cached;
+				usingCache = true;
+				return;
+			}
+			photos = [];
 		} catch {
 			photos = [];
 		} finally {
@@ -195,6 +225,14 @@
 				</div>
 
 				<div class="mt-4 flex items-center justify-end gap-2">
+					{#if usingCache}
+						<span
+							class="text-muted-foreground text-xs"
+							title={t('connections.immich.pickerCacheHint')}
+						>
+							{t('connections.immich.pickerCached')}
+						</span>
+					{/if}
 					<span class="text-muted-foreground text-sm">
 						{selected.size}
 						{t('connections.immich.pickerSelected')}

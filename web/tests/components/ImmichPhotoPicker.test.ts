@@ -20,6 +20,7 @@ vi.mock('$lib/fluxbase', () => ({
 
 vi.mock('$lib/services/immich.service', () => ({
 	loadPhotosForRange: vi.fn(() => Promise.resolve(photosInRange[photosInRange.length - 1] ?? [])),
+	searchPhotosLive: vi.fn(() => Promise.resolve(photosInRange[photosInRange.length - 1] ?? [])),
 	getThumbUrl: vi.fn(() => Promise.resolve('blob:mock-thumb'))
 }));
 
@@ -41,7 +42,7 @@ vi.mock('$lib/i18n', () => ({
 }));
 
 import ImmichPhotoPicker from '$lib/components/ImmichPhotoPicker.svelte';
-import { loadPhotosForRange } from '$lib/services/immich.service';
+import { searchPhotosLive } from '$lib/services/immich.service';
 import { attachPhotosToEntry } from '$lib/services/immich-attach.service';
 
 const PHOTO = {
@@ -73,7 +74,8 @@ describe('ImmichPhotoPicker', () => {
 		render(ImmichPhotoPicker, {
 			props: { open: true, tripId: 'trip-1', entryId: 'entry-1', initialDate: '2026-09-05' }
 		});
-		await waitFor(() => expect(loadPhotosForRange).toHaveBeenCalled());
+		// The picker live-queries first; loadPhotosForRange is the cache fallback.
+		await waitFor(() => expect(searchPhotosLive).toHaveBeenCalled());
 		expect(screen.getByRole('checkbox')).toBeInTheDocument();
 	});
 
@@ -111,7 +113,12 @@ describe('ImmichPhotoPicker', () => {
 		render(ImmichPhotoPicker, {
 			props: { open: true, tripId: 'trip-1', entryId: 'entry-1', initialDate: '2026-09-05' }
 		});
-		await waitFor(() => expect(loadPhotosForRange).toHaveBeenCalled());
-		expect(screen.getByText('connections.immich.pickerEmpty')).toBeInTheDocument();
+		// Live returns empty → cache fallback also runs → both settle before
+		// the empty state renders (loading must finish first).
+		await waitFor(() => expect(searchPhotosLive).toHaveBeenCalled());
+		await waitFor(
+			() => expect(screen.getByText('connections.immich.pickerEmpty')).toBeInTheDocument(),
+			{ timeout: 3000 }
+		);
 	});
 });

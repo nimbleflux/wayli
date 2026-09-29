@@ -618,7 +618,9 @@
       "pickerSelected": "selected",
       "pickerAdd": "Add {count} photos",
       "pickerAddedCount": "Added {count} photo(s) to the entry ({failed} failed).",
-      "days": "days"
+      "days": "days",
+      "pickerCached": "Cached — Immich unreachable",
+      "pickerCacheHint": "Showing locally cached photos because your Immich server could not be reached."
     },
     "apiKeyCopied": "{field} copied to clipboard",
     "failedToCopy": "Failed to copy to clipboard",

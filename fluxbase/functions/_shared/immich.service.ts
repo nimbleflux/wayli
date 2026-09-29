@@ -113,15 +113,27 @@ export async function fetchGeotaggedAssets(
 	const assets: ImmichAsset[] = [];
 	let page = 1;
 	for (let guard = 0; guard < 1000; guard++) {
-		// 250 = Immich's default max page size (larger values 400 on some versions)
-		const body: Record<string, unknown> = { withExif: true, size: opts.pageSize ?? 250, page };
+		// Pagination as URL query params — Immich's Zod validation parses
+		// these correctly regardless of how the runtime re-encodes POST
+		// bodies (sending page in the body produced "expected number,
+		// received string" on some Fluxbase runtime versions).
+		const params = new URLSearchParams({
+			page: String(page),
+			size: String(opts.pageSize ?? 250)
+		});
+		const body: Record<string, unknown> = { withExif: true };
 		if (opts.takenAfter) body.takenAfter = opts.takenAfter;
 
-		const res = await immichFetch(base, '/api/search/metadata', apiKey, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(body)
-		});
+		const res = await immichFetch(
+			base,
+			`/api/search/metadata?${params.toString()}`,
+			apiKey,
+			{
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(body)
+			}
+		);
 		if (!res.ok) return { ok: false, assets, error: res.error, errorKind: res.errorKind };
 
 		let payload: any;
@@ -149,7 +161,7 @@ export async function fetchGeotaggedAssets(
 		}
 		const nextPage = payload?.assets?.nextPage;
 		if (!nextPage) break;
-		page = nextPage;
+		page = Number(nextPage) || page + 1;
 	}
 	return { ok: true, assets };
 }

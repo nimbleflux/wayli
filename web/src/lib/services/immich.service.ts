@@ -35,32 +35,31 @@ export async function loadPhotosForRange(
  * function (server-side API key — never client-side). Returns the same row
  * shape as immich_assets so consumers are format-agnostic. Empty array on
  * any failure — callers fall back to the local table.
+ *
+ * Uses fluxbase.functions.invoke (same as snap-track etc.) — the SDK handles
+ * auth, URL construction, and the namespace. Raw fetch with a manually
+ * built URL silently no-ops in production (env vars not set, no session
+ * extraction).
  */
 export async function searchPhotosLive(
 	startISO: string,
 	endISO: string
 ): Promise<ImmichAssetRow[]> {
 	try {
-		const { data: sessionData } = await fluxbase.auth.getSession();
-		const token = sessionData?.session?.access_token;
-		if (!token) return [];
+		const { data, error } = await fluxbase.functions.invoke('immich-search', {
+			method: 'POST',
+			body: { takenAfter: startISO, takenBefore: endISO },
+			namespace: 'wayli'
+		});
+		if (error) return [];
 
-		const response = await fetch(
-			`${functionBaseUrl()}/functions/immich-search?date=${startISO.slice(0, 10)}&rangeDays=0`,
-			{
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${token}`,
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({ takenAfter: startISO, takenBefore: endISO })
-			}
-		);
-		if (!response.ok) return [];
-
-		const result = await response.json();
+		// Functions may wrap the payload ({ success, data }) — unwrap defensively.
+		const result = ((data as any)?.data ?? data) as {
+			ok: boolean;
+			assets?: ImmichAssetRow[];
+		} | null;
 		if (!result?.ok || !Array.isArray(result.assets)) return [];
-		return result.assets as ImmichAssetRow[];
+		return result.assets;
 	} catch {
 		return [];
 	}

@@ -179,10 +179,10 @@
 					onchange={load}
 					class="border-border dark:bg-muted/20 rounded-md border px-2 py-1 text-sm"
 				>
+					<option value={1}>±1 {t('connections.immich.days')}</option>
 					<option value={3}>±3 {t('connections.immich.days')}</option>
 					<option value={7}>±7 {t('connections.immich.days')}</option>
-					<option value={30}>±30 {t('connections.immich.days')}</option>
-					<option value={365}>±365 {t('connections.immich.days')}</option>
+					<option value={14}>±14 {t('connections.immich.days')}</option>
 				</select>
 			</div>
 

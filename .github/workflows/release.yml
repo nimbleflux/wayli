@@ -531,7 +531,9 @@ jobs:
           echo "Updated package.json to version ${{ env.VERSION }}"
 
       - name: Update deployment files with new version
-        if: inputs.dry_run == false
+        # Skip for RCs: helm chart / docker-compose version bumps are only
+        # meaningful for stable releases users deploy from.
+        if: inputs.dry_run == false && env.IS_RC != 'true'
         run: |
           # Update Helm Chart.yaml with new appVersion
           sed -i "s/^appVersion: .*/appVersion: \"v${{ env.VERSION }}\"/" charts/wayli/Chart.yaml
@@ -551,7 +553,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add web/package.json web/bun.lock charts/wayli/Chart.yaml charts/wayli/values.yaml deploy/docker-compose/.env.example
+          git add web/package.json web/bun.lock charts/wayli/Chart.yaml charts/wayli/values.yaml deploy/docker-compose/.env.example || true
 
           # Always create a release commit, even when the version files are
           # already at the target version. GITHUB_TOKEN is an App token and may

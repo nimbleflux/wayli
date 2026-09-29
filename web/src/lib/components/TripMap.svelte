@@ -35,6 +35,25 @@
 
 	let destroyed = false;
 
+	/**
+	 * Wait for the container to have non-zero dimensions (max ~500ms).
+	 * Maps mounted inside `lg:hidden` wrappers (the mobile map on the Travel
+	 * page) or mid-transition sections are attached to the DOM but not laid
+	 * out — Leaflet initialized on a 0×0 container produces a NaN center, and
+	 * the MapLibre GL basemap then throws "Invalid LatLng (NaN, NaN)".
+	 * After the timeout we proceed anyway: the map-theme zero-size guard
+	 * skips the GL layer and the ResizeObserver retries once it becomes
+	 * visible (e.g. viewport resized to mobile).
+	 */
+	async function waitForLayout(el: HTMLElement): Promise<void> {
+		const deadline = Date.now() + 500;
+		while (Date.now() < deadline) {
+			const rect = el.getBoundingClientRect();
+			if (rect.width > 0 && rect.height > 0) return;
+			await new Promise((r) => requestAnimationFrame(r));
+		}
+	}
+
 	onMount(async () => {
 		L = await import('leaflet');
 
@@ -42,8 +61,13 @@
 		// (async import yields to the microtask queue, allowing unmounts).
 		if (!mapContainer || !mapContainer.isConnected) return;
 
+		// Wait for layout: a zero-size container poisons the map with NaN.
+		await waitForLayout(mapContainer);
+		if (destroyed || !mapContainer.isConnected) return;
+
 		const mapInstance = L.map(mapContainer, { scrollWheelZoom: true });
 		map = mapInstance;
+		mapInstance.invalidateSize();
 		// ponytail: theme-aware basemap — rebuilds on dark/light toggle
 		cleanupThemeWatcher = watchMapTheme(mapInstance, createBasemapLayer);
 

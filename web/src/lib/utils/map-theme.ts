@@ -99,6 +99,7 @@ export function watchMapTheme(
 	// unguarded parentNode loops → "can't access property parentNode".
 	let invalidateTimer: ReturnType<typeof setTimeout> | null = null;
 	let disposed = false;
+	let sizeObserver: ResizeObserver | null = null;
 
 	const apply = () => {
 		// Guard: a theme-mutation (e.g. a Svelte transition toggling classes on
@@ -119,11 +120,21 @@ export function watchMapTheme(
 			.then(() => buildLayer(theme))
 			.then((next) => {
 				if (disposed || token !== loadToken || !map || (map as any)._loaded === false) return;
+				// Guard: a map initialized on a zero-size container has a NaN
+				// center — the GL layer would throw "Invalid LatLng (NaN, NaN)"
+				// (the production Travel-page crash). Skip; the size watcher
+				// below retries once the container has real dimensions.
+				const size = map.getSize();
+				if (size.x === 0 || size.y === 0) return;
 				const previous = currentLayer;
 				currentLayer = next;
 				currentTheme = theme;
 				next.addTo(map);
-				previous?.remove();
+				try {
+					previous?.remove();
+				} catch {
+					// previous layer may be partially initialized
+				}
 				// Invalidate size after swap so Leaflet recalculates the visible
 				// tile range. Without this, layers sometimes don't render on maps
 				// inside {#key} blocks or collapsed sections.
@@ -148,11 +159,23 @@ export function watchMapTheme(
 		attributeFilter: ['class']
 	});
 
+	// Retry when the map container gains real dimensions: a basemap add that
+	// was skipped (zero-size guard above) needs to run once layout settles —
+	// e.g. a trip card expanding on the Travel page.
+	const container = map.getContainer();
+	if (typeof ResizeObserver !== 'undefined' && container) {
+		sizeObserver = new ResizeObserver(() => {
+			if (disposed || !currentLayer) apply();
+		});
+		sizeObserver.observe(container);
+	}
+
 	return () => {
 		disposed = true;
 		// Drop any in-flight layer load as well.
 		loadToken++;
 		observer.disconnect();
+		sizeObserver?.disconnect();
 		if (invalidateTimer) {
 			clearTimeout(invalidateTimer);
 			invalidateTimer = null;

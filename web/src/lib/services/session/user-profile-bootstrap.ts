@@ -63,9 +63,12 @@ export async function ensureUserProfile(
 			return null;
 		}
 
-		// The RPC returns a single jsonb object (some client versions wrap
-		// scalar/single-row results in an array — normalize both).
-		const profile = (Array.isArray(data) ? data[0] : data) as Record<string, any> | null;
+		// The RPC wraps its result: SELECT ... AS profile → {"profile": {...}}
+		// Some SDK versions also wrap in an array. Normalize both, then unwrap
+		// the "profile" key if present.
+		const raw = (Array.isArray(data) ? data[0] : data) as Record<string, any> | null;
+		if (!raw) return null;
+		const profile = (raw.profile ?? raw) as Record<string, any>;
 		if (!profile) return null;
 		return profile.id ? profile : { ...profile, id: userId };
 	} catch (err) {

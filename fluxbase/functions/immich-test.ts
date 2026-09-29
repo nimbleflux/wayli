@@ -15,21 +15,13 @@ import type { FluxbaseClient } from '../jobs/types';
 import { resolveImmichBase, testConnection } from './_shared/immich.service.ts';
 import { getAdminSetting } from './_shared/immich.ts';
 
-interface FluxbaseRequest {
-	method: string;
-	url: string;
-	headers: Record<string, string>;
-	body: string;
-	params: Record<string, string>;
-}
-
 const IMMICH_API_KEY = 'immich_api_key';
 
 const PERMISSION_HINT =
 	'Re-check the API key permissions in Immich: it needs user.read, asset.read and asset.view.';
 
 export async function handler(
-	req: FluxbaseRequest,
+	req: Request,
 	fluxbase: FluxbaseClient,
 	fluxbaseService: FluxbaseClient
 ): Promise<Response> {
@@ -57,7 +49,8 @@ export async function handler(
 
 	let serverUrl: string | undefined;
 	try {
-		({ serverUrl } = JSON.parse(req.body || '{}'));
+		const body = (await req.json().catch(() => null)) as { serverUrl?: string } | null;
+		if (body && typeof body.serverUrl === 'string') serverUrl = body.serverUrl;
 	} catch {
 		serverUrl = undefined;
 	}

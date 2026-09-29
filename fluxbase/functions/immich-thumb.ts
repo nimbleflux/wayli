@@ -19,18 +19,10 @@ import {
 } from './_shared/immich.ts';
 import { fetchThumbnail, resolveImmichBase } from './_shared/immich.service.ts';
 
-interface FluxbaseRequest {
-	method: string;
-	url: string;
-	headers: Record<string, string>;
-	body: string;
-	params: Record<string, string>;
-}
-
 const IMMICH_API_KEY = 'immich_api_key';
 
 export async function handler(
-	req: FluxbaseRequest,
+	req: Request,
 	fluxbase: FluxbaseClient,
 	fluxbaseService: FluxbaseClient
 ): Promise<Response> {
@@ -47,11 +39,12 @@ export async function handler(
 		return Response.json({ error: 'Not authenticated' }, { status: 401 });
 	}
 
-	const assetId = req.params?.assetId;
+	const url = new URL(req.url);
+	const assetId = url.searchParams.get('assetId');
 	if (!assetId) {
 		return Response.json({ error: 'assetId is required' }, { status: 400 });
 	}
-	const size = thumbSize(req.params?.size);
+	const size = thumbSize(url.searchParams.get('size'));
 
 	// Authorization inputs (service DB: admin toggle + user prefs + ownership).
 	const adminSetting = await getAdminSetting<boolean>(fluxbaseService, 'wayli.immich_enabled');

@@ -18,18 +18,10 @@ import type { FluxbaseClient } from '../jobs/types';
 import { fetchGeotaggedAssets, resolveImmichBase } from './_shared/immich.service.ts';
 import { getAdminSetting } from './_shared/immich.ts';
 
-interface FluxbaseRequest {
-  method: string;
-  url: string;
-  headers: Record<string, string>;
-  body: string;
-  params: Record<string, string>;
-}
-
 const IMMICH_API_KEY = 'immich_api_key';
 
 export async function handler(
-  req: FluxbaseRequest,
+  req: Request,
   fluxbase: FluxbaseClient,
   fluxbaseService: FluxbaseClient
 ): Promise<Response> {
@@ -56,21 +48,32 @@ export async function handler(
     );
   }
 
-  // Resolve the date range: either explicit ISO bounds (POST) or date ± rangeDays (GET).
+  // Resolve the date range: either explicit ISO bounds (POST body) or
+  // date ± rangeDays (GET query params). The function receives a standard
+  // Web Request — use req.json() / URLSearchParams, NOT JSON.parse(req.body)
+  // (req.body is a ReadableStream on the native Request, so string parsing
+  // silently fails and the date params are never extracted → the 400 the
+  // production logs showed).
   let takenAfter: string | undefined;
   let takenBefore: string | undefined;
   if (req.method === 'POST') {
     try {
-      const body = JSON.parse(req.body || '{}');
-      takenAfter = body.takenAfter;
-      takenBefore = body.takenBefore;
+      const body = (await req.json().catch(() => null)) as {
+        takenAfter?: string;
+        takenBefore?: string;
+      } | null;
+      if (body && typeof body.takenAfter === 'string' && typeof body.takenBefore === 'string') {
+        takenAfter = body.takenAfter;
+        takenBefore = body.takenBefore;
+      }
     } catch {
-      /* fall through to params */
+      /* fall through to query params */
     }
   }
   if (!takenAfter || !takenBefore) {
-    const date = req.params?.date;
-    const rangeDays = Math.min(Math.max(Number(req.params?.rangeDays ?? 7), 0), 365);
+    const url = new URL(req.url);
+    const date = url.searchParams.get('date') ?? '';
+    const rangeDays = Math.min(Math.max(Number(url.searchParams.get('rangeDays') ?? 7), 0), 365);
     const base = new Date(`${(date ?? '').slice(0, 10)}T00:00:00.000Z`);
     if (Number.isNaN(base.getTime())) {
       return Response.json(

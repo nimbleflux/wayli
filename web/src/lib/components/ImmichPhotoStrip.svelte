@@ -9,16 +9,35 @@
 	import { immichSettings } from '$lib/stores/immich.svelte';
 	import { getSetting, loadPublicSettings } from '$lib/stores/settings.svelte';
 
-	let { date }: { date: string } = $props();
+	let { date }: { date: string | number | Date } = $props();
 
 	let photos = $state<ThumbRow[]>([]);
 	let loaded = $state(false);
 	let preview = $state<ThumbRow | null>(null);
 	let previewUrl = $state('');
+	let displayDay = $state('');
+
+	/** Normalize any date-ish value to "YYYY-MM-DD" (same as the picker). */
+	function normalizeToDay(value: unknown): string {
+		if (value == null) return '';
+		if (value instanceof Date) {
+			return Number.isNaN(value.getTime()) ? '' : value.toISOString().slice(0, 10);
+		}
+		if (typeof value === 'number') {
+			const d = new Date(value);
+			return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+		}
+		const str = String(value);
+		if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
+		const d = new Date(str);
+		if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+		return '';
+	}
 
 	onMount(async () => {
 		// Guard: a missing or malformed date must not crash the page.
-		const day = date?.slice(0, 10) ?? '';
+		const day = normalizeToDay(date);
+		displayDay = day;
 		const start = new Date(`${day}T00:00:00.000Z`);
 		if (!day || Number.isNaN(start.getTime())) {
 			loaded = true;
@@ -58,7 +77,7 @@
 {#if loaded && photos.length > 0}
 	<div class="mb-3">
 		<p class="text-muted-foreground mb-1.5 text-xs font-medium">
-			{t('travel.immichPhotosTakenOn', { date })}
+			{t('travel.immichPhotosTakenOn', { date: displayDay })}
 		</p>
 		<div class="flex gap-2 overflow-x-auto pb-1">
 			{#each photos as photo (photo.asset_id)}

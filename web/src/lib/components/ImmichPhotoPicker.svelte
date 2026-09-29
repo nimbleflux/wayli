@@ -28,7 +28,8 @@
 		open: boolean;
 		tripId: string;
 		entryId?: string;
-		initialDate: string;
+		/** String date, Date object, or ms timestamp — normalized internally. */
+		initialDate: string | number | Date;
 		onadded?: (mediaIds: string[]) => void;
 		onclose?: () => void;
 	} = $props();
@@ -61,27 +62,44 @@
 		void load();
 	});
 
+	/**
+	 * Normalize any date-ish value to a "YYYY-MM-DD" day string. The Travel
+	 * page's DateRangePicker binds a Date object (or its ms timestamp) to
+	 * editorDate — String(date).slice(0,10) produces "1758672000" (the epoch
+	 * prefix) which parses as INVALID. Handle: string "YYYY-MM-DD", string
+	 * full ISO, number (ms epoch), Date object, null/undefined.
+	 */
+	function normalizeToDay(value: unknown): string {
+		if (value == null) return '';
+		if (value instanceof Date) {
+			return Number.isNaN(value.getTime()) ? '' : value.toISOString().slice(0, 10);
+		}
+		if (typeof value === 'number') {
+			const d = new Date(value);
+			return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+		}
+		const str = String(value);
+		// Already "YYYY-MM-DD" (or starts with it)
+		if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
+		// Full ISO timestamp string
+		const d = new Date(str);
+		if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+		return '';
+	}
+
 	async function load() {
-		console.log(
-			'[immich-picker] load() called, rangeDays:',
-			rangeDays,
-			'initialDate:',
-			JSON.stringify(initialDate)
-		);
 		loading = true;
 		resultMessage = '';
 		selected = new Set();
 		usingCache = false;
 		try {
-			// Guard: a missing or malformed initialDate must not crash the modal.
-			// Normalize: strip anything after the first 10 chars (YYYY-MM-DD).
-			const day = (initialDate ?? '').toString().slice(0, 10);
-			const base = new Date(`${day}T00:00:00.000Z`);
+			const day = normalizeToDay(initialDate);
+			const base = day ? new Date(`${day}T00:00:00.000Z`) : new Date(NaN);
 			console.log(
-				'[immich-picker] date parse:',
-				day,
-				'→',
-				!Number.isNaN(base.getTime()) ? base.toISOString() : 'INVALID'
+				'[immich-picker] load(): initialDate =',
+				JSON.stringify(initialDate),
+				'→ day =',
+				day
 			);
 			if (!day || Number.isNaN(base.getTime())) {
 				photos = [];

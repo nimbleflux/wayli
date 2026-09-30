@@ -41,11 +41,23 @@ export async function handler(
 	}
 
 	const url = new URL(req.url);
-	const assetId = url.searchParams.get('assetId');
+	// Params via POST body (the SDK's functions.invoke can't attach query
+	// params) or query string (direct GET) — whichever is present.
+	let assetId = url.searchParams.get('assetId');
+	let size = thumbSize(url.searchParams.get('size'));
+	if (!assetId && req.method === 'POST') {
+		const body = (await req.json().catch(() => null)) as {
+			assetId?: string;
+			size?: string;
+		} | null;
+		if (body && typeof body.assetId === 'string') {
+			assetId = body.assetId;
+			size = thumbSize(body.size ?? undefined);
+		}
+	}
 	if (!assetId) {
 		return Response.json({ error: 'assetId is required' }, { status: 400 });
 	}
-	const size = thumbSize(url.searchParams.get('size'));
 
 	// Authorization inputs (service DB: admin toggle + user prefs + ownership).
 	const adminSetting = await getAdminSetting<boolean>(fluxbaseService, 'wayli.immich_enabled');

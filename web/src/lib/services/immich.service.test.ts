@@ -12,6 +12,7 @@ const selectChain = {
 vi.mock('$lib/fluxbase', () => ({
 	fluxbase: {
 		from: vi.fn(() => selectChain),
+		functions: { invoke: (...args: unknown[]) => invokeMock(...(args as [string, object?])) },
 		auth: {
 			getSession: vi.fn(() =>
 				Promise.resolve({ data: { session: { access_token: 'test-token' } } })
@@ -20,34 +21,30 @@ vi.mock('$lib/fluxbase', () => ({
 	}
 }));
 
+// Thumbnails go through fluxbase.functions.invoke('immich-thumb') so the
+// SDK builds the URL against the Fluxbase host (never a same-origin URL).
 let bytesByAsset: Record<string, Uint8Array> = {};
 const contentTypeByAsset: Record<string, string> = {};
-vi.stubGlobal(
-	'fetch',
-	vi.fn((url: string) => {
-		const u = String(url);
-		const match = u.match(/assetId=([^&]+)/);
-		const assetId = match?.[1] ?? '';
+const invokeMock = vi.fn(
+	(name: string, options?: { body?: { assetId?: string; size?: string }; namespace?: string }) => {
+		if (name !== 'immich-thumb') {
+			return Promise.resolve({ data: null, error: new Error(`unexpected fn ${name}`) });
+		}
+		if (options?.namespace !== 'wayli') {
+			return Promise.resolve({ data: null, error: new Error('namespace missing') });
+		}
+		const assetId = options?.body?.assetId ?? '';
 		const bytes = bytesByAsset[assetId];
 		if (!bytes) return Promise.reject(new Error('upstream 404'));
-		// The proxy function returns base64 JSON (the runtime bridge mangles
-		// raw binary), served from /api/v1/functions/{name}/invoke.
-		if (!u.includes('/api/v1/functions/immich-thumb/invoke')) {
-			return Promise.reject(new Error(`wrong thumb URL: ${u}`));
-		}
-		if (!u.includes('namespace=wayli')) {
-			return Promise.reject(new Error('namespace param missing'));
-		}
 		return Promise.resolve({
-			ok: true,
-			json: () =>
-				Promise.resolve({
-					ok: true,
-					contentType: contentTypeByAsset[assetId] ?? 'image/webp',
-					base64: Buffer.from(bytes).toString('base64')
-				})
+			data: {
+				ok: true,
+				contentType: contentTypeByAsset[assetId] ?? 'image/webp',
+				base64: Buffer.from(bytes).toString('base64')
+			},
+			error: null
 		});
-	})
+	}
 );
 const objectUrls: string[] = [];
 vi.stubGlobal('URL', {

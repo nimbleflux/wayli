@@ -8,7 +8,6 @@
 import { fluxbase } from '$lib/fluxbase';
 import type { ImmichAssetRow } from '$lib/types/immich.types';
 
-const THUMB_INVOKE_PATH = '/api/v1/functions/immich-thumb/invoke';
 const THUMB_NAMESPACE = 'wayli';
 
 /** Geotagged photos taken within [startISO, endISO), oldest first. */
@@ -69,46 +68,31 @@ export async function searchPhotosLive(
 // object-URL cache: assetId → URL. one fetch per asset per session.
 const thumbCache = new Map<string, string>();
 
-function functionBaseUrl(): string {
-	// Same origin as the fluxbase client; functions are invoked via the
-	// /api/v1/functions/{name}/invoke route (NOT a bare /functions/ path —
-	// Fluxbase does not serve that, it 404s).
-	const base = import.meta.env.VITE_FLUXBASE_URL ?? import.meta.env.PUBLIC_FLUXBASE_URL ?? '';
-	return String(base).replace(/\/+$/, '');
-}
-
 /**
  * Fetch a thumbnail/preview blob through the authenticated immich-thumb
  * proxy. Returns { ok: false } when the proxy fails (Immich down, asset gone,
  * not authorized) — never throws.
+ *
+ * Uses fluxbase.functions.invoke so the SDK builds the URL against the
+ * Fluxbase host (e.g. flux.int.hazen.nu) — hand-building from env vars
+ * produced same-origin URLs (the Wayli app) which never reach the function.
  */
 export async function proxyThumbBlob(
 	assetId: string,
 	size: 'thumbnail' | 'preview' = 'thumbnail'
 ): Promise<{ ok: true; blob: Blob } | { ok: false; blob: null }> {
 	try {
-		const { data } = await fluxbase.auth.getSession();
-		const token = data?.session?.access_token;
-		if (!token) return { ok: false, blob: null };
-
-		const params = new URLSearchParams({
-			assetId,
-			size,
+		const { data, error } = await fluxbase.functions.invoke('immich-thumb', {
+			method: 'POST',
+			body: { assetId, size },
 			namespace: THUMB_NAMESPACE
 		});
-		const response = await fetch(`${functionBaseUrl()}${THUMB_INVOKE_PATH}?${params}`, {
-			headers: { Authorization: `Bearer ${token}` }
-		});
-		if (!response.ok) return { ok: false, blob: null };
+		if (error) return { ok: false, blob: null };
 
-		// The immich-thumb function returns base64 JSON: the Fluxbase runtime
-		// bridge serializes function responses as text, so raw image bytes
-		// would be mangled in transit. Decode back into a Blob here.
-		const payload = (await response.json()) as {
-			ok?: boolean;
-			contentType?: string;
-			base64?: string;
-		};
+		// The function returns base64 JSON: the Fluxbase runtime bridge
+		// serializes function responses as text, so raw image bytes would be
+		// mangled in transit. Decode back into a Blob here.
+		const payload = data as { ok?: boolean; contentType?: string; base64?: string } | null;
 		if (!payload?.ok || !payload.base64) return { ok: false, blob: null };
 
 		const binary = atob(payload.base64);

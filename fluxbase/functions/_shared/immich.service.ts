@@ -1,8 +1,4 @@
 // Mirrors fluxbase/jobs/_shared/services/external/immich.service.ts.
-// The functions sync only ships top-level files under functions/_shared —
-// vendored per tree. Update both together.
-
-// Mirrors fluxbase/jobs/_shared/services/external/immich.service.ts.
 // The functions and jobs trees bundle from separate roots — cross-tree
 // imports fail at sync time, so shared Immich clients are vendored per tree.
 // Update both together.
@@ -84,8 +80,13 @@ async function immichFetch(
 			let detail = '';
 			try {
 				const text = await response.text();
-				// Strip any potential key material (paranoia)
-				detail = text.replace(/sk-[a-zA-Z0-9]+/g, 'sk-***').slice(0, 200);
+				// Redact the API key itself, then any token-shaped material —
+				// Immich error bodies can echo request details.
+				detail = text
+					.split(apiKey)
+					.join('***')
+					.replace(/sk-[a-zA-Z0-9]+/g, 'sk-***')
+					.slice(0, 200);
 			} catch {
 				/* body unreadable — status code only */
 			}
@@ -114,30 +115,23 @@ export async function fetchGeotaggedAssets(
 	let page = 1;
 	const maxPages = opts.maxPages ?? 1000;
 	for (let guard = 0; guard < maxPages; guard++) {
-		// ALL parameters as URL query params — the Fluxbase runtime re-encodes
-		// POST body values (numbers become strings, dates may be dropped),
-		// which caused Immich to ignore the date filter and return the entire
-		// library (hence the timeout). Query params go through Immich's own
-		// parser which handles type coercion correctly.
-		const params = new URLSearchParams({
-			page: String(page),
-			size: String(opts.pageSize ?? 250),
-			withExif: 'true'
-		});
-		if (opts.takenAfter) params.set('takenAfter', opts.takenAfter);
-		if (opts.takenBefore) params.set('takenBefore', opts.takenBefore);
-
-		// Immich's Zod validation requires a JSON object body even when all
-		// parameters are in the query string — an empty body produces
-		// "expected object, received undefined".
+		// Everything in the JSON body. Immich's POST /search/metadata reads
+		// the body ONLY — the controller route has no @Query decorators, so
+		// query-string pagination is silently ignored (every page comes back
+		// as page 1). page/size must be real JSON numbers: the runtime's
+		// outgoing fetch passes bodies through byte-identical (verified
+		// against Fluxbase 2026.9.10 with an echo probe), so Immich's Zod
+		// schema sees the types it expects.
 		const res = await immichFetch(
 			base,
-			`/api/search/metadata?${params.toString()}`,
+			'/api/search/metadata',
 			apiKey,
 			{
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
+					page,
+					size: opts.pageSize ?? 250,
 					withExif: true,
 					...(opts.takenAfter ? { takenAfter: opts.takenAfter } : {}),
 					...(opts.takenBefore ? { takenBefore: opts.takenBefore } : {})

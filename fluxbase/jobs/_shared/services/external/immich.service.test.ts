@@ -43,8 +43,14 @@ test('fetchGeotaggedAssets posts search/metadata with exif + takenAfter and filt
 		(url, init) => {
 			if (!url.includes('/api/search/metadata')) return null;
 			const body = JSON.parse(init.body);
+			// Immich reads the POST body ONLY (its route has no @Query params):
+			// page/size must be real numbers in the body, dates strings, and the
+			// URL must not carry query params (they are silently ignored).
+			assert.equal(body.page, 1);
+			assert.equal(body.size, 250);
 			assert.equal(body.withExif, true);
 			assert.equal(body.takenAfter, '2026-09-01T00:00:00Z');
+			assert.ok(!url.includes('?'), 'search/metadata URL must not carry query params');
 			return {
 				ok: true,
 				status: 200,
@@ -80,35 +86,38 @@ test('fetchGeotaggedAssets posts search/metadata with exif + takenAfter and filt
 	assert.ok(!fetchCalls[0].url.includes(KEY));
 });
 
-test('fetchGeotaggedAssets paginates until nextPage is absent', async () => {
-	installFetch();
-	let call = 0;
-	responders = [
-		(url, init) => {
-			if (!url.includes('/api/search/metadata')) return null;
-			call++;
-			const body = JSON.parse(init.body);
-			return {
-				ok: true,
-				status: 200,
-				json: async () => ({
-					assets: {
-						items: [
-							{
-								id: `p${call}`,
-								exifInfo: { latitude: 1, longitude: 2, dateTimeOriginal: '2026-01-0' + call + 'T00:00:00Z' }
-							}
-						],
-						nextPage: call < 3 ? call + 1 : null
-					}
-				})
-			};
-		}
-	];
-	const result = await fetchGeotaggedAssets(BASE, KEY, {});
-	assert.equal(call, 3);
-	assert.deepEqual(result.assets.map((a: any) => a.id), ['p1', 'p2', 'p3']);
-});
+	test('fetchGeotaggedAssets paginates until nextPage is absent', async () => {
+		installFetch();
+		let call = 0;
+		responders = [
+			(url, init) => {
+				if (!url.includes('/api/search/metadata')) return null;
+				call++;
+				const body = JSON.parse(init.body);
+				// Pagination also travels in the body — numeric and 1-based.
+				assert.equal(body.page, call);
+				assert.equal(typeof body.size, 'number');
+				return {
+					ok: true,
+					status: 200,
+					json: async () => ({
+						assets: {
+							items: [
+								{
+									id: `p${call}`,
+									exifInfo: { latitude: 1, longitude: 2, dateTimeOriginal: '2026-01-0' + call + 'T00:00:00Z' }
+								}
+							],
+							nextPage: call < 3 ? call + 1 : null
+						}
+					})
+				};
+			}
+		];
+		const result = await fetchGeotaggedAssets(BASE, KEY, {});
+		assert.equal(call, 3);
+		assert.deepEqual(result.assets.map((a: any) => a.id), ['p1', 'p2', 'p3']);
+	});
 
 test('permission/auth errors are classified and never echo the key', async () => {
 	installFetch();

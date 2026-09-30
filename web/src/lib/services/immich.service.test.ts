@@ -20,15 +20,33 @@ vi.mock('$lib/fluxbase', () => ({
 	}
 }));
 
-let blobByAsset: Record<string, Blob> = {};
+let bytesByAsset: Record<string, Uint8Array> = {};
+const contentTypeByAsset: Record<string, string> = {};
 vi.stubGlobal(
 	'fetch',
 	vi.fn((url: string) => {
-		const match = String(url).match(/assetId=([^&]+)/);
+		const u = String(url);
+		const match = u.match(/assetId=([^&]+)/);
 		const assetId = match?.[1] ?? '';
-		const blob = blobByAsset[assetId];
-		if (!blob) return Promise.reject(new Error('upstream 404'));
-		return Promise.resolve({ ok: true, blob: () => Promise.resolve(blob) });
+		const bytes = bytesByAsset[assetId];
+		if (!bytes) return Promise.reject(new Error('upstream 404'));
+		// The proxy function returns base64 JSON (the runtime bridge mangles
+		// raw binary), served from /api/v1/functions/{name}/invoke.
+		if (!u.includes('/api/v1/functions/immich-thumb/invoke')) {
+			return Promise.reject(new Error(`wrong thumb URL: ${u}`));
+		}
+		if (!u.includes('namespace=wayli')) {
+			return Promise.reject(new Error('namespace param missing'));
+		}
+		return Promise.resolve({
+			ok: true,
+			json: () =>
+				Promise.resolve({
+					ok: true,
+					contentType: contentTypeByAsset[assetId] ?? 'image/webp',
+					base64: Buffer.from(bytes).toString('base64')
+				})
+		});
 	})
 );
 const objectUrls: string[] = [];
@@ -52,7 +70,7 @@ describe('immich photo service', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		selectChain.order.mockResolvedValue({ data: [], error: null });
-		blobByAsset = {} as Record<string, Blob>;
+		bytesByAsset = {} as Record<string, Uint8Array>;
 		clearThumbCache();
 	});
 
@@ -85,7 +103,7 @@ describe('immich photo service', () => {
 	});
 
 	it('getThumbUrl fetches through the proxy and caches by asset id', async () => {
-		blobByAsset['a1'] = new Blob(['img'], { type: 'image/webp' });
+		bytesByAsset['a1'] = new TextEncoder().encode('img');
 		const url1 = await getThumbUrl('a1');
 		const url2 = await getThumbUrl('a1');
 		expect(url1).toBe(url2);
@@ -93,7 +111,7 @@ describe('immich photo service', () => {
 	});
 
 	it('clearThumbCache revokes object URLs and forces refetch', async () => {
-		blobByAsset['a2'] = new Blob(['img2'], { type: 'image/webp' });
+		bytesByAsset['a2'] = new TextEncoder().encode('img2');
 		await getThumbUrl('a2');
 		clearThumbCache();
 		const again = await getThumbUrl('a2');

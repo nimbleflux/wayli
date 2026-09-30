@@ -15,7 +15,8 @@ import type { FluxbaseClient } from '../jobs/types';
 import {
 	authorizeThumb,
 	thumbSize,
-	THUMB_CACHE_CONTROL
+	THUMB_CACHE_CONTROL,
+	getAdminSetting
 } from './_shared/immich.ts';
 import { fetchThumbnail, resolveImmichBase } from './_shared/immich.service.ts';
 
@@ -99,11 +100,23 @@ export async function handler(
 	if (!result.ok || !result.response.body) {
 		return new Response(null, { status: 502 });
 	}
-	return new Response(result.response.body, {
-		status: 200,
-		headers: {
-			'Content-Type': result.response.headers.get('Content-Type') ?? 'image/webp',
-			'Cache-Control': THUMB_CACHE_CONTROL
-		}
-	});
+
+	// The Fluxbase runtime bridge serializes function responses as text
+	// (wrap.go does `await result.text()`), so raw image bytes arrive
+	// mangled. Base64-encode here and let the client decode — thumbnails
+	// are small, the +33% overhead is acceptable.
+	const buffer = await result.response.arrayBuffer();
+	const bytes = new Uint8Array(buffer);
+	let binary = '';
+	for (let i = 0; i < bytes.length; i += 0x8000) {
+		binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+	}
+	return Response.json(
+		{
+			ok: true,
+			contentType: result.response.headers.get('Content-Type') ?? 'image/webp',
+			base64: btoa(binary)
+		},
+		{ headers: { 'Cache-Control': THUMB_CACHE_CONTROL } }
+	);
 }

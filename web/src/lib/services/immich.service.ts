@@ -8,7 +8,8 @@
 import { fluxbase } from '$lib/fluxbase';
 import type { ImmichAssetRow } from '$lib/types/immich.types';
 
-const THUMB_FUNCTION = 'functions/immich-thumb';
+const THUMB_INVOKE_PATH = '/api/v1/functions/immich-thumb/invoke';
+const THUMB_NAMESPACE = 'wayli';
 
 /** Geotagged photos taken within [startISO, endISO), oldest first. */
 export type ThumbRow = ImmichAssetRow;
@@ -69,7 +70,9 @@ export async function searchPhotosLive(
 const thumbCache = new Map<string, string>();
 
 function functionBaseUrl(): string {
-	// Same origin as the fluxbase client; the functions live under /functions/.
+	// Same origin as the fluxbase client; functions are invoked via the
+	// /api/v1/functions/{name}/invoke route (NOT a bare /functions/ path —
+	// Fluxbase does not serve that, it 404s).
 	const base = import.meta.env.VITE_FLUXBASE_URL ?? import.meta.env.PUBLIC_FLUXBASE_URL ?? '';
 	return String(base).replace(/\/+$/, '');
 }
@@ -88,13 +91,30 @@ export async function proxyThumbBlob(
 		const token = data?.session?.access_token;
 		if (!token) return { ok: false, blob: null };
 
-		const response = await fetch(
-			`${functionBaseUrl()}/${THUMB_FUNCTION}?assetId=${encodeURIComponent(assetId)}&size=${size}`,
-			{ headers: { Authorization: `Bearer ${token}` } }
-		);
+		const params = new URLSearchParams({
+			assetId,
+			size,
+			namespace: THUMB_NAMESPACE
+		});
+		const response = await fetch(`${functionBaseUrl()}${THUMB_INVOKE_PATH}?${params}`, {
+			headers: { Authorization: `Bearer ${token}` }
+		});
 		if (!response.ok) return { ok: false, blob: null };
 
-		const blob = await response.blob();
+		// The immich-thumb function returns base64 JSON: the Fluxbase runtime
+		// bridge serializes function responses as text, so raw image bytes
+		// would be mangled in transit. Decode back into a Blob here.
+		const payload = (await response.json()) as {
+			ok?: boolean;
+			contentType?: string;
+			base64?: string;
+		};
+		if (!payload?.ok || !payload.base64) return { ok: false, blob: null };
+
+		const binary = atob(payload.base64);
+		const bytes = new Uint8Array(binary.length);
+		for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+		const blob = new Blob([bytes], { type: payload.contentType || 'image/webp' });
 		return { ok: true, blob };
 	} catch {
 		return { ok: false, blob: null };

@@ -1666,6 +1666,12 @@ CREATE POLICY "Users can delete their own immich assets" ON immich_assets
     FOR DELETE TO authenticated USING (auth.uid() = user_id);
 
 
+CREATE POLICY "Service role full access to immich_assets" ON immich_assets TO service_role USING (true) WITH CHECK (true);
+
+
+CREATE POLICY "Tenant service full access to immich_assets" ON immich_assets TO tenant_service USING (true) WITH CHECK (true);
+
+
 CREATE TABLE IF NOT EXISTS want_to_visit_places (
     id uuid DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL,

@@ -155,5 +155,23 @@ export async function handler(
     state: a.state ?? null,
     country: a.country ?? null
   }));
+
+  // Persist the live results into immich_assets (upsert, idempotent). The
+  // immich-thumb proxy only streams thumbnails for assets this user already
+  // has rows for — without this, every photo found live would 404 on its
+  // thumbnail. Also warms the local cache the travel strips read from.
+  if (assets.length > 0) {
+    const { error: upsertError } = await fluxbaseService
+      .from('immich_assets')
+      .upsert(
+        assets.map((a) => ({ ...a, user_id: userId, synced_at: new Date().toISOString() })),
+        { onConflict: 'user_id,asset_id' }
+      );
+    if (upsertError) {
+      // Non-fatal: the picker still works from the live payload; log and go.
+      console.error('[immich-search] asset cache upsert failed:', upsertError);
+    }
+  }
+
   return Response.json({ ok: true, assets });
 }

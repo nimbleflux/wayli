@@ -7,7 +7,7 @@
 
 import type { ImmichAssetRow } from '$lib/types/immich.types';
 import { listMedia, uploadMedia, createMedia } from './trip-media.service';
-import { proxyThumbBlob } from './immich.service';
+import { proxyThumbBlob, getThumbBlob } from './immich.service';
 
 export interface AttachResult {
 	added: number;
@@ -23,11 +23,16 @@ export function attachedAssetIds(
 	return new Set(tripMedia.map((m) => m.immich_asset_id).filter((id): id is string => !!id));
 }
 
+/** Assets uploaded in parallel — enough to hide latency, not enough to
+ * hammer the Fluxbase runtime (each invoke spawns a Deno sandbox) or Immich. */
+const ATTACH_CONCURRENCY = 3;
+
 /**
  * Copy the given Immich assets into the trip's media (thumbnail + preview
  * uploads) and create trip_media rows attached to `entryId` (optional).
  * Skips assets already attached to this trip; per-asset failures don't abort
- * the rest.
+ * the rest. Thumbnails already shown in the picker grid are reused from the
+ * session cache instead of a second proxy round trip.
  */
 export async function attachPhotosToEntry(opts: {
 	userId: string;
@@ -39,37 +44,37 @@ export async function attachPhotosToEntry(opts: {
 
 	const existing = attachedAssetIds(await listMedia(tripId));
 	const result: AttachResult = { added: 0, failed: 0, created: [] };
+	const todo = assets.filter((a) => !existing.has(a.asset_id));
 
-	for (const asset of assets) {
-		if (existing.has(asset.asset_id)) continue;
+	const attachOne = async (asset: ImmichAssetRow): Promise<void> => {
 		try {
-			// oxlint-disable-next-line eslint/no-await-in-loop -- ordered on purpose: bounded proxy/storage load, deterministic failure isolation
-			const thumb = await proxyThumbBlob(asset.asset_id, 'thumbnail');
-			// oxlint-disable-next-line eslint/no-await-in-loop -- ordered on purpose: bounded proxy/storage load, deterministic failure isolation
+			// The picker grid already downloaded the thumbnail — reuse it when
+			// the cache is warm (one proxy round trip instead of two).
+			// oxlint-disable-next-line eslint/no-await-in-loop -- worker pool: bounded parallelism is the point
+			const thumb = await getThumbBlob(asset.asset_id, 'thumbnail');
+			// oxlint-disable-next-line eslint/no-await-in-loop -- worker pool: bounded parallelism is the point
 			const preview = await proxyThumbBlob(asset.asset_id, 'preview');
 			if (!thumb.ok || !preview.ok) {
 				result.failed++;
-				continue;
+				return;
 			}
 
-			const base = `${userId}/${tripId}/immich-${asset.asset_id}`;
-			// oxlint-disable-next-line eslint/no-await-in-loop -- ordered on purpose: bounded proxy/storage load, deterministic failure isolation
+			// oxlint-disable-next-line eslint/no-await-in-loop -- worker pool: bounded parallelism is the point
 			const storagePath = await uploadMedia(
 				userId,
 				tripId,
 				preview.blob,
 				`immich-${asset.asset_id}.webp`
 			);
-			// oxlint-disable-next-line eslint/no-await-in-loop -- ordered on purpose: bounded proxy/storage load, deterministic failure isolation
+			// oxlint-disable-next-line eslint/no-await-in-loop -- worker pool: bounded parallelism is the point
 			const thumbPath = await uploadMedia(
 				userId,
 				tripId,
 				thumb.blob,
 				`immich-${asset.asset_id}-thumb.webp`
 			);
-			void base;
 
-			// oxlint-disable-next-line eslint/no-await-in-loop -- ordered on purpose: bounded proxy/storage load, deterministic failure isolation
+			// oxlint-disable-next-line eslint/no-await-in-loop -- worker pool: bounded parallelism is the point
 			const created = await createMedia({
 				trip_id: tripId,
 				entry_id: entryId,
@@ -94,6 +99,19 @@ export async function attachPhotosToEntry(opts: {
 			console.error('[immich-attach] failed for asset:', asset.asset_id, error);
 			result.failed++;
 		}
-	}
+	};
+
+	// Shared-cursor worker pool: a slow asset (30s SDK request timeout) no
+	// longer stalls the whole batch behind it.
+	let cursor = 0;
+	const worker = async (): Promise<void> => {
+		while (cursor < todo.length) {
+			const asset = todo[cursor++];
+			await attachOne(asset);
+		}
+	};
+	await Promise.all(
+		Array.from({ length: Math.max(1, Math.min(ATTACH_CONCURRENCY, todo.length)) }, worker)
+	);
 	return result;
 }

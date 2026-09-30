@@ -197,7 +197,7 @@
 		tabindex="-1"
 	>
 		<div
-			class="dark:bg-card max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl"
+			class="dark:bg-card flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl bg-white p-6 shadow-xl"
 		>
 			<div class="mb-4 flex items-center justify-between">
 				<h2 class="text-foreground text-lg font-semibold">
@@ -240,35 +240,39 @@
 					{t('connections.immich.pickerEmpty')}
 				</p>
 			{:else}
-				<div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
-					{#each photos as photo (photo.asset_id)}
-						<button
-							type="button"
-							role="checkbox"
-							aria-checked={selected.has(photo.asset_id)}
-							class={`relative aspect-square overflow-hidden rounded-md border-2 ${
-								selected.has(photo.asset_id) ? 'border-primary' : 'border-transparent'
-							}`}
-							onclick={() => toggleSelect(photo.asset_id)}
-							title={photo.city ?? photo.taken_at}
-						>
-							<img
-								src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
-								alt={photo.city ?? 'Photo'}
-								loading="lazy"
-								class="h-full w-full object-cover"
-								onload={(e) => loadThumb(photo.asset_id, e.currentTarget as HTMLImageElement)}
-							/>
-							{#if selected.has(photo.asset_id)}
-								<span class="bg-primary absolute top-1 right-1 rounded-full p-0.5 text-white">
-									<Check class="h-3 w-3" />
-								</span>
-							{/if}
-						</button>
-					{/each}
+				<!-- Scrollable photo grid; the action footer below stays pinned so
+				     "Add {n} photos" is reachable without scrolling. -->
+				<div class="min-h-0 flex-1 overflow-y-auto">
+					<div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
+						{#each photos as photo (photo.asset_id)}
+							<button
+								type="button"
+								role="checkbox"
+								aria-checked={selected.has(photo.asset_id)}
+								class={`relative aspect-square overflow-hidden rounded-md border-2 ${
+									selected.has(photo.asset_id) ? 'border-primary' : 'border-transparent'
+								}`}
+								onclick={() => toggleSelect(photo.asset_id)}
+								title={photo.city ?? photo.taken_at}
+							>
+								<img
+									src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
+									alt={photo.city ?? 'Photo'}
+									loading="lazy"
+									class="h-full w-full object-cover"
+									onload={(e) => loadThumb(photo.asset_id, e.currentTarget as HTMLImageElement)}
+								/>
+								{#if selected.has(photo.asset_id)}
+									<span class="bg-primary absolute top-1 right-1 rounded-full p-0.5 text-white">
+										<Check class="h-3 w-3" />
+									</span>
+								{/if}
+							</button>
+						{/each}
+					</div>
 				</div>
 
-				<div class="mt-4 flex items-center justify-end gap-2">
+				<div class="border-border mt-4 flex items-center justify-end gap-2 border-t pt-3">
 					{#if usingCache}
 						<span
 							class="text-muted-foreground text-xs"

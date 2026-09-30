@@ -733,15 +733,27 @@
 			showImmichPicker = false;
 			return;
 		}
+		// attachPhotosToEntry just created rows — drop the cached media list so
+		// it reloads with them, then surface everything to the editor: rows
+		// into editorMedia (block rendering + save's mediaMap), ids into the
+		// block draft. For a NEW entry the rows have entry_id null; saveEntry
+		// links them via attachMediaToEntry (same as inline file uploads).
+		mediaCache.delete(editorTripId!);
 		void loadTripMedia(editorTripId!).then(() => {
-			if (editingEntry) {
-				const last = editorBlocks[editorBlocks.length - 1];
-				if (last?.t === 'photos') {
-					const rest = editorBlocks.slice(0, -1);
-					editorBlocks = [...rest, { t: 'photos', ids: [...last.ids, ...ids] }];
-				} else {
-					editorBlocks = [...editorBlocks, { t: 'photos', ids }];
-				}
+			const cached = mediaCache.get(editorTripId!) ?? [];
+			const fresh = cached.filter(
+				(m) => ids.includes(m.id) && !editorMedia.some((e) => e.id === m.id)
+			);
+			editorMedia = [...editorMedia, ...fresh];
+			if (!editingEntry) {
+				editorInlineMediaIds = [...editorInlineMediaIds, ...ids];
+			}
+			const last = editorBlocks[editorBlocks.length - 1];
+			if (last?.t === 'photos') {
+				const rest = editorBlocks.slice(0, -1);
+				editorBlocks = [...rest, { t: 'photos', ids: [...last.ids, ...ids] }];
+			} else {
+				editorBlocks = [...editorBlocks, { t: 'photos', ids }];
 			}
 			showImmichPicker = false;
 		});

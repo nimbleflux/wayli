@@ -124,6 +124,28 @@ export async function getThumbUrl(
 	return url;
 }
 
+/**
+ * Raw blob for an asset image — served from the session object-URL cache
+ * when warm (zero network), through the proxy otherwise. The attach flow
+ * uses this to avoid re-invoking the proxy for photos the picker grid
+ * already displayed.
+ */
+export async function getThumbBlob(
+	assetId: string,
+	size: 'thumbnail' | 'preview' = 'thumbnail'
+): Promise<{ ok: true; blob: Blob } | { ok: false; blob: null }> {
+	const cachedUrl = thumbCache.get(`${assetId}:${size}`);
+	if (cachedUrl) {
+		try {
+			const blob = await (await fetch(cachedUrl)).blob();
+			return { ok: true, blob };
+		} catch {
+			/* revoked — fall through to the proxy */
+		}
+	}
+	return proxyThumbBlob(assetId, size);
+}
+
 /** Revoke all cached object URLs (call on page teardown). */
 export function clearThumbCache(): void {
 	for (const url of thumbCache.values()) URL.revokeObjectURL(url);

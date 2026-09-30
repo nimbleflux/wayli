@@ -6,6 +6,12 @@ const thumbBlobs: Record<string, Blob> = {};
 const previewBlobs: Record<string, Blob> = {};
 
 vi.mock('$lib/services/immich.service', () => ({
+	// Thumbnails flow through getThumbBlob (cache-first); previews through the
+	// proxy. Both resolve to the same test blobs.
+	getThumbBlob: vi.fn(async (assetId: string) => {
+		const blob = thumbBlobs[assetId];
+		return blob ? { ok: true, blob } : { ok: false, blob: null };
+	}),
 	proxyThumbBlob: vi.fn(async (assetId: string, size: string) => {
 		const blob = size === 'preview' ? previewBlobs[assetId] : thumbBlobs[assetId];
 		return blob ? { ok: true, blob } : { ok: false, blob: null };
@@ -93,7 +99,7 @@ describe('attachPhotosToEntry', () => {
 	});
 
 	it('continues past a failing photo and reports partial success', async () => {
-		delete thumbBlobs['a1']; // proxy returns ok:false for a1
+		delete thumbBlobs['a1']; // getThumbBlob/proxy return ok:false for a1
 		const result = await attachPhotosToEntry({
 			userId: 'u1',
 			tripId: 'trip-1',
@@ -103,6 +109,28 @@ describe('attachPhotosToEntry', () => {
 		expect(result.added).toBe(1);
 		expect(result.failed).toBe(1);
 		expect(created[0].immich_asset_id).toBe('a2');
+	});
+
+	it('attaches a larger batch than the concurrency limit', async () => {
+		const batch = Array.from({ length: 8 }, (_, i) => ({
+			asset_id: `b${i}`,
+			latitude: -35,
+			longitude: 150,
+			taken_at: `2026-09-05T1${i}:00:00Z`
+		}));
+		for (const a of batch) {
+			thumbBlobs[a.asset_id] = new Blob(['t'], { type: 'image/webp' });
+			previewBlobs[a.asset_id] = new Blob(['p'], { type: 'image/webp' });
+		}
+		const result = await attachPhotosToEntry({
+			userId: 'u1',
+			tripId: 'trip-1',
+			assets: batch
+		});
+		expect(result.added).toBe(8);
+		expect(result.failed).toBe(0);
+		expect(created.length).toBe(8);
+		expect(uploads.length).toBe(16);
 	});
 });
 

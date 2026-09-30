@@ -128,7 +128,16 @@ export async function handler(
     return Response.json({ ok: false, error: 'No Immich server URL configured.' }, { status: 400 });
   }
 
-  const result = await fetchGeotaggedAssets(base, apiKey, { takenAfter });
+  // Live picker query: limit pages so the 30s function timeout can't be
+  // exceeded on large libraries. 3 pages × 250 = 750 photos — plenty for
+  // a date-range picker grid. The background sync job (3600s timeout)
+  // fetches without this limit.
+  const result = await fetchGeotaggedAssets(base, apiKey, {
+    takenAfter,
+    takenBefore,
+    maxPages: 3,
+    pageSize: 250
+  });
   if (!result.ok) {
     return Response.json(
       { ok: false, errorKind: result.errorKind, error: result.error },

@@ -93,31 +93,30 @@ async function immichFetch(
 export async function fetchGeotaggedAssets(
 	base: string,
 	apiKey: string,
-	opts: { takenAfter?: string; pageSize?: number } = {}
+	opts: { takenAfter?: string; takenBefore?: string; pageSize?: number; maxPages?: number } = {}
 ): Promise<{ ok: true; assets: ImmichAsset[] } | { ok: false; assets: ImmichAsset[]; error: string; errorKind: ImmichErrorKind }> {
 	const assets: ImmichAsset[] = [];
 	let page = 1;
-	for (let guard = 0; guard < 1000; guard++) {
-		// Pagination as URL query params — Immich's Zod validation parses
-		// these correctly regardless of how the runtime re-encodes POST
-		// bodies (sending page in the body produced "expected number,
-		// received string" on some Fluxbase runtime versions).
+	const maxPages = opts.maxPages ?? 1000;
+	for (let guard = 0; guard < maxPages; guard++) {
+		// ALL parameters as URL query params — the Fluxbase runtime re-encodes
+		// POST body values (numbers become strings, dates may be dropped),
+		// which caused Immich to ignore the date filter and return the entire
+		// library. Query params go through Immich's own parser which handles
+		// type coercion correctly.
 		const params = new URLSearchParams({
 			page: String(page),
-			size: String(opts.pageSize ?? 250)
+			size: String(opts.pageSize ?? 250),
+			withExif: 'true'
 		});
-		const body: Record<string, unknown> = { withExif: true };
-		if (opts.takenAfter) body.takenAfter = opts.takenAfter;
+		if (opts.takenAfter) params.set('takenAfter', opts.takenAfter);
+		if (opts.takenBefore) params.set('takenBefore', opts.takenBefore);
 
 		const res = await immichFetch(
 			base,
 			`/api/search/metadata?${params.toString()}`,
 			apiKey,
-			{
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(body)
-			}
+			{ method: 'POST' }
 		);
 		if (!res.ok) return { ok: false, assets, error: res.error, errorKind: res.errorKind };
 

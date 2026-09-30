@@ -112,11 +112,22 @@ export async function fetchGeotaggedAssets(
 		if (opts.takenAfter) params.set('takenAfter', opts.takenAfter);
 		if (opts.takenBefore) params.set('takenBefore', opts.takenBefore);
 
+		// Immich's Zod validation requires a JSON object body even when all
+		// parameters are in the query string — an empty body produces
+		// "expected object, received undefined".
 		const res = await immichFetch(
 			base,
 			`/api/search/metadata?${params.toString()}`,
 			apiKey,
-			{ method: 'POST' }
+			{
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					withExif: true,
+					...(opts.takenAfter ? { takenAfter: opts.takenAfter } : {}),
+					...(opts.takenBefore ? { takenBefore: opts.takenBefore } : {})
+				})
+			}
 		);
 		if (!res.ok) return { ok: false, assets, error: res.error, errorKind: res.errorKind };
 

@@ -1490,8 +1490,11 @@
 
 		<!-- Split layout: timeline + sticky map -->
 		<div class="grid gap-6 lg:grid-cols-[1fr_400px]">
-			<!-- Timeline (scrollable, left) -->
-			<div class="space-y-5">
+			<!-- Timeline (scrollable, left). min-w-0 clamps the track's auto
+			     minimum — without it the Immich photo strip's intrinsic width
+			     (one fixed-size thumb per photo) blows the column out and pushes
+			     the map off-screen. -->
+			<div class="min-w-0 space-y-5">
 				<!-- Pending suggestions (collapsible) -->
 				{#if pendingTrips.length > 0}
 					<div

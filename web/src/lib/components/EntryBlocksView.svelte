@@ -61,7 +61,9 @@
 <div class="flex flex-col gap-3">
 	{#each blocks as block (block)}
 		{#if block.t === 'text' && block.md.trim()}
-			<div class="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed">
+			<!-- break-words: an unbreakable long word (URL) must not force the
+			     entry wider than its column. -->
+			<div class="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed break-words">
 				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 				{@html renderMarkdown(block.md)}
 			</div>

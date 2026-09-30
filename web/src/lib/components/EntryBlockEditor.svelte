@@ -220,7 +220,15 @@
 							{/if}
 							<button
 								type="button"
-								onclick={() => removePhoto(index, mediaId)}
+								// stopPropagation keeps the window-level pointerdown
+								// disarmer from clearing the armed state between the
+								// two clicks — pointerdown always precedes click, so
+								// without this the confirm step can never pass.
+								onpointerdown={(e) => e.stopPropagation()}
+								onclick={(e) => {
+									e.stopPropagation();
+									removePhoto(index, mediaId);
+								}}
 								class="absolute top-1 right-1 rounded-full p-1 text-white shadow-lg transition-opacity {armedDeleteId ===
 								mediaId
 									? 'bg-destructive opacity-100'

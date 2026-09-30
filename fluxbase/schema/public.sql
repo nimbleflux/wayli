@@ -1672,6 +1672,13 @@ CREATE POLICY "Service role full access to immich_assets" ON immich_assets TO se
 CREATE POLICY "Tenant service full access to immich_assets" ON immich_assets TO tenant_service USING (true) WITH CHECK (true);
 
 
+--
+-- Name: immich_assets; Type: PRIVILEGE; Schema: privileges; Owner: -
+--
+
+GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE immich_assets TO authenticated;
+
+
 CREATE TABLE IF NOT EXISTS want_to_visit_places (
     id uuid DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL,

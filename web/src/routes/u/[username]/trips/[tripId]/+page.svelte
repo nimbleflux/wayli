@@ -476,8 +476,10 @@
 	<!-- Content -->
 	<div class="mx-auto max-w-7xl px-4 py-8">
 		<div class="grid gap-8 lg:grid-cols-[1fr_400px]">
-			<!-- Journal feed -->
-			<div class="space-y-8">
+			<!-- Journal feed. min-w-0 clamps the track's auto minimum so wide
+			     intrinsic content (photo strips/grids) can't push the map
+			     sidebar off-screen. -->
+			<div class="min-w-0 space-y-8">
 				{#if entries.length > 0}
 					{#each entries as entry, i (entry.id)}
 						<div

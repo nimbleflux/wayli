@@ -75,7 +75,9 @@
 </script>
 
 {#if loaded && photos.length > 0}
-	<div class="mb-3">
+	<!-- min-w-0: the strip's intrinsic width scales with photo count; clamp it
+	     so grid/flex ancestors without their own width cap don't blow out. -->
+	<div class="mb-3 min-w-0">
 		<p class="text-muted-foreground mb-1.5 text-xs font-medium">
 			{t('travel.immichPhotosTakenOn', { date: displayDay })}
 		</p>

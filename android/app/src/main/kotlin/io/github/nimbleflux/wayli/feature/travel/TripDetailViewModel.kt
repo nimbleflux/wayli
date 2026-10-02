@@ -73,21 +73,10 @@ class TripDetailViewModel @Inject constructor(
     private val _media = MutableStateFlow<List<io.github.nimbleflux.wayli.models.TripMedia>>(emptyList())
     val media: StateFlow<List<io.github.nimbleflux.wayli.models.TripMedia>> = _media.asStateFlow()
 
-    /**
-     * The entry's hero photo URL (cover_media_id → first by sort_order —
-     * the web's cover-resolution rule), or null when the entry has no media.
-     */
-    fun heroFor(entry: TripEntry): String? {
-        val rows = _media.value.filter { it.entryId == entry.id }
-        if (rows.isEmpty()) return null
-        val cover = entry.coverMediaId?.let { id -> rows.firstOrNull { it.id == id } }
-        val chosen = cover ?: rows.first()
-        return _mediaUrls.value[chosen.id]
-    }
-
-    /** The trip's cover for the hero header: image_url → first trip media. */
-    fun tripCoverFor(trip: Trip): String? =
-        trip.imageUrl ?: _media.value.firstOrNull()?.let { _mediaUrls.value[it.id] }
+    /** True while media rows / their display URLs are being resolved — the UI
+     * shows hero skeletons instead of silently collapsing the cards. */
+    private val _mediaLoading = MutableStateFlow(true)
+    val mediaLoading: StateFlow<Boolean> = _mediaLoading.asStateFlow()
 
     val isDemoMode: Boolean = demoManager.isDemoMode
 
@@ -158,16 +147,21 @@ class TripDetailViewModel @Inject constructor(
 
     /** Fetch the trip's media rows and sign their display URLs in parallel. */
     private suspend fun loadMedia() {
-        val rows = tripRepo.listMedia(tripId).getOrDefault(emptyList())
-        _media.value = rows
-        val urls = coroutineScope {
-            rows.map { m ->
-                async {
-                    mediaUploader.resolveDisplayUrl(storagePath = m.storagePath)?.let { m.id to it }
-                }
-            }.map { it.await() }.filterNotNull().toMap()
+        _mediaLoading.value = true
+        try {
+            val rows = tripRepo.listMedia(tripId).getOrDefault(emptyList())
+            _media.value = rows
+            val urls = coroutineScope {
+                rows.map { m ->
+                    async {
+                        mediaUploader.resolveDisplayUrl(storagePath = m.storagePath)?.let { m.id to it }
+                    }
+                }.map { it.await() }.filterNotNull().toMap()
+            }
+            _mediaUrls.value = urls
+        } finally {
+            _mediaLoading.value = false
         }
-        _mediaUrls.value = urls
     }
 
     /** Date range the track was last painted/refreshed for — skips a duplicate fetch. */
@@ -350,3 +344,31 @@ class TripDetailViewModel @Inject constructor(
         }
     }
 }
+
+// ---- Pure hero-resolution helpers (testable without the ViewModel) ----
+//
+// These take the media rows / resolved URL map as parameters instead of
+// reading the ViewModel's StateFlow snapshots. The old snapshot-reading
+// methods were invisible to Compose — `mediaUrls` was never collected, so
+// entry heroes never appeared once URL resolution finished.
+
+/** The entry's hero photo URL (cover_media_id → first by sort_order — the
+ * web's cover-resolution rule), or null when the entry has no media or its
+ * URL hasn't resolved yet. */
+fun entryHeroUrl(
+    entry: TripEntry,
+    media: List<io.github.nimbleflux.wayli.models.TripMedia>,
+    urls: Map<String, String>,
+): String? {
+    val rows = media.filter { it.entryId == entry.id }
+    if (rows.isEmpty()) return null
+    val cover = entry.coverMediaId?.let { id -> rows.firstOrNull { it.id == id } }
+    return urls[(cover ?: rows.first()).id]
+}
+
+/** The trip's cover for the hero header: image_url → first trip media. */
+fun tripCoverUrl(
+    trip: Trip,
+    media: List<io.github.nimbleflux.wayli.models.TripMedia>,
+    urls: Map<String, String>,
+): String? = trip.imageUrl ?: media.firstOrNull()?.let { urls[it.id] }

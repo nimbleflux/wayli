@@ -51,6 +51,8 @@ data class TripEntry(
     val id: String,
     @SerialName("trip_id") val tripId: String,
     @SerialName("entry_date") val entryDate: String,
+    /** Inclusive last day for multi-day entries; null = single-day (entryDate). */
+    @SerialName("end_date") val endDate: String? = null,
     val body: String? = null,
     /** Raw jsonb of the block structure — decode via [io.github.nimbleflux.wayli.entry.EntryBlocks]. */
     val blocks: JsonElement? = null,

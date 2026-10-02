@@ -1,10 +1,12 @@
 package io.github.nimbleflux.wayli.repo
 
 import io.github.nimbleflux.wayli.models.ImmichAsset
+import io.github.nimbleflux.wayli.models.TripEntry
 import io.github.nimbleflux.wayli.models.UserPreferences
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.serialization.json.JsonPrimitive
@@ -99,5 +101,118 @@ class ImmichHelpersTest {
     fun `immichPhotoUrl is null without a base`() {
         assertNull(immichPhotoUrl(null, "a1"))
         assertNull(immichPhotoUrl("  ", "a1"))
+    }
+
+    // ---- decodeThumbPayload (immich-thumb proxy envelope) ----
+
+    @Test
+    fun `decodeThumbPayload decodes ok envelopes with base64 bytes`() {
+        val payload = buildJsonObject {
+            put("ok", true)
+            put("contentType", "image/webp")
+            put("base64", java.util.Base64.getEncoder().encodeToString(byteArrayOf(1, 2, 3)))
+        }
+        assertTrue(byteArrayOf(1, 2, 3).contentEquals(decodeThumbPayload(payload)))
+    }
+
+    @Test
+    fun `decodeThumbPayload rejects non-ok or malformed envelopes`() {
+        assertNull(decodeThumbPayload(null))
+        assertNull(
+            decodeThumbPayload(
+                buildJsonObject {
+                    put("ok", false)
+                    put("base64", "aGVsbG8=")
+                },
+            ),
+        )
+        assertNull(decodeThumbPayload(buildJsonObject { put("ok", true) })) // no base64
+        assertNull(
+            decodeThumbPayload(
+                buildJsonObject {
+                    put("ok", true)
+                    put("base64", "!!!not base64!!!")
+                },
+            ),
+        )
+    }
+
+    // ---- entryPhotoRange ----
+
+    private fun entry(date: String, endDate: String? = null) = TripEntry(
+        id = "e1",
+        tripId = "t1",
+        entryDate = date,
+        endDate = endDate,
+    )
+
+    @Test
+    fun `entryPhotoRange covers the entry day in UTC`() {
+        val (start, end) = assertNotNull(entryPhotoRange(entry("2026-09-05")))
+        assertEquals("2026-09-05T00:00:00Z", start)
+        assertEquals("2026-09-06T00:00:00Z", end)
+    }
+
+    @Test
+    fun `entryPhotoRange spans multi-day entries end to end`() {
+        val (start, end) = assertNotNull(entryPhotoRange(entry("2026-09-05", "2026-09-08")))
+        assertEquals("2026-09-05T00:00:00Z", start)
+        assertEquals("2026-09-09T00:00:00Z", end)
+    }
+
+    @Test
+    fun `entryPhotoRange is null for an unparseable date and ignores a bad end date`() {
+        assertNull(entryPhotoRange(entry("09/05/2026")))
+        // Unparseable endDate falls back to the single entry day.
+        val (start, end) = assertNotNull(entryPhotoRange(entry("2026-09-05", "soon")))
+        assertEquals("2026-09-05T00:00:00Z", start)
+        assertEquals("2026-09-06T00:00:00Z", end)
+    }
+
+    // ---- hasMorePhotos ----
+
+    private fun page(assets: Int, total: Long?) =
+        ImmichPhotoPage(List(assets) { photo("a$it") }, total)
+
+    @Test
+    fun `hasMorePhotos uses the server total when known`() {
+        assertFalse(hasMorePhotos(page(40, total = 40), limit = 40))
+        assertTrue(hasMorePhotos(page(40, total = 41), limit = 40))
+        assertTrue(hasMorePhotos(page(10, total = 500), limit = 40))
+    }
+
+    @Test
+    fun `hasMorePhotos falls back to a full page when the count is unknown`() {
+        assertTrue(hasMorePhotos(page(40, total = null), limit = 40))
+        assertFalse(hasMorePhotos(page(12, total = null), limit = 40))
+    }
+
+    // ---- ByteArrayLruCache ----
+
+    @Test
+    fun `byte cache returns stored bytes by key`() {
+        val cache = ByteArrayLruCache(maxBytes = 100)
+        cache.put("a:thumbnail", byteArrayOf(1))
+        assertTrue(byteArrayOf(1).contentEquals(cache.get("a:thumbnail")))
+        assertNull(cache.get("missing"))
+    }
+
+    @Test
+    fun `byte cache evicts least recently used entries over the byte budget`() {
+        val cache = ByteArrayLruCache(maxBytes = 10)
+        cache.put("a", ByteArray(4)) // 4 bytes
+        cache.put("b", ByteArray(4)) // 8 total
+        cache.get("a") // touch a — b becomes the LRU entry
+        cache.put("c", ByteArray(4)) // 12 > 10 → evict b
+        assertNotNull(cache.get("a"))
+        assertNull(cache.get("b"))
+        assertNotNull(cache.get("c"))
+    }
+
+    @Test
+    fun `byte cache rejects entries larger than the whole budget`() {
+        val cache = ByteArrayLruCache(maxBytes = 4)
+        cache.put("huge", ByteArray(8))
+        assertNull(cache.get("huge"))
     }
 }

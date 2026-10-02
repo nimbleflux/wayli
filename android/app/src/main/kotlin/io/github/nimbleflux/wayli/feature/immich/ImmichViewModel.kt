@@ -30,6 +30,15 @@ class ImmichViewModel @Inject constructor(
     suspend fun photosForRange(startISO: String, endISO: String): List<ImmichAsset> =
         repo.photosForRange(startISO, endISO).getOrDefault(emptyList())
 
+    /** One page of photos in the range — entry strips page via infinite scroll. */
+    suspend fun photoPage(
+        startISO: String,
+        endISO: String,
+        limit: Int = ImmichRepository.PHOTO_PAGE_SIZE,
+        offset: Int = 0,
+    ): io.github.nimbleflux.wayli.repo.ImmichPhotoPage? =
+        repo.photosForRangePage(startISO, endISO, limit, offset).getOrNull()
+
     suspend fun thumbnailBytes(assetId: String, size: String = "thumbnail"): ByteArray? =
         repo.thumbnailBytes(assetId, size)
 

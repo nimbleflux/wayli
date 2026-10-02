@@ -741,6 +741,11 @@ fun TripDetailScreen(
     val entries by viewModel.entries.collectAsState()
     val drafts by viewModel.drafts.collectAsState()
     val media by viewModel.media.collectAsState()
+    // Both must be collected state: hero/cover URLs resolve AFTER the media
+    // rows land, and without observing the URL map the cards never recompose
+    // once resolution finishes (heroes silently stayed missing).
+    val mediaUrls by viewModel.mediaUrls.collectAsState()
+    val mediaLoading by viewModel.mediaLoading.collectAsState()
     val snackbar = remember { androidx.compose.material3.SnackbarHostState() }
     val context = androidx.compose.ui.platform.LocalContext.current
     val shareScope = androidx.compose.runtime.rememberCoroutineScope()
@@ -923,7 +928,8 @@ fun TripDetailScreen(
                     item(key = "hero") {
                         TripHero(
                             trip = data.trip,
-                            coverUrl = viewModel.tripCoverFor(data.trip),
+                            coverUrl = tripCoverUrl(data.trip, media, mediaUrls),
+                            coverLoading = mediaLoading,
                             onBack = onBack,
                             menu = {
                                 Box {
@@ -965,7 +971,6 @@ fun TripDetailScreen(
                         val track by viewModel.track.collectAsState()
                         if (track.isNotEmpty()) TripMapCard(track = track)
                     }
-                    item(key = "immich-photos") { ImmichTripStrip(trip = data.trip) }
                     item(key = "journal-header") {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -1014,7 +1019,7 @@ fun TripDetailScreen(
                             val hero = if (viewModel.isDemoMode) {
                                 io.github.nimbleflux.wayli.demo.DemoData.entryHeroes[entry.id]
                             } else {
-                                viewModel.heroFor(entry)
+                                entryHeroUrl(entry, media, mediaUrls)
                             }
                             val photoCount = media.count { it.entryId == entry.id }
                             JournalTimelineRow(
@@ -1022,13 +1027,18 @@ fun TripDetailScreen(
                                 isFirst = index == 0,
                                 isLast = index == entries.lastIndex,
                             ) {
-                                JournalEntryCard(
-                                    entry = entry,
-                                    heroUrl = hero,
-                                    photoCount = photoCount,
-                                    onClick = { onOpenEntry(entry) },
-                                    modifier = Modifier.fillMaxWidth().fadeInUp(),
-                                )
+                                Column {
+                                    JournalEntryCard(
+                                        entry = entry,
+                                        heroUrl = hero,
+                                        heroLoading = !viewModel.isDemoMode && hero == null &&
+                                            mediaLoading && media.any { it.entryId == entry.id },
+                                        photoCount = photoCount,
+                                        onClick = { onOpenEntry(entry) },
+                                        modifier = Modifier.fillMaxWidth().fadeInUp(),
+                                    )
+                                    ImmichEntryStrip(entry = entry)
+                                }
                             }
                         }
                     }
@@ -1038,13 +1048,15 @@ fun TripDetailScreen(
     }
 }
 
-/** Full-bleed trip hero: cover with scrim, back button, overlaid title, and a menu slot. */
+/** Full-bleed trip hero: cover with scrim, back button, overlaid title, and a menu slot.
+ * [coverLoading] holds the skeleton in place while the cover URL resolves. */
 @Composable
 private fun TripHero(
     trip: Trip,
     coverUrl: String?,
     onBack: () -> Unit,
     menu: @Composable () -> Unit = {},
+    coverLoading: Boolean = false,
 ) {
     Box(modifier = Modifier.fillMaxWidth().height(280.dp)) {
         if (coverUrl != null) {
@@ -1053,6 +1065,8 @@ private fun TripHero(
                 contentDescription = trip.title,
                 modifier = Modifier.fillMaxSize(),
             )
+        } else if (coverLoading) {
+            SkeletonBox(Modifier.fillMaxSize())
         } else {
             CoverFallback(modifier = Modifier.fillMaxSize(), icon = Icons.Filled.Map)
         }
@@ -1312,11 +1326,14 @@ private fun JournalTimelineRow(
     }
 }
 
-/** Journal entry card — hero photo over a date badge + title row. */
+/** Journal entry card — hero photo over a date badge + title row. While the
+ * hero URL is still resolving ([heroLoading]) the hero keeps its height and
+ * shows a skeleton instead of collapsing the card and popping in later. */
 @Composable
 private fun JournalEntryCard(
     entry: TripEntry,
     heroUrl: String? = null,
+    heroLoading: Boolean = false,
     photoCount: Int = 0,
     onClick: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -1333,14 +1350,16 @@ private fun JournalEntryCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(if (heroUrl != null) 170.dp else 0.dp),
+                    .height(if (heroUrl != null || heroLoading) 170.dp else 0.dp),
             ) {
-                heroUrl?.let { url ->
+                if (heroUrl != null) {
                     WayliAsyncImage(
-                        model = url,
+                        model = heroUrl,
                         contentDescription = entry.title ?: "Entry",
                         modifier = Modifier.fillMaxSize(),
                     )
+                } else if (heroLoading) {
+                    SkeletonBox(Modifier.fillMaxSize())
                 }
                 if (photoCount > 0) {
                     Text(
@@ -1376,7 +1395,7 @@ private fun JournalEntryCard(
                 }
             }
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)) {
-                if (heroUrl == null) {
+                if (heroUrl == null && !heroLoading) {
                     Text(
                         entry.title ?: "Entry",
                         style = MaterialTheme.typography.titleMedium,

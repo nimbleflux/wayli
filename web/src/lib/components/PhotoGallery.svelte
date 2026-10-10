@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { storageRefToUrl } from '$lib/utils/inline-media';
+	import { signedMediaUrls } from '$lib/utils/signed-media';
 	import { onMount } from 'svelte';
 	import { userStore } from '$lib/stores/auth';
 	import { page } from '$app/state';
@@ -35,6 +35,23 @@
 	let dragOverId = $state<string | null>(null);
 
 	const tripIdSafe = $derived(page.params.tripId ?? tripId);
+
+	// Signed URLs per media row (the trip-images bucket is/turns private —
+	// public URLs stop resolving). Resolved once per media load; the map is
+	// empty while signing round trips are in flight (rows show skeleton).
+	let mediaUrls = $state<Map<string, string>>(new Map());
+	$effect(() => {
+		const refs = media
+			.flatMap((m) => [m.thumbnail_path, m.storage_path])
+			.filter((r): r is string => !!r);
+		void signedMediaUrls(refs).then((map) => {
+			mediaUrls = new Map(map);
+		});
+	});
+	const urlFor = (item: TripMedia) => {
+		const ref = item.thumbnail_path ?? item.storage_path;
+		return (ref && mediaUrls.get(ref)) || '';
+	};
 
 	onMount(async () => {
 		await loadMedia();
@@ -256,7 +273,7 @@
 						aria-label="View photo"
 					>
 						<img
-							src={storageRefToUrl(item.thumbnail_path ?? item.storage_path)}
+							src={urlFor(item)}
 							alt={item.caption || 'Trip photo'}
 							class="h-full w-full object-cover transition-transform group-hover:scale-105"
 							loading="lazy"
@@ -338,7 +355,7 @@
 			</button>
 		{/if}
 		<img
-			src={storageRefToUrl(lightbox.storage_path)}
+			src={lightbox ? (mediaUrls.get(lightbox.storage_path) ?? '') : ''}
 			alt={lightbox.caption || 'Photo'}
 			class="animate-scale-in max-h-[92vh] max-w-full rounded-lg object-contain"
 			role="presentation"

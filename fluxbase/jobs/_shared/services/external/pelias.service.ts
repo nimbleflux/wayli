@@ -136,13 +136,36 @@ export async function getPeliasEndpoint(fluxbase?: FluxbaseClient): Promise<stri
 
 // Get configuration - prioritize environment variables, fallback to default
 const config = {
-	endpoint: DEFAULT_PELIAS_ENDPOINT, // placeholder, replaced on first call
-	rateLimit: parseInt(getEnv('PELIAS_RATE_LIMIT') || '1000', 10)
+	endpoint: DEFAULT_PELIAS_ENDPOINT // placeholder, replaced on first call
 };
 
-// Rate limiting configuration
-const MIN_INTERVAL = config.rateLimit > 0 ? 1000 / config.rateLimit : 0;
-const RATE_LIMIT_ENABLED = config.rateLimit > 0;
+const DEFAULT_RATE_LIMIT = 1000;
+
+/**
+ * PELIAS_RATE_LIMIT, read lazily and defensively. Job permissions are an
+ * explicit allowlist — `Deno.env.get` throws NotCapable for unlisted names
+ * instead of returning undefined, and this module used to evaluate the read
+ * at import time, crashing any job without env permission before it ran a
+ * single line (#243). A missing permission or unset variable both fall back
+ * to DEFAULT_RATE_LIMIT.
+ */
+let cachedRateLimit: number | null = null;
+function getRateLimit(): number {
+	if (cachedRateLimit !== null) return cachedRateLimit;
+	let raw: string | undefined;
+	try {
+		raw = getEnv('PELIAS_RATE_LIMIT');
+	} catch {
+		raw = undefined;
+	}
+	const parsed = parseInt(raw || String(DEFAULT_RATE_LIMIT), 10);
+	cachedRateLimit = Number.isNaN(parsed) ? DEFAULT_RATE_LIMIT : parsed;
+	return cachedRateLimit;
+}
+
+// Rate limiting configuration (lazy — see getRateLimit)
+const minInterval = () => (getRateLimit() > 0 ? 1000 / getRateLimit() : 0);
+const rateLimitEnabled = () => getRateLimit() > 0;
 
 let lastRequestTime = 0;
 
@@ -297,9 +320,9 @@ export async function reverseGeocode(lat: number, lon: number): Promise<PeliasRe
 	// Get endpoint from database/env/default
 	config.endpoint = await getPeliasEndpoint();
 
-	if (RATE_LIMIT_ENABLED) {
+	if (rateLimitEnabled()) {
 		const now = Date.now();
-		const wait = Math.max(0, lastRequestTime + MIN_INTERVAL - now);
+		const wait = Math.max(0, lastRequestTime + minInterval() - now);
 		if (wait > 0 && isFinite(wait)) {
 			await new Promise((resolve) => setTimeout(resolve, wait));
 		}
@@ -377,9 +400,9 @@ export async function forwardGeocode(query: string): Promise<PeliasSearchRespons
 	// Get endpoint from database/env/default
 	config.endpoint = await getPeliasEndpoint();
 
-	if (RATE_LIMIT_ENABLED) {
+	if (rateLimitEnabled()) {
 		const now = Date.now();
-		const wait = Math.max(0, lastRequestTime + MIN_INTERVAL - now);
+		const wait = Math.max(0, lastRequestTime + minInterval() - now);
 		if (wait > 0 && isFinite(wait)) {
 			await new Promise((resolve) => setTimeout(resolve, wait));
 		}
@@ -456,9 +479,9 @@ export async function searchAddresses(
 	// Get endpoint from database/env/default
 	config.endpoint = await getPeliasEndpoint();
 
-	if (RATE_LIMIT_ENABLED) {
+	if (rateLimitEnabled()) {
 		const now = Date.now();
-		const wait = Math.max(0, lastRequestTime + MIN_INTERVAL - now);
+		const wait = Math.max(0, lastRequestTime + minInterval() - now);
 		if (wait > 0 && isFinite(wait)) {
 			await new Promise((resolve) => setTimeout(resolve, wait));
 		}

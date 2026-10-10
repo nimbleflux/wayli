@@ -4,8 +4,13 @@
  * Alternative method for trip detection with different heuristics than the
  * sleep-based generation method.
  *
+ * Needs net + env: it geocodes the optional custom home address via Pelias,
+ * and importing pelias.service reads PELIAS_RATE_LIMIT (#243).
+ *
  * @fluxbase:require-role authenticated
  * @fluxbase:timeout 900
+ * @fluxbase:allow-net true
+ * @fluxbase:allow-env true
  */
 
 import { TripDetectionService } from '_shared/services/trip-detection.service';

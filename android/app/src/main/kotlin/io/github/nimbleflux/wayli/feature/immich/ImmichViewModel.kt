@@ -43,4 +43,7 @@ class ImmichViewModel @Inject constructor(
         repo.thumbnailBytes(assetId, size)
 
     suspend fun hasApiKey(): Boolean = repo.hasApiKey()
+
+    /** Immich asset ids already attached to a trip's media rows (picker dedupe). */
+    suspend fun attachedAssetIds(tripId: String): Set<String> = repo.attachedAssetIds(tripId)
 }

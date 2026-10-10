@@ -131,16 +131,21 @@ class EntryPublisher @Inject constructor(
         val blocksJson = EntryBlocks.toJson(EntryBlocks.Envelope(finalBlocks))
 
         // 4. Upsert the entry with blocks + projection.
-        val targetEntryId: String = if (entryId != null) {
-            tripRepo.updateEntry(entryId, title, entryDate, body, blocksJson).getOrThrow()
-            entryId
-        } else {
-            val created = tripRepo.createEntry(tripId, title, entryDate, body, blocksJson).getOrThrow()
-            // Attach media rows created with entry_id null while composing.
-            val newIds = uploadedPaths.values.mapNotNull { pathToId[it] }
-            if (newIds.isNotEmpty()) tripRepo.attachMediaToEntry(created.id, newIds).getOrThrow()
-            created.id
-        }
+            val targetEntryId: String = if (entryId != null) {
+                tripRepo.updateEntry(entryId, title, entryDate, body, blocksJson).getOrThrow()
+                entryId
+            } else {
+                val created = tripRepo.createEntry(tripId, title, entryDate, body, blocksJson).getOrThrow()
+                // Attach media rows created with entry_id null while composing:
+                // the local uploads above AND any server rows the blocks
+                // reference (Immich attaches while composing — #246).
+                val newIds = (
+                    uploadedPaths.values.mapNotNull { pathToId[it] } +
+                        editorBlocks.flatMap { block -> block.photos.mapNotNull { it.mediaId } }
+                    ).distinct()
+                if (newIds.isNotEmpty()) tripRepo.attachMediaToEntry(created.id, newIds).getOrThrow()
+                created.id
+            }
 
         // 5. Align sort_order with block order (legacy cover fallbacks).
         if (referencedIds.isNotEmpty()) {

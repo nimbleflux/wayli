@@ -187,6 +187,30 @@ class ImmichHelpersTest {
         assertFalse(hasMorePhotos(page(12, total = null), limit = 40))
     }
 
+    // ---- pickerPhotoRange (#246) ----
+
+    @Test
+    fun `pickerPhotoRange centers the window on the entry date`() {
+        val (start, end) = assertNotNull(pickerPhotoRange("2026-09-05", 3))
+        assertTrue(start.startsWith("2026-09-02T00:00"))
+        // Half-open end: midnight after (entry day + 3).
+        assertTrue(end.startsWith("2026-09-09T00:00"))
+    }
+
+    @Test
+    fun `pickerPhotoRange with 1 day spans exactly the entry day plus shoulders`() {
+        val (start, end) = assertNotNull(pickerPhotoRange("2026-01-31", 1))
+        assertTrue(start.startsWith("2026-01-30T00:00"))
+        // Half-open end: midnight after (entry day + 1) — crosses a month boundary here.
+        assertTrue(end.startsWith("2026-02-02T00:00"))
+    }
+
+    @Test
+    fun `pickerPhotoRange rejects unparseable dates`() {
+        assertNull(pickerPhotoRange("not-a-date", 3))
+        assertNull(pickerPhotoRange("", 3))
+    }
+
     // ---- ByteArrayLruCache ----
 
     @Test

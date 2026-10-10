@@ -11,10 +11,12 @@ import java.util.Base64
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 /** Connection settings stored at `preferences.immich` jsonb. */
 data class ImmichSettings(
@@ -134,6 +136,113 @@ class ImmichRepository @Inject constructor(
             .toSet()
     }.getOrDefault(emptySet())
 
+    /** A `trip_media` row created from an Immich asset. */
+    data class AttachedImmichMedia(
+        val id: String,
+        val storagePath: String,
+        val thumbnailPath: String?,
+    )
+
+    /**
+     * Attach Immich photos to a trip/entry (#246). Mirrors the web attach
+     * pipeline (immich-attach.service): COPIES thumbnail + preview bytes from
+     * Immich into the public-read `trip-images` bucket and creates ordinary
+     * `trip_media` rows — every existing render path (blocks, private and
+     * public pages) works unchanged, including anonymous visitors; the
+     * originals stay in Immich. Rows carry `source: 'immich'` +
+     * `immich_asset_id` so dedupe (`attachedAssetIds`) works on both platforms.
+     *
+     * `entryId` may be null while an entry is still being composed — the row
+     * is created unattached and linked after the entry exists (the editor's
+     * publish pipeline does this for every media id it references).
+     *
+     * @return the created rows, in [assets] order.
+     */
+    suspend fun attachToEntry(
+        tripId: String,
+        entryId: String?,
+        assets: List<ImmichAsset>,
+        sortOrderStart: Int = 0,
+    ): Result<List<AttachedImmichMedia>> = runCatching {
+        val userId = requireNotNull(client.auth.currentSession?.user?.id) { "Not signed in" }
+        val bucket = "trip-images"
+        val created = mutableListOf<AttachedImmichMedia>()
+        for ((index, asset) in assets.withIndex()) {
+            // Fetch both renditions BEFORE uploading anything, so a failed
+            // proxy call doesn't leave an orphaned object behind.
+            val thumb = thumbnailBytes(asset.assetId, "thumbnail")
+                ?: error("Immich thumbnail fetch failed for ${asset.assetId}")
+            val preview = thumbnailBytes(asset.assetId, "preview")
+                ?: error("Immich preview fetch failed for ${asset.assetId}")
+
+            val previewPath = "$userId/$tripId/immich-${asset.assetId}.webp"
+            val thumbPath = "$userId/$tripId/immich-${asset.assetId}-thumb.webp"
+            client.storage.from(bucket).upload(
+                path = previewPath,
+                data = preview,
+                contentType = "image/webp",
+                upsert = false,
+            )
+            client.storage.from(bucket).upload(
+                path = thumbPath,
+                data = thumb,
+                contentType = "image/webp",
+                upsert = false,
+            )
+
+            val exif = buildJsonObject {
+                asset.latitude.let { put("latitude", it) }
+                asset.longitude.let { put("longitude", it) }
+                asset.city?.let { put("city", it) }
+                asset.country?.let { put("country", it) }
+            }
+            val values = buildMap<String, Any> {
+                put("trip_id", tripId)
+                put("user_id", userId)
+                entryId?.let { put("entry_id", it) }
+                put(
+                    "storage_path",
+                    client.storage.from(bucket).getPublicUrl(previewPath),
+                )
+                put(
+                    "thumbnail_path",
+                    client.storage.from(bucket).getPublicUrl(thumbPath),
+                )
+                put("media_type", "image")
+                put("taken_at", asset.takenAt)
+                put("exif", exif)
+                put("source", "immich")
+                put("immich_asset_id", asset.assetId)
+                put("sort_order", sortOrderStart + index)
+            }
+            client.from<AttachedImmichRef>("trip_media").insert(values)
+            created += AttachedImmichMedia(
+                id = "",
+                storagePath = values["storage_path"] as String,
+                thumbnailPath = values["thumbnail_path"] as String,
+            )
+        }
+        // Resolve media ids by re-querying — insert doesn't return the rows,
+        // and storage paths are unique per upload (same trick the editor's
+        // publish pipeline uses for local uploads).
+        val rows = client.from<AttachedMediaPath>("trip_media")
+            .select("id,storage_path")
+            .eq("trip_id", tripId)
+            .execute()
+            .dataOrThrow()
+            .orEmpty()
+            .associateBy { it.storagePath }
+        created.map { row ->
+            AttachedImmichMedia(
+                id = requireNotNull(rows[row.storagePath]?.id) {
+                    "Inserted immich media row not found for ${row.storagePath}"
+                },
+                storagePath = row.storagePath,
+                thumbnailPath = row.thumbnailPath,
+            )
+        }
+    }
+
     /** Session-scoped thumbnail byte cache — strips re-request thumbs as their
      * items scroll in and out, and each miss is an authenticated round trip. */
     private val thumbCache = ByteArrayLruCache(THUMB_CACHE_MAX_BYTES)
@@ -226,10 +335,30 @@ fun entryPhotoRange(entry: TripEntry): Pair<String, String>? {
 fun hasMorePhotos(page: ImmichPhotoPage, limit: Int): Boolean =
     page.total?.let { page.assets.size < it } ?: (page.assets.size >= limit)
 
+/**
+ * The half-open UTC window the entry-editor picker browses (#246): the entry
+ * date ± [days] on each side. Null when entryDate is unparseable.
+ */
+fun pickerPhotoRange(entryDateISO: String, days: Int): Pair<String, String>? {
+    val day = runCatching { LocalDate.parse(entryDateISO) }.getOrNull() ?: return null
+    return Pair(
+        day.minusDays(days.toLong()).atStartOfDay(ZoneOffset.UTC).toInstant().toString(),
+        day.plusDays(days.toLong() + 1).atStartOfDay(ZoneOffset.UTC).toInstant().toString(),
+    )
+}
+
 /** Minimal projection of a `trip_media` row for attached-asset queries. */
 @kotlinx.serialization.Serializable
 data class AttachedImmichRef(
     @kotlinx.serialization.SerialName("immich_asset_id") val immichAssetId: String? = null,
+)
+
+/** Projection for resolving just-inserted media rows by storage path. */
+@kotlinx.serialization.Serializable
+data class AttachedMediaPath(
+    val id: String,
+    @kotlinx.serialization.SerialName("storage_path") val storagePath: String,
+    @kotlinx.serialization.SerialName("thumbnail_path") val thumbnailPath: String? = null,
 )
 
 /** Thread-safe, size-bounded LRU cache of byte arrays. Pure JVM (no Android

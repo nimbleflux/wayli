@@ -296,7 +296,10 @@ async function fetchCoarseGeocode(lat: number, lon: number, endpoint: string): P
       headers: {
         'User-Agent': 'Wayli/1.0 (https://wayli.app)',
         Accept: 'application/json'
-      }
+      },
+      // A hung Pelias connection must not stall ingestion to the edge
+      // timeout — the batch inserts only after all points are geocoded.
+      signal: AbortSignal.timeout(5000)
     });
     if (!response.ok) return null;
     const result = await response.json();
@@ -328,7 +331,8 @@ async function reverseGeocode(lat: number, lon: number, endpoint: string): Promi
       headers: {
         'User-Agent': 'Wayli/1.0 (https://wayli.app)',
         Accept: 'application/json'
-      }
+      },
+      signal: AbortSignal.timeout(5000)
     });
 
     if (!response.ok) {

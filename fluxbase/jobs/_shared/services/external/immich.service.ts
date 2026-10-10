@@ -1,3 +1,5 @@
+import { assertNotMetadataTarget } from './outbound-guard.ts';
+
 // Immich API client for the photo integration (#13).
 //
 // Auth is via the `x-api-key` header (API keys created in Immich Account
@@ -30,6 +32,17 @@ export interface ImmichResult<T> {
 
 const TIMEOUT_MS = 10_000;
 
+/**
+ * One-time public-address validation per resolved Immich base (see
+ * outbound-guard). Throws on private/unresolvable hosts.
+ */
+const validatedBases = new Set<string>();
+async function assertPublicImmichBase(base: string): Promise<void> {
+	if (validatedBases.has(base)) return;
+	await assertNotMetadataTarget(base);
+	validatedBases.add(base);
+}
+
 /** Normalize a base URL; null when neither the user URL nor the default is usable. */
 export function resolveImmichBase(userUrl: string | undefined | null, serverDefault: string | null | undefined): string | null {
 	for (const candidate of [userUrl, serverDefault]) {
@@ -58,6 +71,9 @@ async function immichFetch(
 	apiKey: string,
 	init?: Record<string, unknown>
 ): Promise<{ ok: true; response: Response } | { ok: false; error: string; errorKind: ImmichErrorKind }> {
+	// The base URL comes from user preferences — validate that it resolves to
+	// public addresses before anything is fetched from it. Cached per base.
+	await assertPublicImmichBase(base);
 	try {
 		const response = (await fetch(`${base}${path}`, {
 			...init,
@@ -69,24 +85,11 @@ async function immichFetch(
 			signal: AbortSignal.timeout(TIMEOUT_MS)
 		})) as Response;
 		if (!response.ok) {
-			// Include Immich's error body in the message — the status code
-			// alone is not enough to diagnose a 400 (validation errors tell
-			// you WHICH field is wrong). Body is truncated and sanitized.
-			let detail = '';
-			try {
-				const text = await response.text();
-				// Redact the API key itself, then any token-shaped material —
-				// Immich error bodies can echo request details.
-				detail = text
-					.split(apiKey)
-					.join('***')
-					.replace(/sk-[a-zA-Z0-9]+/g, 'sk-***')
-					.slice(0, 200);
-			} catch {
-				/* body unreadable — status code only */
-			}
-			const msg = statusMessage(response.status) + (detail ? ` Immich said: ${detail}` : '');
-			return { ok: false, error: msg, errorKind: classify(response.status) };
+			// Error discipline (see header): upstream bodies are never echoed to
+			// callers — the fetch target comes from user preferences, and body
+			// snippets can carry internal response content. Status-based messages
+			// are enough to diagnose (401 key rejected, 403 permissions, …).
+			return { ok: false, error: statusMessage(response.status), errorKind: classify(response.status) };
 		}
 		return { ok: true, response };
 	} catch (error) {

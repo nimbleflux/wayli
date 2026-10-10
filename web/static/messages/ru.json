@@ -72,8 +72,6 @@
       "account": "Счет",
       "dashboard": "Панель управления",
       "trips": "Путешествия",
-      "traveler": "путешественник",
-      "travelers": "путешественники",
       "locations": "Локации",
       "statistics": "Данные о местоположении",
       "preferences": "Предпочтения",
@@ -244,7 +242,8 @@
     "train": "Тренироваться",
     "airplane": "Самолет",
     "stationary": "Стационарный",
-    "unknown": "Неизвестный"
+    "unknown": "Неизвестный",
+    "running": "Бег"
   },
   "wayli": "Свиш",
   "wayliSubtitle": "Ваш личный спутник в путешествии",
@@ -559,7 +558,8 @@
     "fitnessInPeriod": "В обзоре {count} фитнес-тренировок",
     "immichPhotos": "Photos",
     "immichPhotosToggle": "Show geotagged photos from Immich",
-    "immichOpenInImmich": "Open in Immich"
+    "immichOpenInImmich": "Open in Immich",
+    "running": "Бег"
   },
   "connections": {
     "title": "Соединения",
@@ -631,7 +631,9 @@
       "pickerSelected": "selected",
       "pickerAdd": "Add {count} photos",
       "pickerAddedCount": "Added {count} photo(s) to the entry ({failed} failed).",
-      "days": "days"
+      "days": "days",
+      "pickerCacheHint": "Показаны локально кэшированные фотографии: сервер Immich недоступен.",
+      "pickerCached": "Из кэша — Immich недоступен"
     }
   },
   "importExport": {
@@ -1008,10 +1010,6 @@
     "updatingPassword": "Обновление пароля...",
     "savePreferences": "Сохранить настройки",
     "savingPreferences": "Сохранение настроек...",
-    "tripExclusions": "Исключения из поездок",
-    "tripExclusionsDescription": "Исключить города из подсчета «гостей». Посещение этих городов будет считаться «домашним» при обнаружении поездок.",
-    "noTripExclusions": "Исключенных поездок пока нет",
-    "addTripExclusionsHint": "Добавьте города, которые вы регулярно посещаете (например, рабочий город), которые не следует считать поездками.",
     "addTripExclusion": "Добавить исключение поездки",
     "addTripExclusionModal": "Добавить исключение поездки",
     "addExclusion": "Добавить исключение",
@@ -1783,7 +1781,21 @@
     "saveBeforePexels": "Сначала сохраните поездку, а затем скачайте обложку.",
     "immichPhotosTakenOn": "Photos taken on {date}",
     "immichTripHint": "{count} photo(s) from your Immich library were taken during this trip but are not attached yet.",
-    "immichTripHintAdd": "Add photos"
+    "immichTripHintAdd": "Add photos",
+    "whereIveBeen": "Где я был",
+    "autoDetectTrips": "Автоопределение поездок",
+    "autoDetectHint": "Определять новые поездки по данным геолокации",
+    "refreshAll": "Обновить всё",
+    "filterAll": "Все поездки",
+    "filterWithJournal": "С дневником",
+    "filterDrafts": "Черновики",
+    "filterWithPhotos": "С фото",
+    "pageXofY": "Страница {current} из {total}",
+    "dateRange": "Диапазон дат",
+    "saveDraft": "Сохранить черновик",
+    "publish": "Опубликовать",
+    "cancel": "Отмена",
+    "public": "Публично"
   },
   "community": {
     "by": "к",

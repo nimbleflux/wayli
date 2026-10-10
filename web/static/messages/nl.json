@@ -72,8 +72,6 @@
       "account": "Account",
       "dashboard": "Dashboard",
       "trips": "Reizen",
-      "traveler": "reiziger",
-      "travelers": "reizigers",
       "locations": "Locaties",
       "statistics": "Locatiegegevens",
       "preferences": "Voorkeuren",
@@ -244,7 +242,8 @@
     "train": "Trein",
     "airplane": "Vliegtuig",
     "stationary": "Stilstand",
-    "unknown": "Onbekend"
+    "unknown": "Onbekend",
+    "running": "Hardlopen"
   },
   "wayli": "Wayli",
   "wayliSubtitle": "Jouw persoonlijke reisgezel",
@@ -559,7 +558,8 @@
     "fitnessInPeriod": "{count} fitnessactiviteiten in beeld",
     "immichPhotos": "Foto's",
     "immichPhotosToggle": "Toon geotagged foto's van Immich",
-    "immichOpenInImmich": "Geopend in Immich"
+    "immichOpenInImmich": "Geopend in Immich",
+    "running": "Hardlopen"
   },
   "connections": {
     "title": "Verbindingen",
@@ -631,7 +631,9 @@
       "pickerSelected": "selected",
       "pickerAdd": "Add {count} photos",
       "pickerAddedCount": "Added {count} photo(s) to the entry ({failed} failed).",
-      "days": "days"
+      "days": "days",
+      "pickerCacheHint": "Lokaal gegecachte foto’s worden getoond omdat je Immich-server niet bereikbaar is.",
+      "pickerCached": "Gecacht — Immich onbereikbaar"
     }
   },
   "importExport": {
@@ -1779,7 +1781,21 @@
     "saveBeforePexels": "Sla eerst de reis op en haal vervolgens een omslagafbeelding op.",
     "immichPhotosTakenOn": "Foto's gemaakt op {date}",
     "immichTripHint": "{count} photo(s) from your Immich library were taken during this trip but are not attached yet.",
-    "immichTripHintAdd": "Add photos"
+    "immichTripHintAdd": "Add photos",
+    "whereIveBeen": "Waar ik ben geweest",
+    "autoDetectTrips": "Trips automatisch detecteren",
+    "autoDetectHint": "Detecteer nieuwe trips op basis van je locatiegegevens",
+    "refreshAll": "Alles vernieuwen",
+    "filterAll": "Alle trips",
+    "filterWithJournal": "Met dagboek",
+    "filterDrafts": "Concepten",
+    "filterWithPhotos": "Met foto’s",
+    "pageXofY": "Pagina {current} van {total}",
+    "dateRange": "Periode",
+    "saveDraft": "Concept opslaan",
+    "publish": "Publiceren",
+    "cancel": "Annuleren",
+    "public": "Openbaar"
   },
   "community": {
     "by": "door",

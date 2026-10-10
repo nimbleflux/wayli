@@ -72,8 +72,6 @@
       "account": "Konto",
       "dashboard": "Armaturenbrett",
       "trips": "Ausflüge",
-      "traveler": "Reisende",
-      "travelers": "Reisende",
       "locations": "Standorte",
       "statistics": "Standortdaten",
       "preferences": "Präferenzen",
@@ -244,7 +242,8 @@
     "train": "Zug",
     "airplane": "Flugzeug",
     "stationary": "Stationär",
-    "unknown": "Unbekannt"
+    "unknown": "Unbekannt",
+    "running": "Laufen"
   },
   "wayli": "Swish",
   "wayliSubtitle": "Ihr persönlicher Reisebegleiter",
@@ -559,7 +558,8 @@
     "fitnessInPeriod": "{count} Fitness-Einheiten im Zeitraum",
     "immichPhotos": "Fotos",
     "immichPhotosToggle": "Mit Geotags versehene Fotos von Immich anzeigen",
-    "immichOpenInImmich": "Geöffnet in Immich"
+    "immichOpenInImmich": "Geöffnet in Immich",
+    "running": "Laufen"
   },
   "connections": {
     "title": "Verbindungen",
@@ -631,7 +631,9 @@
       "pickerSelected": "selected",
       "pickerAdd": "Add {count} photos",
       "pickerAddedCount": "Added {count} photo(s) to the entry ({failed} failed).",
-      "days": "days"
+      "days": "days",
+      "pickerCacheHint": "Lokal zwischengespeicherte Fotos werden angezeigt, weil dein Immich-Server nicht erreichbar ist.",
+      "pickerCached": "Zwischengespeichert — Immich nicht erreichbar"
     }
   },
   "importExport": {
@@ -1779,7 +1781,21 @@
     "saveBeforePexels": "Speichern Sie zuerst die Reise und rufen Sie dann ein Titelbild ab.",
     "immichPhotosTakenOn": "Fotos aufgenommen am {Datum}",
     "immichTripHint": "{count} photo(s) from your Immich library were taken during this trip but are not attached yet.",
-    "immichTripHintAdd": "Add photos"
+    "immichTripHintAdd": "Add photos",
+    "whereIveBeen": "Wo ich war",
+    "autoDetectTrips": "Trips automatisch erkennen",
+    "autoDetectHint": "Neue Trips aus deinen Standortdaten erkennen",
+    "refreshAll": "Alle aktualisieren",
+    "filterAll": "Alle Trips",
+    "filterWithJournal": "Mit Journal",
+    "filterDrafts": "Entwürfe",
+    "filterWithPhotos": "Mit Fotos",
+    "pageXofY": "Seite {current} von {total}",
+    "dateRange": "Zeitraum",
+    "saveDraft": "Entwurf speichern",
+    "publish": "Veröffentlichen",
+    "cancel": "Abbrechen",
+    "public": "Öffentlich"
   },
   "community": {
     "by": "von",

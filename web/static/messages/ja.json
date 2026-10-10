@@ -72,8 +72,6 @@
       "account": "アカウント",
       "dashboard": "ダッシュボード",
       "trips": "旅行",
-      "traveler": "トラベラー",
-      "travelers": "トラベラー",
       "locations": "所在地",
       "statistics": "位置データ",
       "preferences": "設定",
@@ -244,7 +242,8 @@
     "train": "電車",
     "airplane": "飛行機",
     "stationary": "静止",
-    "unknown": "未知"
+    "unknown": "未知",
+    "running": "ランニング"
   },
   "wayli": "スウィッシュ",
   "wayliSubtitle": "あなたの個人的な旅の仲間",
@@ -559,7 +558,8 @@
     "fitnessInPeriod": "表示中のフィットネスセッション：{count}件",
     "immichPhotos": "Photos",
     "immichPhotosToggle": "Show geotagged photos from Immich",
-    "immichOpenInImmich": "Open in Immich"
+    "immichOpenInImmich": "Open in Immich",
+    "running": "ランニング"
   },
   "connections": {
     "title": "接続",
@@ -631,7 +631,9 @@
       "pickerSelected": "selected",
       "pickerAdd": "Add {count} photos",
       "pickerAddedCount": "Added {count} photo(s) to the entry ({failed} failed).",
-      "days": "days"
+      "days": "days",
+      "pickerCacheHint": "Immichサーバーに接続できないため、ローカルキャッシュの写真を表示しています。",
+      "pickerCached": "キャッシュ表示 — Immichに未接続"
     }
   },
   "importExport": {
@@ -1008,10 +1010,6 @@
     "updatingPassword": "パスワードを更新しています...",
     "savePreferences": "設定を保存する",
     "savingPreferences": "設定を保存しています...",
-    "tripExclusions": "旅行の除外事項",
-    "tripExclusionsDescription": "「アウェイ」としてのカウントから都市を除外します。これらの都市への訪問は、旅行を検出するときに「自宅」として扱われます。",
-    "noTripExclusions": "旅行の除外はまだありません",
-    "addTripExclusionsHint": "旅行としてカウントしない、定期的に訪れる都市 (勤務都市など) を追加します。",
     "addTripExclusion": "出張除外を追加",
     "addTripExclusionModal": "旅行の除外を追加",
     "addExclusion": "除外の追加",
@@ -1783,7 +1781,21 @@
     "saveBeforePexels": "まず旅行を保存してから、カバー画像を取得します。",
     "immichPhotosTakenOn": "Photos taken on {date}",
     "immichTripHint": "{count} photo(s) from your Immich library were taken during this trip but are not attached yet.",
-    "immichTripHintAdd": "Add photos"
+    "immichTripHintAdd": "Add photos",
+    "whereIveBeen": "訪れた場所",
+    "autoDetectTrips": "自動トリップ検出",
+    "autoDetectHint": "位置情報データから新しいトリップを検出します",
+    "refreshAll": "すべて更新",
+    "filterAll": "すべてのトリップ",
+    "filterWithJournal": "ジャーナル付き",
+    "filterDrafts": "下書き",
+    "filterWithPhotos": "写真付き",
+    "pageXofY": "{total}ページ中{current}ページ目",
+    "dateRange": "期間",
+    "saveDraft": "下書き保存",
+    "publish": "公開",
+    "cancel": "キャンセル",
+    "public": "公開"
   },
   "community": {
     "by": "による",

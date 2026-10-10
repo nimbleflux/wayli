@@ -1698,7 +1698,21 @@
     "saveBeforePexels": "Save the trip first, then fetch a cover image.",
     "immichPhotosTakenOn": "Photos taken on {date}",
     "immichTripHint": "{count} photo(s) from your Immich library were taken during this trip but are not attached yet.",
-    "immichTripHintAdd": "Add photos"
+    "immichTripHintAdd": "Add photos",
+    "whereIveBeen": "Where I've Been",
+    "autoDetectTrips": "Auto-detect Trips",
+    "autoDetectHint": "Detect new trips from your location data",
+    "refreshAll": "Refresh All",
+    "filterAll": "All trips",
+    "filterWithJournal": "With journal",
+    "filterDrafts": "Drafts",
+    "filterWithPhotos": "With photos",
+    "pageXofY": "Page {current} of {total}",
+    "dateRange": "Date range",
+    "saveDraft": "Save Draft",
+    "publish": "Publish",
+    "cancel": "Cancel",
+    "public": "Public"
   },
   "plan": {
     "pageTitle": "{title} · Plan · Wayli",

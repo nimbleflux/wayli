@@ -162,8 +162,10 @@ async function getPexelsRateLimit(settings: any): Promise<number> {
 		const rateLimitValue = await settings.get('wayli.pexels_rate_limit');
 
 		if (rateLimitValue === undefined || rateLimitValue === null) {
-			logInfo('No Pexels rate limit configured, rate limiting disabled', 'TRIPS-SUGGEST-IMAGE');
-			return 0; // No limit
+			// Unconfigured no longer means unlimited — the shared key needs a
+			// ceiling even when the admin never set one.
+			logInfo('No Pexels rate limit configured, using default 60/hour', 'TRIPS-SUGGEST-IMAGE');
+			return 60;
 		}
 
 		const rateLimit =
@@ -1003,7 +1005,7 @@ async function searchPexelsImages(
 		return null;
 	}
 
-	logInfo(`Searching Pexels with API key: ${apiKey.substring(0, 10)}...`, 'TRIPS-SUGGEST-IMAGE');
+	logInfo('Searching Pexels (API key configured)', 'TRIPS-SUGGEST-IMAGE');
 
 	const url = new URL('https://api.pexels.com/v1/search');
 	url.searchParams.set('query', query);

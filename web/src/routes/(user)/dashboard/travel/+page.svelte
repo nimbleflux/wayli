@@ -1448,14 +1448,14 @@
 					disabled={isGenerating}
 					aria-label="Auto-detect trips"
 					class="border-border text-foreground hover:bg-muted inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50"
-					title="Detect new trips from your location data"
+					title={t('travel.autoDetectHint')}
 				>
 					{#if isGenerating}
 						<Loader2 class="h-3.5 w-3.5 animate-spin" />
 						<span class="hidden sm:inline">Generating...</span>
 					{:else}
 						<Sparkles class="h-3.5 w-3.5" />
-						<span class="hidden sm:inline">Auto-detect Trips</span>
+						<span class="hidden sm:inline">{t('travel.autoDetectTrips')}</span>
 					{/if}
 				</button>
 				{#if trips.length > 0}
@@ -1472,7 +1472,7 @@
 						{:else}
 							<RefreshCw class="h-3.5 w-3.5" />
 						{/if}
-						<span class="hidden sm:inline">Refresh All</span>
+						<span class="hidden sm:inline">{t('travel.refreshAll')}</span>
 					</button>
 				{/if}
 				<button
@@ -1481,7 +1481,7 @@
 					class="bg-primary hover:bg-primary/90 text-primary-foreground inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
 				>
 					<Plus class="h-4 w-4" />
-					New Trip
+					{t('travel.newTrip')}
 				</button>
 			</div>
 		</div>
@@ -1490,7 +1490,9 @@
 		{#if visitedCountries.length > 0}
 			<div class="bg-card border-border mb-4 rounded-2xl border p-4">
 				<div class="mb-3 flex items-center justify-between">
-					<h3 class="text-foreground text-sm font-bold tracking-wide uppercase">Where I've Been</h3>
+					<h3 class="text-foreground text-sm font-bold tracking-wide uppercase">
+						{t('travel.whereIveBeen')}
+					</h3>
 					<span class="text-muted-foreground text-xs">
 						{visitedCountries.length}
 						{visitedCountries.length === 1 ? 'country' : 'countries'}
@@ -1609,7 +1611,7 @@
 				<!-- Filter chips -->
 				{#if trips.length > 0}
 					<div class="mb-4 flex flex-wrap gap-2">
-						{#each [['all', 'All trips'], ['withJournal', 'With journal'], ['withDrafts', 'Drafts'], ['hasPhotos', 'With photos']] as [value, label] (value)}
+						{#each [['all', t('travel.filterAll')], ['withJournal', t('travel.filterWithJournal')], ['withDrafts', t('travel.filterDrafts')], ['hasPhotos', t('travel.filterWithPhotos')]] as [value, label] (value)}
 							<button
 								type="button"
 								onclick={() => (activeFilter = value as typeof activeFilter)}
@@ -1966,7 +1968,7 @@
 							← Prev
 						</button>
 						<span class="text-muted-foreground text-sm">
-							Page {currentPage} of {totalTripPages}
+							{t('travel.pageXofY', { current: currentPage, total: totalTripPages })}
 						</span>
 						<button
 							type="button"
@@ -2016,7 +2018,7 @@
 						>
 							<div class="flex items-center justify-between">
 								<h2 class="text-foreground text-lg font-bold">
-									{editingEntry ? 'Edit Entry' : 'New Entry'}
+									{editingEntry ? t('travel.editEntry') : t('travel.newEntry')}
 								</h2>
 								<button
 									type="button"
@@ -2028,7 +2030,9 @@
 							</div>
 
 							<div class="flex flex-col gap-1">
-								<span class="text-muted-foreground text-xs font-medium">Date range</span>
+								<span class="text-muted-foreground text-xs font-medium"
+									>{t('travel.dateRange')}</span
+								>
 								<DateRangePicker
 									bind:startDate={editorDate}
 									bind:endDate={editorEndDate}
@@ -2040,7 +2044,7 @@
 							<input
 								type="text"
 								bind:value={editorTitle}
-								placeholder="Entry title (optional)"
+								placeholder={t('travel.entryTitlePlaceholder')}
 								class="border-border focus:ring-primary w-full rounded-lg border bg-transparent px-3 py-2 text-sm focus:ring-2 focus:outline-none"
 							/>
 
@@ -2085,7 +2089,7 @@
 									{:else}
 										<Save class="h-4 w-4" />
 									{/if}
-									Save Draft
+									{t('travel.saveDraft')}
 								</button>
 								<button
 									type="button"
@@ -2098,7 +2102,7 @@
 										Saving...
 									{:else}
 										<Save class="h-4 w-4" />
-										Publish
+										{t('travel.publish')}
 									{/if}
 								</button>
 							</div>
@@ -2121,7 +2125,7 @@
 						>
 							<div class="flex items-center justify-between">
 								<h2 class="text-foreground text-lg font-bold">
-									{editingTrip ? 'Edit Trip' : 'New Trip'}
+									{editingTrip ? t('travel.editTrip') : t('travel.newTrip')}
 								</h2>
 								<button
 									type="button"
@@ -2134,11 +2138,12 @@
 							<input
 								type="text"
 								bind:value={tripTitle}
-								placeholder="Trip title"
+								placeholder={t('travel.tripTitlePlaceholder')}
 								class="border-border focus:ring-primary w-full rounded-lg border bg-transparent px-3 py-2 text-sm focus:ring-2 focus:outline-none"
 							/>
 							<div>
-								<span class="text-muted-foreground mb-1 block text-xs">Date range</span>
+								<span class="text-muted-foreground mb-1 block text-xs">{t('travel.dateRange')}</span
+								>
 								<DateRangePicker
 									bind:startDate={tripStartDate}
 									bind:endDate={tripEndDate}

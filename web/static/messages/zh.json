@@ -72,8 +72,6 @@
       "account": "帐户",
       "dashboard": "仪表板",
       "trips": "行程",
-      "traveler": "旅行者",
-      "travelers": "旅行者",
       "locations": "地点",
       "statistics": "位置数据",
       "preferences": "偏好设置",
@@ -244,7 +242,8 @@
     "train": "火车",
     "airplane": "飞机",
     "stationary": "固定式",
-    "unknown": "未知"
+    "unknown": "未知",
+    "running": "跑步"
   },
   "wayli": "嗖嗖",
   "wayliSubtitle": "您的私人旅行伴侣",
@@ -559,7 +558,8 @@
     "fitnessInPeriod": "当前视图中的健身活动：{count}个",
     "immichPhotos": "Photos",
     "immichPhotosToggle": "Show geotagged photos from Immich",
-    "immichOpenInImmich": "Open in Immich"
+    "immichOpenInImmich": "Open in Immich",
+    "running": "跑步"
   },
   "connections": {
     "title": "连接",
@@ -631,7 +631,9 @@
       "pickerSelected": "selected",
       "pickerAdd": "Add {count} photos",
       "pickerAddedCount": "Added {count} photo(s) to the entry ({failed} failed).",
-      "days": "days"
+      "days": "days",
+      "pickerCacheHint": "无法连接 Immich 服务器，正在显示本地缓存的照片。",
+      "pickerCached": "已缓存 — Immich 不可达"
     }
   },
   "importExport": {
@@ -1008,10 +1010,6 @@
     "updatingPassword": "正在更新密码...",
     "savePreferences": "保存首选项",
     "savingPreferences": "正在保存首选项...",
-    "tripExclusions": "行程除外情况",
-    "tripExclusionsDescription": "将城市排除在“离开”之外。在检测旅行时，这些城市的访问将被视为“家乡”。",
-    "noTripExclusions": "尚无行程排除",
-    "addTripExclusionsHint": "添加您经常访问但不应计入行程的城市（例如工作城市）。",
     "addTripExclusion": "添加行程排除",
     "addTripExclusionModal": "添加行程排除",
     "addExclusion": "添加排除项",
@@ -1783,7 +1781,21 @@
     "saveBeforePexels": "首先保存旅程，然后获取封面图像。",
     "immichPhotosTakenOn": "Photos taken on {date}",
     "immichTripHint": "{count} photo(s) from your Immich library were taken during this trip but are not attached yet.",
-    "immichTripHintAdd": "Add photos"
+    "immichTripHintAdd": "Add photos",
+    "whereIveBeen": "我去过的地方",
+    "autoDetectTrips": "自动检测行程",
+    "autoDetectHint": "根据您的位置数据检测新行程",
+    "refreshAll": "全部刷新",
+    "filterAll": "所有行程",
+    "filterWithJournal": "有日志",
+    "filterDrafts": "草稿",
+    "filterWithPhotos": "有照片",
+    "pageXofY": "第 {current} 页，共 {total} 页",
+    "dateRange": "日期范围",
+    "saveDraft": "保存草稿",
+    "publish": "发布",
+    "cancel": "取消",
+    "public": "公开"
   },
   "community": {
     "by": "经过",

@@ -7470,3 +7470,22 @@ COMMENT ON COLUMN trips.budget_total IS 'Visible to everyone who can see the tri
 CREATE UNIQUE INDEX IF NOT EXISTS trips_user_dates_active_unique
     ON trips (user_id, start_date, end_date)
     WHERE status IN ('pending', 'completed', 'active');
+
+-- Function ACL hardening, part 2 (#262): the same PUBLIC-default treatment
+-- for the remaining SECURITY DEFINER surfaces. None of these are called
+-- directly by the Fluxbase RPC API (registered procedures run their own SQL
+-- with RLS context); explicit per-role grants above are the intended paths.
+REVOKE EXECUTE ON FUNCTION find_similar_users_by_preference(p_user_id uuid, p_preference_type text, p_limit integer, p_min_similarity numeric) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION get_user_tracking_data(user_uuid uuid, start_date timestamp with time zone, end_date timestamp with time zone, limit_count integer) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION get_user_preferences(uuid, text) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION full_country(text) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION get_public_trip_track(trip_uuid uuid) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION get_public_activity_track(activity_uuid uuid) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION is_discoverable_to(uuid) FROM PUBLIC;
+-- effective_activity_visibility is an RLS-policy helper (fitness policies
+-- evaluate it as the calling role) — same treatment as the block above.
+REVOKE EXECUTE ON FUNCTION effective_activity_visibility(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION effective_activity_visibility(uuid) TO anon, authenticated, service_role, tenant_service;
+
+-- Future functions default to explicit grants, not the Postgres PUBLIC default.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;

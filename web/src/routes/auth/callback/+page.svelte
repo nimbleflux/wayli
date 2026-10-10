@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Loader2 } from 'lucide-svelte';
+	import { safeRedirectTo } from '$lib/utils/redirect';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { t } from '$lib/i18n';
@@ -100,10 +101,10 @@
 					// Get redirectTo from URL params or sessionStorage fallback
 					const storedRedirectTo = sessionStorage.getItem('oauth_redirect_to');
 					sessionStorage.removeItem('oauth_redirect_to');
-					const redirectTo =
-						$page.url.searchParams.get('redirectTo') ||
-						storedRedirectTo ||
-						'/dashboard/location-data';
+					const redirectTo = safeRedirectTo(
+						$page.url.searchParams.get('redirectTo') || storedRedirectTo,
+						'/dashboard/location-data'
+					);
 					toast.success(t('auth.authenticationSuccess'));
 					goto(redirectTo);
 				}

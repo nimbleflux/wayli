@@ -72,8 +72,6 @@
       "account": "Compte",
       "dashboard": "Tableau de bord",
       "trips": "Voyages",
-      "traveler": "voyageur",
-      "travelers": "voyageurs",
       "locations": "Emplacements",
       "statistics": "Données de localisation",
       "preferences": "Préférences",
@@ -244,7 +242,8 @@
     "train": "Former",
     "airplane": "Avion",
     "stationary": "Stationnaire",
-    "unknown": "Inconnu"
+    "unknown": "Inconnu",
+    "running": "Course"
   },
   "wayli": "Bruissement",
   "wayliSubtitle": "Votre compagnon de voyage personnel",
@@ -559,7 +558,8 @@
     "fitnessInPeriod": "{count} séances de sport visibles",
     "immichPhotos": "Photos",
     "immichPhotosToggle": "Afficher les photos géolocalisées d'Immich",
-    "immichOpenInImmich": "Ouvert à Immich"
+    "immichOpenInImmich": "Ouvert à Immich",
+    "running": "Course"
   },
   "connections": {
     "title": "Relations",
@@ -631,7 +631,9 @@
       "pickerSelected": "selected",
       "pickerAdd": "Add {count} photos",
       "pickerAddedCount": "Added {count} photo(s) to the entry ({failed} failed).",
-      "days": "days"
+      "days": "days",
+      "pickerCacheHint": "Affichage des photos en cache local car votre serveur Immich est injoignable.",
+      "pickerCached": "En cache — Immich injoignable"
     }
   },
   "importExport": {
@@ -1009,9 +1011,6 @@
     "savePreferences": "Enregistrer les préférences",
     "savingPreferences": "Enregistrement des préférences...",
     "excludedZones": "Zones Exclues",
-    "tripExclusionsDescription": "Excluez les villes du comptage comme « à l'extérieur ». Les visites dans ces villes seront traitées comme « domicile » lors de la détection des voyages.",
-    "noTripExclusions": "Aucune exclusion de voyage pour l'instant",
-    "addTripExclusionsHint": "Ajoutez les villes que vous visitez régulièrement (par exemple, la ville de travail) qui ne doivent pas être comptées comme des déplacements.",
     "addTripExclusion": "Ajouter une exclusion de voyage",
     "excludedZonesDescription": "Lieux exclus de la détection des voyages et des visites de lieux. Les lieux à moins de 100m de ces emplacements ne seront pas enregistrés comme visites.",
     "excludedZonesHelp": "Ajoutez votre domicile, lieu de travail, salle de sport ou autres lieux que vous visitez régulièrement. Ces lieux seront exclus de la détection des visites (rayon 100m).",
@@ -1782,7 +1781,21 @@
     "saveBeforePexels": "Enregistrez d’abord le voyage, puis récupérez une image de couverture.",
     "immichPhotosTakenOn": "Photos prises le {date}",
     "immichTripHint": "{count} photo(s) from your Immich library were taken during this trip but are not attached yet.",
-    "immichTripHintAdd": "Add photos"
+    "immichTripHintAdd": "Add photos",
+    "whereIveBeen": "Où je suis allé",
+    "autoDetectTrips": "Détection auto des voyages",
+    "autoDetectHint": "Détecter de nouveaux voyages à partir de vos données de localisation",
+    "refreshAll": "Tout actualiser",
+    "filterAll": "Tous les voyages",
+    "filterWithJournal": "Avec journal",
+    "filterDrafts": "Brouillons",
+    "filterWithPhotos": "Avec photos",
+    "pageXofY": "Page {current} sur {total}",
+    "dateRange": "Période",
+    "saveDraft": "Enregistrer le brouillon",
+    "publish": "Publier",
+    "cancel": "Annuler",
+    "public": "Public"
   },
   "community": {
     "by": "par",

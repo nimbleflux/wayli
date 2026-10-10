@@ -1,4 +1,3 @@
-// /Users/bart/Dev/wayli/fluxbase/jobs/_shared/services/transport-mode/config.ts
 // Mirrors web/src/lib/utils/transport-mode.config.ts. Update both together.
 
 /**

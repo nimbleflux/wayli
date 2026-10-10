@@ -1,4 +1,3 @@
-// /Users/bart/Dev/wayli/fluxbase/jobs/_shared/services/transport-mode/valhalla-confirm.ts
 // Mirrors web/src/lib/services/transport-mode/valhalla-confirm.ts. Update both together.
 //
 import { segmentByGaps, SEGMENT_GAP_MS } from './segmentation.ts';

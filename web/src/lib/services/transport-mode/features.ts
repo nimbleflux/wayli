@@ -1,4 +1,3 @@
-// /Users/bart/Dev/wayli/web/src/lib/services/transport-mode/features.ts
 //
 // Feature extraction for the HMM transport-mode detector. Pure functions,
 // no I/O. Wraps the existing geocode helpers so we keep a single source of

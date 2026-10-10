@@ -1,4 +1,3 @@
-// /Users/bart/Dev/wayli/web/src/lib/services/transport-mode/index.ts
 //
 // Public surface of the HMM transport-mode detector. Both the browser
 // (Location Data page) and the Deno background job import from here so there

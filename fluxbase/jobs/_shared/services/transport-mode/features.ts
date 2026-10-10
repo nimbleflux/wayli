@@ -1,4 +1,3 @@
-// /Users/bart/Dev/wayli/fluxbase/jobs/_shared/services/transport-mode/features.ts
 // Mirrors web/src/lib/services/transport-mode/features.ts. Update both together.
 
 import type { ModeFeatures, ModeObservation } from './types.ts';

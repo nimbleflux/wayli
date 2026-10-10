@@ -1,5 +1,3 @@
-// /Users/bart/Dev/wayli/web/tests/unit/utils/multi-point-speed.test.ts
-
 import { describe, it, expect } from 'vitest';
 import {
 	calculateMultiPointSpeed,

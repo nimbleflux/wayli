@@ -19,10 +19,5 @@
       "matchUpdateTypes": ["minor", "patch"],
       "automerge": true
     },
-    {
-      "description": "Pin eslint to v9 - typescript-eslint v9 not yet released, ESLint 10 still in beta",
-      "matchPackageNames": ["eslint", "@eslint/js"],
-      "allowedVersions": "9.x"
-    }
   ]
 }

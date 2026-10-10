@@ -1,5 +1,3 @@
-// /Users/bart/Dev/wayli/web/src/lib/types/transport-detection.types.ts
-
 import type { GeocodeGeoJSONFeature } from '../utils/geojson-converter';
 import type { GPSFrequencyAnalysis } from '../utils/speed-pattern-analysis';
 

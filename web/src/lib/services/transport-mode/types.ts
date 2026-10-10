@@ -1,4 +1,3 @@
-// /Users/bart/Dev/wayli/web/src/lib/services/transport-mode/types.ts
 //
 // Shared types for the HMM transport-mode detector. Kept dependency-free
 // (no Svelte, no DOM) so the Deno background job and the browser import the

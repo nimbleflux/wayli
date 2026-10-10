@@ -1,5 +1,3 @@
-// /Users/bart/Dev/wayli/web/src/lib/services/transport-mode-detector.service.ts
-
 import type {
 	DetectionContext,
 	DetectionResult,

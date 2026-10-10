@@ -1,4 +1,3 @@
-// /Users/bart/Dev/wayli/fluxbase/jobs/_shared/services/transport-mode/model.ts
 // Mirrors web/src/lib/services/transport-mode/model.ts. Update both together.
 
 import {

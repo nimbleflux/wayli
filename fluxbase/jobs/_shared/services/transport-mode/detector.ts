@@ -1,4 +1,3 @@
-// /Users/bart/Dev/wayli/fluxbase/jobs/_shared/services/transport-mode/detector.ts
 // Mirrors web/src/lib/services/transport-mode/detector.ts. Update both together.
 
 import { segmentByGaps } from './segmentation.ts';

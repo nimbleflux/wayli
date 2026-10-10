@@ -1,5 +1,3 @@
-// /Users/bart/Dev/wayli/web/src/lib/utils/multi-point-speed.ts
-
 import type {
 	PointData,
 	SpeedCalculationConfig,

@@ -1,4 +1,3 @@
-// /Users/bart/Dev/wayli/fluxbase/jobs/_shared/services/trip-route/trip-route-geometry.ts
 // Mirrors web/src/lib/services/trip-route/trip-route-geometry.ts and
 // functions/_shared/services/trip-route/trip-route-geometry.ts. Update ALL together.
 //

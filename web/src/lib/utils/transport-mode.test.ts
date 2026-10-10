@@ -2,11 +2,9 @@ import { describe, it, expect } from 'vitest';
 
 import {
 	haversine,
-	getSpeedBracket,
 	isAtTrainStation,
 	isAtAirport,
 	isOnHighwayOrMotorway,
-	isModeSwitchPossible,
 	isOnWaterGeocode
 } from './transport-mode';
 
@@ -101,17 +99,6 @@ describe('Transport Mode Detection', () => {
 			});
 		});
 
-		describe('getSpeedBracket', () => {
-			it('should return correct mode for speed brackets', () => {
-				expect(getSpeedBracket(0.5)).toBe('stationary');
-				expect(getSpeedBracket(5)).toBe('walking');
-				expect(getSpeedBracket(15)).toBe('cycling');
-				expect(getSpeedBracket(60)).toBe('car');
-				expect(getSpeedBracket(150)).toBe('train');
-				expect(getSpeedBracket(500)).toBe('airplane');
-			});
-		});
-
 		describe('isAtTrainStation', () => {
 			it('should detect railway station from OSM addendum', () => {
 				const geocode = {
@@ -161,34 +148,6 @@ describe('Transport Mode Detection', () => {
 });
 
 // Train detection scenarios now covered by enhanced mode tests
-
-describe('isModeSwitchPossible', () => {
-	it('should prevent cycling to train switch', () => {
-		expect(isModeSwitchPossible('cycling', 'train', false)).toBe(false);
-		expect(isModeSwitchPossible('cycling', 'train', true)).toBe(false); // Even at train station
-	});
-
-	it('should prevent train to cycling switch', () => {
-		expect(isModeSwitchPossible('train', 'cycling', false)).toBe(false);
-		expect(isModeSwitchPossible('train', 'cycling', true)).toBe(false); // Even at train station
-	});
-
-	it('should allow cycling to other modes', () => {
-		expect(isModeSwitchPossible('cycling', 'walking', false)).toBe(true);
-		expect(isModeSwitchPossible('cycling', 'car', false)).toBe(true);
-		expect(isModeSwitchPossible('cycling', 'stationary', false)).toBe(true);
-	});
-
-	it('should allow train to car at station', () => {
-		expect(isModeSwitchPossible('train', 'car', true)).toBe(true);
-		expect(isModeSwitchPossible('train', 'car', false)).toBe(false);
-	});
-
-	it('should allow car to train at station', () => {
-		expect(isModeSwitchPossible('car', 'train', true)).toBe(true);
-		expect(isModeSwitchPossible('car', 'train', false)).toBe(false);
-	});
-});
 
 describe('Pelias Geocode Format Detection', () => {
 	describe('isAtTrainStation with Pelias OSM data', () => {

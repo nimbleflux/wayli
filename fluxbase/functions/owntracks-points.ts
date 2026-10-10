@@ -98,6 +98,17 @@ async function authenticateDeviceToken(
   return { userId: data.user_id as string, scopeDenied: false };
 }
 
+/**
+ * Constant-time string comparison for secret material — a plain `===` lets
+ * response timing leak how many leading characters matched.
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+	if (a.length !== b.length) return false;
+	let diff = 0;
+	for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+	return diff === 0;
+}
+
 async function handler(
   req: Request,
   _fluxbase: FluxbaseClient,
@@ -156,7 +167,7 @@ async function handler(
         logError('Failed to retrieve API key', 'OWNTRACKS_POINTS', { userId, error });
       }
 
-      if (!storedApiKey || storedApiKey !== apiKey) {
+      if (!storedApiKey || !timingSafeEqual(storedApiKey, apiKey)) {
         logError('Invalid API key', 'OWNTRACKS_POINTS', { userId });
         return errorResponse(401);
       }

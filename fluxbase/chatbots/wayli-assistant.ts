@@ -22,9 +22,9 @@
  * @fluxbase:conversation-ttl 30 days
  * @fluxbase:max-turns 50
  * @fluxbase:max-iterations 50
- * @fluxbase:rate-limit 0/min
- * @fluxbase:daily-limit 0
- * @fluxbase:token-budget 0/day
+ * @fluxbase:rate-limit 20/min
+ * @fluxbase:daily-limit 200
+ * @fluxbase:token-budget 100000/day
  * @fluxbase:mcp-tools execute_sql,invoke_rpc,invoke_function,vector_search
  * @fluxbase:use-mcp-schema
  *

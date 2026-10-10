@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Mail, Lock, ArrowRight } from 'lucide-svelte';
 	import { onMount } from 'svelte';
+	import { safeRedirectTo } from '$lib/utils/redirect';
 
 	import { userStore } from '$lib/stores/auth';
 	import { fluxbase } from '$lib/fluxbase';
@@ -18,7 +19,10 @@
 
 			if (user) {
 				// User is already authenticated, redirect to intended destination or default
-				const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/location-data';
+				const redirectTo = safeRedirectTo(
+					$page.url.searchParams.get('redirectTo'),
+					'/dashboard/location-data'
+				);
 				console.log('🔄 [AUTH] REDIRECTING: User already authenticated, going to', redirectTo);
 				goto(redirectTo);
 				return;
@@ -29,7 +33,10 @@
 		const unsubscribe = userStore.subscribe((user) => {
 			console.log('🔐 [AUTH] User store updated:', user ? `User: ${user.email}` : 'No user');
 			if (user) {
-				const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/location-data';
+				const redirectTo = safeRedirectTo(
+					$page.url.searchParams.get('redirectTo'),
+					'/dashboard/location-data'
+				);
 				console.log('🔄 [AUTH] REDIRECTING: User authenticated, going to', redirectTo);
 				goto(redirectTo);
 			}

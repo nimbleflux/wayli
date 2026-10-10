@@ -78,3 +78,6 @@ web/static/messages/new_keys.txt
 .zcodeignore
 /docs/superpowers/
 /test-results/
+
+# Local design notes (never ship)
+docs/signed-media-migration.md

@@ -76,6 +76,7 @@ export function extractFeatures(observations: ModeObservation[], cvWindow = 5): 
 			atVenue: getVenueTypeFromAddendum(obs.geocode) !== null,
 			accuracyWeight: accuracyWeight(obs.accuracy),
 			onWater: isOnWaterGeocode(obs.geocode),
+			activityType: obs.activityType ?? null,
 			stationProximity: 0
 		};
 	}

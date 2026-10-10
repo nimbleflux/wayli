@@ -26,7 +26,13 @@ export interface ModeObservation {
 	/** GPS accuracy radius in meters; lower is better. null when unknown. */
 	accuracy: number | null;
 	/** Pelias reverse-geocode result. Carries OSM railway/highway/aeroway tags. */
-	geocode?: GeocodeGeoJSONFeature | null;
+	geocode?: GeocodeGeoJSONFeature | null; /**
+	 * Activity-recognition hint from tracker_data.activity_type (#255):
+	 * still | on_foot | running | in_vehicle | on_bike, or null. Optional —
+	 * OwnTracks and other trackers never send it, so every consumer must
+	 * stay hint-neutral when absent.
+	 */
+	activityType?: string | null;
 }
 
 /**
@@ -56,7 +62,8 @@ export interface ModeFeatures {
 	 * open water — a permanent no-result failure, the marine layer, or an OSM
 	 * water tag. Gate for the boat/swimming emissions.
 	 */
-	onWater: boolean;
+	onWater: boolean; /** Activity-recognition hint (#255), threaded from the observation. Absent/null = neutral. */
+	activityType?: string | null;
 }
 
 /**

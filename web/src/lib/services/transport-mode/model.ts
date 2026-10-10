@@ -145,6 +145,16 @@ export function emissionScores(
 		if (mode === 'cycling' && segCtx && segCtx.meanSpeedKmh > 0 && segCtx.meanSpeedKmh < 12.5) {
 			s *= 0.6;
 		}
+		// #255: activity-recognition anchor. Only the gplay Android driver can
+		// emit 'running' (GMS DetectedActivity.RUNNING kept distinct instead of
+		// folded into on_foot), so treat it like the station/airport anchors:
+		// strong boost + competitor damping, and fully neutral when absent
+		// (OwnTracks, foss builds, all historical data).
+		if (f.activityType === 'running') {
+			if (mode === 'running') s *= 3.5;
+			if (mode === 'walking') s *= 0.4;
+		}
+
 		// Per-point rail anchor: nearer a station -> more train, less car.
 		if (mode === 'train' && f.atTrainStation) s *= 4.0;
 		if (mode === 'train' && f.stationProximity > 0) s *= 1 + 1.6 * f.stationProximity;

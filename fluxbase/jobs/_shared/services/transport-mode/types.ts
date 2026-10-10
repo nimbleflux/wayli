@@ -12,6 +12,13 @@ export interface ModeObservation {
 	heading: number | null; // degrees [0,360)
 	accuracy: number | null; // meters
 	geocode?: GeocodeGeoJSONFeature | null;
+	/**
+	 * Activity-recognition hint from tracker_data.activity_type (#255):
+	 * still | on_foot | running | in_vehicle | on_bike, or null. Optional —
+	 * OwnTracks and other trackers never send it, so every consumer must
+	 * stay hint-neutral when absent.
+	 */
+	activityType?: string | null;
 }
 
 export interface ModeFeatures {
@@ -25,6 +32,8 @@ export interface ModeFeatures {
 	accuracyWeight: number;
 	/** Per-point water evidence (#220), see web types.ts. */
 	onWater: boolean;
+	/** Activity-recognition hint (#255), threaded from the observation. Absent/null = neutral. */
+	activityType?: string | null;
 }
 
 /**

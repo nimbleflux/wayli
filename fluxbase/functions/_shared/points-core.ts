@@ -635,7 +635,8 @@ export async function ingestPoints(
           // ponytail: wrap heading into [0,360) — OwnTracks-Android emits cog=360 for due north, which trips the tracker_data_valid_heading CHECK (heading < 360)
           heading: point.cog != null ? ((Number(point.cog) % 360) + 360) % 360 : null,
           battery_level: point.batt != null ? Math.min(100, Math.max(0, Number(point.batt))) : null,
-          // Wayli app extension: activity-recognition hint (still/on_foot/in_vehicle/on_bike).
+          // Wayli app extension: activity-recognition hint
+          // (still/on_foot/running/in_vehicle/on_bike — #255 added running).
           // Ignored by real OwnTracks devices (field absent → null).
           activity_type: typeof point.act === 'string' ? point.act : null,
           geocode: geocodeData,

@@ -17,7 +17,7 @@ interface LinkPreview {
 	rating: string | null;
 }
 
-import { fetchPublic } from './_shared/outbound-guard.ts';
+import { assertPublicHttpUrl, guardedFetch } from './_shared/outbound-guard.ts';
 
 function extractMeta(html: string, property: string): string | null {
 	let match = html.match(
@@ -66,9 +66,9 @@ export default async function handler(req: Request): Promise<Response> {
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), 8000);
 
-		// fetchPublic validates the target (and every redirect hop) resolves to
-		// public addresses — this handler fetches arbitrary user-supplied URLs.
-		const resp = await fetchPublic(url, {
+		// guardedFetch validates the target (and every redirect hop) resolves
+		// to public addresses — this handler fetches arbitrary user URLs.
+		const resp = await guardedFetch(url, assertPublicHttpUrl, {
 			headers: { 'User-Agent': 'Wayli/1.0 (Link Preview Bot)', Accept: 'text/html' },
 			signal: controller.signal
 		});

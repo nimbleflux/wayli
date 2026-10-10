@@ -34,6 +34,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Notes
@@ -136,6 +137,7 @@ class EntryEditorViewModel @Inject constructor(
     private val mediaUploader: MediaUploader,
     private val entryPublisher: EntryPublisher,
     private val demoManager: DemoManager,
+    private val immichRepo: io.github.nimbleflux.wayli.repo.ImmichRepository,
 ) : ViewModel() {
 
     val tripId: String = savedStateHandle.get<String>("tripId") ?: ""
@@ -345,17 +347,56 @@ class EntryEditorViewModel @Inject constructor(
                     .getOrNull()
                     ?.let { EditorPhotoRef(localPath = it) }
             }
-            if (refs.isNotEmpty()) {
-                updateBlocks { blocks ->
-                    val index = blockIndex ?: blocks.indexOfLast { it.t == EditorBlockModel.PHOTOS }
-                    if (index >= 0) {
-                        blocks.mapIndexed { i, b ->
-                            if (i == index && b.t == EditorBlockModel.PHOTOS) b.copy(photos = b.photos + refs) else b
-                        }
-                    } else {
-                        blocks + EditorBlockModel.photos(refs)
-                    }
+            insertPhotoRefs(blockIndex, refs)
+        }
+    }
+
+    /**
+     * Attach Immich photos to the entry being composed (#246). The rows are
+     * created immediately (the copy-to-bucket pipeline mirrors the web attach,
+     * so drafts and other render paths see ordinary `trip_media` rows); for a
+     * new entry they're created unattached and the publish pipeline links
+     * every media id the blocks reference. Photo refs land in the target
+     * block like local picks; display URLs resolve like server photos.
+     */
+    fun addImmichPhotos(blockIndex: Int?, assets: List<io.github.nimbleflux.wayli.models.ImmichAsset>) {
+        if (assets.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            immichBusy.value = true
+            try {
+                val created = immichRepo.attachToEntry(tripId, entryId, assets).getOrElse {
+                    message.value = "Could not add Immich photos: ${it.message ?: "error"}"
+                    return@launch
                 }
+                val existing = created.map { row ->
+                    ExistingMedia(
+                        id = row.id,
+                        url = mediaUploader.resolveDisplayUrl(storagePath = row.storagePath) ?: "",
+                        storagePath = row.storagePath,
+                    )
+                }
+                _state.value = _state.value.copy(existingMedia = _state.value.existingMedia + existing)
+                insertPhotoRefs(blockIndex, created.map { EditorPhotoRef(mediaId = it.id) })
+            } finally {
+                immichBusy.value = false
+            }
+        }
+    }
+
+    /** True while an Immich attach round trip is in flight. */
+    val immichBusy = kotlinx.coroutines.flow.MutableStateFlow(false)
+
+    /** Append [refs] to the photo block at [blockIndex] (null = trailing block). */
+    private fun insertPhotoRefs(blockIndex: Int?, refs: List<EditorPhotoRef>) {
+        if (refs.isEmpty()) return
+        updateBlocks { blocks ->
+            val index = blockIndex ?: blocks.indexOfLast { it.t == EditorBlockModel.PHOTOS }
+            if (index >= 0) {
+                blocks.mapIndexed { i, b ->
+                    if (i == index && b.t == EditorBlockModel.PHOTOS) b.copy(photos = b.photos + refs) else b
+                }
+            } else {
+                blocks + EditorBlockModel.photos(refs)
             }
         }
     }
@@ -635,6 +676,31 @@ fun EntryEditorScreen(
             androidx.activity.result.PickVisualMediaRequest(
                 androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly,
             ),
+        )
+    }
+
+    // Immich attach (#246): browse + pick photos around the entry date when
+    // the integration is enabled (connection management stays on web).
+    var showImmichPicker by remember { androidx.compose.runtime.mutableStateOf(false) }
+    var immichEnabled by remember { androidx.compose.runtime.mutableStateOf(false) }
+    val immichViewModel: io.github.nimbleflux.wayli.feature.immich.ImmichViewModel =
+        androidx.hilt.navigation.compose.hiltViewModel()
+    LaunchedEffect(Unit) {
+        val uid = immichViewModel.userId ?: return@LaunchedEffect
+        immichEnabled = immichViewModel.settings(uid)?.enabled == true
+    }
+    if (showImmichPicker) {
+        ImmichPickerSheet(
+            tripId = viewModel.tripId,
+            // A brand-new entry may not have a date set yet — browse around today.
+            entryDate = state.entryDate.ifBlank {
+                java.time.LocalDate.now().toString()
+            },
+            onAdd = { assets ->
+                showImmichPicker = false
+                viewModel.addImmichPhotos(null, assets)
+            },
+            onDismiss = { showImmichPicker = false },
         )
     }
 
@@ -946,6 +1012,20 @@ fun EntryEditorScreen(
                     )
                     Spacer(Modifier.size(6.dp))
                     Text("Add photos")
+                }
+                if (immichEnabled) {
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = { showImmichPicker = true },
+                        enabled = !state.saving,
+                    ) {
+                        Icon(
+                            androidx.compose.material.icons.Icons.Filled.Image,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Spacer(Modifier.size(6.dp))
+                        Text("Immich")
+                    }
                 }
             }
             Spacer(Modifier.height(io.github.nimbleflux.wayli.designsystem.rememberDockClearance()))

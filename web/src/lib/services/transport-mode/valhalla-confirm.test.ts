@@ -1,5 +1,5 @@
 import { describe, test, expect, vi } from 'vitest';
-import { confirmWithValhalla, type ValhallaClient } from './valhalla-confirm';
+import { confirmWithValhalla, costingForMode, type ValhallaClient } from './valhalla-confirm';
 import type { ModeObservation, PointModeDecision } from './types';
 import type { ValhallaTraceResult } from './valhalla.service';
 
@@ -843,5 +843,22 @@ describe('confirmWithValhalla', () => {
 
 		await confirmWithValhalla(observations, decisions, mockClient);
 		expect(mockClient.traceAttributes).toHaveBeenCalledWith(expect.anything(), 'bicycle');
+	});
+});
+
+describe('costingForMode', () => {
+	// Mirror parity with fluxbase valhalla-confirm.ts — running must match the
+	// pedestrian network, not fall through to the permissive road matcher.
+	test('mode → costing matrix covers every canonical mode', () => {
+		expect(costingForMode('walking')).toBe('pedestrian');
+		expect(costingForMode('running')).toBe('pedestrian');
+		expect(costingForMode('stationary')).toBe('pedestrian');
+		expect(costingForMode('cycling')).toBe('bicycle');
+		expect(costingForMode('car')).toBe('auto');
+		expect(costingForMode('train')).toBe('auto');
+		expect(costingForMode('airplane')).toBe('auto');
+		expect(costingForMode('boat')).toBe('auto');
+		expect(costingForMode('swimming')).toBe('auto');
+		expect(costingForMode('unknown')).toBe('auto');
 	});
 });

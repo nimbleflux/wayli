@@ -94,9 +94,10 @@ function intervalMedianKmh(slice: ModeObservation[]): number {
 }
 
 /** Map a Stage-1 mode to the Valhalla costing that matches it. */
-function costingForMode(mode: TransportMode): ValhallaCosting {
+export function costingForMode(mode: TransportMode): ValhallaCosting {
 	switch (mode) {
 		case 'walking':
+		case 'running':
 		case 'stationary':
 			return 'pedestrian';
 		case 'cycling':

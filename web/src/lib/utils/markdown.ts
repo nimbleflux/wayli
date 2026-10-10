@@ -39,6 +39,8 @@ export function renderMarkdown(content: string, stripImages: boolean = false): s
 		const html = marked.parse(processed, { async: false }) as string;
 		return DOMPurify.sanitize(html);
 	} catch {
-		return content;
+		// Fail closed: never hand unsanitized input to {@html} sinks. Escape
+		// instead so the text still renders if the pipeline ever throws.
+		return content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 	}
 }

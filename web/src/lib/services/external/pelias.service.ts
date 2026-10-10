@@ -115,9 +115,25 @@ export async function getPeliasEndpoint(): Promise<string> {
 	return cachedEndpoint;
 }
 
+const DEFAULT_PELIAS_ENDPOINT = 'https://pelias.wayli.app';
+
+/**
+ * Build the endpoint list for a request. Self-hosted endpoints must NOT
+ * silently fail over to the hosted instance: that would send users'
+ * coordinates to a third-party server. The hosted default is only ever
+ * paired with itself, so a broken self-hosted Pelias surfaces as an error
+ * instead of a privacy leak.
+ */
+function resolveEndpoints(endpoint: string): string[] {
+	if (!endpoint || endpoint === DEFAULT_PELIAS_ENDPOINT) {
+		return [DEFAULT_PELIAS_ENDPOINT];
+	}
+	return [endpoint];
+}
+
 // Get configuration - prioritize environment variables, fallback to default
 const config = {
-	endpoint: 'https://pelias.wayli.app', // placeholder, replaced on first call
+	endpoint: DEFAULT_PELIAS_ENDPOINT, // placeholder, replaced on first call
 	rateLimit: parseInt(getEnv('PELIAS_RATE_LIMIT') || '1000', 10)
 };
 
@@ -316,8 +332,9 @@ export async function reverseGeocode(lat: number, lon: number): Promise<PeliasRe
 		throw new Error(`Invalid coordinates: lat=${lat}, lon=${lon}`);
 	}
 
-	// Try the configured endpoint first, then fallback to public Pelias
-	const endpoints = [config.endpoint, 'https://pelias.wayli.app'];
+	// Self-hosted endpoints never fail over to the hosted instance — see
+	// resolveEndpoints above.
+	const endpoints = resolveEndpoints(config.endpoint);
 
 	for (const endpoint of endpoints) {
 		try {
@@ -398,8 +415,9 @@ export async function forwardGeocode(query: string): Promise<PeliasSearchRespons
 		throw new Error('Invalid address query');
 	}
 
-	// Try the configured endpoint first, then fallback to public Pelias
-	const endpoints = [config.endpoint, 'https://pelias.wayli.app'];
+	// Self-hosted endpoints never fail over to the hosted instance — see
+	// resolveEndpoints above.
+	const endpoints = resolveEndpoints(config.endpoint);
 
 	for (const endpoint of endpoints) {
 		try {
@@ -486,8 +504,9 @@ export async function searchAddresses(
 		throw new Error('Invalid address query');
 	}
 
-	// Try the configured endpoint first, then fallback to public Pelias
-	const endpoints = [config.endpoint, 'https://pelias.wayli.app'];
+	// Self-hosted endpoints never fail over to the hosted instance — see
+	// resolveEndpoints above.
+	const endpoints = resolveEndpoints(config.endpoint);
 
 	for (const endpoint of endpoints) {
 		try {

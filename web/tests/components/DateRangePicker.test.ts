@@ -44,4 +44,32 @@ describe('DateRangePicker dropdown positioning', () => {
 		const vars = container.querySelector<HTMLElement>('.date-filter')!.getAttribute('style') ?? '';
 		expect(vars).toContain('--datepicker-container-position: fixed');
 	});
+
+	// #245: the library applies the start on the first click; in
+	// complete-the-range mode parents must not observe a start-only range.
+	it('holds the selection until the range is complete', async () => {
+		const onChange = vi.fn();
+		const { container } = render(DateRangePicker, {
+			props: { pickLabel: 'Pick a date', requireCompleteRange: true, onChange }
+		});
+
+		const wrapper = container.querySelector<HTMLElement>('.date-filter')!;
+		const trigger = wrapper.querySelector<HTMLButtonElement>('.date-field')!;
+		await fireEvent.click(trigger);
+		await new Promise((r) => setTimeout(r, 0));
+
+		// First click: the library has a start picked, but the parent must not.
+		const days = wrapper.querySelectorAll<HTMLElement>('button.date:not(.disabled)');
+		expect(days.length).toBeGreaterThan(10);
+		await fireEvent.click(days[4]);
+		await new Promise((r) => setTimeout(r, 0));
+		expect(onChange).not.toHaveBeenCalled();
+		expect(trigger.textContent).toContain('…'); // open end is visible in the trigger
+
+		// Second click completes the range and only then propagates.
+		await fireEvent.click(days[9]);
+		await new Promise((r) => setTimeout(r, 0));
+		expect(onChange).toHaveBeenCalledTimes(1);
+		expect(trigger.textContent).not.toContain('…');
+	});
 });

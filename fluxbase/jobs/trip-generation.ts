@@ -65,6 +65,15 @@ export async function handler(
 			minDataPointsPerDay
 		} = payload;
 
+		// A one-sided range silently meant "start → tomorrow" downstream
+		// (detectTrips defaults endDate). Require both bounds or none. (#245)
+		if ((startDate && !endDate) || (endDate && !startDate)) {
+			return {
+				success: false,
+				error: 'startDate and endDate must be provided together, or both omitted'
+			};
+		}
+
 		console.log(`📅 Job parameters:`);
 		console.log(`  - startDate: ${startDate || 'not specified'}`);
 		console.log(`  - endDate: ${endDate || 'not specified'}`);

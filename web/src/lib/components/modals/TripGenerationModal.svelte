@@ -211,7 +211,12 @@
 			<span class="text-muted-foreground mb-2 block text-sm font-medium"
 				>{t('tripGenerationModal.startDate')} / {t('tripGenerationModal.endDate')}</span
 			>
-			<DateRangePicker bind:startDate bind:endDate pickLabel={t('tripGenerationModal.title')} />
+			<DateRangePicker
+				bind:startDate
+				bind:endDate
+				requireCompleteRange
+				pickLabel={t('tripGenerationModal.title')}
+			/>
 		</div>
 
 		<!-- Date Range Help Text -->

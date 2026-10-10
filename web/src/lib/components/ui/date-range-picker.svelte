@@ -10,6 +10,7 @@
 		dateFormat = $bindable('MMM d, yyyy'),
 		pickLabel = $bindable('Pick a date'),
 		showClear = $bindable(true),
+		requireCompleteRange = false,
 		onChange
 	} = $props<{
 		startDate?: string | Date;
@@ -18,6 +19,7 @@
 		dateFormat?: string;
 		pickLabel?: string;
 		showClear?: boolean;
+		requireCompleteRange?: boolean;
 		onChange?: () => void;
 	}>();
 
@@ -49,6 +51,8 @@
 	}
 
 	const onClearDates = () => {
+		pendingStart = '';
+		pendingEnd = '';
 		startDate = '';
 		endDate = '';
 		if (onChange) {
@@ -57,6 +61,36 @@
 	};
 
 	const toggleDatePicker = () => (isOpen = !isOpen);
+
+	// #245: complete-the-range mode. The library applies the start date on the
+	// first click, which left parents holding a half-finished range (trip
+	// generation then silently extended a start-only range to tomorrow). With
+	// this flag the in-progress selection is held in pendingStart/pendingEnd
+	// and parents only ever see a complete range (or a cleared one); the
+	// trigger shows the picked start with an open end while selection is
+	// mid-flight. Modals unmount this component when closed, which resets the
+	// pending state between opens.
+	let pendingStart = $state<string | Date>('');
+	let pendingEnd = $state<string | Date>('');
+	let rangeAwaitingEnd = $derived(requireCompleteRange && !!pendingStart && !pendingEnd);
+
+	$effect(() => {
+		if (!requireCompleteRange) return;
+		if (pendingStart && pendingEnd) {
+			const changed =
+				String(startDate ?? '') !== String(pendingStart) ||
+				String(endDate ?? '') !== String(pendingEnd);
+			if (changed) {
+				startDate = pendingStart;
+				endDate = pendingEnd;
+				handleChange();
+			}
+		} else if (!pendingStart && !pendingEnd && (startDate || endDate)) {
+			startDate = '';
+			endDate = '';
+			handleChange();
+		}
+	});
 
 	// The library renders its calendar as `position: absolute` right below the
 	// trigger — inside modals (overflow-y-auto panels) it gets clipped or spills
@@ -123,14 +157,24 @@
 	// for date inputs on iOS Safari (see WebKit bug 261703).
 	function handleNativeStartDateChange(event: Event) {
 		const target = event.target as HTMLInputElement;
-		startDate = target.value ? new Date(target.value) : '';
-		handleChange();
+		const value = target.value ? new Date(target.value) : '';
+		if (requireCompleteRange) {
+			pendingStart = value;
+		} else {
+			startDate = value;
+			handleChange();
+		}
 	}
 
 	function handleNativeEndDateChange(event: Event) {
 		const target = event.target as HTMLInputElement;
-		endDate = target.value ? new Date(target.value) : '';
-		handleChange();
+		const value = target.value ? new Date(target.value) : '';
+		if (requireCompleteRange) {
+			pendingEnd = value;
+		} else {
+			endDate = value;
+			handleChange();
+		}
 	}
 
 	let formattedStartDate = $derived(() => formatDate(startDate));
@@ -179,7 +223,7 @@
 					<span class="date-label">From</span>
 					<input
 						type="date"
-						value={formatDateForInput(startDate)}
+						value={formatDateForInput(rangeAwaitingEnd ? pendingStart : startDate)}
 						onchange={handleNativeStartDateChange}
 						class="native-date-input"
 					/>
@@ -196,8 +240,10 @@
 			</div>
 		</div>
 	{:else}
-		<!-- Custom date picker for desktop -->
-		<DatePicker bind:isOpen bind:startDate bind:endDate isRange showPresets onchange={handleChange}>
+		<!-- Custom date picker for desktop. In complete-the-range mode the
+		     library binds to the pending selection; parents get values only
+		     once the range is complete (see the propagation effect). -->
+		{#snippet trigger()}
 			<button
 				type="button"
 				bind:this={triggerEl}
@@ -208,13 +254,15 @@
 			>
 				<i class="icon-calendar"></i>
 				<div class="date">
-					{#if startDate}
+					{#if rangeAwaitingEnd}
+						{formatDate(pendingStart)} - …
+					{:else if startDate}
 						{formattedStartDate()} - {formattedEndDate()}
 					{:else}
 						{pickLabel}
 					{/if}
 				</div>
-				{#if showClear && startDate}
+				{#if showClear && (startDate || rangeAwaitingEnd)}
 					<span
 						class="clear-button"
 						aria-label="Clear dates"
@@ -227,7 +275,31 @@
 					</span>
 				{/if}
 			</button>
-		</DatePicker>
+		{/snippet}
+
+		{#if requireCompleteRange}
+			<DatePicker
+				bind:isOpen
+				bind:startDate={pendingStart}
+				bind:endDate={pendingEnd}
+				isRange
+				showPresets
+				onchange={handleChange}
+			>
+				{@render trigger()}
+			</DatePicker>
+		{:else}
+			<DatePicker
+				bind:isOpen
+				bind:startDate
+				bind:endDate
+				isRange
+				showPresets
+				onchange={handleChange}
+			>
+				{@render trigger()}
+			</DatePicker>
+		{/if}
 	{/if}
 </div>
 

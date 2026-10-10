@@ -16,6 +16,13 @@ CREATE TABLE IF NOT EXISTS country_name_aliases (
     CONSTRAINT country_name_aliases_pkey PRIMARY KEY (name)
 );
 
+ALTER TABLE country_name_aliases ENABLE ROW LEVEL SECURITY;
+
+-- Public reference data (name → ISO2): readable by all client roles; writes
+-- stay service-role only (no client INSERT/UPDATE/DELETE policies).
+CREATE POLICY country_name_aliases_read ON country_name_aliases FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "Service role full access to country_name_aliases" ON country_name_aliases TO service_role USING (true) WITH CHECK (true);
+
 --
 -- Name: place_visits; Type: TABLE; Schema: -; Owner: -
 --
@@ -1203,13 +1210,13 @@ ALTER TABLE trip_gps_tracks ENABLE ROW LEVEL SECURITY;
 -- Name: trip_gps_tracks_delete; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_gps_tracks_delete ON trip_gps_tracks FOR DELETE TO PUBLIC USING (user_id = auth.uid());
+CREATE POLICY trip_gps_tracks_delete ON trip_gps_tracks FOR DELETE TO authenticated USING (user_id = auth.uid());
 
 --
 -- Name: trip_gps_tracks_insert; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_gps_tracks_insert ON trip_gps_tracks FOR INSERT TO PUBLIC WITH CHECK (user_id = auth.uid());
+CREATE POLICY trip_gps_tracks_insert ON trip_gps_tracks FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
 
 --
 -- Name: trip_shares; Type: TABLE; Schema: -; Owner: -
@@ -1258,25 +1265,25 @@ ALTER TABLE user_connections ENABLE ROW LEVEL SECURITY;
 -- Name: user_connections_delete; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY user_connections_delete ON user_connections FOR DELETE TO PUBLIC USING ((user_id = auth.uid()) OR (friend_id = auth.uid()));
+CREATE POLICY user_connections_delete ON user_connections FOR DELETE TO authenticated USING ((user_id = auth.uid()) OR (friend_id = auth.uid()));
 
 --
 -- Name: user_connections_insert; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY user_connections_insert ON user_connections FOR INSERT TO PUBLIC WITH CHECK (user_id = auth.uid());
+CREATE POLICY user_connections_insert ON user_connections FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
 
 --
 -- Name: user_connections_select; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY user_connections_select ON user_connections FOR SELECT TO PUBLIC USING ((user_id = auth.uid()) OR (friend_id = auth.uid()));
+CREATE POLICY user_connections_select ON user_connections FOR SELECT TO authenticated USING ((user_id = auth.uid()) OR (friend_id = auth.uid()));
 
 --
 -- Name: user_connections_update; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY user_connections_update ON user_connections FOR UPDATE TO PUBLIC USING (friend_id = auth.uid());
+CREATE POLICY user_connections_update ON user_connections FOR UPDATE TO authenticated USING (friend_id = auth.uid()) WITH CHECK (friend_id = auth.uid());
 
 --
 -- Name: user_data_sampling; Type: TABLE; Schema: -; Owner: -
@@ -1305,25 +1312,25 @@ ALTER TABLE user_data_sampling ENABLE ROW LEVEL SECURITY;
 -- Name: user_data_sampling_delete; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY user_data_sampling_delete ON user_data_sampling FOR DELETE TO PUBLIC USING (user_id = auth.uid());
+CREATE POLICY user_data_sampling_delete ON user_data_sampling FOR DELETE TO authenticated USING (user_id = auth.uid());
 
 --
 -- Name: user_data_sampling_select; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY user_data_sampling_select ON user_data_sampling FOR SELECT TO PUBLIC USING (user_id = auth.uid());
+CREATE POLICY user_data_sampling_select ON user_data_sampling FOR SELECT TO authenticated USING (user_id = auth.uid());
 
 --
 -- Name: user_data_sampling_update; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY user_data_sampling_update ON user_data_sampling FOR UPDATE TO PUBLIC USING (user_id = auth.uid());
+CREATE POLICY user_data_sampling_update ON user_data_sampling FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
 --
 -- Name: user_data_sampling_upsert; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY user_data_sampling_upsert ON user_data_sampling FOR INSERT TO PUBLIC WITH CHECK (user_id = auth.uid());
+CREATE POLICY user_data_sampling_upsert ON user_data_sampling FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
 
 --
 -- Name: user_preference_vectors; Type: TABLE; Schema: -; Owner: -
@@ -1834,19 +1841,19 @@ ALTER TABLE trip_plan_items ENABLE ROW LEVEL SECURITY;
 -- Name: trip_plan_items_delete; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_plan_items_delete ON trip_plan_items FOR DELETE TO PUBLIC USING (user_id = auth.uid());
+CREATE POLICY trip_plan_items_delete ON trip_plan_items FOR DELETE TO authenticated USING (user_id = auth.uid());
 
 --
 -- Name: trip_plan_items_insert; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_plan_items_insert ON trip_plan_items FOR INSERT TO PUBLIC WITH CHECK (user_id = auth.uid());
+CREATE POLICY trip_plan_items_insert ON trip_plan_items FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
 
 --
 -- Name: trip_plan_items_update; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_plan_items_update ON trip_plan_items FOR UPDATE TO PUBLIC USING (user_id = auth.uid());
+CREATE POLICY trip_plan_items_update ON trip_plan_items FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
 --
 -- Name: trip_comments; Type: TABLE; Schema: -; Owner: -
@@ -1968,7 +1975,7 @@ CREATE POLICY trip_entries_owner_delete ON trip_entries FOR DELETE TO authentica
 -- Name: trip_entries_owner_select; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_entries_owner_select ON trip_entries FOR SELECT TO PUBLIC USING (user_id = auth.uid());
+CREATE POLICY trip_entries_owner_select ON trip_entries FOR SELECT TO authenticated USING (user_id = auth.uid());
 
 --
 -- Name: trip_entries_owner_update; Type: POLICY; Schema: -; Owner: -
@@ -2171,7 +2178,7 @@ CREATE POLICY trip_media_owner_delete ON trip_media FOR DELETE TO authenticated 
 -- Name: trip_media_owner_select; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_media_owner_select ON trip_media FOR SELECT TO PUBLIC USING (user_id = auth.uid());
+CREATE POLICY trip_media_owner_select ON trip_media FOR SELECT TO authenticated USING (user_id = auth.uid());
 
 --
 -- Name: trip_media_owner_update; Type: POLICY; Schema: -; Owner: -
@@ -5355,19 +5362,19 @@ ADD CONSTRAINT trip_entries_cover_media_id_fkey FOREIGN KEY (cover_media_id) REF
 -- Name: trip_collaborators_delete; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_collaborators_delete ON trip_collaborators FOR DELETE TO PUBLIC USING (EXISTS ( SELECT 1 FROM trips WHERE ((trips.id = trip_collaborators.trip_id) AND (trips.user_id = auth.uid()))));
+CREATE POLICY trip_collaborators_delete ON trip_collaborators FOR DELETE TO authenticated USING (EXISTS ( SELECT 1 FROM trips WHERE ((trips.id = trip_collaborators.trip_id) AND (trips.user_id = auth.uid()))));
 
 --
 -- Name: trip_collaborators_insert; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_collaborators_insert ON trip_collaborators FOR INSERT TO PUBLIC WITH CHECK (EXISTS ( SELECT 1 FROM trips WHERE ((trips.id = trip_collaborators.trip_id) AND (trips.user_id = auth.uid()))));
+CREATE POLICY trip_collaborators_insert ON trip_collaborators FOR INSERT TO authenticated WITH CHECK (EXISTS ( SELECT 1 FROM trips WHERE ((trips.id = trip_collaborators.trip_id) AND (trips.user_id = auth.uid()))));
 
 --
 -- Name: trip_collaborators_select; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_collaborators_select ON trip_collaborators FOR SELECT TO PUBLIC USING ((user_id = auth.uid()) OR (EXISTS ( SELECT 1 FROM trips WHERE ((trips.id = trip_collaborators.trip_id) AND (trips.user_id = auth.uid())))));
+CREATE POLICY trip_collaborators_select ON trip_collaborators FOR SELECT TO authenticated USING ((user_id = auth.uid()) OR (EXISTS ( SELECT 1 FROM trips WHERE ((trips.id = trip_collaborators.trip_id) AND (trips.user_id = auth.uid())))));
 
 --
 -- Name: trip_comments_delete_owner; Type: POLICY; Schema: -; Owner: -
@@ -5385,13 +5392,13 @@ CREATE POLICY trip_comments_insert ON trip_comments FOR INSERT TO authenticated 
 -- Name: trip_comments_owner_read; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_comments_owner_read ON trip_comments FOR SELECT TO PUBLIC USING (EXISTS ( SELECT 1 FROM (trip_entries te JOIN trips t ON ((t.id = te.trip_id))) WHERE ((te.id = trip_comments.entry_id) AND (t.user_id = auth.uid()))));
+CREATE POLICY trip_comments_owner_read ON trip_comments FOR SELECT TO authenticated USING (EXISTS ( SELECT 1 FROM (trip_entries te JOIN trips t ON ((t.id = te.trip_id))) WHERE ((te.id = trip_comments.entry_id) AND (t.user_id = auth.uid()))));
 
 --
 -- Name: trip_comments_shared_read; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_comments_shared_read ON trip_comments FOR SELECT TO PUBLIC USING (EXISTS ( SELECT 1 FROM (trip_entries te JOIN trips t ON ((t.id = te.trip_id))) WHERE ((te.id = trip_comments.entry_id) AND ((t.user_id = auth.uid()) OR (t.visibility = 'public')))));
+CREATE POLICY trip_comments_shared_read ON trip_comments FOR SELECT TO anon, authenticated USING (EXISTS ( SELECT 1 FROM (trip_entries te JOIN trips t ON ((t.id = te.trip_id))) WHERE ((te.id = trip_comments.entry_id) AND ((t.user_id = auth.uid()) OR (t.visibility = 'public')))));
 
 --
 -- Name: trip_entries_owner_insert; Type: POLICY; Schema: -; Owner: -
@@ -5403,13 +5410,13 @@ CREATE POLICY trip_entries_owner_insert ON trip_entries FOR INSERT TO authentica
 -- Name: trip_entries_shared_read; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_entries_shared_read ON trip_entries FOR SELECT TO PUBLIC USING ((EXISTS ( SELECT 1 FROM trips WHERE ((trips.id = trip_entries.trip_id) AND ((trips.user_id = auth.uid()) OR (trips.visibility = 'public') OR (EXISTS ( SELECT 1 FROM trip_shares WHERE ((trip_shares.trip_id = trips.id) AND (trip_shares.shared_with_user_id = auth.uid())))))))) AND ((user_id = auth.uid()) OR (status = 'published')));
+CREATE POLICY trip_entries_shared_read ON trip_entries FOR SELECT TO anon, authenticated USING ((EXISTS ( SELECT 1 FROM trips WHERE ((trips.id = trip_entries.trip_id) AND ((trips.user_id = auth.uid()) OR (trips.visibility = 'public') OR (EXISTS ( SELECT 1 FROM trip_shares WHERE ((trip_shares.trip_id = trips.id) AND (trip_shares.shared_with_user_id = auth.uid())))))))) AND ((user_id = auth.uid()) OR (status = 'published')));
 
 --
 -- Name: trip_gps_tracks_select; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_gps_tracks_select ON trip_gps_tracks FOR SELECT TO PUBLIC USING ((user_id = auth.uid()) OR can_see_gps(trip_id));
+CREATE POLICY trip_gps_tracks_select ON trip_gps_tracks FOR SELECT TO anon, authenticated USING ((user_id = auth.uid()) OR can_see_gps(trip_id));
 
 --
 -- Name: trip_likes_insert; Type: POLICY; Schema: -; Owner: -
@@ -5421,13 +5428,13 @@ CREATE POLICY trip_likes_insert ON trip_likes FOR INSERT TO authenticated WITH C
 -- Name: trip_likes_owner_read; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_likes_owner_read ON trip_likes FOR SELECT TO PUBLIC USING (EXISTS ( SELECT 1 FROM (trip_entries te JOIN trips t ON ((t.id = te.trip_id))) WHERE ((te.id = trip_likes.entry_id) AND (t.user_id = auth.uid()))));
+CREATE POLICY trip_likes_owner_read ON trip_likes FOR SELECT TO authenticated USING (EXISTS ( SELECT 1 FROM (trip_entries te JOIN trips t ON ((t.id = te.trip_id))) WHERE ((te.id = trip_likes.entry_id) AND (t.user_id = auth.uid()))));
 
 --
 -- Name: trip_likes_shared_read; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_likes_shared_read ON trip_likes FOR SELECT TO PUBLIC USING (EXISTS ( SELECT 1 FROM (trip_entries te JOIN trips t ON ((t.id = te.trip_id))) WHERE ((te.id = trip_likes.entry_id) AND ((t.user_id = auth.uid()) OR (t.visibility = 'public')))));
+CREATE POLICY trip_likes_shared_read ON trip_likes FOR SELECT TO anon, authenticated USING (EXISTS ( SELECT 1 FROM (trip_entries te JOIN trips t ON ((t.id = te.trip_id))) WHERE ((te.id = trip_likes.entry_id) AND ((t.user_id = auth.uid()) OR (t.visibility = 'public')))));
 
 --
 -- Name: trip_media_owner_insert; Type: POLICY; Schema: -; Owner: -
@@ -5439,37 +5446,37 @@ CREATE POLICY trip_media_owner_insert ON trip_media FOR INSERT TO authenticated 
 -- Name: trip_media_shared_read; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_media_shared_read ON trip_media FOR SELECT TO PUBLIC USING (EXISTS ( SELECT 1 FROM trips WHERE ((trips.id = trip_media.trip_id) AND ((trips.user_id = auth.uid()) OR (trips.visibility = 'public') OR (EXISTS ( SELECT 1 FROM trip_shares WHERE ((trip_shares.trip_id = trips.id) AND (trip_shares.shared_with_user_id = auth.uid()))))))));
+CREATE POLICY trip_media_shared_read ON trip_media FOR SELECT TO anon, authenticated USING (EXISTS ( SELECT 1 FROM trips WHERE ((trips.id = trip_media.trip_id) AND ((trips.user_id = auth.uid()) OR (trips.visibility = 'public') OR (EXISTS ( SELECT 1 FROM trip_shares WHERE ((trip_shares.trip_id = trips.id) AND (trip_shares.shared_with_user_id = auth.uid()))))))));
 
 --
 -- Name: trip_plan_items_select; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_plan_items_select ON trip_plan_items FOR SELECT TO PUBLIC USING ((user_id = auth.uid()) OR (can_see_trip(trip_id) AND can_see_plan(trip_id)));
+CREATE POLICY trip_plan_items_select ON trip_plan_items FOR SELECT TO anon, authenticated USING ((user_id = auth.uid()) OR (can_see_trip(trip_id) AND can_see_plan(trip_id)));
 
 --
 -- Name: trip_shares_delete; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_shares_delete ON trip_shares FOR DELETE TO PUBLIC USING (is_trip_owner(trip_id));
+CREATE POLICY trip_shares_delete ON trip_shares FOR DELETE TO authenticated USING (is_trip_owner(trip_id));
 
 --
 -- Name: trip_shares_insert; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_shares_insert ON trip_shares FOR INSERT TO PUBLIC WITH CHECK (is_trip_owner(trip_id));
+CREATE POLICY trip_shares_insert ON trip_shares FOR INSERT TO authenticated WITH CHECK (is_trip_owner(trip_id));
 
 --
 -- Name: trip_shares_select; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trip_shares_select ON trip_shares FOR SELECT TO PUBLIC USING ((shared_with_user_id = auth.uid()) OR is_trip_owner(trip_id));
+CREATE POLICY trip_shares_select ON trip_shares FOR SELECT TO authenticated USING ((shared_with_user_id = auth.uid()) OR is_trip_owner(trip_id));
 
 --
 -- Name: trips_select; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY trips_select ON trips FOR SELECT TO PUBLIC USING ((user_id = auth.uid()) OR (visibility = 'public') OR (EXISTS ( SELECT 1 FROM trip_shares WHERE ((trip_shares.trip_id = trips.id) AND (trip_shares.shared_with_user_id = auth.uid())))) OR ((visibility = 'friends'::text) AND (auth.uid() IS NOT NULL) AND (EXISTS ( SELECT 1 FROM user_connections uc WHERE ((uc.status = 'accepted'::text) AND (((uc.user_id = auth.uid()) AND (uc.friend_id = trips.user_id)) OR ((uc.friend_id = auth.uid()) AND (uc.user_id = trips.user_id))))))));
+CREATE POLICY trips_select ON trips FOR SELECT TO anon, authenticated USING ((user_id = auth.uid()) OR (visibility = 'public') OR (EXISTS ( SELECT 1 FROM trip_shares WHERE ((trip_shares.trip_id = trips.id) AND (trip_shares.shared_with_user_id = auth.uid())))) OR ((visibility = 'friends'::text) AND (auth.uid() IS NOT NULL) AND (EXISTS ( SELECT 1 FROM user_connections uc WHERE ((uc.status = 'accepted'::text) AND (((uc.user_id = auth.uid()) AND (uc.friend_id = trips.user_id)) OR ((uc.friend_id = auth.uid()) AND (uc.user_id = trips.user_id))))))));
 
 --
 -- Name: user_profiles_select_admin; Type: POLICY; Schema: -; Owner: -
@@ -5478,7 +5485,7 @@ CREATE POLICY trips_select ON trips FOR SELECT TO PUBLIC USING ((user_id = auth.
 -- JWT-claim check is primary (only trigger_sync_user_role writes it, and only
 -- from legitimate profile changes since the bootstrap clamp); the table check
 -- remains for service-side callers whose JWTs predate a role change.
-CREATE POLICY user_profiles_select_admin ON user_profiles FOR SELECT TO PUBLIC USING (is_current_user_admin() OR auth.jwt() ->> 'role' = 'admin');
+CREATE POLICY user_profiles_select_admin ON user_profiles FOR SELECT TO authenticated USING (is_current_user_admin() OR auth.jwt() ->> 'role' = 'admin');
 
 --
 -- Name: tracker_data_distance_trigger; Type: TRIGGER; Schema: -; Owner: -

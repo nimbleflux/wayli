@@ -72,8 +72,6 @@
       "account": "Account",
       "dashboard": "Pannello di controllo",
       "trips": "Viaggi",
-      "traveler": "viaggiatore",
-      "travelers": "viaggiatori",
       "locations": "Posizioni",
       "statistics": "Dati sulla posizione",
       "preferences": "Preferenze",
@@ -244,7 +242,8 @@
     "train": "Treno",
     "airplane": "Aereo",
     "stationary": "Stazionario",
-    "unknown": "Sconosciuto"
+    "unknown": "Sconosciuto",
+    "running": "Corsa"
   },
   "wayli": "Swish",
   "wayliSubtitle": "Il tuo compagno di viaggio personale",
@@ -559,7 +558,8 @@
     "fitnessInPeriod": "{count} sessioni di fitness visibili",
     "immichPhotos": "Photos",
     "immichPhotosToggle": "Show geotagged photos from Immich",
-    "immichOpenInImmich": "Open in Immich"
+    "immichOpenInImmich": "Open in Immich",
+    "running": "Corsa"
   },
   "connections": {
     "title": "Connessioni",
@@ -631,7 +631,9 @@
       "pickerSelected": "selected",
       "pickerAdd": "Add {count} photos",
       "pickerAddedCount": "Added {count} photo(s) to the entry ({failed} failed).",
-      "days": "days"
+      "days": "days",
+      "pickerCacheHint": "Mostrate le foto in cache locale perché il server Immich non è raggiungibile.",
+      "pickerCached": "In cache — Immich irraggiungibile"
     }
   },
   "importExport": {
@@ -1779,7 +1781,21 @@
     "saveBeforePexels": "Salva prima il viaggio, quindi recupera un'immagine di copertina.",
     "immichPhotosTakenOn": "Photos taken on {date}",
     "immichTripHint": "{count} photo(s) from your Immich library were taken during this trip but are not attached yet.",
-    "immichTripHintAdd": "Add photos"
+    "immichTripHintAdd": "Add photos",
+    "whereIveBeen": "Dove sono stato",
+    "autoDetectTrips": "Rileva viaggi automaticamente",
+    "autoDetectHint": "Rileva nuovi viaggi dai tuoi dati di posizione",
+    "refreshAll": "Aggiorna tutto",
+    "filterAll": "Tutti i viaggi",
+    "filterWithJournal": "Con diario",
+    "filterDrafts": "Bozze",
+    "filterWithPhotos": "Con foto",
+    "pageXofY": "Pagina {current} di {total}",
+    "dateRange": "Intervallo date",
+    "saveDraft": "Salva bozza",
+    "publish": "Pubblica",
+    "cancel": "Annulla",
+    "public": "Pubblico"
   },
   "community": {
     "by": "di",

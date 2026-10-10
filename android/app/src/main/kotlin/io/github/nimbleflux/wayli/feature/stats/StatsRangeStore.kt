@@ -11,12 +11,12 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * The app-wide stats period, shared by Home and Statistics so navigating
  * between them keeps the selected date range. Session-scoped (not persisted),
- * matching the previous per-screen 30-day default.
+ * defaulting to the 7-day preset (#247).
  */
 @Singleton
 class StatsRangeStore @Inject constructor() {
 
-    private val _range = MutableStateFlow<DateRange>(dateRangePresets[1]) // 30d
+    private val _range = MutableStateFlow<DateRange>(dateRangePresets[0]) // 7d
     val range: StateFlow<DateRange> = _range.asStateFlow()
 
     fun set(range: DateRange) {

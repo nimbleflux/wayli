@@ -16,8 +16,8 @@ object TransportModeColors {
     val walking = Color(0xFF16A34A) // green
     val boat = Color(0xFF0369A1) // deep teal-blue
     val swimming = Color(0xFF06B6D4) // cyan
-    val stationary = Color(0xFF6B7280) // grey
-    val unknown = Color(0xFF6B7280) // grey (same as stationary)
+    val stationary = Color(0xFF2563EB) // blue — distinct from unknown's grey
+    val unknown = Color(0xFF6B7280) // grey
 
     /** Look up a color by mode name, falling back to [unknown]. */
     fun forMode(mode: String?): Color = when (mode?.replace("transport.", "")) {

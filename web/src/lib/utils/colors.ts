@@ -5,9 +5,11 @@
  * across multiple pages (location-data vs data-editor used different keys AND
  * different hex values). This module consolidates them into one canonical
  * palette that matches the database's `transport_mode` values
- * (`stationary|walking|cycling|car|train|airplane`).
+ * (`stationary|walking|cycling|car|train|airplane|boat|swimming`).
  *
- * The Android app's `TransportModeColors.kt` mirrors these exact values.
+ * The web map page imports this palette through
+ * `$lib/services/transport-mode/visuals.ts` (which adds icons and picker
+ * order); keep it as the single source of truth.
  */
 
 /**
@@ -18,6 +20,8 @@
  * - Avoids red/green-only encoding (accessibility / colorblind consideration)
  * - Sufficient luminance contrast for polyline rendering
  * - `airplane` uses sky blue instead of black (#000 was invisible on dark tiles)
+ *
+ * Mirrored by the Android app's `TransportModeColors.kt` — update both together.
  */
 export const TRANSPORT_MODE_COLORS: Record<string, string> = {
 	car: '#dc2626', // red — high energy, visible on dark tiles
@@ -27,8 +31,8 @@ export const TRANSPORT_MODE_COLORS: Record<string, string> = {
 	walking: '#16a34a', // green — matches --success token
 	boat: '#0369a1', // deep teal-blue (#220 water modes)
 	swimming: '#06b6d4', // cyan
-	stationary: '#6b7280', // grey — low activity, muted
-	unknown: '#6b7280' // grey — fallback (same as stationary)
+	stationary: '#2563eb', // blue — low activity, distinct from unknown's grey
+	unknown: '#6b7280' // grey — fallback
 } as const;
 
 /**

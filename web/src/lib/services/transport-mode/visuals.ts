@@ -15,6 +15,7 @@ import {
 	Pause,
 	CircleHelp
 } from 'lucide-svelte';
+import { TRANSPORT_MODE_COLORS } from '$lib/utils/colors';
 import type { TransportMode } from './states';
 
 // lucide-svelte v1 still ships legacy SvelteComponentTyped class components,
@@ -36,18 +37,13 @@ export const TRANSPORT_MODE_ICONS: Record<string, IconComponent> = {
 	unknown: CircleHelp
 };
 
-/** Color per mode, used for map lines, markers, mode buttons and the legend. */
-export const TRANSPORT_MODE_COLORS: Record<string, string> = {
-	walking: '#16a34a', // Green
-	cycling: '#ea580c', // Orange
-	car: '#dc2626', // Red
-	train: '#7c3aed', // Purple
-	airplane: '#000000', // Black
-	boat: '#0369a1', // Deep teal-blue (#220 water modes)
-	swimming: '#06b6d4', // Cyan
-	stationary: '#2563eb', // Blue
-	unknown: '#6b7280' // Grey
-};
+/**
+ * Color per mode, used for map lines, markers, mode buttons and the legend.
+ * The palette lives in `$lib/utils/colors` (single source of truth, mirrored
+ * by Android's TransportModeColors.kt) — re-exported here for the pages that
+ * import colors alongside the icon helpers.
+ */
+export { TRANSPORT_MODE_COLORS };
 
 /** Display order for mode pickers (most common movement modes first). */
 export const TRANSPORT_MODE_PICKER_ORDER: TransportMode[] = [

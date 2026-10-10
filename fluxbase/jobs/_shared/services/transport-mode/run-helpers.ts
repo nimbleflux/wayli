@@ -21,7 +21,7 @@ const UPDATE_BATCH = 500;
  * window (3 years) once, then stamps the new version. Manual overrides
  * (transport_mode_manual = true) are never overwritten.
  */
-export const DETECTOR_VERSION = 8;
+export const DETECTOR_VERSION = 9;
 
 interface TrackerPointRow {
   recorded_at: string;
@@ -30,6 +30,7 @@ interface TrackerPointRow {
   heading: number | null;
   accuracy: number | null;
   geocode: any;
+  activity_type: string | null;
 }
 
 /**
@@ -124,7 +125,7 @@ export async function decodeAndPersist(
   while (true) {
     let query = db
       .from('tracker_data')
-      .select('recorded_at, location, speed, heading, accuracy, geocode')
+      .select('recorded_at, location, speed, heading, accuracy, geocode, activity_type')
       .eq('user_id', userId)
       .gte('recorded_at', since.toISOString())
       .order('recorded_at', { ascending: true })
@@ -160,7 +161,8 @@ export async function decodeAndPersist(
         speed: row.speed ?? 0,
         heading: row.heading,
         accuracy: row.accuracy,
-        geocode: row.geocode ?? null
+        geocode: row.geocode ?? null,
+        activityType: row.activity_type ?? null
       };
     });
 

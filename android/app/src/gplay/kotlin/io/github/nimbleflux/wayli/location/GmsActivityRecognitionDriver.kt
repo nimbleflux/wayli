@@ -88,7 +88,11 @@ class GmsActivityRecognitionDriver @Inject constructor(
 
     private fun DetectedActivity.toKind(): ActivityKind = when (type) {
         DetectedActivity.STILL -> ActivityKind.STILL
-        DetectedActivity.WALKING, DetectedActivity.RUNNING, DetectedActivity.ON_FOOT -> ActivityKind.ON_FOOT
+        // RUNNING stays distinct (#255): it flows to tracker_data.activity_type
+        // and anchors the transport detector's running mode. WALKING and the
+        // generic ON_FOOT bucket remain on_foot.
+        DetectedActivity.RUNNING -> ActivityKind.RUNNING
+        DetectedActivity.WALKING, DetectedActivity.ON_FOOT -> ActivityKind.ON_FOOT
         DetectedActivity.IN_VEHICLE -> ActivityKind.IN_VEHICLE
         DetectedActivity.ON_BICYCLE -> ActivityKind.ON_BIKE
         else -> ActivityKind.UNKNOWN

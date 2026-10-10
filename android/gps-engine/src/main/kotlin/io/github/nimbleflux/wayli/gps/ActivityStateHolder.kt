@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.map
  * Activity Recognition driver; the foss flavor reports [ActivityKind.UNKNOWN]
  * (adaptive tracking simply becomes a no-op).
  */
-enum class ActivityKind { STILL, ON_FOOT, IN_VEHICLE, ON_BIKE, UNKNOWN }
+enum class ActivityKind { STILL, ON_FOOT, RUNNING, IN_VEHICLE, ON_BIKE, UNKNOWN }
 
 /**
  * Holds the latest activity-recognition state so location providers can

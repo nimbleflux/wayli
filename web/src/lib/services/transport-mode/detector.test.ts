@@ -453,6 +453,47 @@ describe('#242: running detection', () => {
 	});
 });
 
+describe('#255: activity-recognition hint', () => {
+	// The hint anchors the mode like station/airport geocodes: strong boost for
+	// the hinted mode, damping for its nearest competitor — and total neutrality
+	// when absent (OwnTracks, foss builds, historical data).
+	test('a running hint resolves the 6.5-8 overlap toward running', () => {
+		// Slow-jog territory where the bands overlap and speed alone leans
+		// walking — exactly what the AR hint exists to disambiguate.
+		const obs = run([7.2, 7.5, 6.8, 7.4, 7, 7.6, 6.9, 7.3, 7.1, 7.5]).map((o) => ({
+			...o,
+			activityType: 'running'
+		}));
+		const decisions = detectTransportModes(obs);
+		const running = decisions.filter((d) => d.mode === 'running').length;
+		expect(running).toBeGreaterThanOrEqual(8);
+	});
+
+	test('the hint cannot conjure running out of walking-pace data (conservative anchor)', () => {
+		const obs = run([4.5, 5.5, 5, 4.8, 5.2, 4.6, 5.4, 5, 4.9, 5.1]).map((o) => ({
+			...o,
+			activityType: 'running'
+		}));
+		const walking = (decisions) => decisions.filter((d) => d.mode === 'walking').length;
+		expect(walking(detectTransportModes(obs))).toBeGreaterThanOrEqual(6);
+	});
+
+	test('without the hint the same overlap stretch stays walking (neutrality)', () => {
+		const decisions = detectTransportModes(run([7.2, 7.5, 6.8, 7.4, 7, 7.6, 6.9, 7.3, 7.1, 7.5]));
+		const running = decisions.filter((d) => d.mode === 'running').length;
+		expect(running).toBe(0);
+	});
+
+	test('a running hint steadies a genuine run with noisy dips', () => {
+		const obs = run([10, 9.5, 2, 10.5, 10, 3, 9.8, 10.2, 9.6, 10.4, 2.5, 10, 9.9, 10.1]).map(
+			(o) => ({ ...o, activityType: 'running' })
+		);
+		const decisions = detectTransportModes(obs);
+		const running = decisions.filter((d) => d.mode === 'running').length;
+		expect(running).toBeGreaterThanOrEqual(10);
+	});
+});
+
 describe('#220: per-user disabled modes', () => {
 	test('a disabled mode is never chosen even on a perfect fixture', () => {
 		const obs = run([18, 22, 20, 24, 19, 21, 23, 18, 20, 22]);

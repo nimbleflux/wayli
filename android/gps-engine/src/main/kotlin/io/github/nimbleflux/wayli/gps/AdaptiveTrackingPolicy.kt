@@ -23,7 +23,7 @@ object AdaptiveTrackingPolicy {
 
     fun effectiveFor(kind: ActivityKind): Effective = when (kind) {
         ActivityKind.STILL -> Effective(intervalMultiplier = 4)
-        ActivityKind.ON_FOOT, ActivityKind.IN_VEHICLE, ActivityKind.ON_BIKE ->
+        ActivityKind.ON_FOOT, ActivityKind.RUNNING, ActivityKind.IN_VEHICLE, ActivityKind.ON_BIKE ->
             Effective(intervalMultiplier = 1)
         ActivityKind.UNKNOWN -> Effective(intervalMultiplier = 1)
     }

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { fluxbase } from '$lib/fluxbase';
@@ -594,6 +594,17 @@
 	let genIsSearching = $state(false);
 	let genClearExisting = $state(false);
 
+	let suggestionPoll: ReturnType<typeof setInterval> | null = null;
+
+	function stopSuggestionPoll() {
+		if (suggestionPoll) {
+			clearInterval(suggestionPoll);
+			suggestionPoll = null;
+		}
+	}
+
+	onDestroy(stopSuggestionPoll);
+
 	async function generateSuggestions(data: {
 		startDate: string;
 		endDate: string;
@@ -625,14 +636,15 @@
 
 			toast.success(t('travel.generatingSuggestions'));
 
-			// Poll for new pending trips until they appear
+			// Poll for new pending trips until they appear. The handle is page
+			// scope so navigation away can't leave a 5-minute orphan poll.
 			const prevCount = pendingTrips.length;
 			let attempts = 0;
-			const poll = setInterval(async () => {
+			suggestionPoll = setInterval(async () => {
 				attempts++;
 				await loadPendingTrips();
 				if (pendingTrips.length > prevCount || attempts > 60) {
-					clearInterval(poll);
+					stopSuggestionPoll();
 					if (pendingTrips.length > prevCount) {
 						toast.success(`${pendingTrips.length - prevCount} new trip suggestion(s) ready!`);
 					}

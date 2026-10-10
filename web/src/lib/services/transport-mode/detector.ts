@@ -60,6 +60,8 @@ function computeSegmentContext(segment: ModeObservation[]): {
 
 	let intervalSum = 0;
 	let intervalCount = 0;
+	let speedSum = 0;
+	for (let i = 0; i < n; i++) speedSum += segment[i].speed;
 	for (let i = 1; i < n; i++) {
 		const dt = (segment[i].timestamp - segment[i - 1].timestamp) / 1000;
 		if (dt > 0) {
@@ -82,7 +84,10 @@ function computeSegmentContext(segment: ModeObservation[]): {
 	return {
 		segCtx: {
 			meanIntervalSec: intervalCount > 0 ? intervalSum / intervalCount : 0,
-			waterFraction: geocodedCount > 0 ? waterCount / geocodedCount : 0
+			waterFraction: geocodedCount > 0 ? waterCount / geocodedCount : 0,
+			// #242: single-point segments keep 0 — the running/cycling
+			// discriminators gate on >0 to stay neutral there.
+			meanSpeedKmh: n > 0 ? speedSum / n : 0
 		},
 		proximity
 	};
@@ -96,6 +101,8 @@ function reasonFor(mode: TransportMode, speed: number): string {
 			return 'speed_below_stationary_threshold';
 		case 'walking':
 			return 'speed_in_walking_range';
+		case 'running':
+			return 'speed_in_running_range';
 		case 'cycling':
 			return 'speed_in_cycling_range';
 		case 'car':

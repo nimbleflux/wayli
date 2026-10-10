@@ -32,6 +32,7 @@ fun MapLegend(
             TransportModeColors.hexFor("airplane") -> "Airplane"
             TransportModeColors.hexFor("cycling") -> "Cycling"
             TransportModeColors.hexFor("walking") -> "Walking"
+            TransportModeColors.hexFor("running") -> "Running"
             TransportModeColors.hexFor("boat") -> "Boat"
             TransportModeColors.hexFor("swimming") -> "Swimming"
             else -> return@mapNotNull null

@@ -9,7 +9,10 @@ export const TRANSPORT_MODES = [
 	'train',
 	'airplane',
 	'boat',
-	'swimming'
+	'swimming',
+	// #242: appended (never inserted) so indices of the original states — and
+	// any persisted assumptions about them — stay put.
+	'running'
 ] as const;
 
 export type TransportMode = (typeof TRANSPORT_MODES)[number];

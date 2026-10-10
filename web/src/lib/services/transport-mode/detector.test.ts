@@ -407,6 +407,52 @@ describe('#220: water modes (boat / swimming)', () => {
 	});
 });
 
+describe('#242: running detection', () => {
+	test('a steady 9-12 km/h segment decodes to running, not walking', () => {
+		const decisions = detectTransportModes(
+			run([9.5, 10.5, 11, 10, 9.8, 11.2, 10.4, 9.6, 10.8, 10.2])
+		);
+		const running = decisions.filter((d) => d.mode === 'running').length;
+		const walking = decisions.filter((d) => d.mode === 'walking').length;
+		expect(running).toBeGreaterThanOrEqual(8);
+		expect(walking).toBe(0);
+		expect(
+			decisions.every((d) => d.reason !== 'speed_in_walking_range' || d.mode !== 'running')
+		).toBe(true);
+	});
+
+	test('a steady 4-6 km/h segment stays walking (no running bleed)', () => {
+		const decisions = detectTransportModes(run([4.5, 5.5, 5, 4.8, 5.2, 4.6, 5.4, 5, 4.9, 5.1]));
+		const walking = decisions.filter((d) => d.mode === 'walking').length;
+		const running = decisions.filter((d) => d.mode === 'running').length;
+		expect(walking).toBeGreaterThanOrEqual(8);
+		expect(running).toBe(0);
+	});
+
+	test('a steady 16-20 km/h segment stays cycling (running loses the contested middle)', () => {
+		const decisions = detectTransportModes(run([17, 19, 18, 20, 16.5, 18.5, 19.5, 17.5, 18, 19]));
+		const cycling = decisions.filter((d) => d.mode === 'cycling').length;
+		const running = decisions.filter((d) => d.mode === 'running').length;
+		expect(cycling).toBeGreaterThanOrEqual(8);
+		expect(running).toBe(0);
+	});
+
+	test('a run with brief walking pauses keeps the majority running (no flicker collapse)', () => {
+		// Interval-average speeds dip at road crossings — the segment mean
+		// (~8.9 km/h) must hold the run together.
+		const decisions = detectTransportModes(
+			run([10, 9.5, 2, 10.5, 10, 3, 9.8, 10.2, 9.6, 10.4, 2.5, 10, 9.9, 10.1])
+		);
+		const running = decisions.filter((d) => d.mode === 'running').length;
+		expect(running).toBeGreaterThanOrEqual(8);
+	});
+
+	test('7.5-8 km/h sits in the deliberate overlap (walking or running, never cycling)', () => {
+		const decisions = detectTransportModes(run([7.4, 7.8, 7.6, 8, 7.2, 7.9, 7.5, 7.7]));
+		expect(decisions.every((d) => d.mode === 'walking' || d.mode === 'running')).toBe(true);
+	});
+});
+
 describe('#220: per-user disabled modes', () => {
 	test('a disabled mode is never chosen even on a perfect fixture', () => {
 		const obs = run([18, 22, 20, 24, 19, 21, 23, 18, 20, 22]);

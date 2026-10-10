@@ -117,6 +117,7 @@ export function splitIntoModeRuns<T extends { transport_mode?: string | null }>(
 export function costingForRunMode(mode: string | null): 'auto' | 'pedestrian' | 'bicycle' {
 	switch (mode) {
 		case 'walking':
+		case 'running':
 			return 'pedestrian';
 		case 'cycling':
 			return 'bicycle';

@@ -1068,10 +1068,13 @@ export class ClientStatisticsService {
 			}))
 			.sort((a, b) => b.count - a.count);
 
-		// Calculate steps from walking distance - distance is already in meters
-		// Average step length is approximately 0.7 meters
+		// Calculate steps from walking + running distance — distance is already
+		// in meters. Average step length ~0.7 m walking, ~1.0 m running (#242).
 		const walking = transport.find((t) => t.mode === 'walking');
-		const steps = walking && walking.distance > 0 ? Math.round(walking.distance / 0.7) : 0;
+		const running = transport.find((t) => t.mode === 'running');
+		const walkingDistance = walking && walking.distance > 0 ? walking.distance : 0;
+		const runningDistance = running && running.distance > 0 ? running.distance : 0;
+		const steps = Math.round(walkingDistance / 0.7 + runningDistance / 1.0);
 
 		// Count unique places where user spent at least 8 hours
 		const MIN_TIME_FOR_PLACE_MS = 8 * 60 * 60 * 1000; // 8 hours in milliseconds

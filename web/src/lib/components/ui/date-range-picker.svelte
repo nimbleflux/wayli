@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { DatePicker } from '@svelte-plugins/datepicker';
 	import { format } from 'date-fns';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 
 	let {
 		startDate = $bindable(),
@@ -58,6 +58,63 @@
 
 	const toggleDatePicker = () => (isOpen = !isOpen);
 
+	// The library renders its calendar as `position: absolute` right below the
+	// trigger — inside modals (overflow-y-auto panels) it gets clipped or spills
+	// past the dialog (#244). Flip it to `position: fixed` at viewport
+	// coordinates computed from the trigger, via the library's CSS custom
+	// properties. Elements with backdrop-filter/transform (modal backdrops,
+	// fly transitions) become the containing block, but those boxes span the
+	// viewport anyway, so fixed coordinates remain correct.
+	let wrapperEl = $state<HTMLElement | undefined>(undefined);
+	let triggerEl = $state<HTMLButtonElement | undefined>(undefined);
+	let dropdownVars = $state('');
+
+	const VIEWPORT_MARGIN = 8;
+	const TRIGGER_GAP = 6;
+	// Rough size of the two-pane + presets calendar, used until the real
+	// dropdown is measurable (first frame after open).
+	const FALLBACK_WIDTH = 560;
+	const FALLBACK_HEIGHT = 420;
+
+	function positionDropdown() {
+		if (!isOpen || !triggerEl || !wrapperEl) return;
+		const container = wrapperEl.querySelector<HTMLElement>('.calendars-container');
+		const rect = triggerEl.getBoundingClientRect();
+		const width = container?.offsetWidth || FALLBACK_WIDTH;
+		const height = container?.offsetHeight || FALLBACK_HEIGHT;
+		let top = rect.bottom + TRIGGER_GAP;
+		// Flip above the trigger when opening would push the calendar off-screen.
+		if (
+			top + height > window.innerHeight - VIEWPORT_MARGIN &&
+			rect.top - height - TRIGGER_GAP >= VIEWPORT_MARGIN
+		) {
+			top = rect.top - height - TRIGGER_GAP;
+		}
+		top = Math.max(VIEWPORT_MARGIN, Math.min(top, window.innerHeight - height - VIEWPORT_MARGIN));
+		const left = Math.max(
+			VIEWPORT_MARGIN,
+			Math.min(rect.left, window.innerWidth - width - VIEWPORT_MARGIN)
+		);
+		dropdownVars =
+			`--datepicker-container-position: fixed; ` +
+			`--datepicker-container-top: ${top}px; ` +
+			`--datepicker-container-left: ${left}px;`;
+	}
+
+	// Track open state: measure + position right after the calendar renders,
+	// then keep it anchored while the page or the modal scrolls.
+	$effect(() => {
+		if (!isOpen) return;
+		void tick().then(positionDropdown);
+		const reposition = () => positionDropdown();
+		window.addEventListener('scroll', reposition, true);
+		window.addEventListener('resize', reposition);
+		return () => {
+			window.removeEventListener('scroll', reposition, true);
+			window.removeEventListener('resize', reposition);
+		};
+	});
+
 	// Native (mobile) range handling. On touch devices the date range is a
 	// single bordered box containing two native <input type="date"> fields
 	// (From / To). Each opens the OS date picker on a genuine tap — the only
@@ -98,7 +155,7 @@
 	}
 </script>
 
-<div class="date-filter">
+<div class="date-filter" bind:this={wrapperEl} style={dropdownVars}>
 	{#if useNativePicker}
 		<!-- One bordered box containing two native date inputs (From / To).
 		     Each opens the OS picker on a real tap — reliable on iOS & Android. -->
@@ -143,6 +200,7 @@
 		<DatePicker bind:isOpen bind:startDate bind:endDate isRange showPresets onchange={handleChange}>
 			<button
 				type="button"
+				bind:this={triggerEl}
 				class="date-field"
 				aria-label={pickLabel}
 				onclick={toggleDatePicker}
@@ -383,21 +441,9 @@
 		outline-color: rgb(59 130 246);
 	}
 
-	/* Global DatePicker dropdown styles for dark mode consistency */
-	:global(.datepicker-dropdown) {
-		background-color: rgb(255 255 255);
-		border: 1px solid rgb(229 231 235);
-		border-radius: 0.75rem;
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
-		z-index: 40 !important;
-	}
-
-	:global(.dark .datepicker-dropdown) {
-		background-color: rgb(31 41 55);
-		border-color: rgb(75 85 99);
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-	}
-
+	/* Global DatePicker dropdown styles for dark mode consistency.
+	   (The dropdown itself is positioned via the --datepicker-container-*
+	   custom properties set from script — see positionDropdown above.) */
 	:global(.calendars-container) {
 		background-color: rgb(255 255 255);
 		border-radius: 0.75rem;

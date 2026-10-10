@@ -3173,6 +3173,15 @@ AS $$
     WHERE upv.user_id = p_user_id
         AND upv.preference_embedding IS NOT NULL
         AND (p_preference_type IS NULL OR upv.preference_type = p_preference_type)
+        -- Same owner-or-admin guard as get_user_tracking_data: SECURITY
+        -- DEFINER must not serve one user's vectors to another.
+        AND (
+            p_user_id = auth.uid()
+            OR EXISTS (
+                SELECT 1 FROM user_profiles
+                WHERE id = auth.uid() AND role = 'admin'
+            )
+        )
     ORDER BY upv.confidence_score DESC;
 $$;
 

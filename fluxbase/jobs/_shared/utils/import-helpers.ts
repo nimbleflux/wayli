@@ -301,6 +301,18 @@ export function pointToTrackerRecord(
 /**
  * Process a batch of points and insert into database
  */
+/**
+ * Chronological comparator for tracker_data records (by recorded_at). The
+ * distance/speed trigger derives each row from its chronological predecessor,
+ * so out-of-order insertion corrupts the derived chain.
+ */
+export function byRecordedAtAsc(
+	a: { recorded_at: string },
+	b: { recorded_at: string }
+): number {
+	return String(a.recorded_at).localeCompare(String(b.recorded_at));
+}
+
 export async function processPointBatch(
 	points: ImportPoint[],
 	userId: string,
@@ -337,6 +349,12 @@ export async function processPointBatch(
 
 	if (trackerData.length > 0) {
 		try {
+			// Chronological order within the batch: the distance/speed trigger
+			// derives each row's metrics from the chronologically previous row,
+			// so file-order insertion permanently mis-attributes legs when the
+			// source isn't sorted.
+			trackerData.sort(byRecordedAtAsc);
+
 			// Deduplicate within the batch
 			const { deduplicated, duplicateCount } = deduplicateBatch(trackerData);
 			if (duplicateCount > 0) {
@@ -354,7 +372,13 @@ export async function processPointBatch(
 				return { imported, skipped, errors, duplicates, alreadyExists, errorSummary };
 			}
 
-			const { error } = await fluxbase.from('tracker_data').insert(newRecords);
+			// Upsert + ignoreDuplicates: a point landing via live tracking between
+			// the existence check and this insert must not fail the whole batch —
+			// the raced row simply already exists (same contract as the ingest
+			// functions, points-core.ts).
+			const { error } = await fluxbase.from('tracker_data').upsert(newRecords, {
+				ignoreDuplicates: true
+			});
 
 			if (!error) {
 				imported = newRecords.length;

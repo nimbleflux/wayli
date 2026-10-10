@@ -23,6 +23,17 @@ const UPDATE_BATCH = 500;
  */
 export const DETECTOR_VERSION = 9;
 
+/**
+ * Resume point after persisting a batch: the batch's last timestamp minus the
+ * lookback, so the next run re-decodes at most the lookback window before it.
+ * Checkpointing per batch means a run killed by timeout/OOM mid-window resumes
+ * where it stopped instead of re-decoding up to 3 years from scratch.
+ */
+export function checkpointFrom(lastRecordedAt: string | null): Date | null {
+  if (!lastRecordedAt) return null;
+  return new Date(new Date(lastRecordedAt).getTime() - LOOKBACK_MS);
+}
+
 interface TrackerPointRow {
   recorded_at: string;
   location: string | object;
@@ -87,11 +98,14 @@ export async function decodeAndPersist(
     // #220: user-disabled modes are a hard exclusion for the detector.
     const disabledList = (pref as any)?.preferences?.transport_detection?.disabled_modes;
     if (Array.isArray(disabledList) && disabledList.length > 0) {
-      disabledModes = disabledList.filter((m: unknown): m is TransportMode =>
-        typeof m === 'string' && (TRANSPORT_MODES as readonly string[]).includes(m)
+      disabledModes = disabledList.filter(
+        (m: unknown): m is TransportMode =>
+          typeof m === 'string' && (TRANSPORT_MODES as readonly string[]).includes(m)
       );
       if (disabledModes.length > 0) {
-        console.log(`[transport-mode] User ${userId}: disabled modes [${disabledModes.join(', ')}]`);
+        console.log(
+          `[transport-mode] User ${userId}: disabled modes [${disabledModes.join(', ')}]`
+        );
       }
     }
     if (useValhalla) {
@@ -117,6 +131,7 @@ export async function decodeAndPersist(
   // Viterbi context (DetectionContext) so journeys spanning a batch boundary
   // stay coherent, and persist immediately. Peak memory is ~2x BATCH_SIZE.
   let updated = 0;
+  let failedChunks = 0;
   let lastRecordedAt: string | null = null;
   let prevObs: ModeObservation[] = []; // cross-batch continuity tail
   const TAIL = 6;
@@ -188,7 +203,18 @@ export async function decodeAndPersist(
       }
     }
 
-    updated += await persistDecisions(db, userId, decisions);
+    const { updated: persisted, failed } = await persistDecisions(db, userId, decisions);
+    updated += persisted;
+    failedChunks += failed;
+
+    // Checkpoint after every persisted batch. A run killed by timeout/OOM
+    // mid-window resumes near the last persisted batch on the next run
+    // instead of re-decoding the whole (up to 3-year) window from scratch.
+    // Hold the checkpoint when this batch had failed writes so the next run
+    // retries them (the 1h lookback bounds the redo).
+    if (failed === 0) {
+      await advanceWatermark(db, userId, checkpointFrom(lastRecordedAt) ?? now);
+    }
 
     if (batch.length < BATCH_SIZE) break;
   }
@@ -198,7 +224,11 @@ export async function decodeAndPersist(
     return 0;
   }
 
-  await advanceWatermark(db, userId, now);
+  // Stamp the full window processed only when every batch persisted; a
+  // failed chunk leaves the last good per-batch checkpoint in place.
+  if (failedChunks === 0) {
+    await advanceWatermark(db, userId, now);
+  }
   return updated;
 }
 
@@ -219,9 +249,10 @@ async function persistDecisions(
   db: FluxbaseClient,
   userId: string,
   decisions: { mode: string; reason: string; timestamp: number; confidence: number }[]
-): Promise<number> {
-  if (decisions.length === 0) return 0;
+): Promise<{ updated: number; failed: number }> {
+  if (decisions.length === 0) return { updated: 0, failed: 0 };
   let updated = 0;
+  let failed = 0;
   for (let i = 0; i < decisions.length; i += UPDATE_BATCH) {
     const slice = decisions.slice(i, i + UPDATE_BATCH);
     const groups = new Map<
@@ -252,11 +283,16 @@ async function persistDecisions(
           // being silently erased by a re-decode. (Migration 082.)
           .neq('transport_mode_manual', true);
         if (!updErr) updated += chunk.length;
-        else console.error(`⚠️ Update error for mode ${mode}:`, updErr);
+        else {
+          // Count, don't swallow: the caller holds the watermark at the last
+          // fully-persisted batch so failed chunks are retried next run.
+          failed += chunk.length;
+          console.error(`⚠️ Update error for mode ${mode}:`, updErr);
+        }
       }
     }
   }
-  return updated;
+  return { updated, failed };
 }
 
 export async function advanceWatermark(
@@ -269,17 +305,15 @@ export async function advanceWatermark(
   // The watermark is the resume point — a failed write means the next run
   // re-decodes the whole window again, so retry transient failures.
   for (let attempt = 0; attempt < 3; attempt++) {
-    const { error } = await db
-      .from('transport_mode_state')
-      .upsert(
-        {
-          user_id: userId,
-          last_processed_at: iso,
-          detector_version: detectorVersion,
-          updated_at: iso
-        },
-        { onConflict: 'user_id' }
-      );
+    const { error } = await db.from('transport_mode_state').upsert(
+      {
+        user_id: userId,
+        last_processed_at: iso,
+        detector_version: detectorVersion,
+        updated_at: iso
+      },
+      { onConflict: 'user_id' }
+    );
     if (!error) return;
     console.error(`⚠️ Watermark write failed (attempt ${attempt + 1}):`, error);
     if (attempt < 2) await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));

@@ -76,3 +76,4 @@ charts/wayli/charts/
 # Local tooling (never ship)
 .zcodeignore
 /docs/superpowers/
+/test-results/

@@ -72,8 +72,6 @@
       "account": "계정",
       "dashboard": "계기반",
       "trips": "여행",
-      "traveler": "여행자",
-      "travelers": "여행자",
       "locations": "위치",
       "statistics": "위치 데이터",
       "preferences": "환경설정",
@@ -244,7 +242,8 @@
     "train": "기차",
     "airplane": "비행기",
     "stationary": "변화 없는",
-    "unknown": "알려지지 않은"
+    "unknown": "알려지지 않은",
+    "running": "달리기"
   },
   "wayli": "쳐서 자르다",
   "wayliSubtitle": "나만의 여행 동반자",
@@ -559,7 +558,8 @@
     "fitnessInPeriod": "보기 중인 피트니스 세션 {count}개",
     "immichPhotos": "Photos",
     "immichPhotosToggle": "Show geotagged photos from Immich",
-    "immichOpenInImmich": "Open in Immich"
+    "immichOpenInImmich": "Open in Immich",
+    "running": "달리기"
   },
   "connections": {
     "title": "사이",
@@ -631,7 +631,9 @@
       "pickerSelected": "selected",
       "pickerAdd": "Add {count} photos",
       "pickerAddedCount": "Added {count} photo(s) to the entry ({failed} failed).",
-      "days": "days"
+      "days": "days",
+      "pickerCacheHint": "Immich 서버에 연결할 수 없어 로컬에 캐시된 사진을 표시합니다.",
+      "pickerCached": "캐시됨 — Immich 연결 안 됨"
     }
   },
   "importExport": {
@@ -1008,10 +1010,6 @@
     "updatingPassword": "비밀번호 업데이트 중...",
     "savePreferences": "환경설정 저장",
     "savingPreferences": "환경설정 저장 중...",
-    "tripExclusions": "여행 제외",
-    "tripExclusionsDescription": "'외곽'으로 계산되지 않는 도시를 제외하세요. 이러한 도시에 대한 방문은 여행을 감지할 때 '집'으로 처리됩니다.",
-    "noTripExclusions": "아직 여행 제외가 없습니다.",
-    "addTripExclusionsHint": "여행으로 계산되지 않는 정기적으로 방문하는 도시(예: 직장 도시)를 추가하세요.",
     "addTripExclusion": "여행 제외 추가",
     "addTripExclusionModal": "여행 제외 추가",
     "addExclusion": "제외 추가",
@@ -1783,7 +1781,21 @@
     "saveBeforePexels": "먼저 여행을 저장한 다음 표지 이미지를 가져오세요.",
     "immichPhotosTakenOn": "Photos taken on {date}",
     "immichTripHint": "{count} photo(s) from your Immich library were taken during this trip but are not attached yet.",
-    "immichTripHintAdd": "Add photos"
+    "immichTripHintAdd": "Add photos",
+    "whereIveBeen": "내가 방문한 곳",
+    "autoDetectTrips": "자동 여행 감지",
+    "autoDetectHint": "위치 데이터에서 새로운 여행을 감지합니다",
+    "refreshAll": "모두 새로고침",
+    "filterAll": "모든 여행",
+    "filterWithJournal": "저널 있음",
+    "filterDrafts": "임시 저장",
+    "filterWithPhotos": "사진 있음",
+    "pageXofY": "{total}페이지 중 {current}페이지",
+    "dateRange": "기간",
+    "saveDraft": "임시 저장",
+    "publish": "게시",
+    "cancel": "취소",
+    "public": "공개"
   },
   "community": {
     "by": "~에 의해",

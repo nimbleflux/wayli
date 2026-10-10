@@ -322,15 +322,8 @@ private fun StatsContent(
 
 private fun formatNumber(n: Int): String = "%,d".format(n)
 
-/** Web mode palette; anything unknown falls back to the muted gray. */
-private fun modeColor(mode: String): Color = when (mode) {
-    "car" -> TransportModeColors.car
-    "walking" -> TransportModeColors.walking
-    "train" -> TransportModeColors.train
-    "cycling" -> TransportModeColors.cycling
-    "airplane" -> TransportModeColors.airplane
-    else -> TransportModeColors.stationary
-}
+/** Canonical mode palette (covers all modes); unknown falls back to gray. */
+private fun modeColor(mode: String): Color = TransportModeColors.forMode(mode)
 
 @Composable
 private fun StatCard(modifier: Modifier, label: String, value: String, unit: String) {

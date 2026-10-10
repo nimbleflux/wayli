@@ -1,5 +1,6 @@
 <script lang="ts">
 	import {
+		Loader2,
 		Activity,
 		ChevronRight,
 		Dumbbell,
@@ -38,23 +39,43 @@
 
 	const groups = $derived(groupByMonth(activities));
 
+	const PAGE_SIZE = 200;
+
+	/** True when the last fetch returned a full page — there may be more. */
+	let canLoadMore = $state(false);
+	let loadingMore = $state(false);
+
+	async function loadActivitiesPage(offset: number): Promise<FitnessActivity[]> {
+		const res = await fluxbase
+			.from<Record<string, any>>('fitness_activities')
+			.select('*')
+			.order('started_at', { ascending: false })
+			.range(offset, offset + PAGE_SIZE - 1);
+		if (res.error) throw new Error(res.error.message || 'Failed to load activities');
+		return (res.data ?? []) as unknown as FitnessActivity[];
+	}
+
+	async function loadMore() {
+		if (loadingMore || !canLoadMore) return;
+		loadingMore = true;
+		try {
+			const page = await loadActivitiesPage(activities.length);
+			// A full page suggests more exist; a short page is the tail.
+			canLoadMore = page.length === PAGE_SIZE;
+			activities = [...activities, ...page];
+		} catch (err) {
+			loadError = err instanceof Error ? err.message : 'Failed to load activities';
+		} finally {
+			loadingMore = false;
+		}
+	}
+
 	onMount(async () => {
 		void loadFitnessSharing();
 		try {
-			const [activitiesRes, name] = await Promise.all([
-				fluxbase
-					.from<Record<string, any>>('fitness_activities')
-					.select('*')
-					.order('started_at', { ascending: false })
-					.range(0, 199),
-				currentUsername()
-			]);
-			if (activitiesRes.error) {
-				console.error('Failed to load fitness activities:', activitiesRes.error);
-				loadError = activitiesRes.error.message || 'Failed to load activities';
-			} else {
-				activities = (activitiesRes.data ?? []) as unknown as FitnessActivity[];
-			}
+			const [page, name] = await Promise.all([loadActivitiesPage(0), currentUsername()]);
+			activities = page;
+			canLoadMore = page.length === PAGE_SIZE;
 			username = name;
 		} catch (err) {
 			console.error('Failed to load fitness activities:', err);
@@ -303,5 +324,21 @@
 				</div>
 			</section>
 		{/each}
+
+		{#if canLoadMore}
+			<div class="mt-4 flex justify-center">
+				<button
+					type="button"
+					class="border-border text-muted-foreground hover:bg-muted hover:text-foreground inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+					onclick={loadMore}
+					disabled={loadingMore}
+				>
+					{#if loadingMore}
+						<Loader2 class="h-4 w-4 animate-spin" />
+					{/if}
+					Load more activities
+				</button>
+			</div>
+		{/if}
 	{/if}
 </div>

@@ -1,11 +1,8 @@
-// /Users/bart/Dev/wayli/web/src/lib/services/transport-mode/segmentation.ts
 //
 // Gap-based segmentation shared by the detector and the persistence job.
 
 /**
  * Split continuity after this long without a fix (tunnels, phone off, flights).
- * Matches the legacy enhanced-transport-mode.ts threshold so behaviour is
- * consistent between the HMM path and the fallback rule path.
  */
 export const SEGMENT_GAP_MS = 5 * 60 * 1000;
 

@@ -1,4 +1,3 @@
-// /Users/bart/Dev/wayli/fluxbase/jobs/_shared/services/external/valhalla.service.ts
 // Mirrored for the functions tree at
 // functions/_shared/services/external/valhalla.service.ts (functions cannot
 // import from ../jobs at runtime). Update both together.

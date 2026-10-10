@@ -1,4 +1,3 @@
-// /Users/bart/Dev/wayli/web/src/lib/services/statistics/aggregate.ts
 //
 // Pure statistics computations for the Location Data page. Every function here
 // takes the already-processed tracker points (the `rawDataPoints` array the

@@ -1,4 +1,3 @@
-// /Users/bart/Dev/wayli/fluxbase/jobs/_shared/services/transport-mode/states.ts
 // Mirrors web/src/lib/services/transport-mode/states.ts. Update both together.
 
 export const TRANSPORT_MODES = [

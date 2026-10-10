@@ -1,5 +1,3 @@
-// /Users/bart/Dev/wayli/web/tests/unit/services/transport-mode-detector.test.ts
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import { TransportModeDetector } from '../../../src/lib/services/transport-mode-detector.service';
 import type {

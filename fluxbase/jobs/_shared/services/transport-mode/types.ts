@@ -1,4 +1,3 @@
-// /Users/bart/Dev/wayli/fluxbase/jobs/_shared/services/transport-mode/types.ts
 // Mirrors web/src/lib/services/transport-mode/types.ts. Update both together.
 
 import type { GeocodeGeoJSONFeature } from '../../utils/geojson-converter.ts';

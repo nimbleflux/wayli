@@ -1,4 +1,3 @@
-// /Users/bart/Dev/wayli/web/tests/unit/services/chat.service.test.ts
 //
 // Unit tests for chat.service.ts — focuses on the Phase-2 surface: the SDK
 // snake_case → camelCase callback mapping (onDone usage/extras), the quota

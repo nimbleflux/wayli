@@ -1,5 +1,3 @@
-// /Users/bart/Dev/wayli/web/src/lib/services/transport-mode/detector.test.ts
-
 import { describe, test, expect } from 'vitest';
 import { detectTransportModes } from './detector';
 import { SEGMENT_GAP_MS, segmentByGaps } from './segmentation';

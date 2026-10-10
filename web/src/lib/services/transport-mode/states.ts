@@ -1,4 +1,3 @@
-// /Users/bart/Dev/wayli/web/src/lib/services/transport-mode/states.ts
 //
 // HMM transport-mode states. The 8 canonical transport modes we decode into.
 // These align with the modes produced by the legacy rule engine so the map

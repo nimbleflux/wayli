@@ -1,4 +1,3 @@
-// /Users/bart/Dev/wayli/fluxbase/jobs/_shared/services/external/valhalla.service.ts
 //
 // Client for the self-hosted Valhalla routing engine (https://valhalla.wayli.app).
 // Provides GPS trace map-matching via the /trace_attributes endpoint — Valhalla's

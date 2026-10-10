@@ -1,4 +1,3 @@
-// /Users/bart/Dev/wayli/web/src/lib/services/transport-mode/model.ts
 //
 // The HMM: transition matrix + emission model + Viterbi decoder.
 //

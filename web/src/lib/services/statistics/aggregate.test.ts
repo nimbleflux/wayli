@@ -1,5 +1,3 @@
-// /Users/bart/Dev/wayli/web/src/lib/services/statistics/aggregate.test.ts
-
 import { describe, test, expect } from 'vitest';
 import {
 	activityCalendar,

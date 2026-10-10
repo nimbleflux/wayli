@@ -1,4 +1,3 @@
-// /Users/bart/Dev/wayli/web/src/lib/services/transport-mode/detector.ts
 //
 // High-level detector: takes a chronologically-ordered list of observations,
 // gap-segments them, runs the HMM per segment, and returns one mode decision

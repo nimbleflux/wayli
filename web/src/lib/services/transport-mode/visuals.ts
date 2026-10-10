@@ -1,4 +1,3 @@
-// /Users/bart/Dev/wayli/web/src/lib/services/transport-mode/visuals.ts
 //
 // Browser-only visual mapping for transport modes: icons, colors and picker
 // order. Not exported from index.ts — the Deno jobs mirror the other modules

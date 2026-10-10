@@ -1795,7 +1795,8 @@
     "saveDraft": "Сохранить черновик",
     "publish": "Опубликовать",
     "cancel": "Отмена",
-    "public": "Публично"
+    "public": "Публично",
+    "searchJournalPlaceholder": "Поиск по записям дневника…"
   },
   "community": {
     "by": "к",

@@ -1795,7 +1795,8 @@
     "saveDraft": "下書き保存",
     "publish": "公開",
     "cancel": "キャンセル",
-    "public": "公開"
+    "public": "公開",
+    "searchJournalPlaceholder": "ジャーナルを検索…"
   },
   "community": {
     "by": "による",

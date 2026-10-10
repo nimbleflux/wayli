@@ -1795,7 +1795,8 @@
     "saveDraft": "Guardar borrador",
     "publish": "Publicar",
     "cancel": "Cancelar",
-    "public": "Público"
+    "public": "Público",
+    "searchJournalPlaceholder": "Buscar entradas del diario…"
   },
   "community": {
     "by": "por",

@@ -1795,7 +1795,8 @@
     "saveDraft": "Entwurf speichern",
     "publish": "Veröffentlichen",
     "cancel": "Abbrechen",
-    "public": "Öffentlich"
+    "public": "Öffentlich",
+    "searchJournalPlaceholder": "Journaleinträge durchsuchen…"
   },
   "community": {
     "by": "von",

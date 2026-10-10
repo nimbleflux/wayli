@@ -1795,7 +1795,8 @@
     "saveDraft": "Salva bozza",
     "publish": "Pubblica",
     "cancel": "Annulla",
-    "public": "Pubblico"
+    "public": "Pubblico",
+    "searchJournalPlaceholder": "Cerca nel diario…"
   },
   "community": {
     "by": "di",

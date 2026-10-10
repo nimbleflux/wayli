@@ -1795,7 +1795,8 @@
     "saveDraft": "Enregistrer le brouillon",
     "publish": "Publier",
     "cancel": "Annuler",
-    "public": "Public"
+    "public": "Public",
+    "searchJournalPlaceholder": "Rechercher dans les entrées du journal…"
   },
   "community": {
     "by": "par",

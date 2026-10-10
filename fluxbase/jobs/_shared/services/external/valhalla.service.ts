@@ -222,7 +222,10 @@ export async function traceAttributes(
 						Accept: 'application/json',
 						'X-Client-App': 'WayliApp/1.0'
 					},
-					body: JSON.stringify(body)
+					body: JSON.stringify(body),
+					// A hung endpoint must hand control back so the failover loop
+					// can try the next one; aborts throw like any other error.
+					signal: AbortSignal.timeout(30000)
 				});
 
 				if (!response.ok) {

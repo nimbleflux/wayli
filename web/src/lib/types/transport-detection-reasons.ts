@@ -111,6 +111,7 @@ export const VALHALLA_EVIDENCE_LABELS: Record<string, string> = {
 export const HMM_REASON_LABELS: Record<string, string> = {
 	speed_below_stationary_threshold: 'Barely moving — stationary or idle',
 	speed_in_walking_range: 'Speed in walking range, likely walking',
+	speed_in_running_range: 'Speed in running range, likely running (#242)',
 	speed_in_cycling_range: 'Speed in cycling range, likely cycling',
 	speed_in_car_range: 'Speed in car range, likely car',
 	speed_in_high_speed_car_range: 'High speed in car range, likely car',

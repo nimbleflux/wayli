@@ -237,6 +237,7 @@
   },
   "transport": {
     "walking": "Walking",
+    "running": "Running",
     "cycling": "Cycling",
     "car": "Car",
     "train": "Train",
@@ -521,6 +522,7 @@
     "airplane": "Airplane",
     "cycling": "Cycling",
     "walking": "Walking",
+    "running": "Running",
     "unknown": "Unknown",
     "modeColors": "Mode colors",
     "exclusionZones": "Exclusion Zones",

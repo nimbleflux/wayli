@@ -21,7 +21,7 @@ const UPDATE_BATCH = 500;
  * window (3 years) once, then stamps the new version. Manual overrides
  * (transport_mode_manual = true) are never overwritten.
  */
-export const DETECTOR_VERSION = 7;
+export const DETECTOR_VERSION = 8;
 
 interface TrackerPointRow {
   recorded_at: string;

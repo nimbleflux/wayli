@@ -14,7 +14,10 @@ export const TRANSPORT_MODES = [
 	'train',
 	'airplane',
 	'boat',
-	'swimming'
+	'swimming',
+	// #242: appended (never inserted) so indices of the original states — and
+	// any persisted assumptions about them — stay put.
+	'running'
 ] as const;
 
 export type TransportMode = (typeof TRANSPORT_MODES)[number];
@@ -23,7 +26,12 @@ export type TransportMode = (typeof TRANSPORT_MODES)[number];
 export const STATIONARY_MODES: ReadonlySet<TransportMode> = new Set(['stationary']);
 
 /** Modes that count as green/human-powered, used by the statistics page. */
-export const GREEN_MODES: ReadonlySet<TransportMode> = new Set(['walking', 'cycling', 'swimming']);
+export const GREEN_MODES: ReadonlySet<TransportMode> = new Set([
+	'walking',
+	'cycling',
+	'swimming',
+	'running'
+]);
 
 export const MODE_INDEX: Record<TransportMode, number> = TRANSPORT_MODES.reduce(
 	(acc, mode, i) => {
@@ -44,8 +52,9 @@ export function normalizeMode(mode: string | null | undefined): TransportMode {
 	if (!mode) return 'stationary';
 	const lower = mode.toLowerCase().trim();
 	if (lower === 'stationary' || lower === 'still' || lower === 'unknown') return 'stationary';
-	if (lower === 'walking' || lower === 'walk' || lower === 'running' || lower === 'run')
-		return 'walking';
+	if (lower === 'walking' || lower === 'walk') return 'walking';
+	// #242: running is its own mode now (it used to fold into walking).
+	if (lower === 'running' || lower === 'run') return 'running';
 	if (lower === 'cycling' || lower === 'cycle' || lower === 'bicycle' || lower === 'bike')
 		return 'cycling';
 	if (lower === 'car' || lower === 'driving' || lower === 'auto' || lower === 'automotive')

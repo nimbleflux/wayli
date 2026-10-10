@@ -6,6 +6,7 @@
 
 import {
 	Footprints,
+	Rabbit,
 	Bike,
 	Car,
 	TrainFront,
@@ -27,6 +28,7 @@ type IconComponent = any;
 /** Icon per canonical mode; 'unknown' is the fallback for anything else. */
 export const TRANSPORT_MODE_ICONS: Record<string, IconComponent> = {
 	walking: Footprints,
+	running: Rabbit,
 	cycling: Bike,
 	car: Car,
 	train: TrainFront,
@@ -48,6 +50,7 @@ export { TRANSPORT_MODE_COLORS };
 /** Display order for mode pickers (most common movement modes first). */
 export const TRANSPORT_MODE_PICKER_ORDER: TransportMode[] = [
 	'walking',
+	'running',
 	'cycling',
 	'car',
 	'train',

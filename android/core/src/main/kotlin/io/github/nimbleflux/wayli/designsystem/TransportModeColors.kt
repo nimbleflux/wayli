@@ -6,7 +6,7 @@ import androidx.compose.ui.graphics.Color
  * Transport mode colors — mirrors web/src/lib/utils/colors.ts exactly.
  * These are the canonical palette shared between the web and Android apps.
  *
- * DB keys: stationary|walking|cycling|car|train|airplane|boat|swimming.
+ * DB keys: stationary|walking|running|cycling|car|train|airplane|boat|swimming.
  */
 object TransportModeColors {
     val car = Color(0xFFDC2626) // red
@@ -14,6 +14,7 @@ object TransportModeColors {
     val airplane = Color(0xFF0EA5E9) // sky blue
     val cycling = Color(0xFFEA580C) // orange
     val walking = Color(0xFF16A34A) // green
+    val running = Color(0xFFDB2777) // pink — #242
     val boat = Color(0xFF0369A1) // deep teal-blue
     val swimming = Color(0xFF06B6D4) // cyan
     val stationary = Color(0xFF2563EB) // blue — distinct from unknown's grey
@@ -26,6 +27,7 @@ object TransportModeColors {
         "airplane" -> airplane
         "cycling" -> cycling
         "walking" -> walking
+        "running" -> running
         "boat" -> boat
         "swimming" -> swimming
         "stationary" -> stationary

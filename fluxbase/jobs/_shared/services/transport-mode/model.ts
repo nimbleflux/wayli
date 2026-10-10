@@ -68,7 +68,11 @@ export function emissionScores(
 		// boosts below outweigh this prior ~20x); without evidence they sit
 		// far below every land mode so existing land trips are untouched.
 		boat: 0.05,
-		swimming: 0.05
+		swimming: 0.05,
+		// #242: rarer than walking or cycling in practice — ambiguous points
+		// in the 6.5-8 overlap should lean walking unless the segment is
+		// consistently fast.
+		running: 0.8
 	};
 	// Per-point station proximity is on the feature (f.stationProximity).
 	const meanIntervalSec = segCtx?.meanIntervalSec ?? 0;
@@ -108,6 +112,23 @@ export function emissionScores(
 				}
 				if (mode === 'train' && f.headingTurnRate > 4) s *= 0.5;
 			}
+		}
+		// #242: running vs walking — the 6.5-8 km/h band overlap is GPS-noise
+		// country (interval-average speeds dip around pauses; brisk walking
+		// spikes past 7). A whole-segment mean is the tiebreaker: sustained
+		// segment averages above ~8 are runs, below ~6.5 are walks. This
+		// mirrors the train/car steadiness split above.
+		if (mode === 'running' && segCtx && segCtx.meanSpeedKmh >= 8 && segCtx.meanSpeedKmh < 13) {
+			s *= 1.4;
+		}
+		if (mode === 'running' && segCtx && segCtx.meanSpeedKmh < 6.5) s *= 0.4;
+		// #242: running vs cycling — their bands overlap 6.5-25, but the
+		// cores split at ~13 km/h and a segment mean settles the contested
+		// middle: nobody cycles half an hour at a 10 km/h average, and no
+		// runner sustains 16.
+		if (mode === 'running' && segCtx && segCtx.meanSpeedKmh >= 13.5) s *= 0.5;
+		if (mode === 'cycling' && segCtx && segCtx.meanSpeedKmh > 0 && segCtx.meanSpeedKmh < 12.5) {
+			s *= 0.6;
 		}
 		// Per-point rail anchor: nearer a station -> more train, less car.
 		if (mode === 'train' && f.atTrainStation) s *= 4.0;

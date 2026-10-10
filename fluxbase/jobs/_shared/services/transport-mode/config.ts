@@ -14,13 +14,18 @@ export const MAX_PLAUSIBLE_SPEED_KMH = 1000;
 
 export const MODE_PHYSICAL_LIMITS = {
 	stationary: { min: 0, max: 2 },
-	walking: { min: 0, max: 12 },
+	// #242: walking was 0-12 ("includes running"); running now owns the
+	// 6.5-25 band. The 6.5-8 overlap is deliberate — per-point speeds there
+	// are GPS-noise-dominated, the HMM + segment context decide (effective
+	// boundary ~7.7 km/h, see the running discriminator in model.ts).
+	walking: { min: 0, max: 8 },
 	cycling: { min: 5, max: 45 },
 	car: { min: 10, max: 180 },
 	train: { min: 30, max: 350 },
 	airplane: { min: 150, max: 1000 },
 	boat: { min: 0, max: 100 },
-	swimming: { min: 0, max: 8 }
+	swimming: { min: 0, max: 8 },
+	running: { min: 6.5, max: 25 }
 } as const;
 
 export const SPEED_CV_THRESHOLDS = {
@@ -36,5 +41,6 @@ export const MODE_CONTINUITY_LIMITS = {
 	train: { maxSpeedDiff: 30 },
 	airplane: { maxSpeedDiff: 1500 },
 	boat: { maxSpeedDiff: 40 },
-	swimming: { maxSpeedDiff: 4 }
+	swimming: { maxSpeedDiff: 4 },
+	running: { maxSpeedDiff: 6 }
 } as const;

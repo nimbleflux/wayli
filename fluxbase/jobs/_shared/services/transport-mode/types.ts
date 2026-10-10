@@ -46,6 +46,12 @@ export interface SegmentContext {
 	meanIntervalSec: number;
 	/** Fraction [0,1] of geocoded points with water evidence (#220); 0 when none attempted. */
 	waterFraction: number;
+	/**
+	 * Segment-mean speed (km/h), 0 for single-point segments (#242). A whole
+	 * segment's average is far more robust than any per-point speed — the
+	 * running-vs-cycling discriminator leans on it.
+	 */
+	meanSpeedKmh: number;
 }
 
 export interface PointModeDecision {

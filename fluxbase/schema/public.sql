@@ -555,7 +555,7 @@ COMMENT ON COLUMN tracker_data.time_spent IS 'Time spent in seconds from the pre
 COMMENT ON COLUMN tracker_data.tz_diff IS 'Timezone difference from UTC in hours (e.g., +2.0 for UTC+2, -5.0 for UTC-5)';
 
 
-COMMENT ON COLUMN tracker_data.transport_mode IS 'Detected transport mode: stationary|walking|cycling|car|train|airplane|boat|swimming. NULL when not yet processed by the detect-transport-mode job.';
+COMMENT ON COLUMN tracker_data.transport_mode IS 'Detected transport mode: stationary|walking|running|cycling|car|train|airplane|boat|swimming. NULL when not yet processed by the detect-transport-mode job.';
 
 
 COMMENT ON COLUMN tracker_data.detection_reason IS 'Machine-readable reason key for the detected transport_mode (see TransportDetectionReason labels in the UI).';
@@ -3842,6 +3842,7 @@ BEGIN -- Adjust window size based on transport mode
 CASE
     transport_mode
     WHEN 'walking' THEN window_size := 3;
+WHEN 'running' THEN window_size := 3;
 WHEN 'cycling' THEN window_size := 4;
 WHEN 'car' THEN window_size := 5;
 WHEN 'train' THEN window_size := 7;

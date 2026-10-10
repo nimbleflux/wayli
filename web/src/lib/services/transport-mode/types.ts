@@ -73,6 +73,12 @@ export interface SegmentContext {
 	 * un-geocoded segment must never trigger the water modes.
 	 */
 	waterFraction: number;
+	/**
+	 * Segment-mean speed (km/h), 0 for single-point segments (#242). A whole
+	 * segment's average is far more robust than any per-point speed — the
+	 * running-vs-cycling discriminator leans on it.
+	 */
+	meanSpeedKmh: number;
 }
 
 export interface SegmentDetection {

@@ -97,6 +97,7 @@ function intervalMedianKmh(slice: ModeObservation[]): number {
 function costingForMode(mode: TransportMode): ValhallaCosting {
 	switch (mode) {
 		case 'walking':
+		case 'running':
 		case 'stationary':
 			return 'pedestrian';
 		case 'cycling':

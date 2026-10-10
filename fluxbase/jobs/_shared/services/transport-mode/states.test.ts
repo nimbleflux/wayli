@@ -9,10 +9,17 @@ const { MODE_INDEX, NUM_MODES, TRANSPORT_MODES } = await import('./states.ts');
 const { MODE_CONTINUITY_LIMITS, MODE_PHYSICAL_LIMITS } = await import('./config.ts');
 
 test('registers boat and swimming after airplane (#220)', () => {
-	assert.equal(NUM_MODES, 8);
+	assert.equal(NUM_MODES, 9);
 	assert.equal(MODE_INDEX['airplane'], 5);
 	assert.equal(MODE_INDEX['boat'], 6);
 	assert.equal(MODE_INDEX['swimming'], 7);
+});
+
+test('registers running appended after swimming (#242)', () => {
+	assert.equal(MODE_INDEX['running'], 8);
+	assert.equal(MODE_PHYSICAL_LIMITS['running'].min, 6.5);
+	assert.equal(MODE_PHYSICAL_LIMITS['running'].max, 25);
+	assert.equal(MODE_PHYSICAL_LIMITS['walking'].max, 8);
 });
 
 test('every registered mode has physical and continuity limits', () => {

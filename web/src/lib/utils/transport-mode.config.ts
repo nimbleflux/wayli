@@ -23,13 +23,18 @@ export const MAX_PLAUSIBLE_SPEED_KMH = 1000;
 // Physical limits for each transport mode (absolute maximum speeds possible)
 export const MODE_PHYSICAL_LIMITS = {
 	stationary: { min: 0, max: 2 },
-	walking: { min: 0, max: 12 }, // Includes running/sprinting
+	// #242: walking was 0-12 ("includes running"); running now owns the
+	// 6.5-25 band. The 6.5-8 overlap is deliberate — per-point speeds there
+	// are GPS-noise-dominated, the HMM + segment context decide (effective
+	// boundary ~7.7 km/h, see the running discriminator in the emission model).
+	walking: { min: 0, max: 8 },
 	cycling: { min: 5, max: 45 }, // Includes downhill/racing bikes
 	car: { min: 10, max: 180 }, // Typical car speeds (some cars can go faster, but rare)
 	train: { min: 30, max: 350 }, // Regional to high-speed trains
 	airplane: { min: 150, max: 1000 }, // Commercial aircraft
 	boat: { min: 0, max: 100 }, // #220: dinghies to fast cruisers; ferries ~70
-	swimming: { min: 0, max: 8 } // #220: leisure to sprint freestyle
+	swimming: { min: 0, max: 8 }, // #220: leisure to sprint freestyle
+	running: { min: 6.5, max: 25 } // #242: jogging to sprinting
 } as const;
 
 // Minimum requirements for mode detection
@@ -52,7 +57,8 @@ export const MODE_CONTINUITY_LIMITS = {
 	train: { maxSpeedDiff: 30 }, // Trains accelerate gradually
 	airplane: { maxSpeedDiff: 1500 }, // Aircraft can have high speed variations (descent, approach)
 	boat: { maxSpeedDiff: 40 }, // #220: planing hulls get on step quickly
-	swimming: { maxSpeedDiff: 4 } // #220: swimmers change speed slowly
+	swimming: { maxSpeedDiff: 4 }, // #220: swimmers change speed slowly
+	running: { maxSpeedDiff: 6 } // #242: run/walk transitions are smooth
 } as const;
 
 // Physical acceleration limits (maximum km/h change per second)

@@ -2020,6 +2020,7 @@
 								<DateRangePicker
 									bind:startDate={editorDate}
 									bind:endDate={editorEndDate}
+									requireCompleteRange
 									pickLabel="Pick a date"
 								/>
 							</div>
@@ -2126,7 +2127,11 @@
 							/>
 							<div>
 								<span class="text-muted-foreground mb-1 block text-xs">Date range</span>
-								<DateRangePicker bind:startDate={tripStartDate} bind:endDate={tripEndDate} />
+								<DateRangePicker
+									bind:startDate={tripStartDate}
+									bind:endDate={tripEndDate}
+									requireCompleteRange
+								/>
 							</div>
 							<textarea
 								bind:value={tripDescription}

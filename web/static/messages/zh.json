@@ -1795,7 +1795,8 @@
     "saveDraft": "保存草稿",
     "publish": "发布",
     "cancel": "取消",
-    "public": "公开"
+    "public": "公开",
+    "searchJournalPlaceholder": "搜索日志条目…"
   },
   "community": {
     "by": "经过",

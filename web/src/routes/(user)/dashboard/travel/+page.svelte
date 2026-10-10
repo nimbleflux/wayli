@@ -139,6 +139,51 @@
 	let activeFilter = $state<'all' | 'withJournal' | 'withDrafts' | 'hasPhotos'>('all');
 	let publicJournalUrl = $state('');
 	let searchQuery = $state('');
+	let searchResults = $state<
+		{ id: string; trip_id: string; trip_title: string; title: string; entry_date: string }[]
+	>([]);
+	let searching = $state(false);
+	let searchOpen = $state(false);
+	let searchDebounce: ReturnType<typeof setTimeout> | null = null;
+
+	async function runJournalSearch(q: string) {
+		if (q.trim().length < 2) {
+			searchResults = [];
+			searchOpen = false;
+			return;
+		}
+		searching = true;
+		searchOpen = true;
+		try {
+			// Registered procedure (fluxbase/rpc/search-journal-entries.sql, synced
+			// into the 'wayli' namespace) — searches the caller's journal bodies.
+			const { data, error } = await fluxbase.rpc(
+				'search-journal-entries',
+				{ search_text: q.trim(), limit: 20 },
+				{ namespace: 'wayli' }
+			);
+			if (error) throw error;
+			searchResults = (data ?? []) as typeof searchResults;
+		} catch (err) {
+			console.error('Journal search failed:', err);
+			searchResults = [];
+		} finally {
+			searching = false;
+		}
+	}
+
+	function onSearchInput(value: string) {
+		searchQuery = value;
+		if (searchDebounce) clearTimeout(searchDebounce);
+		searchDebounce = setTimeout(() => void runJournalSearch(searchQuery), 300);
+	}
+
+	function openSearchResult(result: (typeof searchResults)[number]) {
+		searchOpen = false;
+		searchQuery = '';
+		searchResults = [];
+		goto(`/dashboard/travel/${result.trip_id}/plan`);
+	}
 	let approvingIds = $state<Set<string>>(new Set());
 
 	// ── Editor state ──
@@ -1603,6 +1648,44 @@
 										{/if}
 									</div>
 								{/each}
+							</div>
+						{/if}
+					</div>
+				{/if}
+
+				<!-- Journal search -->
+				{#if trips.length > 0}
+					<div class="relative mb-4">
+						<input
+							type="search"
+							class="border-border bg-card focus:ring-primary w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+							placeholder={t('travel.searchJournalPlaceholder')}
+							bind:value={searchQuery}
+							oninput={(e) => onSearchInput((e.target as HTMLInputElement).value)}
+							onfocus={() => searchResults.length > 0 && (searchOpen = true)}
+						/>
+						{#if searchOpen && (searching || searchResults.length > 0)}
+							<div
+								class="border-border bg-card absolute z-20 mt-1 w-full overflow-hidden rounded-lg border shadow-lg"
+							>
+								{#if searching}
+									<div class="text-muted-foreground px-3 py-2 text-sm">…</div>
+								{:else}
+									{#each searchResults as result (result.id)}
+										<button
+											type="button"
+											class="hover:bg-muted flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left"
+											onclick={() => openSearchResult(result)}
+										>
+											<span class="text-foreground text-sm font-medium">
+												{result.title || result.trip_title}
+											</span>
+											<span class="text-muted-foreground text-xs">
+												{result.trip_title} · {result.entry_date}
+											</span>
+										</button>
+									{/each}
+								{/if}
 							</div>
 						{/if}
 					</div>

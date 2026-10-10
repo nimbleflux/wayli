@@ -1712,7 +1712,8 @@
     "saveDraft": "Save Draft",
     "publish": "Publish",
     "cancel": "Cancel",
-    "public": "Public"
+    "public": "Public",
+    "searchJournalPlaceholder": "Search journal entries…"
   },
   "plan": {
     "pageTitle": "{title} · Plan · Wayli",

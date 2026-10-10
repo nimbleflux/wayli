@@ -1795,7 +1795,8 @@
     "saveDraft": "Concept opslaan",
     "publish": "Publiceren",
     "cancel": "Annuleren",
-    "public": "Openbaar"
+    "public": "Openbaar",
+    "searchJournalPlaceholder": "Zoek in journaalitems…"
   },
   "community": {
     "by": "door",

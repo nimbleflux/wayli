@@ -1795,7 +1795,8 @@
     "saveDraft": "임시 저장",
     "publish": "게시",
     "cancel": "취소",
-    "public": "공개"
+    "public": "공개",
+    "searchJournalPlaceholder": "저널 검색…"
   },
   "community": {
     "by": "~에 의해",

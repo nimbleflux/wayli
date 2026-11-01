@@ -1,4 +1,4 @@
-FROM node:25.9.0-bookworm
+FROM node:26.11.1-bookworm
 
 # Minimal setup - just ensure we have a non-root user
 USER node

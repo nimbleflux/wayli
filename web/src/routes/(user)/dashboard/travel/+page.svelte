@@ -58,6 +58,7 @@
 		MapPin,
 		Calendar,
 		Route,
+		Navigation,
 		Globe,
 		Sparkles,
 		Check,
@@ -306,6 +307,20 @@
 
 	const pendingCount = $derived(pendingTrips.length);
 
+	// Issue #288: while the user is away, the daily trip job rolls a trip with
+	// status='active' and end_date = today (labels=['auto-ongoing']). Surface
+	// it as "on a trip now": the active trip that hasn't ended yet, latest
+	// first. end_date is a plain date (YYYY-MM-DD), so string comparison works.
+	const currentTrip = $derived.by(() => {
+		const now = new Date();
+		const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+		return (
+			trips
+				.filter((t) => t.status === 'active' && t.end_date >= today)
+				.sort((a, b) => (a.end_date < b.end_date ? 1 : -1))[0] ?? null
+		);
+	});
+
 	// Sync pending count to shared store for AppNav badge
 	$effect(() => {
 		pendingTripCount.set(pendingTrips.length);
@@ -437,7 +452,7 @@
 			const { data } = await fluxbase
 				.from('trips')
 				.select(
-					'id, title, description, start_date, end_date, image_url, visibility, status, metadata'
+					'id, title, description, start_date, end_date, image_url, visibility, status, labels, metadata'
 				)
 				.in('status', ['active', 'planned', 'completed'])
 				.order('start_date', { ascending: false });
@@ -583,6 +598,18 @@
 		}
 		expandedTrips = next;
 		setTimeout(() => setupObserver(), 50);
+	}
+
+	/** Expand and scroll to the trip the user is currently on (#288). */
+	function viewCurrentTrip() {
+		if (!currentTrip) return;
+		if (!expandedTrips.has(currentTrip.id)) {
+			toggleTrip(currentTrip);
+		}
+		document.querySelector(`[data-trip-id="${currentTrip.id}"]`)?.scrollIntoView({
+			behavior: 'smooth',
+			block: 'start'
+		});
 	}
 
 	async function loadTripMedia(tripId: string) {
@@ -1566,6 +1593,39 @@
 			     (one fixed-size thumb per photo) blows the column out and pushes
 			     the map off-screen. -->
 			<div class="min-w-0 space-y-5">
+				<!-- Currently on a trip (#288) -->
+				{#if currentTrip}
+					<div
+						class="flex items-center gap-3 rounded-2xl border border-emerald-300/40 bg-emerald-50/50 p-4 dark:border-emerald-500/20 dark:bg-emerald-950/10"
+					>
+						<Navigation class="h-4 w-4 flex-shrink-0 text-emerald-500" />
+						<div class="min-w-0 flex-1">
+							<p class="text-foreground text-sm font-semibold">
+								You're on a trip: {currentTrip.title}
+							</p>
+							<p class="text-muted-foreground text-xs">
+								{new Date(currentTrip.start_date).toLocaleDateString(undefined, {
+									month: 'short',
+									day: 'numeric'
+								})}
+								–
+								{new Date(currentTrip.end_date).toLocaleDateString(undefined, {
+									month: 'short',
+									day: 'numeric',
+									year: 'numeric'
+								})}
+							</p>
+						</div>
+						<button
+							type="button"
+							onclick={viewCurrentTrip}
+							class="rounded-lg bg-emerald-500 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-emerald-600"
+						>
+							View
+						</button>
+					</div>
+				{/if}
+
 				<!-- Pending suggestions (collapsible) -->
 				{#if pendingTrips.length > 0}
 					<div
@@ -1734,7 +1794,10 @@
 					{#each visibleTrips as trip, i (trip.id)}
 						<div
 							data-trip-id={trip.id}
-							class="bg-card border-border animate-fade-in-up scroll-mt-4 overflow-hidden rounded-2xl border"
+							class="bg-card animate-fade-in-up scroll-mt-4 overflow-hidden rounded-2xl border {trip.id ===
+							currentTrip?.id
+								? 'border-emerald-500/50 ring-2 ring-emerald-500/30'
+								: 'border-border'}"
 							style="animation-delay: {Math.min(i * 60, 400)}ms"
 						>
 							<!-- Trip header -->
@@ -1773,6 +1836,14 @@
 									<div
 										class="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs"
 									>
+										{#if trip.id === currentTrip?.id}
+											<span
+												class="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400"
+											>
+												<Navigation class="h-2.5 w-2.5" />
+												Happening now
+											</span>
+										{/if}
 										<span class="flex items-center gap-1">
 											<Calendar class="h-3 w-3" />
 											{new Date(trip.start_date).toLocaleDateString(undefined, {

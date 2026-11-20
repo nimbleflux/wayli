@@ -30,6 +30,7 @@ import {
 	MAX_POINTS_PER_REQUEST,
 	POINT_CONCURRENCY,
 	mapWithConcurrency,
+	pickNewestProcessedPoint,
 	rawPointTimestampMs,
 	validateRawPoint,
 } from './point-validation.ts';
@@ -700,10 +701,12 @@ export async function ingestPoints(
     }
 
     if (options?.includeAddress) {
-      // The app batches points oldest-first, so the last accepted element is
-      // the newest fix. Its Pelias label is what the tracking notification
-      // shows.
-      const newest = processedPoints[processedPoints.length - 1] as any;
+      // The tracking notification shows the newest fix's address. Points are
+      // geocoded with bounded concurrency and appended to processedPoints in
+      // COMPLETION order, so the last element can be any point in the batch —
+      // picking by array position froze the Android notification on a stale
+      // address (#287). Pick by recorded_at instead.
+      const newest = pickNewestProcessedPoint(processedPoints as any[]) as any;
       const props = newest?.geocode?.properties;
       const address =
         typeof props?.display_name === 'string' && props.display_name.length > 0

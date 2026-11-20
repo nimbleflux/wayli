@@ -104,6 +104,7 @@ fun SignInScreen(
 
     val providers by viewModel.oauth.collectAsState()
     val passwordEnabled by viewModel.passwordEnabled.collectAsState()
+    val authConfigLoaded by viewModel.authConfigLoaded.collectAsState()
     // A pending deep link means we're mid OAuth return — skip the provider
     // re-fetch and go straight to the code exchange.
     if (OAuthDeepLinkBus.uri.value == null) viewModel.loadOAuth()
@@ -124,6 +125,19 @@ fun SignInScreen(
             Spacer(Modifier.height(16.dp))
             Text(
                 "Signing you in…",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            return@AuthScreenContainer
+        }
+        // Don't render any login methods before the auth config is known
+        // (#289): the password form would flash on servers where password
+        // login is disabled, and stay there.
+        if (!authConfigLoaded) {
+            CircularProgressIndicator()
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Loading sign-in options…",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground,
             )
@@ -283,6 +297,12 @@ fun SignUpScreen(
     var password by mutableStateOf("")
     var error by mutableStateOf<String?>(null)
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val providers by viewModel.oauth.collectAsState()
+    val passwordEnabled by viewModel.passwordEnabled.collectAsState()
+    val authConfigLoaded by viewModel.authConfigLoaded.collectAsState()
+    viewModel.loadOAuth()
+
     AuthScreenContainer {
         WayliLogoSmall()
         Spacer(Modifier.height(24.dp))
@@ -300,69 +320,119 @@ fun SignUpScreen(
         )
         Spacer(Modifier.height(40.dp))
 
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email") },
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Email,
-                imeAction = ImeAction.Next,
-            ),
-            singleLine = true,
-            shape = fieldShape,
-            modifier = Modifier.fillMaxWidth(),
-            colors = fieldColors(),
-        )
-        Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password") },
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Password,
-                imeAction = ImeAction.Done,
-            ),
-            singleLine = true,
-            shape = fieldShape,
-            modifier = Modifier.fillMaxWidth(),
-            colors = fieldColors(),
-        )
-        Spacer(Modifier.height(24.dp))
-
-        if (viewModel.loading) {
+        if (!authConfigLoaded) {
+            // Issue #289: don't show the signup form before the auth config
+            // is known.
             CircularProgressIndicator(
                 modifier = Modifier.size(28.dp),
                 strokeWidth = 2.dp,
-                color = MaterialTheme.colorScheme.primary,
             )
-        } else {
-            Button(
-                onClick = {
-                    if (email.isBlank() || password.isBlank()) {
-                        error = "Enter email and password"
-                        return@Button
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Loading sign-up options…",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+        } else if (!passwordEnabled) {
+            // Password signup disabled on this server — offer the configured
+            // OAuth providers instead (the deep-link completion is shared
+            // with the sign-in flow and lands on the same session state).
+            if (providers.isEmpty()) {
+                Text(
+                    "Sign-up with email is disabled on this server.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Text(
+                    "Sign up with a provider:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
+                providers.forEach { provider ->
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = { viewModel.startOAuth(provider.provider, context) },
+                        enabled = !viewModel.oauthBusy,
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        shape = fieldShape,
+                    ) {
+                        Text(
+                            if (viewModel.oauthBusy) "Opening ${provider.display()}…" else "Continue with ${provider.display()}",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
                     }
-                    error = null
-                    viewModel.signUp(email, password) { s, e ->
-                        if (s) onSignedUp() else error = e
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = btnShape,
-            ) {
-                Text("Sign Up", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(12.dp))
+                }
+                viewModel.oauthError?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
             }
-        }
-
-        error?.let {
+        } else {
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = { Text("Email") },
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Email,
+                    imeAction = ImeAction.Next,
+                ),
+                singleLine = true,
+                shape = fieldShape,
+                modifier = Modifier.fillMaxWidth(),
+                colors = fieldColors(),
+            )
             Spacer(Modifier.height(12.dp))
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-        }
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("Password") },
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done,
+                ),
+                singleLine = true,
+                shape = fieldShape,
+                modifier = Modifier.fillMaxWidth(),
+                colors = fieldColors(),
+            )
+            Spacer(Modifier.height(24.dp))
 
-        Spacer(Modifier.height(16.dp))
-        TextButton(onClick = onBack) {
-            Text("Back to sign in", style = MaterialTheme.typography.labelLarge)
+            if (viewModel.loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(28.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            } else {
+                Button(
+                    onClick = {
+                        if (email.isBlank() || password.isBlank()) {
+                            error = "Enter email and password"
+                            return@Button
+                        }
+                        error = null
+                        viewModel.signUp(email, password) { s, e ->
+                            if (s) onSignedUp() else error = e
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = btnShape,
+                ) {
+                    Text("Sign Up", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                }
+            }
+
+            error?.let {
+                Spacer(Modifier.height(12.dp))
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+
+            Spacer(Modifier.height(16.dp))
+            TextButton(onClick = onBack) {
+                Text("Back to sign in", style = MaterialTheme.typography.labelLarge)
+            }
         }
     }
 }
@@ -587,6 +657,14 @@ class AuthViewModel @Inject constructor(
 
     val oauth = MutableStateFlow<List<io.github.nimbleflux.fluxbase.auth.OAuthProviderInfo>>(emptyList())
     val passwordEnabled = MutableStateFlow(true)
+
+    /**
+     * False until the server's auth config has been fetched. Login methods
+     * must not render before this is true (#289): passwordEnabled starts
+     * true as a default, so showing the password form earlier would flash
+     * (and keep) fields on servers where password login is disabled.
+     */
+    val authConfigLoaded = MutableStateFlow(false)
     var oauthBusy by mutableStateOf(false)
         private set
     var oauthError by mutableStateOf<String?>(null)
@@ -602,6 +680,7 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             oauth.value = oauthClient.providers()
             passwordEnabled.value = oauthClient.passwordLoginEnabled()
+            authConfigLoaded.value = true
         }
     }
 

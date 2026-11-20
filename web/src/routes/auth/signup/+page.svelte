@@ -27,7 +27,10 @@
 	let showConfirmPassword = $state(false);
 	let isEmailSent = $state(false);
 	let registrationDisabled = $state(false);
-	let isLoadingSettings = $state(false);
+	// Start true: the signup form / OAuth buttons must not render before the
+	// auth config is known (#289) — otherwise password fields flash (and stay)
+	// on instances where password login is disabled.
+	let isLoadingSettings = $state(true);
 	let isFirstUser = $state(false);
 	let hasRedirected = false; // Guard to prevent multiple redirects
 
@@ -535,6 +538,9 @@
 						</p>
 					</div>
 				</div>
+			{:else if isLoadingSettings}
+				<!-- Settings still loading: the spinner card above is showing.
+				     Render nothing until the available login methods are known. -->
 			{:else if oauthOnlyMode && oauthProviders.length > 0 && !isFirstUser}
 				<!-- OAuth-only mode: show only OAuth buttons -->
 				<div class="space-y-4">

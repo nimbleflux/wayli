@@ -1,6 +1,8 @@
 // web/src/lib/services/session/session-manager.service.ts
 // Global session management service with Remember Me and re-authentication support
-// Token refresh is handled by Fluxbase SDK's autoRefresh feature
+// Token refresh happens here (proactive checks below); the SDK's own timer is
+// disabled in $lib/fluxbase.ts because it cleared sessions on transient
+// refresh failures, logging users out when they opened the app offline.
 
 import { fluxbase } from '$lib/fluxbase';
 import { userStore, sessionStore } from '$lib/stores/auth';
@@ -8,6 +10,7 @@ import { goto } from '$app/navigation';
 import { cleanup as cleanupJobStore, initializeJobStore } from '$lib/stores/job-store';
 import { initNotifications, teardownNotifications } from '$lib/stores/notifications';
 import { writable, get } from 'svelte/store';
+import { isDefinitiveAuthError } from '$lib/utils/auth-error';
 
 // LocalStorage keys
 const REMEMBER_ME_KEY = 'wayli.rememberMe';
@@ -108,9 +111,19 @@ export class SessionManagerService {
 				}
 
 				// Validate token with retry logic
-				const isValid = await this.validateTokenWithRetry();
-				if (!isValid) {
+				const validity = await this.validateTokenWithRetry();
+				if (validity === 'invalid') {
 					return; // handleSessionExpiry already called in validateTokenWithRetry
+				}
+
+				// 'valid' or 'unknown' (e.g. offline): keep the session and restore
+				// stores from the cached data so the app stays usable. The periodic
+				// refresh below re-validates once connectivity returns. Only a
+				// definitive rejection from the auth server signs the user out.
+				if (validity === 'unknown') {
+					console.warn(
+						'⚠️ [SessionManager] Token validation inconclusive (offline?), keeping cached session'
+					);
 				}
 
 				// Token is valid - update stores and initialize job store
@@ -132,19 +145,34 @@ export class SessionManagerService {
 
 	/**
 	 * Validate token with retry logic - tries refresh before giving up
+	 *
+	 * Returns:
+	 * - 'valid': the server accepted the token
+	 * - 'invalid': the server definitively rejected it (401/403, even after a
+	 *   refresh) — session has been expired by handleSessionExpiry
+	 * - 'unknown': could not reach the server (offline, timeout, 429, 5xx).
+	 *   The session is NOT expired; callers should keep the cached session
+	 *   and retry later.
 	 */
-	private async validateTokenWithRetry(): Promise<boolean> {
+	private async validateTokenWithRetry(): Promise<'valid' | 'invalid' | 'unknown'> {
 		// First attempt: validate with getCurrentUser() (makes server request to verify token)
 		// Note: getUser() only returns cached data and doesn't validate the token
 		const { error: userError } = await fluxbase.auth.getCurrentUser();
 
 		if (!userError) {
 			console.log('✅ [SessionManager] Token validation successful');
-			return true; // Token is valid
+			return 'valid'; // Token is valid
+		}
+
+		if (!isDefinitiveAuthError(userError)) {
+			// Network error, timeout, rate limit, server error — nothing the
+			// auth server decided. Keep the session.
+			console.warn('⚠️ [SessionManager] Token validation failed transiently:', userError.message);
+			return 'unknown';
 		}
 
 		console.warn(
-			'⚠️ [SessionManager] Token validation failed, attempting refresh:',
+			'⚠️ [SessionManager] Token rejected by server, attempting refresh:',
 			userError.message
 		);
 
@@ -153,9 +181,13 @@ export class SessionManagerService {
 			console.log('🔄 [SessionManager] Attempting token refresh in validateTokenWithRetry...');
 			const { data, error: refreshError } = await fluxbase.auth.refreshSession();
 			if (refreshError) {
-				console.error('❌ [SessionManager] Token refresh failed:', refreshError.message);
-				await this.handleSessionExpiry();
-				return false;
+				if (isDefinitiveAuthError(refreshError)) {
+					console.error('❌ [SessionManager] Refresh token rejected:', refreshError.message);
+					await this.handleSessionExpiry();
+					return 'invalid';
+				}
+				console.warn('⚠️ [SessionManager] Token refresh failed transiently:', refreshError.message);
+				return 'unknown';
 			}
 
 			// Log the new token expiry
@@ -168,18 +200,28 @@ export class SessionManagerService {
 
 			// Refresh succeeded, validate again with server request
 			const { error: retryError } = await fluxbase.auth.getCurrentUser();
-			if (retryError) {
+			if (!retryError) {
+				console.info('✅ [SessionManager] Token refreshed and validated successfully');
+				return 'valid';
+			}
+			if (isDefinitiveAuthError(retryError)) {
 				console.error('❌ [SessionManager] Token still invalid after refresh:', retryError.message);
 				await this.handleSessionExpiry();
-				return false;
+				return 'invalid';
 			}
-
-			console.info('✅ [SessionManager] Token refreshed and validated successfully');
-			return true;
+			console.warn(
+				'⚠️ [SessionManager] Post-refresh validation failed transiently:',
+				retryError.message
+			);
+			return 'unknown';
 		} catch (error) {
-			console.error('❌ [SessionManager] Error during token refresh:', error);
-			await this.handleSessionExpiry();
-			return false;
+			if (isDefinitiveAuthError(error)) {
+				console.error('❌ [SessionManager] Error during token refresh:', error);
+				await this.handleSessionExpiry();
+				return 'invalid';
+			}
+			console.warn('⚠️ [SessionManager] Token refresh failed transiently:', error);
+			return 'unknown';
 		}
 	}
 
@@ -353,6 +395,10 @@ export class SessionManagerService {
 
 	/**
 	 * Force refresh the current session
+	 *
+	 * Only expires the session when the server definitively rejects the
+	 * refresh token (401/403). Transient failures (offline, timeouts, rate
+	 * limits) keep the session — the next periodic check retries.
 	 */
 	async forceRefreshSession(): Promise<boolean> {
 		try {
@@ -360,8 +406,12 @@ export class SessionManagerService {
 			const { data, error } = await fluxbase.auth.refreshSession();
 
 			if (error) {
-				console.error('❌ [SessionManager] Force refresh error:', error);
-				await this.handleSessionExpiry();
+				if (isDefinitiveAuthError(error)) {
+					console.error('❌ [SessionManager] Refresh token rejected:', error);
+					await this.handleSessionExpiry();
+				} else {
+					console.warn('⚠️ [SessionManager] Refresh failed transiently, keeping session:', error);
+				}
 				return false;
 			}
 
@@ -380,8 +430,12 @@ export class SessionManagerService {
 
 			return false;
 		} catch (error) {
-			console.error('❌ [SessionManager] Force refresh error:', error);
-			await this.handleSessionExpiry();
+			if (isDefinitiveAuthError(error)) {
+				console.error('❌ [SessionManager] Force refresh error:', error);
+				await this.handleSessionExpiry();
+			} else {
+				console.warn('⚠️ [SessionManager] Refresh failed transiently, keeping session:', error);
+			}
 			return false;
 		}
 	}

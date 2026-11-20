@@ -51,7 +51,7 @@
 	import { FlaskConical } from 'lucide-svelte';
 
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 
 	import type { UserProfile, UserPreferences } from '$lib/types/user.types';
 
@@ -352,7 +352,7 @@
 
 	// Onboarding state
 	let showOnboardingModal = $state(false);
-	let isOnboarding = $derived($page.url.searchParams.get('onboarding') === 'true');
+	let isOnboarding = $derived(page.url.searchParams.get('onboarding') === 'true');
 
 	// Admin state for onboarding
 	let isAdmin = $state(false);

@@ -9,7 +9,7 @@
 	import { ensureUserProfile } from '$lib/services/session/user-profile-bootstrap';
 
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 
 	let loading = true;
 	let error = '';
@@ -35,8 +35,8 @@
 				if (setError) throw setError;
 			} else {
 				// Check for authorization code (standard OAuth flow)
-				const code = $page.url.searchParams.get('code');
-				const state = $page.url.searchParams.get('state');
+				const code = page.url.searchParams.get('code');
+				const state = page.url.searchParams.get('state');
 
 				if (code) {
 					// Use SDK's built-in method - it handles redirect_uri automatically
@@ -102,7 +102,7 @@
 					const storedRedirectTo = sessionStorage.getItem('oauth_redirect_to');
 					sessionStorage.removeItem('oauth_redirect_to');
 					const redirectTo = safeRedirectTo(
-						$page.url.searchParams.get('redirectTo') || storedRedirectTo,
+						page.url.searchParams.get('redirectTo') || storedRedirectTo,
 						'/dashboard/location-data'
 					);
 					toast.success(t('auth.authenticationSuccess'));

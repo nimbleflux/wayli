@@ -34,8 +34,9 @@
 	let t = $derived($translate);
 
 	// ── Import state ──
-	let selectedFile = $state<File | null>(null);
-	let importFormat = $state<string | null>(null);
+	// #286: bulk import — every selected file becomes its own queued
+	// data-import job (the backend already treats each file independently).
+	let selectedFiles = $state<{ file: File; format: string }[]>([]);
 	let isImporting = $state(false);
 	let isDragOver = $state(false);
 	let fileInputEl = $state<HTMLInputElement | null>(null);
@@ -101,33 +102,31 @@
 		fileInputEl?.click();
 	}
 
+	/** Detect formats for every file at once; .fit without the beta is skipped. */
+	function setSelectedFiles(incoming: FileList | File[]) {
+		const accepted: { file: File; format: string }[] = [];
+		let skippedFit = 0;
+		for (const file of Array.from(incoming)) {
+			const format = detectImportFormat(file);
+			if (!format) {
+				skippedFit++;
+				continue;
+			}
+			accepted.push({ file, format });
+		}
+		selectedFiles = accepted;
+		if (skippedFit > 0) toast.error(t('importExport.fitBetaRequired'));
+	}
+
 	function handleFileSelect(event: Event) {
 		const target = event.target as HTMLInputElement;
-		if (target.files?.[0]) {
-			const format = detectImportFormat(target.files[0]);
-			if (!format) {
-				target.value = '';
-				toast.error(t('importExport.fitBetaRequired'));
-				return;
-			}
-			selectedFile = target.files[0];
-			importFormat = format;
-		}
+		if (target.files?.length) setSelectedFiles(target.files);
 	}
 
 	function handleDrop(event: DragEvent) {
 		event.preventDefault();
 		isDragOver = false;
-		const file = event.dataTransfer?.files?.[0];
-		if (file) {
-			const format = detectImportFormat(file);
-			if (!format) {
-				toast.error(t('importExport.fitBetaRequired'));
-				return;
-			}
-			selectedFile = file;
-			importFormat = format;
-		}
+		if (event.dataTransfer?.files?.length) setSelectedFiles(event.dataTransfer.files);
 	}
 
 	function handleDragOver(event: DragEvent) {
@@ -139,31 +138,45 @@
 		isDragOver = false;
 	}
 
-	function clearFile() {
-		selectedFile = null;
-		importFormat = null;
+	function clearFiles() {
+		selectedFiles = [];
 		if (fileInputEl) fileInputEl.value = '';
 	}
 
 	// ── Import ──
 	async function handleImport() {
-		if (!selectedFile || !importFormat) {
+		if (selectedFiles.length === 0) {
 			toast.error(t('importExport.pleaseSelectFile'));
 			return;
 		}
+		isImporting = true;
+		let ok = 0;
 		try {
-			isImporting = true;
-			await jobCreationService.createImportJob(selectedFile, {
-				format: importFormat,
-				includeLocationData: true,
-				includeWantToVisit: true,
-				includeTrips: true
-			});
-			toast.success(t('importExport.uploadSuccessful'));
-			clearFile();
-		} catch (error) {
-			console.error('Import error:', error);
-			toast.error(t('importExport.importFailed'));
+			// Sequential submission: each import job kicks off post-import
+			// passes (watermark reset, distance RPC, geocoding) — feeding the
+			// queue one file at a time keeps those from racing. Progress for
+			// the individual uploads shows in the header upload button.
+			for (const { file, format } of selectedFiles) {
+				try {
+					await jobCreationService.createImportJob(file, {
+						format,
+						includeLocationData: true,
+						includeWantToVisit: true,
+						includeTrips: true
+					});
+					ok++;
+				} catch (error) {
+					console.error(`Import error for ${file.name}:`, error);
+				}
+			}
+			if (ok === selectedFiles.length) {
+				toast.success(t('importExport.uploadSuccessful'));
+			} else if (ok > 0) {
+				toast.warning(t('importExport.bulkQueued', { ok, total: selectedFiles.length }));
+			} else {
+				toast.error(t('importExport.importFailed'));
+			}
+			clearFiles();
 		} finally {
 			isImporting = false;
 		}
@@ -367,6 +380,7 @@
 			<!-- Hidden file input -->
 			<input
 				type="file"
+				multiple
 				bind:this={fileInputEl}
 				accept={fitnessBeta
 					? '.geojson,.json,.kml,.gpx,.rec,.zip,.fit'
@@ -376,7 +390,50 @@
 			/>
 
 			<!-- Dropzone -->
-			{#if selectedFile}
+			{#if selectedFiles.length > 1}
+				<!-- Multi-file selected state (#286) -->
+				<div class="border-border rounded-xl border-2 border-solid p-2">
+					<div class="max-h-56 space-y-1 overflow-y-auto">
+						{#each selectedFiles as entry, i (entry.file.name + i)}
+							<div
+								class="flex items-center gap-3 rounded-lg p-2 {i % 2 === 0 ? 'bg-muted/40' : ''}"
+							>
+								<FileCheck class="text-primary h-5 w-5 shrink-0" />
+								<div class="min-w-0 flex-1">
+									<p class="text-foreground truncate text-sm font-medium">{entry.file.name}</p>
+									<div class="mt-0.5 flex items-center gap-2">
+										<span
+											class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium {FORMAT_BADGES.find(
+												(f) => f.ext === entry.format
+											)?.color ?? 'bg-muted text-muted-foreground'}"
+										>
+											{entry.format}
+										</span>
+										<span class="text-muted-foreground text-xs">
+											{(entry.file.size / 1024 / 1024).toFixed(1)} MB
+										</span>
+									</div>
+								</div>
+								<button
+									type="button"
+									onclick={() => (selectedFiles = selectedFiles.filter((_, j) => j !== i))}
+									class="text-muted-foreground hover:text-destructive shrink-0"
+									aria-label={t('common.actions.cancel')}
+								>
+									<X class="h-4 w-4" />
+								</button>
+							</div>
+						{/each}
+					</div>
+					<button
+						type="button"
+						onclick={openFilePicker}
+						class="text-primary hover:text-primary/80 mt-1 w-full py-1.5 text-xs font-medium"
+					>
+						+ {t('importExport.selectFile')}
+					</button>
+				</div>
+			{:else if selectedFiles.length === 1}
 				<!-- File selected state -->
 				<div
 					class="border-border flex items-center gap-3 rounded-xl border-2 border-solid p-4"
@@ -389,17 +446,17 @@
 						<FileCheck class="h-8 w-8" />
 					</div>
 					<div class="min-w-0 flex-1">
-						<p class="text-foreground truncate text-sm font-medium">{selectedFile.name}</p>
+						<p class="text-foreground truncate text-sm font-medium">{selectedFiles[0].file.name}</p>
 						<div class="mt-1 flex items-center gap-2">
 							<span
 								class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium {FORMAT_BADGES.find(
-									(f) => f.ext === importFormat
+									(f) => f.ext === selectedFiles[0].format
 								)?.color ?? 'bg-muted text-muted-foreground'}"
 							>
-								{importFormat}
+								{selectedFiles[0].format}
 							</span>
 							<span class="text-muted-foreground text-xs">
-								{(selectedFile.size / 1024 / 1024).toFixed(1)} MB
+								{(selectedFiles[0].file.size / 1024 / 1024).toFixed(1)} MB
 							</span>
 						</div>
 					</div>
@@ -407,7 +464,7 @@
 						type="button"
 						onclick={(e) => {
 							e.stopPropagation();
-							clearFile();
+							clearFiles();
 						}}
 						class="text-muted-foreground hover:text-foreground shrink-0 text-xs font-medium"
 					>
@@ -461,12 +518,15 @@
 				<button
 					type="button"
 					onclick={handleImport}
-					disabled={isImporting || !selectedFile}
+					disabled={isImporting || selectedFiles.length === 0}
 					class="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
 				>
 					{#if isImporting}
 						<Loader2 class="h-4 w-4 animate-spin" />
 						{t('importExport.importing')}
+					{:else if selectedFiles.length > 1}
+						<Upload class="h-4 w-4" />
+						{t('importExport.importNDataButton', { n: selectedFiles.length })}
 					{:else}
 						<Upload class="h-4 w-4" />
 						{t('importExport.importDataButton')}

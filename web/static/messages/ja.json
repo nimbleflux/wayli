@@ -648,6 +648,7 @@
     "detectedFormat": "検出されたフォーマット: {format}",
     "importing": "アップロード中...",
     "importDataButton": "データのインポート",
+    "importNDataButton": "{n} 個のファイルをインポート",
     "uploadSuccessful": "アップロードが成功しました!",
     "importFailed": "インポートに失敗しました",
     "exportDataButton": "データのエクスポート",
@@ -685,7 +686,8 @@
     "polarstepsDescription": "Polarsteps エクスポート (.zip) から旅行、日記、GPS データ、写真をインポートします。",
     "subtitle": "位置データをインポートまたはエクスポートする",
     "fitDescription": "スポーツウォッチやサイクルコンピューターからのGarmin FITアクティビティファイル",
-    "fitBetaRequired": "「.fitファイルをインポートするには、アカウント設定でフィットネスベータを有効にしてください"
+    "fitBetaRequired": "「.fitファイルをインポートするには、アカウント設定でフィットネスベータを有効にしてください",
+    "bulkQueued": "{total} 個中 {ok} 個のファイルをインポート用にキューに追加しました"
   },
   "trips": {
     "title": "旅行",

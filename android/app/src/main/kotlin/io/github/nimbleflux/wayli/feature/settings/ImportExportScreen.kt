@@ -106,9 +106,15 @@ class ImportExportViewModel @Inject constructor(
         }
     }
 
-    fun submitImport(
+    /**
+     * Queue an import job per picked file (#286). Each file uploads and
+     * submits independently — the backend already treats data-import jobs as
+     * per-file units (own dedupe, own duplicate-report session), so bulk
+     * selection is safe without a batch endpoint.
+     */
+    fun submitImports(
         context: Context,
-        uri: Uri,
+        uris: List<Uri>,
         includeLocation: Boolean,
         includeWantToVisit: Boolean,
         includeTrips: Boolean,
@@ -117,39 +123,52 @@ class ImportExportViewModel @Inject constructor(
         if (isDemo || _busy.value) return
         viewModelScope.launch(Dispatchers.IO) {
             _busy.value = true; _message.value = null
-            try {
-                val bytes = context.contentResolver.openInputStream(uri)?.readBytes()
-                    ?: throw Exception("Cannot read file")
-                val fileName = displayName(context, uri) ?: "import-${System.currentTimeMillis()}"
-                val format = detectImportFormat(fileName)
-                // Fitness files are beta-gated (same as web): refuse the upload
-                // while the opt-in is off instead of failing the job later.
-                if (format == "fit") {
-                    val betaOn = prefsRepo.getPreferences(uid)
-                        .getOrNull()?.let { prefsRepo.fitnessBetaOf(it) } == true
-                    if (!betaOn) {
-                        throw Exception("Fitness files need the Fitness beta — enable it in Preferences first.")
+            var betaOn: Boolean? = null
+            var ok = 0
+            val failures = mutableListOf<String>()
+            for (uri in uris) {
+                val fileName = runCatching { displayName(context, uri) }
+                    .getOrNull() ?: "import-${System.currentTimeMillis()}"
+                try {
+                    val bytes = context.contentResolver.openInputStream(uri)?.readBytes()
+                        ?: throw Exception("Cannot read file")
+                    val format = detectImportFormat(fileName)
+                    // Fitness files are beta-gated (same as web): refuse the upload
+                    // while the opt-in is off instead of failing the job later.
+                    if (format == "fit") {
+                        if (betaOn == null) {
+                            betaOn = prefsRepo.getPreferences(uid)
+                                .getOrNull()?.let { prefsRepo.fitnessBetaOf(it) } == true
+                        }
+                        if (betaOn != true) {
+                            throw Exception("Fitness files need the Fitness beta — enable it in Preferences first.")
+                        }
                     }
+                    val storagePath = "$uid/${System.currentTimeMillis()}-$fileName"
+                    client.storage.from("temp-files")
+                        .upload(path = storagePath, data = bytes, contentType = "application/octet-stream")
+                    val payload = mapOf<String, Any?>(
+                        "storagePath" to storagePath,
+                        "fileName" to fileName,
+                        "fileSize" to bytes.size.toLong(),
+                        "format" to format,
+                        "includeLocationData" to includeLocation,
+                        "includeWantToVisit" to includeWantToVisit,
+                        "includeTrips" to includeTrips,
+                    )
+                    val jobType = if (format == "polarsteps") "polarsteps-import" else "data-import"
+                    val res = client.jobs.submit(jobType, payload, SubmitJobOptions(namespace = "wayli"))
+                    if (res.data != null) ok++ else failures.add("$fileName: ${res.error?.message ?: "Import failed"}")
+                } catch (e: Exception) {
+                    failures.add("$fileName: ${e.message ?: "Import failed"}")
                 }
-                val storagePath = "$uid/${System.currentTimeMillis()}-$fileName"
-                client.storage.from("temp-files")
-                    .upload(path = storagePath, data = bytes, contentType = "application/octet-stream")
-                val payload = mapOf<String, Any?>(
-                    "storagePath" to storagePath,
-                    "fileName" to fileName,
-                    "fileSize" to bytes.size.toLong(),
-                    "format" to format,
-                    "includeLocationData" to includeLocation,
-                    "includeWantToVisit" to includeWantToVisit,
-                    "includeTrips" to includeTrips,
-                )
-                val jobType = if (format == "polarsteps") "polarsteps-import" else "data-import"
-                val res = client.jobs.submit(jobType, payload, SubmitJobOptions(namespace = "wayli"))
-                _message.value = if (res.data != null) "Import queued" else (res.error?.message ?: "Import failed")
-                loadHistory()
-            } catch (e: Exception) {
-                _message.value = e.message ?: "Import failed"
             }
+            _message.value = when {
+                failures.isEmpty() -> if (ok == 1) "Import queued" else "$ok imports queued"
+                ok > 0 -> "$ok of ${uris.size} imports queued — failures: " + failures.joinToString("; ")
+                else -> failures.first()
+            }
+            loadHistory()
             _busy.value = false
         }
     }
@@ -195,11 +214,13 @@ fun ImportExportScreen(
     var startDate by remember { mutableStateOf("") }
     var endDate by remember { mutableStateOf("") }
 
-    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            viewModel.submitImport(context, uri, incLocation, incWantToVisit, incTrips)
+    // #286: multi-select — every picked file becomes its own import job.
+    val importLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+            if (!uris.isNullOrEmpty()) {
+                viewModel.submitImports(context, uris, incLocation, incWantToVisit, incTrips)
+            }
         }
-    }
 
     SubScreenScaffold(title = "Import / Export", onBack = onBack) {
         // ---- Export ----
@@ -266,7 +287,7 @@ fun ImportExportScreen(
                 },
                 enabled = !viewModel.isDemo && !busy,
                 modifier = Modifier.fillMaxWidth().height(48.dp),
-            ) { Text(if (busy) "Working…" else "Choose file to import") }
+            ) { Text(if (busy) "Working…" else "Choose files to import") }
         }
 
         Spacer(Modifier.height(8.dp))

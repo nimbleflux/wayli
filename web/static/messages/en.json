@@ -648,6 +648,7 @@
     "detectedFormat": "Detected format: {format}",
     "importing": "Uploading...",
     "importDataButton": "Import data",
+    "importNDataButton": "Import {n} files",
     "uploadSuccessful": "Upload successful!",
     "importFailed": "Import failed",
     "exportDataButton": "Export data",
@@ -685,7 +686,8 @@
     "exportStarted": "Export started — you will be notified when it is ready.",
     "exportStartFailed": "Failed to start export. Please try again.",
     "fitDescription": "Garmin FIT activity file from sports watches and bike computers",
-    "fitBetaRequired": "Enable the Fitness beta in Account settings to import .fit files"
+    "fitBetaRequired": "Enable the Fitness beta in Account settings to import .fit files",
+    "bulkQueued": "Queued {ok} of {total} files for import"
   },
   "trips": {
     "title": "Trips",

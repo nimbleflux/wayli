@@ -648,6 +648,7 @@
     "detectedFormat": "Gedetecteerd formaat: {format}",
     "importing": "Uploaden...",
     "importDataButton": "Data importeren",
+    "importNDataButton": "{n} bestanden importeren",
     "uploadSuccessful": "Upload succesvol!",
     "importFailed": "Import mislukt",
     "exportDataButton": "Data exporteren",
@@ -685,7 +686,8 @@
     "polarstepsDescription": "Importeer ritten, journaalgegevens, GPS-gegevens en foto's uit een Polarsteps-export (.zip)",
     "subtitle": "Importeer of exporteer uw locatiegegevens",
     "fitDescription": "Garmin FIT-activiteitsbestand van sporthorloges en fietskompeters",
-    "fitBetaRequired": "Schakel de fitnessbèta in via Accountinstellingen om .fit-bestanden te importeren"
+    "fitBetaRequired": "Schakel de fitnessbèta in via Accountinstellingen om .fit-bestanden te importeren",
+    "bulkQueued": "{ok} van {total} bestanden in de wachtrij gezet"
   },
   "trips": {
     "title": "Reizen",

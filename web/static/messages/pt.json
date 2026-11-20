@@ -648,6 +648,7 @@
     "detectedFormat": "Formato detectado: {formato}",
     "importing": "Carregando...",
     "importDataButton": "Importar dados",
+    "importNDataButton": "Importar {n} arquivos",
     "uploadSuccessful": "Carregamento bem-sucedido!",
     "importFailed": "Falha na importação",
     "exportDataButton": "Exportar dados",
@@ -685,7 +686,8 @@
     "polarstepsDescription": "Importe viagens, entradas de diário, dados de GPS e fotos de uma exportação Polarsteps (.zip)",
     "subtitle": "Importe ou exporte seus dados de localização",
     "fitDescription": "Arquivo de atividade Garmin FIT de relógios desportivos e ciclocomputadores",
-    "fitBetaRequired": "Ativa a beta de Fitness nas definições de conta para importar ficheiros .fit"
+    "fitBetaRequired": "Ativa a beta de Fitness nas definições de conta para importar ficheiros .fit",
+    "bulkQueued": "{ok} de {total} arquivos na fila para importação"
   },
   "trips": {
     "title": "Viagens",

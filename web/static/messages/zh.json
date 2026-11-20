@@ -648,6 +648,7 @@
     "detectedFormat": "检测到的格式：{格式}",
     "importing": "正在上传...",
     "importDataButton": "导入数据",
+    "importNDataButton": "导入 {n} 个文件",
     "uploadSuccessful": "上传成功！",
     "importFailed": "导入失败",
     "exportDataButton": "导出数据",
@@ -685,7 +686,8 @@
     "polarstepsDescription": "从 Polarsteps 导出 (.zip) 导入行程、日记条目、GPS 数据和照片",
     "subtitle": "导入或导出您的位置数据",
     "fitDescription": "来自运动手表和码表的 Garmin FIT 活动文件",
-    "fitBetaRequired": "请在账户设置中启用健身测试版后才能导入 .fit 文件"
+    "fitBetaRequired": "请在账户设置中启用健身测试版后才能导入 .fit 文件",
+    "bulkQueued": "已将 {total} 个文件中的 {ok} 个加入导入队列"
   },
   "trips": {
     "title": "行程",

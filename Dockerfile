@@ -43,11 +43,27 @@ FROM debian:bookworm-slim AS production
 
 COPY --from=deno-bin /deno /usr/local/bin/deno
 
-# Install nginx and tools for health checks and Fluxbase CLI
+# Install nginx and tools for health checks and Fluxbase CLI.
+# nginx is pinned to the official nginx.org build rather than Debian's
+# bookworm package (1.22.1), which falls in the vulnerable range of the
+# HTTP/2 RCE CVE-2026-123007 (vulnerable: 1.9.5-1.31.8; fixed in
+# 1.30.7/1.31.9). The bundled config never enables http2/QUIC, but the
+# binary itself must not ship vulnerable. The signing key checksum is
+# verified the same way as the Fluxbase CLI download below.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    nginx wget bash curl ca-certificates && \
+        ca-certificates curl wget bash && \
+    curl -fsSLo /tmp/nginx_signing.key https://nginx.org/keys/nginx_signing.key && \
+    echo "55385da31d198fa6a5012d40ae98ecb272a6c4e8fffffba94719ffd3e87de37a  /tmp/nginx_signing.key" | sha256sum -c - && \
+    mkdir -p /etc/apt/keyrings && \
+    cp /tmp/nginx_signing.key /etc/apt/keyrings/nginx-archive-keyring.asc && \
+    echo "deb [signed-by=/etc/apt/keyrings/nginx-archive-keyring.asc] https://nginx.org/packages/debian bookworm nginx" \
+        > /etc/apt/sources.list.d/nginx.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends "nginx=1.30.7-1~bookworm" && \
+    rm -f /etc/nginx/conf.d/default.conf /tmp/nginx_signing.key && \
     rm -rf /var/lib/apt/lists/* && \
-    mkdir -p /run/nginx
+    mkdir -p /run/nginx && \
+    nginx -v
 
 # Install Fluxbase CLI for resource synchronization, pinned to
 # FLUXBASE_CLI_VERSION and verified against the SHA-256 sidecar the release

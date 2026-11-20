@@ -6,13 +6,13 @@
 	import { fluxbase } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 
 	// Use the reactive translation function
 	let t = $derived($translate);
 
 	// Get token from URL query parameters
-	let token = $derived($page.url.searchParams.get('token'));
+	let token = $derived(page.url.searchParams.get('token'));
 
 	let password = $state<string>('');
 	let confirmPassword = $state<string>('');

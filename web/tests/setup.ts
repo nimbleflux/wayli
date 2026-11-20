@@ -94,10 +94,19 @@ vi.mock('$app/navigation', () => ({
 	preloadCode: vi.fn()
 }));
 
-vi.mock('$app/stores', () => ({
-	page: { subscribe: vi.fn() },
-	navigating: { subscribe: vi.fn() },
-	updated: { subscribe: vi.fn() }
+// Kit 3: $app/stores became $app/state — plain reactive objects, not stores
+vi.mock('$app/state', () => ({
+	page: {
+		url: new URL('http://localhost/'),
+		params: {},
+		route: { id: null },
+		status: 200,
+		error: null,
+		data: {},
+		form: null
+	},
+	navigating: null,
+	updated: { check: () => Promise.resolve(false) }
 }));
 
 // Mock fetch

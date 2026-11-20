@@ -7,7 +7,7 @@
 	import { fluxbase } from '$lib/fluxbase';
 
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 
 	onMount(() => {
 		console.log('🔐 [AUTH] Page mounted');
@@ -20,7 +20,7 @@
 			if (user) {
 				// User is already authenticated, redirect to intended destination or default
 				const redirectTo = safeRedirectTo(
-					$page.url.searchParams.get('redirectTo'),
+					page.url.searchParams.get('redirectTo'),
 					'/dashboard/location-data'
 				);
 				console.log('🔄 [AUTH] REDIRECTING: User already authenticated, going to', redirectTo);
@@ -34,7 +34,7 @@
 			console.log('🔐 [AUTH] User store updated:', user ? `User: ${user.email}` : 'No user');
 			if (user) {
 				const redirectTo = safeRedirectTo(
-					$page.url.searchParams.get('redirectTo'),
+					page.url.searchParams.get('redirectTo'),
 					'/dashboard/location-data'
 				);
 				console.log('🔄 [AUTH] REDIRECTING: User authenticated, going to', redirectTo);

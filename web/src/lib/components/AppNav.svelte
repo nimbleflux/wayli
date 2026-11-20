@@ -33,7 +33,7 @@
 	import UserMenu from './UserMenu.svelte';
 
 	import { afterNavigate } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import { focusTrap } from '$lib/utils/focus-trap';
@@ -276,8 +276,8 @@
 					{#each navMain as item (item.href)}
 						<a
 							href={item.href}
-							class="flex min-h-[44px] cursor-pointer items-center rounded-md px-3 py-2.5 text-sm font-medium transition-colors {$page
-								.url.pathname === item.href || $page.url.pathname.startsWith(item.href + '/')
+							class="flex min-h-[44px] cursor-pointer items-center rounded-md px-3 py-2.5 text-sm font-medium transition-colors {page
+								.url.pathname === item.href || page.url.pathname.startsWith(item.href + '/')
 								? 'bg-primary text-primary-foreground'
 								: 'text-muted-foreground hover:bg-muted'}"
 							onclick={handleCloseSidebar}

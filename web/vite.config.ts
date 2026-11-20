@@ -1,3 +1,4 @@
+import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig, loadEnv } from 'vite';
@@ -27,7 +28,28 @@ export default defineConfig(({ mode }) => {
 	};
 
 	return {
-		plugins: [tailwindcss(), sveltekit()],
+		plugins: [
+			tailwindcss(),
+			// SvelteKit 3 moved kit config (formerly svelte.config.js) into the
+			// sveltekit() plugin options. trustedOrigins allows cross-origin form
+			// submissions from the configured production domains.
+			sveltekit({
+				// Kit 3 renamed $lib to #lib; keep the $lib alias so existing
+				// imports don't need a mechanical rewrite. (TODO: migrate to
+				// #lib in a dedicated cleanup.)
+				alias: { $lib: 'src/lib' },
+				adapter: adapter({
+					pages: 'build',
+					assets: 'build',
+					fallback: 'index.html',
+					precompress: false,
+					strict: false
+				}),
+				csrf: {
+					trustedOrigins: env.PUBLIC_TRUSTED_ORIGINS?.split(',') || []
+				}
+			})
+		],
 		define: {
 			// Only expose public environment variables to the client
 			// SECURITY: Never expose FLUXBASE_SERVICE_ROLE_KEY or FLUXBASE_BASE_URL to the client!

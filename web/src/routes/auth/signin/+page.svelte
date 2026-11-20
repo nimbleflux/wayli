@@ -11,7 +11,7 @@
 	import TwoFactorVerify from '$lib/components/TwoFactorVerify.svelte';
 
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 
 	// Use the reactive translation function
 	let t = $derived($translate);
@@ -35,7 +35,7 @@
 
 	function redirectToDashboard() {
 		if (hasRedirected) return;
-		const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/location-data';
+		const redirectTo = page.url.searchParams.get('redirectTo') || '/dashboard/location-data';
 		hasRedirected = true;
 		goto(redirectTo, { replaceState: true });
 	}
@@ -57,7 +57,7 @@
 
 			// Redirect if a session arrives while the page is open (e.g. via another tab).
 			unsubscribe = userStore.subscribe((user) => {
-				if (user && $page.url.pathname === '/auth/signin') {
+				if (user && page.url.pathname === '/auth/signin') {
 					redirectToDashboard();
 				}
 			});
@@ -92,7 +92,7 @@
 	async function signInWithOAuth(providerName: string) {
 		loading = true;
 		try {
-			const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/location-data';
+			const redirectTo = page.url.searchParams.get('redirectTo') || '/dashboard/location-data';
 			const redirectUri = `${window.location.origin}/auth/callback`;
 
 			// Store redirectTo for post-login navigation (SDK doesn't handle this)
@@ -234,8 +234,8 @@
 			// Wait for the auth state change to propagate, then redirect
 			setTimeout(() => {
 				// Check if we're still on the signin page
-				if ($page.url.pathname.startsWith('/auth/signin')) {
-					const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/location-data';
+				if (page.url.pathname.startsWith('/auth/signin')) {
+					const redirectTo = page.url.searchParams.get('redirectTo') || '/dashboard/location-data';
 					console.log('🔄 [SignIn] Redirecting after successful authentication to:', redirectTo);
 					goto(redirectTo, { replaceState: true });
 				}
@@ -274,7 +274,7 @@
 		sessionManager.recordLogin(rememberMe);
 
 		// Redirect to dashboard
-		const redirectTo = $page.url.searchParams.get('redirectTo') || '/dashboard/location-data';
+		const redirectTo = page.url.searchParams.get('redirectTo') || '/dashboard/location-data';
 		toast.success(t('auth.signedInSuccessfully'));
 		goto(redirectTo, { replaceState: true });
 	}

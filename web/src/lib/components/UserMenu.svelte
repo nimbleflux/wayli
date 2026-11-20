@@ -6,7 +6,7 @@
 
 	import { translate } from '$lib/i18n';
 	import { userStore } from '$lib/stores/auth';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import UserAvatar from '$lib/components/ui/UserAvatar.svelte';
 
 	let {
@@ -65,7 +65,7 @@
 	const displayEmail = $derived($userStore?.email || '');
 
 	function isActive(href: string): boolean {
-		return $page.url.pathname === href;
+		return page.url.pathname === href;
 	}
 </script>
 

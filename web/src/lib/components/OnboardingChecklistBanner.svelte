@@ -9,7 +9,7 @@
 	import { aiDrawer } from '$lib/stores/ai-drawer';
 	import type { ChecklistState } from '$lib/types/onboarding.types';
 
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 
 	let {
 		userId,
@@ -128,7 +128,7 @@
 
 	// Track route changes — only mark "visit" steps, not action steps
 	$effect(() => {
-		const pathname = $page.url.pathname;
+		const pathname = page.url.pathname;
 		if (shouldShow && pathname) {
 			// Only auto-complete steps that are genuinely "visit" actions.
 			// Steps like import-export and connections require actual user actions

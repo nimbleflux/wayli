@@ -8,26 +8,20 @@ vi.mock('@svelte-plugins/datepicker', async () => {
 	return { DatePicker: mod.default };
 });
 
-// Mock SvelteKit app stores
-vi.mock('$app/stores', async () => {
-	const { readable, writable } = await import('svelte/store');
-	return {
-		page: readable({
-			url: new URL('http://localhost/dashboard/location-data'),
-			params: {},
-			route: { id: '/dashboard/location-data' },
-			status: 200,
-			error: null,
-			data: {},
-			form: null
-		}),
-		navigating: readable(null),
-		updated: {
-			subscribe: readable(false).subscribe,
-			check: () => Promise.resolve(false)
-		}
-	};
-});
+// Mock SvelteKit app state (kit 3: $app/stores became $app/state)
+vi.mock('$app/state', () => ({
+	page: {
+		url: new URL('http://localhost/dashboard/location-data'),
+		params: {},
+		route: { id: '/dashboard/location-data' },
+		status: 200,
+		error: null,
+		data: {},
+		form: null
+	},
+	navigating: null,
+	updated: { check: () => Promise.resolve(false) }
+}));
 
 vi.mock('$lib/i18n', async () => {
 	const { readable } = await import('svelte/store');

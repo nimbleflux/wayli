@@ -13,8 +13,7 @@ export default defineConfig({
 			'**/*.worker.ts',
 			'**/node_modules/**',
 			'**/dist/**',
-			'**/.svelte-kit/**',
-			'svelte.config.js'
+			'**/.svelte-kit/**'
 		],
 		environment: 'jsdom',
 		setupFiles: ['./tests/setup.ts'],

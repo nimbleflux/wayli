@@ -1,5 +1,5 @@
 {
-	"extends": "./.svelte-kit/tsconfig.json",
+	"extends": "$app/tsconfig",
 	"compilerOptions": {
 		"checkJs": true,
 		"esModuleInterop": true,
@@ -12,7 +12,15 @@
 		"jsx": "preserve",
 		"jsxImportSource": "svelte"
 	},
-	"exclude": ["src/**/*.spec.ts", "src/**/*.test.ts", "tests/**/*.ts"]
+	"exclude": [
+		"src/service-worker.ts",
+		"src/service-worker/**/*.ts",
+		"src/service-worker.js",
+		"src/service-worker/**/*.js",
+		"src/**/*.spec.ts",
+		"src/**/*.test.ts",
+		"tests/**/*.ts"
+	]
 	// Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias
 	// except $lib which is handled by https://svelte.dev/docs/kit/configuration#files
 	//

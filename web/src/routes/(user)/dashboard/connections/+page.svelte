@@ -3,7 +3,7 @@
 	import { config } from '$lib/config';
 	import { toast } from 'svelte-sonner';
 	import { translate } from '$lib/i18n';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import { Database, Link, Copy, Check, RefreshCw, AlertTriangle, X, Loader2 } from 'lucide-svelte';
 	import Switch from '$lib/components/ui/Switch.svelte';

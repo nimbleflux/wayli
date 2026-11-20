@@ -12,7 +12,6 @@ export default defineConfig({
 			'**/node_modules/**',
 			'**/dist/**',
 			'**/.svelte-kit/**',
-			'svelte.config.js',
 			'src/**/*',
 			'**/*.config.*',
 			'**/vite.config.*'

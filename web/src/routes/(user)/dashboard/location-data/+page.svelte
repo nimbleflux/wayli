@@ -61,7 +61,7 @@
 	import type { Map as LeafletMap } from 'leaflet';
 	import { watchMapTheme, createBasemapLayer } from '$lib/utils/map-theme';
 	import { browser } from '$app/environment';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { SvelteDate } from 'svelte/reactivity';
 
 	// Use the reactive translation function
@@ -1688,9 +1688,9 @@
 		await initializeMap();
 
 		// Check for URL params first (e.g., from trip "Location Data" button)
-		const startParam = $page.url.searchParams.get('start');
-		const endParam = $page.url.searchParams.get('end');
-		const tripId = $page.url.searchParams.get('trip');
+		const startParam = page.url.searchParams.get('start');
+		const endParam = page.url.searchParams.get('end');
+		const tripId = page.url.searchParams.get('trip');
 
 		// Fetch trip title for breadcrumb if trip param is present
 		if (tripId) {
@@ -2090,7 +2090,7 @@
 			<a href="/dashboard/travel" class="hover:text-foreground">{t('common.navigation.travel')}</a>
 			<ChevronRight class="h-3.5 w-3.5 opacity-50" />
 			<a
-				href="/dashboard/travel?trip={$page.url.searchParams.get('trip')}"
+				href="/dashboard/travel?trip={page.url.searchParams.get('trip')}"
 				class="hover:text-foreground">{tripFilterTitle}</a
 			>
 			<ChevronRight class="h-3.5 w-3.5 opacity-50" />

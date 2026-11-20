@@ -82,3 +82,27 @@ export async function mapWithConcurrency<T, R>(
 	await Promise.all(workers);
 	return results;
 }
+
+/**
+ * Pick the newest processed row by `recorded_at`.
+ *
+ * The tracking notification shows the address of the NEWEST fix in the
+ * batch — not the last-completed geocode: points are geocoded with bounded
+ * concurrency and appended to the results array in completion order, so
+ * array position says nothing about recency and the Android notification
+ * could freeze on a stale address (#287).
+ */
+export function pickNewestProcessedPoint<T extends { recorded_at: string }>(
+	rows: readonly T[]
+): T | null {
+	let newest: T | null = null;
+	let newestMs = -Infinity;
+	for (const row of rows) {
+		const ms = Date.parse(row.recorded_at);
+		if (Number.isFinite(ms) && ms > newestMs) {
+			newest = row;
+			newestMs = ms;
+		}
+	}
+	return newest;
+}

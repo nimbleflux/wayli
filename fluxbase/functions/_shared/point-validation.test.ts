@@ -15,6 +15,7 @@ import {
 	rawPointTimestampMs,
 	MAX_POINTS_PER_REQUEST,
 	mapWithConcurrency,
+	pickNewestProcessedPoint,
 } from './point-validation.ts';
 
 const { test } = await import('node:test');
@@ -82,6 +83,40 @@ test('mapWithConcurrency propagates the failing item but runs all', async () => 
 test('batch cap constant is sane', () => {
 	assert.ok(MAX_POINTS_PER_REQUEST >= 100, 'must accept the app batch of 100');
 	assert.ok(MAX_POINTS_PER_REQUEST <= 5000, 'must not allow unbounded ingest');
+});
+
+test('pickNewestProcessedPoint selects by recorded_at, not array position (#287)', () => {
+	// Completion order from the bounded-concurrency mapper: an old fix that
+	// geocoded fast can sit AFTER the newest one in the array.
+	const rows = [
+		{ recorded_at: '2026-11-20T10:00:00.000Z', geocode: 'old-but-last-completed' },
+		{ recorded_at: '2026-11-20T09:59:00.000Z', geocode: 'older' },
+		{ recorded_at: '2026-11-20T10:05:00.000Z', geocode: 'newest' },
+	];
+	const newest = pickNewestProcessedPoint(rows);
+	assert.equal(newest?.geocode, 'newest');
+});
+
+test('pickNewestProcessedPoint returns null for empty and handles single row', () => {
+	assert.equal(pickNewestProcessedPoint([]), null);
+	const single = [{ recorded_at: '2026-11-20T10:00:00.000Z' }];
+	assert.deepEqual(pickNewestProcessedPoint(single), single[0]);
+});
+
+test('pickNewestProcessedPoint ignores unparsable timestamps', () => {
+	const rows = [
+		{ recorded_at: 'not-a-date', geocode: 'bad' },
+		{ recorded_at: '2026-11-20T10:00:00.000Z', geocode: 'good' },
+	];
+	assert.equal(pickNewestProcessedPoint(rows)?.geocode, 'good');
+});
+
+test('pickNewestProcessedPoint is stable for equal timestamps', () => {
+	const rows = [
+		{ recorded_at: '2026-11-20T10:00:00.000Z', geocode: 'first' },
+		{ recorded_at: '2026-11-20T10:00:00.000Z', geocode: 'second' },
+	];
+	assert.equal(pickNewestProcessedPoint(rows)?.geocode, 'first');
 });
 
 console.log('point-validation: all assertions passed');

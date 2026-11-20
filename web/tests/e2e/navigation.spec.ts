@@ -54,6 +54,11 @@ test.describe('Accessibility', () => {
 	test('forms should have proper labels', async ({ page }) => {
 		await page.goto('/auth/signup');
 
+		// The signup form only renders after the auth config loads (#289) —
+		// wait for the email field before counting inputs.
+		const emailInput = page.getByRole('textbox', { name: /email/i });
+		await expect(emailInput).toBeVisible();
+
 		// All inputs should have associated labels
 		const inputs = page.locator('input:not([type="hidden"])');
 		const inputCount = await inputs.count();
@@ -62,7 +67,6 @@ test.describe('Accessibility', () => {
 		expect(inputCount).toBeGreaterThanOrEqual(2);
 
 		// Email input should have label
-		const emailInput = page.getByRole('textbox', { name: /email/i });
 		await expect(emailInput).toBeVisible();
 	});
 

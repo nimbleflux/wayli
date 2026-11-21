@@ -13,6 +13,7 @@
 import { TripDetectionService } from '_shared/services/trip-detection.service';
 import { UserProfileService } from '_shared/services/user-profile.service';
 import { forwardGeocode } from '_shared/services/external/pelias.service';
+import { normalizeDateBound } from '_shared/utils/date-bound';
 
 import type { TripGenerationData, HomeAddress } from '_shared/types/trip-generation.types';
 import type { Location } from '_shared/services/trip-detection.service';
@@ -57,13 +58,35 @@ export async function handler(
 		const startTime = Date.now();
 
 		const {
-			startDate,
-			endDate,
+			startDate: rawStartDate,
+			endDate: rawEndDate,
 			useCustomHomeAddress,
 			customHomeAddress,
 			minTripDurationHours,
 			minDataPointsPerDay
 		} = payload;
+
+		// Accept epoch-millis numbers/numeric strings from clients and coerce
+		// them to ISO 8601 before any range validation or query use.
+		const startDate = normalizeDateBound(rawStartDate);
+		const endDate = normalizeDateBound(rawEndDate);
+		if (rawStartDate !== undefined && startDate === undefined) {
+			return {
+				success: false,
+				error: `startDate is not a valid date: ${JSON.stringify(rawStartDate)}`
+			};
+		}
+		if (rawEndDate !== undefined && endDate === undefined) {
+			return {
+				success: false,
+				error: `endDate is not a valid date: ${JSON.stringify(rawEndDate)}`
+			};
+		}
+		if (startDate || endDate) {
+			console.log(
+				`📅 Date bounds normalized: ${JSON.stringify(rawStartDate)} → ${startDate}, ${JSON.stringify(rawEndDate)} → ${endDate}`
+			);
+		}
 
 		// A one-sided range silently meant "start → tomorrow" downstream
 		// (detectTrips defaults endDate). Require both bounds or none. (#245)

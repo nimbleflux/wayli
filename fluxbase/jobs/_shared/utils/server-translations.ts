@@ -36,9 +36,17 @@ function getCwd(): string {
 	}
 }
 
-// Environment variable access
+// Environment variable access. The job sandbox grants an explicit env
+// allowlist and Deno.env.get THROWS NotCapable for unlisted names instead of
+// returning undefined (see pelias.service getRateLimit, #243) — an unguarded
+// read here crashed trip detection mid-run when generateTripTitle translated
+// its first title. Missing permission = unset.
 function getEnv(key: string): string | undefined {
-	return Deno.env.get(key);
+	try {
+		return Deno.env.get(key);
+	} catch {
+		return undefined;
+	}
 }
 
 // Cache for loaded translations

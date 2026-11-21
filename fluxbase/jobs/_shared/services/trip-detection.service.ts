@@ -476,8 +476,14 @@ export class TripDetectionService {
 
 			return trips;
 		} catch (error) {
+			// Rethrow instead of returning []: an empty result reported the job
+			// as a SUCCESS with "0 trips detected", which twice masked real
+			// failures (the geocode outage, the translation env crash) as
+			// working-but-empty runs. The trip-generation job fails visibly
+			// with the actual error, and the scheduled job's per-user catch
+			// skips just the affected user.
 			console.error('❌ Exception in detectTrips:', error);
-			return [];
+			throw error;
 		}
 	}
 

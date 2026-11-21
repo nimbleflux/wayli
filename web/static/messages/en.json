@@ -972,6 +972,8 @@
     "daysAgo": "{days}d ago"
   },
   "accountSettings": {
+    "disabledModesTitle": "Disabled modes",
+    "disabledModesHint": "Tap a mode to exclude it from transport detection. Disabled modes are skipped when detecting how you travelled.",
     "title": "Account settings",
     "profile": "Profile",
     "preferences": "Preferences",

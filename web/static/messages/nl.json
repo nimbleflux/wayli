@@ -972,6 +972,8 @@
     "daysAgo": "{days}d geleden"
   },
   "accountSettings": {
+    "disabledModesTitle": "Uitgeschakelde modi",
+    "disabledModesHint": "Tik op een modus om deze uit te sluiten van vervoersdetectie. Uitgeschakelde modi worden overgeslagen bij het bepalen hoe je reisde.",
     "title": "Gebruikersinstellingen",
     "profile": "Profiel",
     "preferences": "Voorkeuren",

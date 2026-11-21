@@ -972,6 +972,8 @@
     "daysAgo": "{days}天前"
   },
   "accountSettings": {
+    "disabledModesTitle": "已停用的出行方式",
+    "disabledModesHint": "点击出行方式可将其从交通方式检测中排除。已停用的出行方式在检测时会被跳过。",
     "title": "账户设置",
     "profile": "轮廓",
     "preferences": "偏好设置",

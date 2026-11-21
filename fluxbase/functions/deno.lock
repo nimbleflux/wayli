@@ -1,7 +1,7 @@
 {
   "version": "5",
   "specifiers": {
-    "npm:@nimbleflux/fluxbase-sdk@2026.10.2": "2026.10.2_esbuild@0.24.0",
+    "npm:@nimbleflux/fluxbase-sdk@2026.11.1": "2026.11.1_esbuild@0.24.0",
     "npm:cross-fetch@4.1.0": "4.1.0",
     "npm:esbuild@0.24.0": "0.24.0"
   },
@@ -126,8 +126,8 @@
       "os": ["win32"],
       "cpu": ["x64"]
     },
-    "@nimbleflux/fluxbase-sdk@2026.10.2_esbuild@0.24.0": {
-      "integrity": "sha512-hg15Ihs0TPFQEaiP2qmOYVhk6CwdcUqqbaKguF6tWhH0NdQrNfvnuznDUaDlTZofsWIDn/A78UVVs8adtc1tkw==",
+    "@nimbleflux/fluxbase-sdk@2026.11.1_esbuild@0.24.0": {
+      "integrity": "sha512-D4UHoe+YGXwlJr3tijdxNt9rVkkeVHdktSzIyZM7mTGDrLAJBQhWY25B1uw3Vyg1rR1t8tkhA/YLaxWJXWN7Fg==",
       "dependencies": [
         "cross-fetch",
         "esbuild"
@@ -139,8 +139,8 @@
         "esbuild"
       ]
     },
-    "@rollup/rollup-darwin-arm64@4.64.6": {
-      "integrity": "sha512-PQCl3q7b0BgvVt72i2xrWM6I5KliwwVe4GpWW5QDGyUQawDS9aPZss/aGyFqBmxdRxlE8wDc9CaxiQ5DHRSp/Q==",
+    "@rollup/rollup-darwin-arm64@4.68.8": {
+      "integrity": "sha512-YmBUNjgm5bsjOByO+H1TFbuGZe+ZnHcYtPXYj9+L1cwTu/BG8zjuUzO2PH9KwS85P0UH+WJDSb+mQ2hqjp5uBQ==",
       "os": ["darwin"],
       "cpu": ["arm64"]
     },
@@ -203,7 +203,7 @@
   },
   "workspace": {
     "dependencies": [
-      "npm:@nimbleflux/fluxbase-sdk@2026.10.2",
+      "npm:@nimbleflux/fluxbase-sdk@2026.11.1",
       "npm:cross-fetch@4.1.0"
     ]
   }

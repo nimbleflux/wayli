@@ -144,16 +144,29 @@ function getCountryName(code: string): string {
 // Helper function to get the Pexels API key
 // Uses the secrets object which is automatically available in edge functions
 // Falls back: user secret → system secret
+//
+// The probes are deliberately split with try/catch instead of using
+// secrets.get/getRequired: on runtimes with a scoped env allowlist, probing
+// getUser for a secret that isn't configured throws NotCapable (the name was
+// never injected, so it's not in --allow-env), and get()'s user→system
+// fallback never gets past the first probe. Only names that ARE configured
+// are injected and readable, so each probe throws exactly when that tier is
+// absent — catch it and fall through to the next tier.
 function getPexelsApiKey(): string | null {
 	try {
-		// secrets.getRequired throws if not found, secrets.get returns undefined
-		// Use getRequired for user→system fallback behavior
-		const pexelsKey = secrets.getRequired('pexels_api_key');
-		return pexelsKey;
-	} catch (error) {
-		logError('No Pexels API key available', 'TRIPS-SUGGEST-IMAGE');
-		return null;
+		const userKey = secrets.getUser('pexels_api_key');
+		if (userKey) return userKey;
+	} catch {
+		// No personal key configured — fall through to the system secret.
 	}
+	try {
+		const systemKey = secrets.getSystem('pexels_api_key');
+		if (systemKey) return systemKey;
+	} catch {
+		// No system key configured either.
+	}
+	logError('No Pexels API key available', 'TRIPS-SUGGEST-IMAGE');
+	return null;
 }
 
 // Helper function to get Pexels rate limit from settings SDK
@@ -226,8 +239,15 @@ async function handler(
 		// Determine rate limit: check user personal limit first, then fall back to server default
 		const rateLimitCheckStart = Date.now();
 
-		// Check if user has personal API key configured
-		const hasPersonalKey = secrets.getUser('pexels_api_key') !== undefined;
+		// Check if user has personal API key configured. The probe throws
+		// NotCapable on scoped-allowlist runtimes when no personal key is
+		// configured (its env name was never injected) — treat as absent.
+		let hasPersonalKey = false;
+		try {
+			hasPersonalKey = secrets.getUser('pexels_api_key') !== undefined;
+		} catch {
+			hasPersonalKey = false;
+		}
 
 		let maxRequestsPerHour: number = 0; // Default to no limit
 

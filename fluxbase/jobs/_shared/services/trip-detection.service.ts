@@ -322,7 +322,13 @@ export class TripDetectionService {
 				.lte('recorded_at', effectiveEndDate);
 
 			if (countError) {
+				// Failing to count the window must abort the run: proceeding with
+				// count = null silently degraded to "No data to process" and the
+				// job reported success with 0 trips (PGRST000, SQLSTATE 22008).
 				console.error(`❌ Error counting data points:`, countError);
+				throw new Error(
+					`Failed to count tracker data points: ${countError.message || JSON.stringify(countError)}`
+				);
 			}
 
 			const excludedMergedRanges = this.mergeDateRanges(excludedRanges);

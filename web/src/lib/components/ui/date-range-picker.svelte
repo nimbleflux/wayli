@@ -1,9 +1,9 @@
 <script lang="ts">
-import { DatePicker } from '@svelte-plugins/datepicker';
-import { format } from 'date-fns';
-import { onMount, tick } from 'svelte';
+	import { DatePicker } from '@svelte-plugins/datepicker';
+	import { format } from 'date-fns';
+	import { onMount, tick } from 'svelte';
 
-import { formatLocalDate } from '$lib/utils/utils';
+	import { formatLocalDate } from '$lib/utils/utils';
 
 	let {
 		startDate = $bindable(),
@@ -101,8 +101,7 @@ import { formatLocalDate } from '$lib/utils/utils';
 			if (pendingStart && pendingEnd) {
 				const start = formatLocalDate(pendingStart);
 				const end = formatLocalDate(pendingEnd);
-				const changed =
-					formatLocalDate(startDate) !== start || formatLocalDate(endDate) !== end;
+				const changed = formatLocalDate(startDate) !== start || formatLocalDate(endDate) !== end;
 				if (changed) {
 					startDate = start;
 					endDate = end;

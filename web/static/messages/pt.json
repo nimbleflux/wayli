@@ -972,6 +972,8 @@
     "daysAgo": "há {days}d"
   },
   "accountSettings": {
+    "disabledModesTitle": "Modos desativados",
+    "disabledModesHint": "Toque num modo para o excluir da deteção de transporte. Os modos desativados são ignorados na deteção.",
     "title": "Configurações de Conta",
     "profile": "Perfil",
     "preferences": "Preferências",

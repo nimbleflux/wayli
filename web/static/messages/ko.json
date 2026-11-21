@@ -972,6 +972,8 @@
     "daysAgo": "{days}일 전"
   },
   "accountSettings": {
+    "disabledModesTitle": "비활성화된 이동 수단",
+    "disabledModesHint": "이동 수단을 탭하면 교통수단 감지에서 제외됩니다. 비활성화된 이동 수단은 감지 시 건너뜁니다.",
     "title": "계정 설정",
     "profile": "윤곽",
     "preferences": "환경설정",

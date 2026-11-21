@@ -972,6 +972,8 @@
     "daysAgo": "{days}g fa"
   },
   "accountSettings": {
+    "disabledModesTitle": "Modi disattivati",
+    "disabledModesHint": "Tocca un modo per escluderlo dal rilevamento dei trasporti. I modi disattivati vengono ignorati durante il rilevamento.",
     "title": "Impostazioni dell'account",
     "profile": "Profilo",
     "preferences": "Preferenze",

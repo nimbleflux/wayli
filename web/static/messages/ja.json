@@ -972,6 +972,8 @@
     "daysAgo": "{days}日前"
   },
   "accountSettings": {
+    "disabledModesTitle": "無効にした移動手段",
+    "disabledModesHint": "移動手段をタップすると、交通手段の検出から除外されます。無効にした移動手段は検出の対象外になります。",
     "title": "アカウント設定",
     "profile": "プロフィール",
     "preferences": "設定",

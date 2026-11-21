@@ -972,6 +972,8 @@
     "daysAgo": "vor {days}d"
   },
   "accountSettings": {
+    "disabledModesTitle": "Deaktivierte Modi",
+    "disabledModesHint": "Tippe auf einen Modus, um ihn von der Verkehrsmittelerkennung auszuschließen. Deaktivierte Modi werden bei der Erkennung übersprungen.",
     "title": "Kontoeinstellungen",
     "profile": "Profil",
     "preferences": "Präferenzen",

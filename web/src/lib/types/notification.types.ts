@@ -6,7 +6,8 @@
  * transient ~60s job-state window. Lives in the `notifications` table
  * (owner-private via RLS).
  */
-export type NotificationType = 'job_completed' | 'job_failed' | 'job_cancelled' | 'trip_suggestion';
+export type NotificationType =
+	'job_completed' | 'job_failed' | 'job_cancelled' | 'trip_suggestion' | 'geocode_missing';
 
 export interface AppNotification {
 	id: string;

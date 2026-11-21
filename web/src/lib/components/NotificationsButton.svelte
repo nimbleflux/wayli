@@ -111,6 +111,7 @@
 			if (n.link) return Download;
 			return Check;
 		}
+		if (n.type === 'geocode_missing') return MapPin;
 		return Bell;
 	}
 

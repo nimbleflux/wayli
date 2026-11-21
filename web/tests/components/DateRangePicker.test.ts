@@ -2,6 +2,7 @@ import { render, fireEvent } from '@testing-library/svelte';
 import { describe, it, expect, vi } from 'vitest';
 
 import DateRangePicker from '$lib/components/ui/date-range-picker.svelte';
+import BindHarness from './DateRangePickerBindHarness.svelte';
 
 // #244: the calendar dropdown used to render position:absolute below the
 // trigger, so inside modals (overflow-y-auto panels) it was clipped. It must
@@ -119,5 +120,52 @@ describe('DateRangePicker dropdown positioning', () => {
 		await fireEvent.click(presets[0]);
 		await new Promise((r) => setTimeout(r, 0));
 		expect(onChange).toHaveBeenCalledTimes(1);
+	});
+});
+
+// The datepicker library normalizes its two-way bound props to epoch-millis
+// numbers; those used to propagate into parents and from there into the
+// trip-generation job payload, where raw millis in a recorded_at filter fail
+// with SQLSTATE 22008 (fluxbase PGRST000). Parents must only ever see
+// YYYY-MM-DD strings.
+describe('DateRangePicker bound values', () => {
+	it('hands parents YYYY-MM-DD strings in complete-the-range mode', async () => {
+		const { container, getByTestId } = render(BindHarness, {
+			props: { requireCompleteRange: true }
+		});
+
+		const wrapper = container.querySelector<HTMLElement>('.date-filter')!;
+		const trigger = wrapper.querySelector<HTMLButtonElement>('.date-field')!;
+		await fireEvent.click(trigger);
+		await new Promise((r) => setTimeout(r, 0));
+
+		const days = wrapper.querySelectorAll<HTMLElement>('button.date:not(.disabled)');
+		expect(days.length).toBeGreaterThan(10);
+		await fireEvent.click(days[4]);
+		await new Promise((r) => setTimeout(r, 0));
+		await fireEvent.click(days[9]);
+		await new Promise((r) => setTimeout(r, 0));
+
+		expect(getByTestId('bound-start').textContent).toMatch(/^str:\d{4}-\d{2}-\d{2}$/);
+		expect(getByTestId('bound-end').textContent).toMatch(/^str:\d{4}-\d{2}-\d{2}$/);
+	});
+
+	it('hands parents YYYY-MM-DD strings in immediate mode', async () => {
+		const { container, getByTestId } = render(BindHarness, { props: {} });
+
+		const wrapper = container.querySelector<HTMLElement>('.date-filter')!;
+		const trigger = wrapper.querySelector<HTMLButtonElement>('.date-field')!;
+		await fireEvent.click(trigger);
+		await new Promise((r) => setTimeout(r, 0));
+
+		const days = wrapper.querySelectorAll<HTMLElement>('button.date:not(.disabled)');
+		expect(days.length).toBeGreaterThan(10);
+		await fireEvent.click(days[4]);
+		await new Promise((r) => setTimeout(r, 0));
+		await fireEvent.click(days[9]);
+		await new Promise((r) => setTimeout(r, 0));
+
+		expect(getByTestId('bound-start').textContent).toMatch(/^str:\d{4}-\d{2}-\d{2}$/);
+		expect(getByTestId('bound-end').textContent).toMatch(/^str:\d{4}-\d{2}-\d{2}$/);
 	});
 });

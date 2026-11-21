@@ -1,7 +1,9 @@
 <script lang="ts">
-	import { DatePicker } from '@svelte-plugins/datepicker';
-	import { format } from 'date-fns';
-	import { onMount, tick } from 'svelte';
+import { DatePicker } from '@svelte-plugins/datepicker';
+import { format } from 'date-fns';
+import { onMount, tick } from 'svelte';
+
+import { formatLocalDate } from '$lib/utils/utils';
 
 	let {
 		startDate = $bindable(),
@@ -70,26 +72,53 @@
 	// trigger shows the picked start with an open end while selection is
 	// mid-flight. Modals unmount this component when closed, which resets the
 	// pending state between opens.
+	//
+	// The library is bound to the pending state in BOTH modes, never to the
+	// parent-visible props directly: it normalizes its bound props to
+	// epoch-millis numbers ($: startDate = getTimestamp(startDate)), so a
+	// direct bind kept rewriting raw millis into the bound props no matter
+	// what we assigned — and those millis leaked into job payloads and DB
+	// queries (recorded_at=gte.1787570863558 → SQLSTATE 22008, surfaced as
+	// fluxbase PGRST000). The two effects below bridge between the bound
+	// props and the pending state, so parents only ever see YYYY-MM-DD
+	// strings (formatLocalDate).
 	let pendingStart = $state<string | Date>('');
 	let pendingEnd = $state<string | Date>('');
 	let rangeAwaitingEnd = $derived(requireCompleteRange && !!pendingStart && !pendingEnd);
 
+	// Parent → library: parent-set/initial values (e.g. the 7d/30d/90d filter
+	// buttons) must show in the calendar.
 	$effect(() => {
-		if (!requireCompleteRange) return;
-		if (pendingStart && pendingEnd) {
-			const changed =
-				String(startDate ?? '') !== String(pendingStart) ||
-				String(endDate ?? '') !== String(pendingEnd);
-			if (changed) {
-				startDate = pendingStart;
-				endDate = pendingEnd;
+		pendingStart = formatLocalDate(startDate) || '';
+		pendingEnd = formatLocalDate(endDate) || '';
+	});
+
+	// Library → parent. In complete-the-range mode only a full range (or a
+	// cleared one) is ever propagated (#245); in immediate mode changes are
+	// mirrored as they happen, including a start-only first click.
+	$effect(() => {
+		if (requireCompleteRange) {
+			if (pendingStart && pendingEnd) {
+				const start = formatLocalDate(pendingStart);
+				const end = formatLocalDate(pendingEnd);
+				const changed =
+					formatLocalDate(startDate) !== start || formatLocalDate(endDate) !== end;
+				if (changed) {
+					startDate = start;
+					endDate = end;
+					handleChange();
+				}
+			} else if (!pendingStart && !pendingEnd && (startDate || endDate)) {
+				startDate = '';
+				endDate = '';
 				handleChange();
 			}
-		} else if (!pendingStart && !pendingEnd && (startDate || endDate)) {
-			startDate = '';
-			endDate = '';
-			handleChange();
+			return;
 		}
+		const start = formatLocalDate(pendingStart);
+		const end = formatLocalDate(pendingEnd);
+		if (formatLocalDate(startDate) !== start) startDate = start;
+		if (formatLocalDate(endDate) !== end) endDate = end;
 	});
 
 	// The library renders its calendar as `position: absolute` right below the
@@ -161,7 +190,7 @@
 		if (requireCompleteRange) {
 			pendingStart = value;
 		} else {
-			startDate = value;
+			startDate = formatLocalDate(value);
 			handleChange();
 		}
 	}
@@ -172,7 +201,7 @@
 		if (requireCompleteRange) {
 			pendingEnd = value;
 		} else {
-			endDate = value;
+			endDate = formatLocalDate(value);
 			handleChange();
 		}
 	}
@@ -189,14 +218,12 @@
 	// The library's change callback is `onDateChange` — it has no `onchange`
 	// prop, so passing one is silently ignored and parents never learn about
 	// calendar selections (#280). It fires once a complete range is picked
-	// (second day click) or a calendar preset is chosen; the first click of a
-	// range fires nothing, so parents never see a half-finished range here
-	// either. The event carries the picked values, so sync them into the
-	// bound props rather than relying on binding-propagation timing.
-	function handlePickerChange(event: { startDate?: string | Date; endDate?: string | Date }) {
-		if (event?.startDate != null) startDate = event.startDate;
-		if (event?.endDate != null) endDate = event.endDate;
-		handleChange();
+	// (second day click) or a calendar preset is chosen. Picked values reach
+	// parents through the pending bridge effect; in complete-the-range mode
+	// that effect also owns the onChange notification, so calling
+	// handleChange here too would fire it twice per completed range.
+	function handlePickerChange() {
+		if (!requireCompleteRange) handleChange();
 	}
 
 	function handleClearClick(event: MouseEvent) {
@@ -291,9 +318,9 @@
 		{/snippet}
 
 		{#if requireCompleteRange}
-			<!-- Propagation is driven by the pending-range $effect above, so the
-			     library callback must NOT also be wired here (it would fire
-			     onChange twice per completed range). -->
+			<!-- Propagation is driven by the pending-range $effect above; the
+			     library callback is wired in immediate mode only (see
+			     handlePickerChange). -->
 			<DatePicker
 				bind:isOpen
 				bind:startDate={pendingStart}
@@ -306,8 +333,8 @@
 		{:else}
 			<DatePicker
 				bind:isOpen
-				bind:startDate
-				bind:endDate
+				bind:startDate={pendingStart}
+				bind:endDate={pendingEnd}
 				isRange
 				showPresets
 				onDateChange={handlePickerChange}

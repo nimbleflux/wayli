@@ -129,8 +129,14 @@ export async function getPeliasEndpoint(fluxbase?: FluxbaseClient): Promise<stri
 		}
 	}
 
-	// Fallback: ENV → default
-	cachedEndpoint = getEnv('PELIAS_ENDPOINT') || DEFAULT_PELIAS_ENDPOINT;
+	// Fallback: ENV → default. The env read throws NotCapable when the job
+	// sandbox's explicit allowlist doesn't include the name (#243) — treat
+	// that like an unset variable and use the default endpoint.
+	try {
+		cachedEndpoint = getEnv('PELIAS_ENDPOINT') || DEFAULT_PELIAS_ENDPOINT;
+	} catch {
+		cachedEndpoint = DEFAULT_PELIAS_ENDPOINT;
+	}
 	return cachedEndpoint;
 }
 
@@ -150,7 +156,7 @@ const DEFAULT_RATE_LIMIT = 1000;
  * to DEFAULT_RATE_LIMIT.
  */
 let cachedRateLimit: number | null = null;
-function getRateLimit(): number {
+export function getRateLimit(): number {
 	if (cachedRateLimit !== null) return cachedRateLimit;
 	let raw: string | undefined;
 	try {

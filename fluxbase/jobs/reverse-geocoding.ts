@@ -11,7 +11,7 @@
  * @fluxbase:allow-env true
  */
 
-import { reverseGeocode } from '_shared/services/external/pelias.service';
+import { reverseGeocode, getRateLimit } from '_shared/services/external/pelias.service';
 import { convertCountryCode3to2 } from '_shared/types/geocoding.types';
 import {
 	getTimezoneDifferenceForPoint
@@ -23,20 +23,6 @@ import {
 } from '_shared/utils/geojson-converter';
 
 import type { FluxbaseClient, JobUtils } from './types';
-
-// Deno type declaration for environment access
-declare const Deno: { env: { get(key: string): string | undefined } } | undefined;
-
-// Safe environment access for both Deno and Node
-function getEnv(key: string): string | undefined {
-	if (typeof Deno !== 'undefined') {
-		return Deno.env.get(key);
-	}
-	if (typeof process !== 'undefined' && process.env) {
-		return process.env[key];
-	}
-	return undefined;
-}
 
 interface ReverseGeocodingPayload {
 	/** @deprecated Use onBehalfOf option in job submission instead */
@@ -161,8 +147,11 @@ export async function handler(
 		const modeLabel = forceMode ? ' (FORCE MODE)' : fillCountryCodesOnly ? ' (FILL COUNTRY CODES)' : '';
 		console.log(`🌍 Processing reverse geocoding job ${jobId}${modeLabel}`);
 
-		// Show rate limiting settings
-		const rateLimit = parseInt(getEnv('PELIAS_RATE_LIMIT') || '1000', 10);
+		// Show rate limiting settings. getRateLimit reads PELIAS_RATE_LIMIT
+		// defensively — the raw Deno.env.get used here threw NotCapable under
+		// the job sandbox's explicit env allowlist and killed the job before
+		// it geocoded a single point (#243 pattern).
+		const rateLimit = getRateLimit();
 		const rateLimitEnabled = rateLimit > 0;
 		const minInterval = rateLimit > 0 ? 1000 / rateLimit : 0;
 

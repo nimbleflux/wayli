@@ -1767,6 +1767,9 @@
     "viewPhoto": "Visualizza foto"
   },
   "travel": {
+    "onTripBanner": "Sei in viaggio: {title}",
+    "happeningNow": "In corso",
+    "view": "Visualizza",
     "addEntry": "Aggiungi voce",
     "approve": "Approvare",
     "approveAll": "Approva tutto",

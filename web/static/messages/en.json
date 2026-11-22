@@ -1684,6 +1684,9 @@
     "addPointFailed": "Failed to add point"
   },
   "travel": {
+    "onTripBanner": "You're on a trip: {title}",
+    "happeningNow": "Happening now",
+    "view": "View",
     "heading": "Travel",
     "newTrip": "New Trip",
     "suggestTrips": "Suggest Trips",

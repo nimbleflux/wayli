@@ -1767,6 +1767,9 @@
     "viewPhoto": "Посмотреть фото"
   },
   "travel": {
+    "onTripBanner": "Вы сейчас в поездке: {title}",
+    "happeningNow": "Идёт сейчас",
+    "view": "Открыть",
     "addEntry": "Добавить запись",
     "approve": "Утвердить",
     "approveAll": "Одобрить все",

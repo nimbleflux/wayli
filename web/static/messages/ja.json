@@ -1767,6 +1767,9 @@
     "viewPhoto": "写真を見る"
   },
   "travel": {
+    "onTripBanner": "旅行中：{title}",
+    "happeningNow": "進行中",
+    "view": "表示",
     "addEntry": "エントリの追加",
     "approve": "承認する",
     "approveAll": "すべて承認",

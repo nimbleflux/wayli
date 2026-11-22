@@ -19,7 +19,7 @@
 	import { aiDrawer, type PlanSuggestion } from '$lib/stores/ai-drawer';
 	import { renderMarkdown } from '$lib/utils/markdown';
 	import { storageRefToUrl } from '$lib/utils/inline-media';
-	import { formatLocalDate } from '$lib/utils/utils';
+	import { formatLocalDate, pickCurrentTrip } from '$lib/utils/utils';
 	import {
 		effectiveBlocks,
 		legacyBodyFromBlocks,
@@ -307,19 +307,8 @@
 
 	const pendingCount = $derived(pendingTrips.length);
 
-	// Issue #288: while the user is away, the daily trip job rolls a trip with
-	// status='active' and end_date = today (labels=['auto-ongoing']). Surface
-	// it as "on a trip now": the active trip that hasn't ended yet, latest
-	// first. end_date is a plain date (YYYY-MM-DD), so string comparison works.
-	const currentTrip = $derived.by(() => {
-		const now = new Date();
-		const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-		return (
-			trips
-				.filter((t) => t.status === 'active' && t.end_date >= today)
-				.sort((a, b) => (a.end_date < b.end_date ? 1 : -1))[0] ?? null
-		);
-	});
+	// Issue #288: surface the trip the user is on right now (see pickCurrentTrip)
+	const currentTrip = $derived(pickCurrentTrip(trips));
 
 	// Sync pending count to shared store for AppNav badge
 	$effect(() => {
@@ -452,7 +441,7 @@
 			const { data } = await fluxbase
 				.from('trips')
 				.select(
-					'id, title, description, start_date, end_date, image_url, visibility, status, labels, metadata'
+					'id, title, description, start_date, end_date, image_url, visibility, status, metadata'
 				)
 				.in('status', ['active', 'planned', 'completed'])
 				.order('start_date', { ascending: false });
@@ -1601,7 +1590,7 @@
 						<Navigation class="h-4 w-4 flex-shrink-0 text-emerald-500" />
 						<div class="min-w-0 flex-1">
 							<p class="text-foreground text-sm font-semibold">
-								You're on a trip: {currentTrip.title}
+								{t('travel.onTripBanner', { title: currentTrip.title })}
 							</p>
 							<p class="text-muted-foreground text-xs">
 								{new Date(currentTrip.start_date).toLocaleDateString(undefined, {
@@ -1621,7 +1610,7 @@
 							onclick={viewCurrentTrip}
 							class="rounded-lg bg-emerald-500 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-emerald-600"
 						>
-							View
+							{t('travel.view')}
 						</button>
 					</div>
 				{/if}
@@ -1841,7 +1830,7 @@
 												class="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400"
 											>
 												<Navigation class="h-2.5 w-2.5" />
-												Happening now
+												{t('travel.happeningNow')}
 											</span>
 										{/if}
 										<span class="flex items-center gap-1">

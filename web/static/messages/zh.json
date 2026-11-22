@@ -1767,6 +1767,9 @@
     "viewPhoto": "View photo"
   },
   "travel": {
+    "onTripBanner": "旅行进行中：{title}",
+    "happeningNow": "进行中",
+    "view": "查看",
     "addEntry": "添加条目",
     "approve": "批准",
     "approveAll": "批准全部",

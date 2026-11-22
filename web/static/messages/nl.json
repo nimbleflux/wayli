@@ -1767,6 +1767,9 @@
     "viewPhoto": "Bekijk foto"
   },
   "travel": {
+    "onTripBanner": "Je bent op reis: {title}",
+    "happeningNow": "Nu aan de gang",
+    "view": "Bekijken",
     "addEntry": "Invoer toevoegen",
     "approve": "Goedkeuren",
     "approveAll": "Alles goedkeuren",

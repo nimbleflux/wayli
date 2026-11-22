@@ -150,7 +150,10 @@
 			return;
 		}
 		isImporting = true;
-		let ok = 0;
+		// Bulk import (issue #286): queue one job per selected file. Files whose
+		// job submission fails stay selected so they can be retried without
+		// re-picking them; only the succeeded ones are cleared.
+		const failed: typeof selectedFiles = [];
 		try {
 			// Sequential submission: each import job kicks off post-import
 			// passes (watermark reset, distance RPC, geocoding) — feeding the
@@ -164,19 +167,22 @@
 						includeWantToVisit: true,
 						includeTrips: true
 					});
-					ok++;
 				} catch (error) {
 					console.error(`Import error for ${file.name}:`, error);
+					failed.push({ file, format });
 				}
 			}
-			if (ok === selectedFiles.length) {
+			const total = selectedFiles.length;
+			const ok = total - failed.length;
+			if (ok === total) {
 				toast.success(t('importExport.uploadSuccessful'));
 			} else if (ok > 0) {
-				toast.warning(t('importExport.bulkQueued', { ok, total: selectedFiles.length }));
+				toast.warning(t('importExport.bulkQueued', { ok, total }));
 			} else {
 				toast.error(t('importExport.importFailed'));
 			}
-			clearFiles();
+			selectedFiles = failed;
+			if (failed.length === 0 && fileInputEl) fileInputEl.value = '';
 		} finally {
 			isImporting = false;
 		}

@@ -31,6 +31,24 @@ export function formatLocalDate(date: Date | string | null | undefined): string 
 	return `${year}-${month}-${day}`;
 }
 
+/**
+ * The trip the user is currently on (issue #288): while the user is away, the
+ * daily trip job rolls a trip with status='active' and end_date = today
+ * (labels=['auto-ongoing']). Surface the active trip that hasn't ended yet,
+ * latest first. end_date is a plain date (YYYY-MM-DD), so string comparison
+ * works.
+ */
+export function pickCurrentTrip(
+	trips: Array<{ id: string; status: string; end_date: string }>,
+	today: string = formatLocalDate(new Date())
+): { id: string; status: string; end_date: string } | null {
+	return (
+		trips
+			.filter((t) => t.status === 'active' && t.end_date >= today)
+			.sort((a, b) => (a.end_date < b.end_date ? 1 : -1))[0] ?? null
+	);
+}
+
 // Haversine distance in meters between two lat/lng points
 export function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
 	const R = 6371000; // meters

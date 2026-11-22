@@ -1,7 +1,8 @@
 // Server-side translation utility for Deno runtime
 
+import { safeGetEnv } from './env';
+
 declare const Deno: {
-	env: { get(key: string): string | undefined };
 	readTextFileSync(path: string): string;
 	cwd(): string;
 };
@@ -36,18 +37,11 @@ function getCwd(): string {
 	}
 }
 
-// Environment variable access. The job sandbox grants an explicit env
-// allowlist and Deno.env.get THROWS NotCapable for unlisted names instead of
-// returning undefined (see pelias.service getRateLimit, #243) — an unguarded
-// read here crashed trip detection mid-run when generateTripTitle translated
-// its first title. Missing permission = unset.
-function getEnv(key: string): string | undefined {
-	try {
-		return Deno.env.get(key);
-	} catch {
-		return undefined;
-	}
-}
+// Environment access goes through safeGetEnv: the job sandbox grants an
+// explicit env allowlist and Deno.env.get THROWS NotCapable for unlisted
+// names (#243 pattern) — an unguarded read here crashed trip detection
+// mid-run when generateTripTitle translated its first title. Missing
+// permission = unset.
 
 // Cache for loaded translations
 let translationsCache: { [lang: string]: Translations } | null = null;
@@ -136,7 +130,7 @@ export function translateServer(
 		);
 	}
 
-	if (getEnv('NODE_ENV') !== 'production') {
+	if (safeGetEnv('NODE_ENV') !== 'production') {
 		console.log('[translateServer]', { key, template, params, result });
 	}
 	return result;

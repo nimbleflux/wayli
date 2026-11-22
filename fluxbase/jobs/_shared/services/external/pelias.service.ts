@@ -3,6 +3,7 @@
 import type { PeliasResponse, PeliasFeature, PeliasAddress } from '../../types/geocoding.types';
 import { convertCountryCode3to2 } from '../../types/geocoding.types';
 import type { FluxbaseClient } from '../../types';
+import { safeGetEnv } from '../../utils/env';
 
 /**
  * Nearby POI extracted from Pelias response
@@ -67,18 +68,9 @@ export interface PeliasSearchResponse {
 	[key: string]: unknown;
 }
 
-// Get environment variable in Deno
-declare const Deno: { env: { get(key: string): string | undefined } } | undefined;
-
-function getEnv(key: string): string | undefined {
-	if (typeof Deno !== 'undefined') {
-		return Deno.env.get(key);
-	}
-	if (typeof process !== 'undefined' && process.env) {
-		return process.env[key];
-	}
-	return undefined;
-}
+// Environment access goes through safeGetEnv (../../utils/env): the job
+// sandbox throws NotCapable for names outside its explicit allowlist
+// (#243 pattern) — treat that like an unset variable, never crash.
 
 // Initialize with default, will be lazy-loaded from DB on first use
 let cachedEndpoint: string | null = null;
@@ -129,14 +121,9 @@ export async function getPeliasEndpoint(fluxbase?: FluxbaseClient): Promise<stri
 		}
 	}
 
-	// Fallback: ENV → default. The env read throws NotCapable when the job
-	// sandbox's explicit allowlist doesn't include the name (#243) — treat
-	// that like an unset variable and use the default endpoint.
-	try {
-		cachedEndpoint = getEnv('PELIAS_ENDPOINT') || DEFAULT_PELIAS_ENDPOINT;
-	} catch {
-		cachedEndpoint = DEFAULT_PELIAS_ENDPOINT;
-	}
+	// Fallback: ENV → default. safeGetEnv treats the sandbox's NotCapable
+	// permission error (#243) like an unset variable and uses the default.
+	cachedEndpoint = safeGetEnv('PELIAS_ENDPOINT') || DEFAULT_PELIAS_ENDPOINT;
 	return cachedEndpoint;
 }
 
@@ -158,12 +145,7 @@ const DEFAULT_RATE_LIMIT = 1000;
 let cachedRateLimit: number | null = null;
 export function getRateLimit(): number {
 	if (cachedRateLimit !== null) return cachedRateLimit;
-	let raw: string | undefined;
-	try {
-		raw = getEnv('PELIAS_RATE_LIMIT');
-	} catch {
-		raw = undefined;
-	}
+	const raw = safeGetEnv('PELIAS_RATE_LIMIT');
 	const parsed = parseInt(raw || String(DEFAULT_RATE_LIMIT), 10);
 	cachedRateLimit = Number.isNaN(parsed) ? DEFAULT_RATE_LIMIT : parsed;
 	return cachedRateLimit;

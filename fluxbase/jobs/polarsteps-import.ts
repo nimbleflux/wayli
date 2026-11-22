@@ -16,6 +16,7 @@
 // @ts-types="npm:@types/jszip"
 import JSZip from 'npm:jszip@3.10.1';
 
+import { safeGetEnv } from '_shared/utils/env';
 import type { FluxbaseClient, JobUtils } from './types';
 
 interface PolarstepsLocation {
@@ -60,15 +61,10 @@ function safeReportProgress(job: JobUtils, percent: number, message: string): vo
 
 // Fix storage URLs: replace internal cluster address with public URL
 function publicStorageUrl(internalUrl: string): string {
-  // The job sandbox's env allowlist THROWS NotCapable on unlisted names
-  // (#243 pattern) — treat that like an unset variable and keep the
-  // internal URL rather than crashing the import.
-  let publicBase: string | undefined;
-  try {
-    publicBase = Deno.env.get('FLUXBASE_PUBLIC_BASE_URL');
-  } catch {
-    publicBase = undefined;
-  }
+  // safeGetEnv treats the sandbox's NotCapable permission error (#243
+  // pattern) like an unset variable and keeps the internal URL rather than
+  // crashing the import.
+  const publicBase = safeGetEnv('FLUXBASE_PUBLIC_BASE_URL');
   if (publicBase && internalUrl.includes('://')) {
     // Replace the host portion with the public base URL
     const url = new URL(internalUrl);

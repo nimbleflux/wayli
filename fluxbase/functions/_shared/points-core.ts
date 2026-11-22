@@ -550,7 +550,14 @@ export async function ingestPoints(
 
     // Process points and perform reverse geocoding synchronously
     // This ensures data is complete when inserted (takes longer but better data quality)
-    const processedPoints: Record<string, unknown>[] = [];
+    // The subset of a processed row that the insert/count/notification paths
+    // rely on. Geocode bodies come from the Pelias reverse response (typed
+    // loosely upstream), so only the fields read here are pinned down.
+    type ProcessedPointRow = {
+      recorded_at: string;
+      geocode: { properties?: { display_name?: string } } | null;
+    };
+    const processedPoints: ProcessedPointRow[] = [];
     const rejected: { index: number; reason: string }[] = [];
     const processPoint = async (point: any, index: number): Promise<void> => {
         try {
@@ -679,7 +686,7 @@ export async function ingestPoints(
         );
         return errorResponse(500);
       }
-      geocodedCount = processedPoints.filter((p) => (p as any).geocode !== null).length;
+      geocodedCount = processedPoints.filter((p) => p.geocode !== null).length;
       insertedCount = (insertedPoints as unknown[] | null)?.length || processedPoints.length;
 
       logSuccess('Points inserted successfully', logTag, {
@@ -706,7 +713,7 @@ export async function ingestPoints(
       // COMPLETION order, so the last element can be any point in the batch —
       // picking by array position froze the Android notification on a stale
       // address (#287). Pick by recorded_at instead.
-      const newest = pickNewestProcessedPoint(processedPoints as any[]) as any;
+      const newest = pickNewestProcessedPoint(processedPoints);
       const props = newest?.geocode?.properties;
       const address =
         typeof props?.display_name === 'string' && props.display_name.length > 0

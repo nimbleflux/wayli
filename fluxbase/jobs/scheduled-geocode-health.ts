@@ -79,11 +79,11 @@ export async function handler(
 			.range(offset, offset + USERS_RANGE - 1);
 		if (error) {
 			console.error('❌ Enumerate users failed:', error);
-			return { success: false, error: `Enumerate failed: ${(error as any).message}` };
+			return { success: false, error: `Enumerate failed: ${error.message}` };
 		}
 		if (!data || data.length === 0) break;
 		for (const row of data) {
-			const uid = (row as any).user_id;
+			const uid = typeof row.user_id === 'string' ? row.user_id : null;
 			if (uid) userIds.add(uid);
 		}
 		offset += USERS_RANGE;
@@ -111,7 +111,7 @@ export async function handler(
 				.select('recorded_at', { count: 'exact', head: true })
 				.eq('user_id', userId)
 				.gte('recorded_at', windowStart);
-			if (totalError) throw new Error((totalError as any).message);
+			if (totalError) throw new Error(totalError.message);
 			if (!total) continue;
 
 			const { count: missing, error: missingError } = await db
@@ -120,7 +120,7 @@ export async function handler(
 				.eq('user_id', userId)
 				.gte('recorded_at', windowStart)
 				.is('geocode', null);
-			if (missingError) throw new Error((missingError as any).message);
+			if (missingError) throw new Error(missingError.message);
 
 			const missingCount = missing ?? 0;
 			if (!shouldFlagGeocodeBacklog(total, missingCount, thresholds)) continue;

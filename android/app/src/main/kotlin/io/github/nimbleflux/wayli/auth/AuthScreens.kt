@@ -301,7 +301,11 @@ fun SignUpScreen(
     val providers by viewModel.oauth.collectAsState()
     val passwordEnabled by viewModel.passwordEnabled.collectAsState()
     val authConfigLoaded by viewModel.authConfigLoaded.collectAsState()
-    viewModel.loadOAuth()
+    // Match SignInScreen: skip the provider fetch while a deep link is pending
+    // (mid OAuth return), and don't fire from the composition body unguarded.
+    // loadOAuth() is idempotent internally, but the guard keeps the screens'
+    // contracts identical.
+    if (OAuthDeepLinkBus.uri.value == null) viewModel.loadOAuth()
 
     AuthScreenContainer {
         WayliLogoSmall()

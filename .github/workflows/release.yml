@@ -479,7 +479,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: '1.3.14'
+          bun-version: '1.4.4'
 
       - name: Install dependencies
         working-directory: web
@@ -582,7 +582,7 @@ jobs:
 
       - name: Create GitHub Release
         if: inputs.dry_run == false
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3
         with:
           tag_name: v${{ env.VERSION }}
           name: v${{ env.VERSION }}
@@ -613,19 +613,19 @@ jobs:
           ref: v${{ env.VERSION }}
 
       - name: Set up JDK 21
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6
         with:
           distribution: temurin
           java-version: '21'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         with:
           # NDK required by ndk.debugSymbolLevel (pinned in app/build.gradle.kts)
           packages: 'platform-tools platforms;android-37.0 build-tools;36.0.0 ndk;28.2.13676358'
 
       - name: Validate Gradle wrapper
-        uses: gradle/actions/wrapper-validation@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+        uses: gradle/actions/wrapper-validation@8da46b539cd8fe6ab27ca75128919a18d757604c # v6
 
       # fluxbase-kotlin resolves from GitHub Packages with the workflow token
       # (settings.gradle.kts reads GITHUB_ACTOR/GITHUB_TOKEN).
@@ -715,7 +715,7 @@ jobs:
           mv bundle/gplayRelease/app-gplay-release.aab "bundle/gplayRelease/wayli-${{ env.VERSION }}${ASSET_SUFFIX}-gplay.aab"
 
       - name: Attach APKs + AAB to GitHub Release
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3
         with:
           tag_name: v${{ env.VERSION }}
           files: |
@@ -755,7 +755,7 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -773,7 +773,7 @@ jobs:
 
   publish-docker-arm64:
     name: Build Docker Image (ARM64)
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 30
     needs: [get-version, release]
     if: inputs.dry_run == false && inputs.publish_docker
@@ -797,7 +797,7 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -827,7 +827,7 @@ jobs:
       IS_RC: ${{ needs.get-version.outputs.is_rc }}
     steps:
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -894,9 +894,9 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Install Helm
-        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5
         with:
-          version: v4.2.3
+          version: v4.3.2
 
       - name: Update chart dependencies
         run: |
@@ -957,7 +957,7 @@ jobs:
           helm package charts/wayli -d .cr-release-packages
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
